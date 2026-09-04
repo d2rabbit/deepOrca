@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-appearance="light">
+<head>
+<meta charset="UTF-8">
+<title>DeepOrca — 任务树设计稿 V2.1（Git Graph + 常开轨迹 + Git 绑定）</title>
+<!--
+  任务树 HTML 设计稿 V2.1
+
+  相对 V2 的变化（2026-09-01 用户反馈）：
+  · 轨迹常开：会话任务的完整轨迹（用户指令 → agent 行为流）直接展开在
+    节点下方，没有「收起」态 —— 「轨迹之类的就按照展开就好了」
+  · Git 绑定：任务产生/关联了 git 记录时，节点行显示 git 绑定徽章
+    （⎇ 分支 短hash — 提交主题）；fork 分支与 git 分支一一对应；
+    审查节点绑定其审查基线 commit；纯设计产物（无 git 记录）不显示
+  · graph 轨道按行的真实 DOM 位置对齐（trace 撑高后连线依然精确），
+    resize 自适应重画
+
+  参考目标：deepseek-ai/deepseek-harness 的 Session Event Log ——
+  user → turn/step 边界 → assistant → tool/call → tool/result；
+  subagent = 完整子级 Agent（轨迹嵌套）；MCP = 标注来源的工具提供者。
+
+  交互演示：① 明/暗切换 ② 域 pills 过滤（淡化非选中域）③ 点击节点 → 右侧详情
+-->
+<style>
+  :root {
+    --ui-bg: #eef2f7;
+    --ui-surface: #f7f9fc;
+    --ui-surface-raised: #ffffff;
+    --ui-surface-sunken: #eef1f6;
+    --ui-text: #1b2129;
+    --ui-text-dim: #55606d;
+    --ui-text-faint: #8590a0;
+    --ui-accent: #1c6fe0;
+    --ui-accent-soft: rgba(28, 111, 224, 0.10);
+    --ui-border: #c3cdd9;
+    --ui-border-soft: #dde3ec;
+    --shadow-card: 0 8px 28px rgba(20, 40, 80, 0.08);
+    --line-trunk: #9fb3cc;
+    --line-fork: #7048e8;
+    --dot-session: #1c6fe0;
+    --dot-review: #2f9e44;
+    --dot-index: #e8590c;
+    --dot-prototype: #be4bdb;
+    --dot-abandon: #adb5bd;
+    --git-fg: #d63865;
+    --git-bg: color-mix(in srgb, #d63865 11%, transparent);
+  }
+  :root[data-appearance="dark"] {
+    --ui-bg: #14171c;
+    --ui-surface: #1b1f26;
+    --ui-surface-raised: #22262e;
+    --ui-surface-sunken: #171a20;
+    --ui-text: #e6e9ef;
+    --ui-text-dim: #9aa5b3;
+    --ui-text-faint: #6b7686;
+    --ui-accent: #4d9aff;
+    --ui-accent-soft: rgba(77, 154, 255, 0.14);
+    --ui-border: #3a414d;
+    --ui-border-soft: #2b313b;
+    --shadow-card: 0 10px 32px rgba(0, 0, 0, 0.45);
+    --line-trunk: #46525f;
+    --line-fork: #9775fa;
+    --dot-session: #4d9aff;
+    --dot-review: #51cf66;
+    --dot-index: #ff922b;
+    --dot-prototype: #da77f2;
+    --dot-abandon: #6b7686;
+    --git-fg: #ff8ba0;
+    --git-bg: color-mix(in srgb, #ff8ba0 13%, transparent);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; height: 100vh; display: flex; flex-direction: column;
+    background: var(--ui-bg); color: var(--ui-text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    font-size: 13px; overflow: hidden;
+  }
+
+  .top {
+    display: flex; align-items: center; gap: 12px; padding: 10px 18px 8px; flex-wrap: wrap;
+    border-bottom: 1px solid var(--ui-border-soft); background: var(--ui-surface);
+  }
+  .top h1 { font-size: 15px; margin: 0; font-weight: 700; }
+  .top .ws { padding: 3px 12px; border-radius: 999px; background: var(--ui-accent-soft); color: var(--ui-accent); font-weight: 650; font-size: 12px; }
+  .top .gitws { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11px; color: var(--git-fg); }
+  .spacer { flex: 1; }
+  .pills { display: flex; gap: 6px; flex-wrap: wrap; }
+  .pill {
+    display: inline-flex; align-items: center; gap: 5px; padding: 3px 12px; border-radius: 999px;
+    border: 1px solid var(--ui-border); background: transparent; color: var(--ui-text-dim);
+    font-size: 12px; cursor: pointer; transition: all .13s ease;
+  }
+  .pill .sw { width: 8px; height: 8px; border-radius: 50%; }
+  .pill.on { background: var(--ui-accent-soft); border-color: var(--ui-accent); color: var(--ui-text); font-weight: 650; }
+  .theme { padding: 3px 12px; border-radius: 999px; border: 1px solid var(--ui-border); background: transparent; color: var(--ui-text-dim); cursor: pointer; font-size: 12px; }
+
+  .main { flex: 1; min-height: 0; display: flex; gap: 12px; padding: 12px 16px; }
+  .graph-pane {
+    flex: 1; min-width: 0; overflow: auto;
+    background: var(--ui-surface-raised); border: 1px solid var(--ui-border-soft);
+    border-radius: 14px; box-shadow: var(--shadow-card);
+    background-image: radial-gradient(color-mix(in srgb, var(--ui-text-faint) 28%, transparent) 1px, transparent 1.2px);
+    background-size: 22px 22px;
+  }
+  .graph-inner { position: relative; padding: 14px 16px 26px 8px; }
+  /* The 84px rail column is the GRAPH's exclusive territory — tracks live
+     there and can never overlap the content column (card + trace). */
+  .row { display: grid; grid-template-columns: 84px minmax(0, 1fr); align-items: stretch; }
+  .row:hover .card { background: var(--ui-accent-soft); }
+  .gcell { position: relative; }
+  .content { display: flex; flex-direction: column; min-width: 0; padding-left: 10px; }
+  .card {
+    display: flex; flex-direction: column; justify-content: center; gap: 3px;
+    padding: 8px 12px; border-radius: 10px; border: 1px solid transparent;
+    cursor: pointer; transition: background .12s ease, border-color .12s ease;
+    min-height: 56px; margin: 4px 0;
+  }
+  .card.sel { border-color: var(--ui-accent); background: var(--ui-accent-soft); }
+  .card .t { display: flex; align-items: center; gap: 7px; min-width: 0; flex-wrap: wrap; }
+  .card .name { font-weight: 650; font-size: 13px; }
+  .card .meta { font-size: 11.5px; color: var(--ui-text-dim); display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .chip { display: inline-flex; align-items: center; gap: 5px; padding: 1px 9px; border-radius: 999px; font-size: 10.5px; font-weight: 700; flex-shrink: 0; }
+  .chip.tag-review { color: var(--dot-review); background: color-mix(in srgb, var(--dot-review) 13%, transparent); }
+  .chip.tag-index { color: var(--dot-index); background: color-mix(in srgb, var(--dot-index) 13%, transparent); }
+  .chip.tag-prototype { color: var(--dot-prototype); background: color-mix(in srgb, var(--dot-prototype) 12%, transparent); }
+  .chip.tag-session { color: var(--dot-session); background: color-mix(in srgb, var(--dot-session) 12%, transparent); }
+  .chip.tag-fix { color: #f76707; background: color-mix(in srgb, #f76707 13%, transparent); }
+  .chip.st-running { color: var(--ui-accent); background: var(--ui-accent-soft); }
+  .chip.st-merged { color: var(--line-fork); background: color-mix(in srgb, var(--line-fork) 12%, transparent); }
+  .chip.st-abandoned { color: var(--ui-text-faint); background: color-mix(in srgb, var(--ui-text-faint) 14%, transparent); }
+  /* git binding badge（任务 ↔ git 记录）*/
+  .git-chip {
+    display: inline-flex; align-items: center; gap: 5px; padding: 1px 8px; border-radius: 6px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 10.5px; font-weight: 600;
+    color: var(--git-fg); background: var(--git-bg); flex-shrink: 0;
+  }
+  .git-chip .hash { opacity: .75; }
+  .tag { font-size: 10.5px; color: var(--ui-text-faint); }
+
+  .graph-pane.dim-session .row[data-domain="session"],
+  .graph-pane.dim-review .row[data-domain="review"],
+  .graph-pane.dim-index .row[data-domain="index"],
+  .graph-pane.dim-prototype .row[data-domain="prototype"],
+  .graph-pane.dim-session .trace[data-domain="session"],
+  .graph-pane.dim-review .trace[data-domain="review"],
+  .graph-pane.dim-index .trace[data-domain="index"],
+  .graph-pane.dim-prototype .trace[data-domain="prototype"] { opacity: 0.22; filter: saturate(0.2); }
+  .row, .trace { transition: opacity .15s ease, filter .15s ease; }
+
+  svg.tracks { position: absolute; left: 0; top: 0; pointer-events: none; overflow: visible; }
+  .edge { fill: none; stroke-width: 2; }
+  .edge.trunk { stroke: var(--line-trunk); }
+  .edge.fork { stroke: var(--line-fork); }
+  .edge.fork-abandoned { stroke: var(--line-fork); stroke-dasharray: 3 5; opacity: .45; }
+  .node { cursor: pointer; pointer-events: all; }
+  .node .halo { opacity: 0; transition: opacity .2s ease; }
+  .node:hover .halo, .node.sel .halo { opacity: 1; }
+  .node.running .pulse { animation: pulse 1.8s ease-out infinite; transform-origin: center; }
+  @keyframes pulse { 0% { opacity: .55; r: 10; } 100% { opacity: 0; r: 17; } }
+
+  /* ── trace drawer（常开 — 展开在行内容列内部，永不与 graph 轨道重叠）── */
+  .trace {
+    margin: 2px 0 12px; border: 1px solid var(--ui-border-soft);
+    border-radius: 12px; background: var(--ui-surface);
+    overflow: hidden;
+  }
+  .trace .tr-head {
+    display: flex; align-items: center; gap: 8px; padding: 7px 12px;
+    border-bottom: 1px solid var(--ui-border-soft); font-size: 11px; font-weight: 700;
+    color: var(--ui-text-dim); letter-spacing: .04em; text-transform: uppercase;
+    background: var(--ui-surface-sunken);
+  }
+  .trace .tr-body { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 12px; }
+  .turn { display: flex; flex-direction: column; gap: 6px; }
+  .turn-head {
+    display: flex; align-items: center; gap: 8px; font-size: 10.5px; font-weight: 700;
+    color: var(--ui-text-faint); letter-spacing: .05em; text-transform: uppercase;
+  }
+  .turn-head .ln { flex: 1; height: 0; border-top: 1px dashed var(--ui-border-soft); }
+  .user-msg {
+    display: flex; gap: 9px; padding: 8px 11px; border-radius: 10px;
+    background: var(--ui-accent-soft); border: 1px solid color-mix(in srgb, var(--ui-accent) 26%, transparent);
+  }
+  .user-msg .ic { flex-shrink: 0; }
+  .user-msg .who { font-size: 10.5px; font-weight: 700; color: var(--ui-accent); margin-bottom: 2px; }
+  .user-msg .txt { font-size: 12.5px; line-height: 1.45; }
+  .steps { display: flex; flex-direction: column; gap: 4px; padding-left: 6px; }
+  .step {
+    position: relative; display: flex; align-items: flex-start; gap: 9px;
+    padding: 5px 9px; border-radius: 8px; font-size: 12px; line-height: 1.4;
+  }
+  .step::before {
+    content: ""; position: absolute; left: 13px; top: 0; bottom: -4px;
+    width: 1.5px; background: var(--ui-border-soft);
+  }
+  .step:last-child::before { display: none; }
+  .step .ic {
+    width: 20px; height: 20px; border-radius: 6px; flex-shrink: 0; z-index: 1;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 11px; background: var(--ui-surface-raised); border: 1px solid var(--ui-border-soft);
+  }
+  .step .body { min-width: 0; flex: 1; }
+  .step .l1 { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+  .step .tool { font-weight: 700; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11.5px; }
+  .step .arg { color: var(--ui-text-dim); font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 60ch; }
+  .step .ms { margin-left: auto; font-size: 10.5px; color: var(--ui-text-faint); font-variant-numeric: tabular-nums; }
+  .step .ok { color: var(--dot-review); font-weight: 700; }
+  .step .fail { color: #e03131; font-weight: 700; }
+  .step.kind-assistant .body { color: var(--ui-text-dim); font-style: italic; }
+  .ic.t-bash { color: var(--dot-index); }
+  .ic.t-read { color: var(--ui-accent); }
+  .ic.t-write, .ic.t-edit { color: #f76707; }
+  .ic.t-skill { color: #be4bdb; }
+  .ic.t-web { color: #0ca678; }
+  .ic.t-mcp { color: #1098ad; }
+  .ic.t-agent { color: var(--line-fork); }
+  .ic.t-assistant { color: var(--ui-text-dim); }
+  .ic.t-question { color: #e64980; }
+  .subagent-block {
+    margin: 2px 0 2px 14px; border-left: 2.5px solid color-mix(in srgb, var(--line-fork) 55%, transparent);
+    border-radius: 0 10px 10px 0; background: color-mix(in srgb, var(--line-fork) 5%, transparent);
+    padding: 7px 10px 8px;
+  }
+  .subagent-block .sa-head { display: flex; align-items: center; gap: 7px; font-size: 11.5px; font-weight: 700; margin-bottom: 4px; }
+  .subagent-block .sa-head .purpose { color: var(--ui-text-dim); font-weight: 500; }
+  .subagent-block .steps { padding-left: 0; }
+  .mcp-badge {
+    display: inline-flex; padding: 0 6px; border-radius: 5px; font-size: 9.5px; font-weight: 700;
+    background: color-mix(in srgb, #1098ad 14%, transparent); color: #1098ad; vertical-align: 1px;
+  }
+  .trace .tr-git { margin-top: 10px; padding-top: 8px; border-top: 1px dashed var(--ui-border-soft); font-size: 11px; color: var(--ui-text-dim); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+  /* ── detail card ── */
+  .detail {
+    width: 312px; flex: none; overflow-y: auto;
+    background: var(--ui-surface-raised); border: 1px solid var(--ui-border-soft);
+    border-radius: 14px; box-shadow: var(--shadow-card); padding: 16px;
+  }
+  .detail .head { display: flex; align-items: center; gap: 9px; margin-bottom: 4px; }
+  .detail .glyph { width: 30px; height: 30px; border-radius: 9px; display: inline-flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; background: var(--ui-accent-soft); color: var(--ui-accent); }
+  .detail h2 { font-size: 14.5px; margin: 0; overflow-wrap: anywhere; }
+  .detail .sub { font-size: 11.5px; color: var(--ui-text-dim); margin: 2px 0 12px; }
+  .drow { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; font-size: 12.5px; }
+  .drow .k { color: var(--ui-text-dim); flex-shrink: 0; }
+  .dsec { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--ui-border-soft); }
+  .dsec .hd { font-size: 10.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--ui-text-faint); margin-bottom: 6px; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  .btn {
+    padding: 5px 14px; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer;
+    border: 1px solid color-mix(in srgb, var(--ui-accent) 38%, var(--ui-border-soft));
+    background: var(--ui-accent-soft); color: var(--ui-text);
+  }
+  .btn:hover { background: color-mix(in srgb, var(--ui-accent) 18%, transparent); }
+
+  .legend { display: flex; gap: 14px; padding: 8px 18px 2px; font-size: 11px; color: var(--ui-text-dim); flex-wrap: wrap; align-items: center; }
+  .legend .it { display: inline-flex; align-items: center; gap: 6px; }
+  .legend .sw { width: 10px; height: 10px; }
+  .legend .sw.round { border-radius: 50%; }
+  .legend .sw.diamond { transform: rotate(45deg); border-radius: 2px; }
+  .legend .sw.ring { border-radius: 50%; background: var(--ui-surface-raised); border: 2px solid var(--line-fork); }
+  .legend .ln { width: 18px; height: 0; border-top: 2px solid var(--line-fork); display: inline-block; }
+  .legend .ln.dash { border-top-style: dashed; opacity: .5; }
+</style>
+</head>
+<body>
+  <div class="top">
+    <h1>任务树</h1>
+    <span class="ws">● GVGL</span>
+    <span class="gitws">⎇ refactor/login-token · ahead 2</span>
+    <span class="spacer"></span>
+    <div class="pills" id="pills"></div>
+    <button class="theme" onclick="toggleTheme()">Appearance</button>
+  </div>
+
+  <div class="legend">
+    <span class="it"><span class="sw round" style="background:var(--dot-session)"></span>会话主任务</span>
+    <span class="it"><span class="sw ring"></span>fork 分支（↔ git 分支）</span>
+    <span class="it"><span class="sw diamond" style="background:var(--dot-review)"></span>伴随任务（前置 tag）</span>
+    <span class="it"><span class="ln"></span>merge 汇入</span>
+    <span class="it"><span class="ln dash"></span>abandoned 渐隐</span>
+    <span class="it"><span class="git-chip">⎇ <span class="hash">a2c1e9f</span></span>git 绑定（存在 git 记录时）</span>
+  </div>
+
+  <div class="main">
+    <div class="graph-pane" id="pane">
+      <div class="graph-inner" id="graph"></div>
+    </div>
+    <aside class="detail" id="detail"></aside>
+  </div>
+
+<script>
+"use strict";
+/* demo data: newest first。
+   git = 任务关联的 git 记录（存在才显示绑定徽章）：
+     { branch?, hash, subject } — 会话任务合入的提交 / 审查的基线 / fork 对应分支。 */
+const TASKS = [
+  { id: "fix1", lane: 0, domain: "review", shape: "event", tag: "fix", title: "修复 · 审查意见 #2：token 过期未刷新",
+    time: "3 分钟前", status: "done",
+    git: { branch: "fix/a2c1e9f", hash: "a2c1e9f", subject: "fix(auth): refresh expiry constant" },
+    meta: ["来源：审查 r3 的一键修复"] },
+  { id: "r3", lane: 0, domain: "review", shape: "event", tag: "review", title: "代码审查 · 未提交变更",
+    time: "8 分钟前", status: "done",
+    git: { hash: "3f2a1bc", subject: "审查基线 HEAD" },
+    meta: ["5 项意见 · 2 个文件", "范围：未提交变更"] },
+  { id: "treeB", lane: 0, domain: "session", shape: "session", title: "主任务 · 登录模块重构",
+    time: "1 小时前", status: "running", hasTrace: true, traceTitle: "登录模块重构",
+    git: { branch: "refactor/login-token", hash: "8be12d4", subject: "feat(auth): httpOnly cookie storage" },
+    meta: ["活跃分支 2 · 节点 9"] },
+  { id: "fC", lane: 2, domain: "session", shape: "fork", title: "⑂ fork C · A2 布局方案",
+    time: "50 分钟前", status: "abandoned", forkOf: "treeB",
+    git: { branch: "fork/a2-layout" },
+    meta: ["记忆种子 ✦ 相似度 0.82", "已放弃 · 快照保留"] },
+  { id: "ui1", lane: 0, domain: "prototype", shape: "event", tag: "ui-design", title: "UI 设计 · 登录页视觉稿",
+    time: "2 小时前", status: "done", meta: ["pipeline: dd · 3 张候选", "纯设计产物 · 无 git 记录"] },
+  { id: "pm1", lane: 0, domain: "prototype", shape: "event", tag: "pm-design", title: "PM 设计 · 登录需求文档",
+    time: "3 小时前", status: "done", meta: ["pipeline: spec · spec-12", "纯设计产物 · 无 git 记录"] },
+  { id: "fB", lane: 1, domain: "session", shape: "fork", title: "⑂ fork B · 记忆驱动分支",
+    time: "3 小时前", status: "merged", forkOf: "treeB", mergedInto: "treeB", hasTrace: true, traceTitle: "记忆驱动分支",
+    git: { branch: "fork/memory-tdd", hash: "c9d21e0", subject: "test(auth): contract-first specs" },
+    meta: ["记忆种子 ✦ 相似度 0.91", "已合并回主干 · cherry-pick 2 节点"] },
+  { id: "j2", lane: 0, domain: "index", shape: "event", tag: "index", title: "索引与知识构建 · 更新",
+    time: "4 小时前", status: "done",
+    git: { hash: "8be12d4~2", subject: "构建时基线" },
+    meta: ["codegraph ✓ · wiki ✓ · arch ✓", "耗时 6m12s"] },
+  { id: "treeA", lane: 0, domain: "session", shape: "session", title: "主任务 · API 网关接入",
+    time: "昨天", status: "done",
+    git: { branch: "main", hash: "1f9c77a", subject: "feat(gateway): rate limiting" },
+    meta: ["活跃分支 1 · 节点 14"] },
+  { id: "fA", lane: 1, domain: "session", shape: "fork", title: "⑂ fork A · 重试策略实验",
+    time: "昨天", status: "merged", forkOf: "treeA", mergedInto: "treeA",
+    git: { branch: "fork/retry-exp", hash: "77b3e12", subject: "feat(gateway): exponential backoff" },
+    meta: ["已合并回主干 · cherry-pick 1 节点"] },
+  { id: "r1", lane: 0, domain: "review", shape: "event", tag: "review", title: "代码审查 · 单个提交 HEAD",
+    time: "昨天", status: "done",
+    git: { hash: "1f9c77a", subject: "审查对象" },
+    meta: ["12 项意见 · 5 个文件"] },
+  { id: "j1", lane: 0, domain: "index", shape: "event", tag: "index", title: "索引与知识构建 · 初始化",
+    time: "2 天前", status: "done", meta: ["codegraph ✓ · wiki ✓ · arch ✓", "耗时 14m03s"] },
+];
+
+const TRACES = {
+  treeB: [
+    {
+      user: "重构登录模块：token 存储改用 httpOnly cookie，补齐单测，跑通 CI",
+      at: "14:02",
+      steps: [
+        { ic: "🧠", cls: "t-assistant", tool: "thinking", arg: "拆解：token 存储 / cookie 配置 / 测试补齐 / CI 验证" },
+        { ic: "📖", cls: "t-read", tool: "read", arg: "src/auth/token.ts (L1-120)", ms: "0.2s", ok: true },
+        { ic: "✏️", cls: "t-write", tool: "edit", arg: "src/auth/token.ts  +38 −12", ms: "0.4s", ok: true },
+        { ic: "🧩", cls: "t-skill", tool: "skill", arg: "karpathy-guidelines（注入编码规范）", ms: "0.1s", ok: true },
+        { ic: "🔎", cls: "t-web", tool: "WebSearch", arg: "httpOnly cookie refresh token best practices", ms: "2.1s", ok: true },
+        {
+          ic: "🤖", cls: "t-agent", tool: "subagent", arg: "code-reviewer — 审查登录改动（独立 agent 循环）", nested: [
+            { ic: "📖", cls: "t-read", tool: "read", arg: "src/auth/login.ts", ms: "0.3s", ok: true },
+            { ic: "⌨️", cls: "t-bash", tool: "bash", arg: "pnpm lint --filter auth", ms: "8.9s", ok: true },
+            { ic: "🧠", cls: "t-assistant", tool: "assistant", arg: "「2 处建议：过期阈值提取为常量；refresh 路径补 case」" },
+          ],
+        },
+        { ic: "🔌", cls: "t-mcp", tool: "create_pull_request", mcp: "github", arg: "branch: refactor/login-token", ms: "3.8s", ok: true },
+        { ic: "💬", cls: "t-assistant", tool: "assistant", arg: "重构完成 → 提交 8be12d4 到 refactor/login-token，PR #42 已创建" },
+      ],
+    },
+    {
+      user: "CI 挂了，看下原因修一下",
+      at: "14:31",
+      steps: [
+        { ic: "⌨️", cls: "t-bash", tool: "bash", arg: "pnpm test --filter auth  → 1 failed (refresh expiry)", ms: "12.4s", fail: true },
+        { ic: "✏️", cls: "t-write", tool: "edit", arg: "src/auth/token.test.ts  +9 −2", ms: "0.3s", ok: true },
+        { ic: "⌨️", cls: "t-bash", tool: "bash", arg: "pnpm test --filter auth  → 42 passed", ms: "11.8s", ok: true },
+        { ic: "❓", cls: "t-question", tool: "AskUserQuestion", arg: "「顺手把过期阈值提为常量？」 → 选项：是 / 否", ms: "—", ok: true },
+        { ic: "💬", cls: "t-assistant", tool: "assistant", arg: "已修复并推送，CI 恢复绿色 ✓" },
+      ],
+    },
+  ],
+  fB: [
+    {
+      user: "（记忆种子播种）试试上次的方案：先写契约测试再动实现",
+      at: "13:20",
+      steps: [
+        { ic: "🧠", cls: "t-assistant", tool: "thinking", arg: "继承摘要：上次 auth 实验 TDD 顺序有效" },
+        { ic: "✏️", cls: "t-write", tool: "edit", arg: "src/auth/contract.test.ts  +54", ms: "0.5s", ok: true },
+        { ic: "⌨️", cls: "t-bash", tool: "bash", arg: "pnpm test  → 12 passed", ms: "9.6s", ok: true },
+        { ic: "💬", cls: "t-assistant", tool: "assistant", arg: "契约先行完成（c9d21e0），产线实现可直接对齐" },
+      ],
+    },
+  ],
+};
+
+/* ── render rows（trace 常开：会话任务节点下直接跟随完整轨迹）── */
+const graph = document.getElementById("graph");
+const rowEls = []; // { el, taskId }
+
+function gitChip(git) {
+  if (!git) return "";
+  const head = git.branch ? `⎇ ${git.branch} ` : "⎇ ";
+  return `<span class="git-chip" title="${git.subject || ""}">${head}<span class="hash">${git.hash}</span></span>`;
+}
+
+TASKS.forEach((t) => {
+  const row = document.createElement("div");
+  row.className = "row"; row.dataset.domain = t.domain;
+  const cell = document.createElement("div"); cell.className = "gcell";
+  const content = document.createElement("div"); content.className = "content";
+  const card = document.createElement("div"); card.className = "card"; card.id = `card-${t.id}`;
+  const chipCls = t.shape === "fork" ? "tag-session" : `tag-${t.domain}`;
+  const tagLabel = t.tag ? t.tag.toUpperCase() : t.shape === "fork" ? "FORK" : t.domain.toUpperCase();
+  card.innerHTML = `
+    <div class="t">
+      <span class="chip ${chipCls}">${tagLabel}</span>
+      <span class="name">${t.title}</span>
+      ${t.status === "running" ? '<span class="chip st-running">进行中</span>' : ""}
+      ${t.status === "merged" ? '<span class="chip st-merged">已合并</span>' : ""}
+      ${t.status === "abandoned" ? '<span class="chip st-abandoned">已放弃</span>' : ""}
+    </div>
+    <div class="meta">
+      ${gitChip(t.git)}
+      ${(t.meta || []).map((m) => `<span>${m}</span>`).join("")}
+      <span class="tag">${t.time}</span>
+    </div>`;
+  card.addEventListener("click", () => select(t));
+  content.appendChild(card);
+  if (t.hasTrace) {
+    // 常开：trace lives INSIDE the row's content column — the 84px graph
+    // rail stays the tracks' exclusive territory, so lines can never
+    // overlap the timeline.
+    const trace = document.createElement("div");
+    trace.className = "trace"; trace.dataset.domain = t.domain; trace.dataset.for = t.id;
+    trace.innerHTML = traceHtml(t.traceTitle, TRACES[t.id] || []);
+    content.appendChild(trace);
+  }
+  row.appendChild(cell); row.appendChild(content);
+  graph.appendChild(row);
+  rowEls.push({ el: row, t });
+});
+
+/* ── svg tracks：按行的真实 DOM 位置对齐（trace 撑高不影响连线）── */
+const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+svg.setAttribute("class", "tracks");
+graph.appendChild(svg);
+
+const cardOf = (id) => document.getElementById(`card-${id}`);
+function nodeCenter(el) {
+  // node dot aligns with the card's title line (≈24px below card top)
+  const r = el.getBoundingClientRect();
+  const g = graph.getBoundingClientRect();
+  return { x: r.left - g.left, y: r.top - g.top + 26 };
+}
+function laneX(lane) {
+  // keep every lane inside the 84px rail: 28 / 52 / 76
+  return 28 + lane * 24;
+}
+function layoutGraph() {
+  svg.innerHTML = "";
+  const W = 90;
+  const H = graph.scrollHeight;
+  svg.setAttribute("width", W); svg.setAttribute("height", H);
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  const RAIL_MAX = 78; // hard clamp — tracks never leave the rail column
+  const C = (t) => ({ x: Math.min(laneX(t.lane), RAIL_MAX), y: nodeCenter(cardOf(t.id)).y });
+
+  function edge(d, cls) {
+    const p = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    p.setAttribute("d", d); p.setAttribute("class", `edge ${cls}`);
+    svg.appendChild(p);
+  }
+  // trunk
+  let prev = null;
+  TASKS.forEach((t) => {
+    if (t.lane !== 0) return;
+    if (prev) { const a = C(prev), b = C(t); edge(`M ${a.x} ${a.y} L ${b.x} ${b.y}`, "trunk"); }
+    prev = t;
+  });
+  // forks
+  TASKS.forEach((t) => {
+    if (t.shape !== "fork") return;
+    const p = N(t.forkOf);
+    const a = C(p), b = C(t);
+    edge(`M ${a.x + 8} ${a.y} C ${b.x} ${a.y - 6}, ${b.x} ${b.y + 10}, ${b.x} ${b.y - 8}`, "fork");
+    if (t.status === "merged" && t.mergedInto) {
+      const m = C(N(t.mergedInto));
+      edge(`M ${b.x} ${b.y + 8} C ${b.x} ${m.y - 14}, ${m.x + 12} ${m.y - 6}, ${m.x + 9} ${m.y}`, "fork");
+    } else if (t.status === "abandoned") {
+      edge(`M ${b.x} ${b.y + 8} L ${b.x} ${b.y + 30}`, "fork-abandoned");
+    }
+  });
+  // nodes
+  TASKS.forEach((t) => {
+    const p = C(t);
+    const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    g.setAttribute("class", `node${t.status === "running" ? " running" : ""}`);
+    const color = t.shape === "fork" ? (t.status === "abandoned" ? "var(--dot-abandon)" : "var(--line-fork)") : `var(--dot-${t.domain})`;
+    if (t.status === "running") {
+      const pulse = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      pulse.setAttribute("class", "pulse"); pulse.setAttribute("cx", p.x); pulse.setAttribute("cy", p.y);
+      pulse.setAttribute("r", 10); pulse.setAttribute("fill", "var(--dot-session)");
+      g.appendChild(pulse);
+    }
+    const halo = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    halo.setAttribute("class", "halo"); halo.setAttribute("cx", p.x); halo.setAttribute("cy", p.y);
+    halo.setAttribute("r", 12); halo.setAttribute("fill", "none");
+    halo.setAttribute("stroke", "var(--ui-accent)"); halo.setAttribute("stroke-width", 1.6);
+    g.appendChild(halo);
+    if (t.shape === "event") {
+      const d = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+      const s = 8.4;
+      d.setAttribute("x", p.x - s / 2); d.setAttribute("y", p.y - s / 2);
+      d.setAttribute("width", s); d.setAttribute("height", s); d.setAttribute("rx", 1.6);
+      d.setAttribute("transform", `rotate(45 ${p.x} ${p.y})`);
+      d.setAttribute("fill", color); d.setAttribute("stroke", "var(--ui-surface-raised)"); d.setAttribute("stroke-width", 1.6);
+      g.appendChild(d);
+    } else {
+      const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      c.setAttribute("cx", p.x); c.setAttribute("cy", p.y); c.setAttribute("r", t.shape === "session" ? 7 : 6);
+      c.setAttribute("fill", "var(--ui-surface-raised)"); c.setAttribute("stroke", color);
+      c.setAttribute("stroke-width", t.shape === "session" ? 3 : 2.4);
+      g.appendChild(c);
+    }
+    svg.appendChild(g);
+  });
+}
+const N = (id) => TASKS.find((t) => t.id === id);
+requestAnimationFrame(layoutGraph);
+window.addEventListener("resize", () => requestAnimationFrame(layoutGraph));
+
+/* trace html */
+function traceHtml(traceTitle, turns) {
+  const turn = (tr, i) => `
+    <div class="turn">
+      <div class="turn-head"><span>Turn ${i + 1} · ${tr.at}</span><span class="ln"></span></div>
+      <div class="user-msg"><span class="ic">💬</span><div><div class="who">用户指令</div><div class="txt">${tr.user}</div></div></div>
+      <div class="steps">${tr.steps.map(stepHtml).join("")}</div>
+    </div>`;
+  return `
+    <div class="tr-head">◈ ${traceTitle} — 完整任务轨迹（session event log · 常开）</div>
+    <div class="tr-body">${turns.map(turn).join("")}</div>`;
+}
+function stepHtml(s) {
+  if (s.nested) {
+    return `
+      <div class="step">
+        <span class="ic ${s.cls}">${s.ic}</span>
+        <div class="body">
+          <div class="l1"><span class="tool">${s.tool}</span><span class="arg">${s.arg}</span></div>
+          <div class="subagent-block">
+            <div class="sa-head"><span class="ic ${s.cls}" style="width:16px;height:16px;font-size:9px">${s.ic}</span> subagent · <span class="purpose">${s.arg.split("—")[1] || ""}</span></div>
+            <div class="steps">${s.nested.map(stepHtml).join("")}</div>
+          </div>
+        </div>
+      </div>`;
+  }
+  const verdict = s.fail ? '<span class="fail">✗</span>' : s.ok ? '<span class="ok">✓</span>' : "";
+  const mcp = s.mcp ? `<span class="mcp-badge">MCP · ${s.mcp}</span>` : "";
+  return `
+    <div class="step">
+      <span class="ic ${s.cls}">${s.ic}</span>
+      <div class="body">
+        <div class="l1">${mcp}<span class="tool">${s.tool}</span><span class="arg">${s.arg}</span>${verdict}<span class="ms">${s.ms || ""}</span></div>
+      </div>
+    </div>`;
+}
+
+/* pills */
+const DOMAINS = [
+  ["all", "全部", null],
+  ["session", "会话任务", "var(--dot-session)"],
+  ["index", "索引与知识", "var(--dot-index)"],
+  ["review", "代码审查", "var(--dot-review)"],
+  ["prototype", "原型 / PM / UI 设计", "var(--dot-prototype)"],
+];
+const pillsEl = document.getElementById("pills");
+DOMAINS.forEach(([id, label, color]) => {
+  const b = document.createElement("button");
+  b.className = "pill" + (id === "all" ? " on" : "");
+  b.innerHTML = (color ? `<span class="sw" style="background:${color}"></span>` : "") + label;
+  b.onclick = () => {
+    pillsEl.querySelectorAll(".pill").forEach((p) => p.classList.remove("on"));
+    b.classList.add("on");
+    document.getElementById("pane").className = "graph-pane" + (id === "all" ? "" : ` dim-${id}`);
+  };
+  pillsEl.appendChild(b);
+});
+
+/* detail */
+function select(t) {
+  graph.querySelectorAll(".card").forEach((c) => c.classList.remove("sel"));
+  document.getElementById(`card-${t.id}`)?.classList.add("sel");
+  const domLabel = { session: "会话任务", review: "代码审查", index: "索引与知识", prototype: "原型 / PM / UI 设计" }[t.domain];
+  const actions = {
+    review: ["打开报告", "引用到对话"],
+    session: ["打开时间线", "切换分支"],
+    index: ["打开索引"],
+    prototype: ["打开产物"],
+  }[t.domain];
+  const stLabel = { running: "进行中", done: "已完成", merged: "已合并", abandoned: "已放弃" }[t.status];
+  document.getElementById("detail").innerHTML = `
+    <div class="head">
+      <span class="glyph">${t.shape === "fork" ? "⑂" : t.shape === "event" ? "◆" : "●"}</span>
+      <h2>${t.title}</h2>
+    </div>
+    <div class="sub">${t.time} · ${domLabel}${t.status === "running" ? " · 当前所在分支" : ""}</div>
+    <div class="drow"><span class="k">状态</span><span>${stLabel}</span></div>
+    ${t.git ? `<div class="drow"><span class="k">git 绑定</span><span>${gitChip(t.git)}</span></div>` : '<div class="drow"><span class="k">git 绑定</span><span style="color:var(--ui-text-faint)">无 git 记录</span></div>'}
+    ${(t.meta || []).map((m) => `<div class="drow"><span class="k">·</span><span>${m}</span></div>`).join("")}
+    <div class="dsec">
+      <div class="hd">产物与操作</div>
+      <div class="actions">${actions.map((a) => `<button class="btn">${a}</button>`).join("")}</div>
+    </div>`;
+}
+select(TASKS[2]);
+
+function toggleTheme() {
+  const el = document.documentElement;
+  el.dataset.appearance = el.dataset.appearance === "dark" ? "light" : "dark";
+  requestAnimationFrame(layoutGraph);
+}
+</script>
+</body>
+</html>

@@ -122,7 +122,7 @@ DeepOrca **没有** `@modelcontextprotocol/sdk` 依赖。客户端和服务端�
 **采纳路径**：
 1. **SDK 迁移先行**（最高优先级，独立 spec + plan）——把客户端 + gitmcp 服务端换成 `@modelcontextprotocol/sdk`。
 2. **A2UI 基于迁移后的 SDK 地基启动**——A2UI server 直接用 SDK `Server` 写，`_meta`/embedded resource 是协议原生，`a2ui_action` 走 SDK 的双向请求能力。
-3. A2UI 实施 spec（`specs/a2ui-integration/design.md`）已假定 SDK 迁移完成；其基于手写的实施计划（`docs/superpowers/plans/2026-07-30-a2ui-integration.md` Task 2-8）**待 SDK spec 定稿后基于 SDK 重写**。
+3. A2UI 实施 spec（`specs/archive/a2ui-integration/design.md`）已假定 SDK 迁移完成；其基于手写的实施计划（`docs/superpowers/plans/2026-07-30-a2ui-integration.md` Task 2-8）**待 SDK spec 定稿后基于 SDK 重写**。
 
 ---
 

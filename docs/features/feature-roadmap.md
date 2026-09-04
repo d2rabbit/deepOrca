@@ -1,6 +1,10 @@
 # DeepOrca 功能路线图
 
-> 版本：v3.23 · 日期：2026-08-27 · 状态：**预生产冻结期**（dev 集成线 + test 冻结线；新功能一律 `next/*`）
+> 版本：v3.24 · 日期：2026-09-02 · 状态：**预生产冻结期**（dev 集成线 + test 冻结线；新功能一律 `next/*`）
+>
+> **v3.24 更新（工作区语义检索 zg 立项）**：基于 2026-09-02 对阿里 zvec-ai/zvec-grep（`zg` v0.2.1，Apache-2.0，Node ≥22）的调研定稿，新立 **§0 终判表 zg-semantic-search 行 + §一 规划行 + 下一版主线 E**——rg + BM25/jieba + HNSW 向量 RRF 融合的工作区语义检索（CLI + MCP `zg server --stdio` 桥 + 本地 potion-code-16m 模型，全程本地零出域），补齐检索栈唯一空白「模糊意图/不知命名 → 带行号定位」。与 codegraph（结构导航）/ serena（LSP 符号）/ bash+rg（穷尽匹配）四层分工，见 §一。spec：[`specs/zg-semantic-search/`](../../specs/zg-semantic-search/design.md)（⬜ 提案；**前置门槛：P0 Windows 全链路验证通过才实施**）。
+>
+> **v3.24 续（同日文档债清偿与归档）**：① 08-21 以来新立的 10 个 spec 全部补登 §0 终判表（memory-remediation ✅ / model-fleet-adaptation 🟡 / ts-native-migration ⬜ / ui-domain-regroup ✅ / index-knowledge-rework 🟡 / task-tree-hub 🟡 / review-module 🟡 / content-translation ⬜ / design-systems-advance ⬜ / prototype-companion ❌）。② **prototype-companion 合并入 design-systems-advance**（原型伴随 redesign 以 design-systems-advance 为唯一方案；任务树落点/滚动审计议题由 task-tree-hub 实现关闭，不再考虑）。③ **已收官 spec 归档**：终判 ✅ 且无未决项的 7 个 spec 物理归档 `specs/archive/`（a2ui-integration / activity-frames / deep-design / define-action / task-tree / text-embedding / memory-remediation），全仓引用同步改写。
 >
 > **v3.23 更新（王牌路线 OC 立项）**：基于 2026-08-27 方向确立与调研（`docs/research/2026-08-27-coord-chain-technology-survey.md`）新立 **§0 终判表 coord-chain 行 + 专属规划 [`docs/features/coord-chain-plan.md`](./coord-chain-plan.md)**——「AI 协调工作链」：局域网联盟式许可链（Ed25519 成员签名 + 轮值提议 + 联签终局，无 PoW/代币）+ 内容寻址资产层 + 任务谱系（task.share → 接续开发 → parentRecordId）。与 next-version 并列双王牌，**优先级高于其 A–D 主线**；新包 `packages/ledger/`（零依赖协议库）。spec 三件套见 [`specs/coord-chain/`](../../specs/coord-chain/design.md)。同日需求收紧：UX 对标腾讯文档/飞书「共享文档空间」（共享的是项目记录），**共享只认工作区主题**（git remote 归一/显式主题名 → themeId，跨主题发现层隔离）；再收紧：共享层为**自研类 Git「链工作区」**（blob/tree/commit + 谱系/diff/检出，复用 `GitFileHistory` 底子，第一版无 merge）。
 >
@@ -11,21 +15,23 @@
 ## §0 当前状态总览（权威 · 2026-08-18 逐 spec 终判）
 
 > 依据 [docs/pre-production-spec-final-audit.md](../pre-production-spec-final-audit.md)（F5 终判，19 spec 逐一对照代码取证）。**本节是全项目现状的唯一权威口径**：各 spec 的 tasks.md 只记自身细节，research 台账只记调研消费状态。
+>
+> **归档口径（2026-09-02）**：终判 ✅ 且无未决项的 spec 已物理归档至 `specs/archive/`（原则与清单见 [specs/archive/README.md](../../specs/archive/README.md)）——a2ui-integration / activity-frames / deep-design / define-action / task-tree / text-embedding / memory-remediation 七项；本表链接一律指向归档后路径。
 
 **当前阶段**：预生产冻结期。收官计划 A–G 七线完成；F 线 F1–F3+F6+F5 完成，F4 推进中（Windows 真机构建/启动烟雾通过并修复 5 项真问题，交互清单待人工走查）；E1d 已闭环（review 面板品牌漂移卡片）；H（预生产切换：版本定格 → dev 合并 → tag → 冻结生效）待 F4 完成后执行。
 
-### 逐 spec 终判（✅8 · 🟡5 · ⬜6 · ❌2）
+### 逐 spec 终判（✅10 · 🟡9 · ⬜10 · ❌3）
 
 | spec | 终判 | 一句话 |
 | --- | --- | --- |
-| [a2ui-integration](../../specs/a2ui-integration/design.md) | ✅ | 原型模块 + MCP + 自建 processor 渲染器全链路 |
-| [activity-frames](../../specs/activity-frames/design.md) | ✅ | 双管线 + 9 MCP 工具 + 可选 boot context |
-| [deep-design](../../specs/deep-design/design.md) | ✅ | .dd 管线 + 9 套设计系统（超 spec 演进） |
-| [define-action](../../specs/define-action/design.md) | ✅ | registry 原语 + LLM/MCP/IPC 三面到达 + 统一进度 |
+| [a2ui-integration](../../specs/archive/a2ui-integration/design.md) | ✅ | 原型模块 + MCP + 自建 processor 渲染器全链路 |
+| [activity-frames](../../specs/archive/activity-frames/design.md) | ✅ | 双管线 + 9 MCP 工具 + 可选 boot context |
+| [deep-design](../../specs/archive/deep-design/design.md) | ✅ | .dd 管线 + 9 套设计系统（超 spec 演进） |
+| [define-action](../../specs/archive/define-action/design.md) | ✅ | registry 原语 + LLM/MCP/IPC 三面到达 + 统一进度 |
 | [gitmcp-local-module](../../specs/gitmcp-local-module/design.md) | ✅ | 8 工具 + 23 测试（任务 12 人工手测清单待走查） |
 | [mcp-sdk-migration](../../specs/mcp-sdk-migration/design.md) | ✅ | 官方 SDK 全切换（外部 server 实机验证待人工） |
-| [task-tree](../../specs/task-tree/design.md) | ✅ | P0–P2 + P1 收尾：会话徽标/主区 tab/整树归档联动（`946cf77`） |
-| [text-embedding](../../specs/text-embedding/design.md) | ✅ | Granite 97M + 路由/记忆双消费方 + 构建期 vendor |
+| [task-tree](../../specs/archive/task-tree/design.md) | ✅ | P0–P2 + P1 收尾：会话徽标/主区 tab/整树归档联动（`946cf77`） |
+| [text-embedding](../../specs/archive/text-embedding/design.md) | ✅ | Granite 97M + 路由/记忆双消费方 + 构建期 vendor |
 | [sandbox](../../specs/sandbox/design.md) | 🟡 | macOS 后端 + 执行时路径闸门全落地；bwrap/WSL2 未实现（detect 诚实降级）；设置面板路径授权不可见/不可撤销 |
 | [skill-eval](../../specs/skill-eval/design.md) | 🟡 | S1/S2 产物全落盘；pin 已定版 v0.9.0（2026-08-18 实拉验证）；双引擎对拍与 CI 首跑待真实 LLM/PR |
 | [skill-routing](../../specs/skill-routing/design.md) | 🟡 | G1/G2 + 组合路由（SAD/DAG）落地；G3 大技能分片召回显式缓期 |
@@ -37,6 +43,17 @@
 | [module-system](../../specs/module-system/design.md) | ⬜ | 发行版/模块系统远景规划 |
 | [doc-wiki](../../specs/doc-wiki/design.md) | ⬜ | 文档知识编译层（2026-08-19 新立设计稿，下一版主线 D；llm_wiki 净室借鉴，见 §二） |
 | [coord-chain](../../specs/coord-chain/design.md) | ⬜ | AI 协调工作链（2026-08-27 新立调研定稿，王牌路线 OC，优先级高于 next-version，见 [`docs/features/coord-chain-plan.md`](./coord-chain-plan.md)） |
+| [zg-semantic-search](../../specs/zg-semantic-search/design.md) | ⬜ | 工作区语义检索 zvec-grep（zg）集成（2026-09-02 调研定稿提案，下一版主线 E；P0 Windows 验证为启动门槛） |
+| [memory-remediation](../../specs/archive/memory-remediation/design.md) | ✅ | 记忆管线四阶段修复 tasks 20/20 落地（2026-08-21 fix(memory)）+ TDAI 上游择优移植策略（已归档 specs/archive/） |
+| [model-fleet-adaptation](../../specs/model-fleet-adaptation/design.md) | 🟡 | 多模型家族注册表深模块（resolveModelSpec）；G0+S0 落地（16/34），GLM5 / Kimi-K3 系列适配与真机 e2e 待做 |
+| [ts-native-migration](../../specs/ts-native-migration/design.md) | ⬜ | TS 原生化迁移排期：P0 包拓扑拆分（@deeporca/shell + @deeporca/design）→ P1 tsgo → … → P5 scriptc；不换语言铁律 |
+| [ui-domain-regroup](../../specs/ui-domain-regroup/design.md) | ✅ | drift 闸门迁设计面板 + CRG 归组（2026-08-21 同日落地）；08-23 CRG 自 MCP 面退役；真机实测待 |
+| [index-knowledge-rework](../../specs/index-knowledge-rework/design.md) | 🟡 | 索引与知识以工作区为中心重构（R1+R2 设计定稿，21 任务未实施）；openwiki ENOENT 根因修复等已随其他提交落地 |
+| [task-tree-hub](../../specs/task-tree-hub/design.md) | 🟡 | 工作区统一任务树（V2 已于 2026-09-02 提交，收尾进行中）：会话/fork/索引构建/代码审查/原型设计全并入一棵树 |
+| [review-module](../../specs/review-module/design.md) | 🟡 | 代码审查模块迭代（范围条随工作区 / 图谱↔报告双向定位 / 排除卡）；G1-G10 前置修复与分期实施中 |
+| [content-translation](../../specs/content-translation/design.md) | ⬜ | 第三方内容翻译引擎（zh↔en，macOS 系统引擎优先 + Argos 兜底，运行时按需下载零安装器增量）；设计定稿待实现 |
+| [design-systems-advance](../../specs/design-systems-advance/design.md) | ⬜ | 设计模块进阶方案（四项目对照五差距 G1-G5，契约+载体+回环）；2026-09-02 并入 prototype-companion 为唯一方案 |
+| [prototype-companion](../../specs/prototype-companion/design.md) | ❌ | 2026-09-02 合并入 design-systems-advance；任务树落点/滚动审计已由 task-tree-hub 实现关闭 |
 | [behavior-memory](../../specs/behavior-memory/design.md) | ❌ | 2026-08-17 作废，由 @deeporca/memory（TDAI L0–L3）承接 |
 | [harmonyos-dev-kit](../../specs/harmonyos-dev-kit/design.md) | ❌ | 曾落地后整体下线（`f680c14`）；鸿蒙 PC 移植 2026-08-18 调研结论"先不做"（`docs/research/2026-08-18-harmonyos-pc-electron-port-feasibility.md`） |
 
@@ -51,7 +68,7 @@
 
 见 [docs/README.md](../README.md)：**路线与现状 = 本文件 §0；实现方案 = specs/；调研 = docs/research/（仅供参考）；本版本收尾范围 = specs/pre-production/tasks.md**。
 
-**下一版本路线**：[`docs/features/next-version-plan.md`](./next-version-plan.md)（2026-08-18 立：自进化引擎 E1/E2 + Studio 基座 B1/B2 + 远程访问 M1–M3；2026-08-19 增补主线 D 知识编译 D0–D2，前置 = 本版本 F4/H 收尾）。
+**下一版本路线**：[`docs/features/next-version-plan.md`](./next-version-plan.md)（2026-08-18 立：自进化引擎 E1/E2 + Studio 基座 B1/B2 + 远程访问 M1–M3；2026-08-19 增补主线 D 知识编译 D0–D2；2026-09-02 增补主线 E 工作区语义检索 zvec-grep（P0 验证门槛），前置 = 本版本 F4/H 收尾）。
 **王牌专属路线（优先级更高）**：[`docs/features/coord-chain-plan.md`](./coord-chain-plan.md)（2026-08-27 立：AI 协调工作链 OC0–OC4，局域网联盟链 + 资产共享 + 任务谱系接续开发；与 next-version 并列双王牌，资源冲突时 OC 优先）。
 
 ---
@@ -60,7 +77,7 @@
 
 | 功能域                                            | 已集成                                                                                                            | 规划中                                                                                                                                                                           | 核心目标                                                 |
 | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
-| [一、代码智能](#一代码智能)                       | codegraph（in-process SDK）, CRG（风险图谱）, ocr（语义审查）, **serena**（语义操作）, **arch-scan**（架构索引） | —                                                                                                                                                                                | 让 Agent 从"文本级"升级为"语义级"代码操作 + 架构级可视化 |
+| [一、代码智能](#一代码智能)                       | codegraph（in-process SDK）, CRG（风险图谱）, ocr（语义审查）, **serena**（语义操作）, **arch-scan**（架构索引） | **zg 工作区语义检索（zvec-grep，下一版主线 E，P0 门槛）**                                                        | 让 Agent 从"文本级"升级为"语义级"代码操作 + 架构级可视化 |
 | [二、知识中心](#二知识中心)                       | openwiki（Wiki）, **@deeporca/memory**（TDAI L0–L3 持久化记忆）, activity-frames（行为记忆）, **GitMCP 本地化模块**（8 工具） | **doc-wiki 文档知识编译层（下一版主线 D）**, Open Deep Research 理念                          | 项目文档 + 用户资料编译 + 跨会话记忆 + 行为记忆 + 深度研究 |
 | [三、移动开发](#三移动开发)                       | —（曾集成后整体临时下线 `f680c14`，待重启）                                                                         | Flutter（agent-plugins 24 Skills + Dart MCP）、Android Kit、HarmonyOS Kit、React Native（Expo）——重启属 `next/*` | Flutter + Android + HarmonyOS + React Native             |
 | [四、桌面开发](#四桌面开发)                       | —                                                                                                                 | Apple（Xcode 27 第一方）, Qt/KDE（Qt Group 第一方）, Tauri（社区 MCP）, .NET（dotnet/skills）, deepin/UOS                                                                        | macOS/iOS + Qt/KDE + Tauri + .NET + deepin 桌面应用开发  |
@@ -102,8 +119,11 @@
 | 能力                                              | 项目       | 集成形态                             | 贡献                                                  | 优先级 |
 | ------------------------------------------------- | ---------- | ------------------------------------ | ----------------------------------------------------- | ------ |
 | 符号级重构（rename/find-references/replace-body） | **serena** | MCP Server（Python 3.13 + uv + LSP） | 从"文本替换"升级为"语义操作"，40+ 语言，跨文件 rename | P1     |
+| 工作区语义检索（模糊意图 → 带行号定位） | **zvec-grep（zg）** v0.2.1（阿里 zvec-ai，Apache-2.0） | 内置 MCP server（`zg server --stdio` 桥 + 本地 potion-code-16m 模型 + `.zvec-grep/` 标记门槛） | ripgrep + BM25/jieba + HNSW 向量 RRF 融合——补齐「模糊意图/不知命名」空白层；中文文档/Markdown 同覆盖。spec：[`specs/zg-semantic-search/`](../../specs/zg-semantic-search/design.md)（⬜ 提案，下一版主线 E） | P1-P2（P0 Windows 验证门槛） |
 
 **与已有能力关系**：serena 互补——codegraph 做"检索"，serena 做"语义编辑"。read/edit 工具做文本级，serena 做符号级。
+
+**四层检索分工**（2026-09-02 zg 调研定稿）：bash+rg（已知词/正则穷尽核验）→ codegraph（符号/调用链/影响面）→ serena（实时 LSP 符号定位与语义编辑）→ **zg（模糊意图语义发现，下一版主线 E）**。zg 不做结构关系与符号编辑，是纯内容检索层；中文文档/非代码内容（jieba BM25 + Markdown 标题切分）也归它。第三方独立评测同结论：zg 管入口发现、rg 管精确核验、CodeGraph 管多跳关系。
 
 ### 不采纳
 
@@ -135,7 +155,7 @@
 | 能力         | 项目                                                     | 集成形态                                                                                    | 贡献                                                                                                                                                                                                                              | 优先级 |
 | ------------ | -------------------------------------------------------- | ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
 | **文档知识编译层（doc-wiki，下一版主线 D）** | **llm_wiki / Karpathy 编译型知识库方法论**（nashsu/llm_wiki，**GPL-3.0 → 净室借鉴零代码**） | core `docwiki/` 模块（进程内，LLM 经注入 seam 走 flash）+ `docwiki.*` actions + 面板第七源卡 | 补齐六源唯一空白「**资料→知识**」：用户文档（MD/PDF/网页剪藏）经**两步思维链摄入**（分析→生成）增量编译为互链 Wiki 页（OKF+`sources[]` 溯源 + SHA256 增量缓存 + 串行队列 + 删除级联/共享实体保护 + index.md/log.md，Obsidian 兼容）；检索叠加图扩展（两信号起步）+ 图谱洞察 + Deep Research 闭环（复用内置 WebSearch）。知识从"每次查询重新检索"变为"编译一次持续维护"。详见 [`specs/doc-wiki/design.md`](../../specs/doc-wiki/design.md) + 预研 [`2026-08-19-llm-wiki-prestudy.md`](../research/2026-08-19-llm-wiki-prestudy.md) | **P1（D0 可先行）** |
-| **行为记忆（activity-frames，✅ 已实现）** | **activity-frames** 理念（nossa-y/activity-frames，MIT） | **TypeScript 重写**（双管线，InMemoryTransport MCP server，9 个 MCP 工具 + 可选 boot context 注入，默认关） | 本地屏幕活动捕获 → 结构化 ActivityFrame（app/site/time/pages/input）。**TS 重写**（非 Python 子进程），零外部运行时依赖。补齐「对话记忆(@deeporca/memory) + 行为记忆(frames)」双层记忆。详见 [`specs/activity-frames/design.md`](../../specs/activity-frames/design.md) | ✅ 落地 |
+| **行为记忆（activity-frames，✅ 已实现）** | **activity-frames** 理念（nossa-y/activity-frames，MIT） | **TypeScript 重写**（双管线，InMemoryTransport MCP server，9 个 MCP 工具 + 可选 boot context 注入，默认关） | 本地屏幕活动捕获 → 结构化 ActivityFrame（app/site/time/pages/input）。**TS 重写**（非 Python 子进程），零外部运行时依赖。补齐「对话记忆(@deeporca/memory) + 行为记忆(frames)」双层记忆。详见 [`specs/archive/activity-frames/design.md`](../../specs/archive/activity-frames/design.md) | ✅ 落地 |
 | **OpenWiki connector 消费 CodeGraph MCP** | OpenWiki connectors 系统 | WikiCliController.init 前写入 connector config | wiki 生成时消费 CodeGraph MCP 作为知识源，获得真实调用图上下文，生成的架构文档基于代码结构而非猜测。配置 `~/.openwiki/connectors/custom-mcp/config.json` 指向当前项目的 CodeGraph MCP | **P2** |
 | **OpenWiki 定时自动更新** | OpenWiki scheduling + 引擎侧定时任务框架 | cron 调度 + Electron 定时器 | 定时（如每天/每次 git pull 后）自动 `openwiki --update`，不依赖代码变更事件。vendored CLI 已有 scheduling 基础设施（`onboarding.d.ts OnboardingSourceScheduleConfig`），需 DeepOrca 引擎侧加定时任务框架 | **P3** |
 | 多轮深度研究 | **Open Deep Research** 理念                              | 借鉴工作流，Node.js 自建轻量版                                                              | 从"单次 WebSearch"升级为"搜索→反思→再搜索→报告"的多轮循环                                                                                                                                                                         | P3     |
@@ -253,7 +273,7 @@
 - **UI 风格目录**（`design/references/ui-styles.md`）——14 个 UI 设计风格的完整 Agent 提示词，来自 [NameThatUI/styles](https://namethatui.com/styles)。每个风格包含：定义信号、CSS 关键值（精确的 box-shadow / backdrop-filter / gradient 值）、Tailwind 实现思路、无障碍约束（4.5:1 对比度、focus 可见性、reduced-motion）。Agent 根据用户口语描述匹配风格（"磨砂玻璃"→Glassmorphism、"黑边亮色"→Neobrutalism），复制提示词后配合 Tailwind CDN 产出 HTML。14 个风格：Skeuomorphism / Neumorphism / Glassmorphism / Liquid Glass / Web Brutalism / Neobrutalism / Y2K Digital / Frutiger Aero / Flat Design / Minimalism / Claymorphism / Vernacular Web / Aqua / Windows Aero。
 
 > **与 A2UI 原型模块的边界**：DeepDesign 是「设计」（设计师向，HTML 成品，可脱离宿主）。A2UI 原型模块是「原型」（PM 向，自然语言驱动，Surface 载体，**原生依赖 DeepOrca 运行时**，类 v0/bolt）——**原型 ≠ 设计**，两者是独立产品线，受众/输入/格式/目标都不同。详见 `docs/research/2026-07-a2ui-integration.md` §四。
-> 实现 spec：[`specs/deep-design/`](../../specs/deep-design/design.md)（✅）· [`specs/a2ui-integration/`](../../specs/a2ui-integration/design.md)（✅）。
+> 实现 spec：[`specs/archive/deep-design/`](../../specs/archive/deep-design/design.md)（✅）· [`specs/archive/a2ui-integration/`](../../specs/archive/a2ui-integration/design.md)（✅）。
 
 ### 规划中
 
@@ -288,6 +308,8 @@ DeepDesign 和 PM-Design 都采用**插件指令触发 + 右侧分屏预览**模
 - 对话区保持可见（split view），用户边对话边看预览
 - 预览面板支持 tab 切换（prototype / design），关闭即收起
 - 布局：`[Rail] [Sidebar] [Chat Area] [Preview Panel (right)]`
+
+**设计模块进阶方案（design-systems-advance，2026-09-01 立稿；2026-09-02 并入 prototype-companion 为唯一方案）**：对照 open-design / open-pencil / open-codesign / penpot 四项目，指出五类系统性差距（原型交互不可验证 / .dd 单页文档非设计系统 / 质量闸靠提示词 / 产物无留存回退 / 无设计记忆），总纲"契约 + 载体 + 回环"，P0-P3 分期；原型伴随交互（悬浮对话框/侧栏分轨）由其 §5.6 承接。见 [`specs/design-systems-advance/design.md`](../../specs/design-systems-advance/design.md)（⬜ 方案稿）。
 
 **PM-Design V2：需求具现化工作台（设计阶段）**：
 当前三管线（A2UI / OpenUI / DeepDesign）虽然各自完整可用，但从 PM 视角存在"三选一认知负担、无左侧工作区、缺需求分析前置、产物不持久、无一键入口"五个痛点。V2 将三管线从"用户手动选择"升级为"AI 自动路由"，并增加左侧 `design` 工作区（位于 Code Review 下方）：
@@ -443,6 +465,8 @@ sim-use (LY Corp)     →  运行时 UI：observe/tap/type/verify（iOS + Androi
 | **辅助模型迁移**（secondary model rollout） | 多端点配置（已就绪）                                    | 基础设施已完成（`createSecondaryClient()` + endpoints 配置 + UI）。下一步：将以下 LLM 调用点从主模型迁移到辅助模型（flash），降低 token 成本：**①上下文压缩（compaction）**——session.ts 的 summarizeMiddle 调用；**②技能自动匹配（skill matching）**——LLM 判定哪些 skill 激活；**③代码片段重建（rebuild-snippet）**——edit-handler 的 LLM 重建；**④Web 搜索总结**——web-search-handler 的 LLM 摘要；**⑤子 agent 子任务**——未来的 Subagent 内部调用。每处改动模式一致：`createOpenAIClient()` → `createSecondaryClient()`，thinking 参数关闭。    | P1     |
 | **长程任务可靠执行（原生 MEA）**            | **LongHorizon-Harness**（arxiv:2608.01964，借鉴并验证） | 采用 Manage-Execute-Audit：Manager 维护外置任务状态并下发有验收标准的 bounded task；Executor 每轮使用 fresh context 执行；Auditor 以受限只读能力独立核查环境。Executor 自述不直接改变权威状态，只有 `complete + clean` 的审计证据才能确认完成。**产品只做 Electron 桌面客户端**：能力实现在 `@deeporca/core`，由 desktop main 编排并通过 typed IPC 提供长任务启动、监控、暂停、恢复、用户 gate 和审计视图；不规划 DeepOrca CLI/headless CLI。先做桌面内受控实验验证上游语义，再原生化为 TypeScript；不把 Python harness 作为正式产品常驻依赖。 | P1     |
 | 子 agent（Subagent）                        | **DeepCode** 架构理念                                   | Paper2Code（论文→代码）+ Loop engineering（自主循环直到测试通过）。加 Task 工具 + runSubagent（内部用辅助模型）                                                                                                                                                                                                                                                                                                                                                                                                                                | P2     |
+| **多模型家族适配（模型舰队收官）**          | **model-fleet-adaptation**（2026-08-21 立稿，G0+S0 已落地） | 家族注册表唯一事实源（`resolveModelSpec()` 深模块）：GLM5 / Kimi-K3（P0）、MiniMax-M3 / Qwen-3.8（P1）；仅 OpenAI chat-compat 协议。[`specs/model-fleet-adaptation/design.md`](../../specs/model-fleet-adaptation/design.md) | P1     |
+| **TS 原生化迁移（包拓扑先行）**             | **ts-native-migration**（2026-08-21 排期）              | P0 拆出 `@deeporca/shell` + `@deeporca/design` → P1 tsgo 工具链 → P2 内存止血 → P3 传输中立 → P5 scriptc 原生化；不换语言铁律。[`specs/ts-native-migration/design.md`](../../specs/ts-native-migration/design.md) | P2     |
 
 **长程任务架构决策**：只选择 **LongHorizon-Harness 的 MEA 路线**，不同时集成 LoopX。两者都提供长程任务控制；并存会造成 Goal/Todo/状态、完成判定和调度的双重权威。LongHorizon-Harness 与 DeepOrca 现有 session/tool/permission/checkpoint 引擎的执行层缺口更匹配，而 LoopX 的 quota、heartbeat、claim/lease、外部控制平面与桌面客户端的任务/session 管理重叠较高，且当前依赖 Python/POSIX 环境，故暂不纳入架构。
 
@@ -480,7 +504,7 @@ sim-use (LY Corp)     →  运行时 UI：observe/tap/type/verify（iOS + Androi
 
 #### 层一：技能自演化（技能内容改进）
 
-技能生命周期的两端：**从哪来**（book-to-skill 生成）→ **好不好**（skill-up 评估）→ **自动改进**（OpenSpace 反馈闭环）。实现 spec：[`specs/skill-routing/`](../../specs/skill-routing/design.md)（🟡 G1/G2/组合路由落地，G3 分片缓期）· [`specs/skill-eval/`](../../specs/skill-eval/design.md)（🟡 S1/S2 产物落地，对拍待真实 LLM）· [`specs/text-embedding/`](../../specs/text-embedding/design.md)（✅ Granite 97M）。
+技能生命周期的两端：**从哪来**（book-to-skill 生成）→ **好不好**（skill-up 评估）→ **自动改进**（OpenSpace 反馈闭环）。实现 spec：[`specs/skill-routing/`](../../specs/skill-routing/design.md)（🟡 G1/G2/组合路由落地，G3 分片缓期）· [`specs/skill-eval/`](../../specs/skill-eval/design.md)（🟡 S1/S2 产物落地，对拍待真实 LLM）· [`specs/archive/text-embedding/`](../../specs/archive/text-embedding/design.md)（✅ Granite 97M）。
 
 | 能力                    | 来源理念                                                                                                                  | 贡献                                                                                                                                                                                    | 优先级 |
 | ----------------------- | ------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
@@ -833,7 +857,7 @@ desktop renderer        UI 按钮/菜单（经 IPC 触发）
 
 > agent-native 框架本体不引入（React+Vite+Nitro 全栈与 Electron+core 分层对立），仅吸收两点：① defineAction 模式（如上）；② `application_state`（UI 焦点/选中/导航实时同步供 agent 读取，补全 A2UI 的反向链路——A2UI 当前是 agent→UI，application_state 补 UI→agent，构成完整 parity）。`application_state` 为纯增量（一张 SQLite 表 + IPC 上报 + runtime context 注入），不碰已有 A2UI 代码。
 >
-> **首批适配模块与详细设计**：defineAction 首先落地于**代码审查**（CRG + ocr，5 个 action）与**知识索引**（codegraph + openwiki + arch-scan，6 个 action）——两模块当前都患"一个功能碎片化到 MCP/IPC/prompt 三种调用机制"的病。完整原语 API、动作清单、三表面映射、迁移阶段见 [`specs/define-action/design.md`](../../specs/define-action/design.md)。关键难点 `arch-scan.run` 需触发 subagent，为 §十 Subagent（P2）提供首个交汇用例。
+> **首批适配模块与详细设计**：defineAction 首先落地于**代码审查**（CRG + ocr，5 个 action）与**知识索引**（codegraph + openwiki + arch-scan，6 个 action）——两模块当前都患"一个功能碎片化到 MCP/IPC/prompt 三种调用机制"的病。完整原语 API、动作清单、三表面映射、迁移阶段见 [`specs/archive/define-action/design.md`](../../specs/archive/define-action/design.md)。关键难点 `arch-scan.run` 需触发 subagent，为 §十 Subagent（P2）提供首个交汇用例。
 
 ### 规划中
 
@@ -1088,7 +1112,7 @@ CREATE TABLE vault_secrets (
 
 > 关联文档：
 >
-> - [DeepDesign 内核设计](../../specs/deep-design/design.md)
+> - [DeepDesign 内核设计](../../specs/archive/deep-design/design.md)
 > - [前期集成调研（5 项目）](../research/2026-07-open-source-integration-feasibility.md)
 > - [OCR 集成 & Understand-Anything 分析](../research/2026-07-ocr-integration-and-ua-analysis.md)
 
@@ -1131,7 +1155,7 @@ CREATE TABLE vault_secrets (
 >
 > **v3.6 更新**：§十三"远程接入"方案定稿——采用向日葵式内外网映射（内置 TunnelClient + 自建/官方 relay，识别码+配对码零配置），原"用户自配隧道"降级为高级附录。方案见 `docs/research/2026-08-15-remote-access-sunlogin-mapping.md`。
 >
-> **v3.7 更新**：调研 A2UI（Agent-to-UI 协议）并产出集成设计草案。关键判断：A2UI 在 DeepOrca 承载**两类能力**，且都与 DeepDesign 三者并存、互不替代——① §六 新增独立产品线「AI-native 原型模块」（PM 向，自然语言驱动，Surface 载体，**原生依赖 DeepOrca**，类 v0/bolt）；② §十 新增「A2UI 对话交互层」（把对话区从纯文本升级为可交互富组件：富工具结果/结构化输入/任务看板）。复用官方 `@a2ui/react`（Apache-2.0，React 18/19 兼容）+ 既有 MCP 体系（A2UI over MCP，`a2ui_action` 即工具调用）。设计草案见 `specs/a2ui-integration/design.md`，调研报告见 `docs/research/2026-07-a2ui-integration.md`。
+> **v3.7 更新**：调研 A2UI（Agent-to-UI 协议）并产出集成设计草案。关键判断：A2UI 在 DeepOrca 承载**两类能力**，且都与 DeepDesign 三者并存、互不替代——① §六 新增独立产品线「AI-native 原型模块」（PM 向，自然语言驱动，Surface 载体，**原生依赖 DeepOrca**，类 v0/bolt）；② §十 新增「A2UI 对话交互层」（把对话区从纯文本升级为可交互富组件：富工具结果/结构化输入/任务看板）。复用官方 `@a2ui/react`（Apache-2.0，React 18/19 兼容）+ 既有 MCP 体系（A2UI over MCP，`a2ui_action` 即工具调用）。设计草案见 `specs/archive/a2ui-integration/design.md`，调研报告见 `docs/research/2026-07-a2ui-integration.md`。
 >
 > **v3.11 更新**：总览表全面对齐各域具体规划（以细节为准）。① html-in-canvas 实测：Electron 43/Chromium 150 **已支持全套 API**（`drawElementImage`/`layoutSubtree`/`requestPaint`），默认关，`--enable-features=CanvasDrawElement` 可开——"阻塞于平台"前提已满足，修正为"flag 可开"。② 补齐总览漏项：§七 办公文档预览面板、§九 ShowUI + sim-use、§十一 JiuwenSwarm 蜂群协作、§十二 已集成的 Flutter/Android/HarmonyOS/RN/Browser 分组。③ Electron 35→43（Chromium 150）。④ §六 html-in-canvas 状态从"阻塞"改为"flag 可开"。实测见 `docs/research/2026-07-30-html-in-canvas.md`。
 

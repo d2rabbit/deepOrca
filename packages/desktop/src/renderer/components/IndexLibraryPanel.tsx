@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type JSX } from "react";
+import { createPortal } from "react-dom";
 import { api } from "../api";
 import { useI18n } from "../i18n";
 import { formatBuildError } from "../lib/build-error";
@@ -104,7 +105,17 @@ export function IndexLibraryPanel({ onOpenWorkspace }: Props): JSX.Element {
   /** Build one workspace: serial symbols → Wiki → arch-map; failure stops. */
   const [panelError, setPanelError] = useState<string | null>(null);
   const [buildErrors, setBuildErrors] = useState<Record<string, string>>({});
-  const build = useCallback(
+  // Git preflight ask (2026-08-28): the wiki generator leans on commit
+  // history, so a non-repo / zero-commit root gets ONE explicit question
+  // before the build — never a silent skeleton-only "success".
+  const [gitAsk, setGitAsk] = useState<{
+    root: string;
+    kind: "no-repo" | "no-commits";
+    busy: boolean;
+    error: string | null;
+  } | null>(null);
+
+  const startBuild = useCallback(
     async (root: string) => {
       // R2-1: fire the MAIN-PROCESS build job and let the shared store render
       // progress — this handler returns immediately; switching rows/tabs never
@@ -129,6 +140,41 @@ export function IndexLibraryPanel({ onOpenWorkspace }: Props): JSX.Element {
     },
     [reload]
   );
+
+  const build = useCallback(
+    async (root: string) => {
+      try {
+        const pre = await api.knowledgeGitPreflight(root);
+        if (pre.isRepo && pre.hasCommits) {
+          await startBuild(root);
+          return;
+        }
+        setGitAsk({ root, kind: pre.isRepo ? "no-commits" : "no-repo", busy: false, error: null });
+      } catch {
+        // Preflight itself failed (git missing / IPC down) — never block the
+        // build on it; the wiki stage's zero-pages guard still catches a
+        // dead run with an actionable hint.
+        await startBuild(root);
+      }
+    },
+    [startBuild]
+  );
+
+  const confirmGitBootstrap = useCallback(async () => {
+    if (!gitAsk || gitAsk.busy) return;
+    setGitAsk({ ...gitAsk, busy: true, error: null });
+    try {
+      const res = await api.knowledgeGitBootstrap(gitAsk.root);
+      if (!res.ok) {
+        setGitAsk({ ...gitAsk, busy: false, error: res.error });
+        return;
+      }
+      setGitAsk(null);
+      await startBuild(gitAsk.root);
+    } catch (err) {
+      setGitAsk({ ...gitAsk, busy: false, error: err instanceof Error ? err.message : String(err) });
+    }
+  }, [gitAsk, startBuild]);
 
   const stateDot = (status: KnowledgeStatusResponse | undefined): string => {
     if (!status) return "";
@@ -175,7 +221,19 @@ export function IndexLibraryPanel({ onOpenWorkspace }: Props): JSX.Element {
             const runningJob = jobByRoot.get(w.root);
             return (
               <div key={w.root} className="ui-ik-rowwrap">
-                <div className="ui-ik-row" onClick={() => onOpenWorkspace(w.root)}>
+                <div
+                  className="ui-ik-row"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => onOpenWorkspace(w.root)}
+                  onKeyDown={(e) => {
+                    if (e.target !== e.currentTarget) return;
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      onOpenWorkspace(w.root);
+                    }
+                  }}
+                >
                   <span className={`ui-ik-dot ${stateDot(status)}`} aria-hidden />
                   <div className="ui-ik-row-main">
                     <div className="ui-ik-name">{w.label}</div>
@@ -211,6 +269,32 @@ export function IndexLibraryPanel({ onOpenWorkspace }: Props): JSX.Element {
           })
         )}
       </div>
+      {gitAsk
+        ? // Portaled to <body> (same pattern as the arch lightbox and the
+          // symbol-graph popover): the panel tree sits under transform/containment
+          // ancestors that CAPTURE position:fixed — rendered inline, this dialog
+          // anchored inside the side panel instead of covering the window.
+          createPortal(
+            <div className="ui-modal-overlay" role="dialog" aria-modal="true">
+              <div className="ui-modal" onClick={(e) => e.stopPropagation()}>
+                <h2>{t(gitAsk.kind === "no-repo" ? "index.gitNoRepoTitle" : "index.gitNoCommitsTitle")}</h2>
+                <div className="ui-modal-sub">
+                  {t(gitAsk.kind === "no-repo" ? "index.gitNoRepoBody" : "index.gitNoCommitsBody")}
+                  {gitAsk.error ? <div className="ui-scm-error">{gitAsk.error}</div> : null}
+                </div>
+                <div className="ui-modal-actions">
+                  <Button variant="subtle" disabled={gitAsk.busy} onClick={() => setGitAsk(null)}>
+                    {t("common.cancel")}
+                  </Button>
+                  <Button disabled={gitAsk.busy} onClick={() => void confirmGitBootstrap()}>
+                    {gitAsk.busy ? "…" : t("index.gitBootstrapConfirm")}
+                  </Button>
+                </div>
+              </div>
+            </div>,
+            document.body
+          )
+        : null}
     </div>
   );
 }

@@ -199,9 +199,7 @@ export function PrototypePanel({ a2uiJson: initialJson, openuiCode, mode = "a2ui
       ) : null}
       <div className="ui-prototype-panel-body">
         {mode === "openui" ? (
-          <Suspense
-            fallback={<div style={{ padding: 20, color: "var(--ui-text-muted)" }}>Loading OpenUI renderer…</div>}
-          >
+          <Suspense fallback={<div style={{ padding: 20, color: "var(--ui-text-muted)" }}>{t("common.loading")}</div>}>
             <OpenuiRenderer
               code={liveOpenuiCode}
               onAction={handleOpenuiAction}

@@ -1,81 +1,7 @@
 /* ── Command / skill trigger cards (chat + composer) ───────────────────── */
-/* Column wrapper so a user turn can stack skill cards above its bubble while
-   the row itself stays right-aligned. */
-.ui-user-stack {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: var(--ui-space-2);
-  max-width: 85%;
-  min-width: 0;
-}
-.ui-user-stack > .ui-bubble {
-  max-width: 100%;
-}
-
-/* Slash command invocation card (user side) */
-.ui-cmd-card {
-  display: flex;
-  align-items: center;
-  gap: var(--ui-space-3);
-  border: 1px solid color-mix(in srgb, var(--ui-accent) 35%, var(--ui-border-soft));
-  border-radius: var(--ui-radius-md);
-  border-bottom-right-radius: 4px;
-  background: var(--ui-accent-soft);
-  padding: var(--ui-space-2) var(--ui-space-3);
-  min-width: 180px;
-  transition: box-shadow 0.15s ease;
-}
-.ui-cmd-card:hover {
-  box-shadow: var(--ui-shadow-sm);
-}
-.ui-cmd-card-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  flex: none;
-  border-radius: var(--ui-radius-sm);
-  background: color-mix(in srgb, var(--ui-accent) 16%, transparent);
-  color: var(--ui-accent);
-}
-.ui-cmd-card-main {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-.ui-cmd-card-head {
-  display: flex;
-  align-items: center;
-  gap: var(--ui-space-2);
-}
-.ui-cmd-card-kind {
-  font-size: 10px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--ui-accent);
-  border: 1px solid color-mix(in srgb, var(--ui-accent) 40%, transparent);
-  border-radius: 999px;
-  padding: 0 6px;
-  line-height: 16px;
-}
-.ui-cmd-card-name {
-  font-family: var(--ui-font-mono);
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--ui-text);
-}
-.ui-cmd-card-args {
-  font-size: 12px;
-  color: var(--ui-text-dim);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 420px;
-}
+/* 人类指令已改为整幅指令条（.ui-directive，chat.css，user ask 2026-09-03
+   七轮弱化聊天感）—— 旧的 .ui-cmd-card / .ui-msg-skill-card 大卡与
+   .ui-user-stack 右对齐栈样式均已删除。 */
 
 /* Skill attachments on a user message */
 .ui-msg-skills {
@@ -83,55 +9,6 @@
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: var(--ui-space-2);
-}
-.ui-msg-skill-card {
-  display: flex;
-  align-items: center;
-  gap: var(--ui-space-2);
-  border: 1px solid color-mix(in srgb, var(--ui-accent) 30%, var(--ui-border-soft));
-  border-radius: var(--ui-radius-md);
-  background: var(--ui-surface-raised);
-  padding: 5px var(--ui-space-3);
-  max-width: 320px;
-  min-width: 0;
-}
-.ui-msg-skill-card-icon {
-  color: var(--ui-accent);
-  font-size: 13px;
-  flex: none;
-}
-.ui-msg-skill-card-main {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-}
-.ui-msg-skill-card-head {
-  display: flex;
-  align-items: center;
-  gap: var(--ui-space-2);
-}
-.ui-msg-skill-card-kind {
-  font-size: 10px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--ui-accent);
-}
-.ui-msg-skill-card-name {
-  font-family: var(--ui-font-mono);
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--ui-text);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.ui-msg-skill-card-desc {
-  font-size: 11.5px;
-  color: var(--ui-text-faint);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 /* "Skill loaded" system card (centered row) */
@@ -146,8 +23,8 @@
   max-width: 560px;
   min-width: 0;
   transition:
-    border-color 0.15s ease,
-    box-shadow 0.15s ease;
+    border-color 0.15s var(--ui-ease),
+    box-shadow 0.15s var(--ui-ease);
 }
 .ui-skill-card:hover {
   box-shadow: var(--ui-shadow-sm);
@@ -164,6 +41,10 @@
   background: color-mix(in srgb, var(--ui-accent) 14%, transparent);
   color: var(--ui-accent);
   font-size: 13px;
+}
+.ui-skill-card-icon svg {
+  width: 14px;
+  height: 14px;
 }
 .ui-skill-card-main {
   min-width: 0;
@@ -233,6 +114,11 @@
   color: var(--ui-accent);
   font-size: 12px;
   flex: none;
+  display: inline-flex;
+}
+.ui-composer-skill-card-icon svg {
+  width: 13px;
+  height: 13px;
 }
 .ui-composer-skill-card-main {
   min-width: 0;
@@ -299,7 +185,7 @@
   width: 0%;
   border-radius: inherit;
   background: var(--ui-accent);
-  transition: width 0.25s ease;
+  transition: width 0.25s var(--ui-ease);
 }
 .ui-index-progress-fill.indeterminate {
   width: 40%;
@@ -561,42 +447,8 @@
 }
 
 /* ── Command / skill card polish ─────────────────────────────────── */
-.ui-cmd-card {
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--ui-accent) 14%, var(--ui-surface-raised)),
-    color-mix(in srgb, var(--ui-accent) 5%, var(--ui-surface-raised))
-  );
-  transition:
-    box-shadow 0.15s ease,
-    transform 0.15s ease,
-    border-color 0.15s ease;
-}
-.ui-cmd-card:hover {
-  transform: translateY(-1px);
-  border-color: color-mix(in srgb, var(--ui-accent) 55%, var(--ui-border-soft));
-  box-shadow:
-    var(--ui-shadow-sm),
-    0 0 0 1px var(--ui-accent-soft);
-}
-.ui-cmd-card-icon {
-  border-radius: 50%;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-accent) 30%, transparent);
-}
-.ui-cmd-card-name {
-  letter-spacing: 0.01em;
-}
-.ui-msg-skill-card {
-  transition:
-    box-shadow 0.15s ease,
-    transform 0.15s ease,
-    border-color 0.15s ease;
-}
-.ui-msg-skill-card:hover {
-  transform: translateY(-1px);
-  border-color: color-mix(in srgb, var(--ui-accent) 50%, var(--ui-border-soft));
-  box-shadow: var(--ui-shadow-sm);
-}
+/* 指令/技能附件已胶囊化（.ui-ref-chip，chat.css）——本块的大卡 polish
+   随 .ui-cmd-card / .ui-msg-skill-card 一并移除。 */
 
 @media (prefers-reduced-motion: reduce) {
   * {

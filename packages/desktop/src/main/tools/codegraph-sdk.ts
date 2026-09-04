@@ -15,14 +15,111 @@
 // cjs-module-lexer cannot statically detect named exports and a static
 // `import { CodeGraph }` crashes Electron's ESM main at link time.
 import * as codegraphModule from "@colbymchenry/codegraph";
+
+import { createRequire as nodeCreateRequire } from "node:module";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import type { CodegraphController, ControllerProgress } from "@deeporca/core";
+import {
+  CODEGRAPH_STORE_DIR,
+  type CodegraphController,
+  type ControllerProgress,
+  type ControllerSyncResult,
+} from "@deeporca/core";
 
 type CodeGraphInstance = codegraphModule.CodeGraph;
 
 /**
- * Resolve the SDK class robustly (audit 2026-08-26 build failure:
+ * Generated-content centralization (user rule 2026-08-31): the index physically
+ * lives at `<root>/.deeporca/codegraph/`. The SDK resolves its data dir as
+ * `<root>/<dir>` with a SINGLE-SEGMENT `CODEGRAPH_DIR` override only — it
+ * cannot be pointed into a subdirectory — so `<root>/.codegraph` is kept as a
+ * SYMLINK to the store: every path built as `<root>/.codegraph/...` (SDK
+ * internals, MCP subprocess, all host readers) resolves through it unchanged.
+ *
+ * `ensureCodegraphStoreLayout` runs before every SDK touch and:
+ *   1. symlink already in place → no-op;
+ *   2. real legacy `.codegraph/` dir → moved into the store, then relinked;
+ *   3. absent → store created and linked.
+ * When symlink creation is unavailable (unprivileged Windows without developer
+ * mode) the store is moved back / left absent and the SDK uses a plain legacy
+ * directory — degraded but functional, and still dot-excluded from review.
+ */
+export function ensureCodegraphStoreLayout(root: string): void {
+  const link = path.join(root, ".codegraph");
+  const store = path.join(root, CODEGRAPH_STORE_DIR);
+  try {
+    if (fs.lstatSync(link).isSymbolicLink()) return;
+  } catch {
+    // link absent — continue with setup
+  }
+  const isDir = (p: string): boolean => {
+    try {
+      return fs.statSync(p).isDirectory();
+    } catch {
+      return false;
+    }
+  };
+
+  if (isDir(link)) {
+    // Legacy real directory — adopt it unless a store already exists (never
+    // merge two indexes; a stray store wins nothing over the live legacy one).
+    if (isDir(store)) return;
+    try {
+      fs.mkdirSync(path.dirname(store), { recursive: true });
+      fs.renameSync(link, store);
+    } catch {
+      return; // locked db / cross-device — stay legacy
+    }
+    if (linkStore(store, link)) return;
+    try {
+      fs.renameSync(store, link); // relink failed — restore the legacy layout
+    } catch {
+      // worst case: index lives under .deeporca and the next index rebuilds
+    }
+    return;
+  }
+
+  // No link dir at all (or a stray file) — provision store + link.
+  try {
+    fs.mkdirSync(store, { recursive: true });
+  } catch {
+    return;
+  }
+  if (!linkStore(store, link)) {
+    try {
+      fs.rmSync(store, { recursive: true, force: true });
+    } catch {
+      // empty store left behind is harmless
+    }
+  }
+}
+
+/** Create `<link>` → `<store>`; relative symlink on POSIX, junction (no
+ *  privilege needed) on Windows. False when the platform refuses. */
+function linkStore(store: string, link: string): boolean {
+  try {
+    if (process.platform === "win32") {
+      fs.symlinkSync(store, link, "junction");
+    } else {
+      fs.symlinkSync(path.relative(path.dirname(link), store), link, "dir");
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** The SDK surface this adapter needs (resolved robustly below). */
+interface CodegraphSdk {
+  CodeGraph: typeof codegraphModule.CodeGraph;
+  /** SDK's own initialized check: `.codegraph/` dir AND codegraph.db present. */
+  isInitialized(projectRoot: string): boolean;
+  /** SDK's own db path (honors the CODEGRAPH_DIR override). */
+  getDatabasePath(projectRoot: string): string;
+}
+
+/**
+ * Resolve the SDK module robustly (audit 2026-08-26 build failure:
  * "Cannot read properties of undefined (reading 'init')"). Because npm-sdk.js
  * is a DYNAMIC CJS re-export, esbuild's ESM namespace exposes ONLY `default`
  * — a plain destructure yields `undefined`, the codegraph stage then threw
@@ -30,16 +127,67 @@ type CodeGraphInstance = codegraphModule.CodeGraph;
  * rebuilt in 0s). Unwrap default-first, and fail with an actionable message
  * instead of a cryptic TypeError when the bundle is genuinely missing.
  */
-function resolveCodeGraphSdk(): typeof codegraphModule.CodeGraph {
-  const mod = codegraphModule as unknown as { CodeGraph?: unknown; default?: { CodeGraph?: unknown } };
-  const candidate = (mod.CodeGraph ?? mod.default?.CodeGraph) as typeof codegraphModule.CodeGraph | undefined;
-  if (!candidate || typeof candidate.init !== "function") {
+function resolveCodeGraphSdk(): CodegraphSdk {
+  const mod = codegraphModule as unknown as CodegraphSdk & { default?: CodegraphSdk };
+  const resolved = mod.CodeGraph ? mod : mod.default;
+  if (!resolved || typeof resolved.CodeGraph?.init !== "function") {
     throw new Error(
       "CodeGraph SDK failed to load — interop/install problem. Ensure `@colbymchenry/codegraph` and its " +
         "platform bundle (`@colbymchenry/codegraph-<platform>-<arch>`) are installed."
     );
   }
-  return candidate;
+  return resolved;
+}
+
+/** The index db path — SDK helper when present (CODEGRAPH_DIR-aware), else
+ *  the default layout. */
+function indexDbPath(root: string): string {
+  try {
+    const sdk = resolveCodeGraphSdk();
+    if (typeof sdk.getDatabasePath === "function") return sdk.getDatabasePath(root);
+  } catch {
+    // SDK unloadable — fall through to the default layout.
+  }
+  return path.join(root, ".codegraph", "codegraph.db");
+}
+
+/**
+ * Count real (non-import/unknown/file) symbols in an index db — the
+ * "did indexing actually produce anything" check (audit 2026-08-28, same
+ * class as wiki's exit-0-over-skeleton: indexAll resolving over an empty
+ * parse used to light the 索引 status dot while the symbols tab stayed
+ * empty). Read-only open; 0 on any failure.
+ */
+const nodeRequire = nodeCreateRequire(import.meta.url);
+
+function countIndexedSymbols(root: string): number {
+  const dbPath = indexDbPath(root);
+  if (!fs.existsSync(dbPath)) return 0;
+  try {
+    // Lazy require (repo discipline: node:sqlite needs Node >= 22.5 — load it
+    // at use so a runtime without it degrades to 0 here instead of failing at
+    // bundle load; the static import broke that graceful path).
+    // Minimal structural typing for the lazily-required module (import()
+    // type annotations are lint-forbidden here): the constructor returns a
+    // db with the two members countIndexedSymbols uses.
+    type NodeSqliteDb = {
+      prepare: (sql: string) => { get: () => unknown };
+      close: () => void;
+    };
+    type NodeSqlite = { DatabaseSync: new (path: string, opts: { readOnly: boolean }) => NodeSqliteDb };
+    const { DatabaseSync } = nodeRequire("node:sqlite") as NodeSqlite;
+    const db = new DatabaseSync(dbPath, { readOnly: true });
+    try {
+      const row = db.prepare("SELECT COUNT(*) AS n FROM nodes WHERE kind NOT IN ('import','unknown','file')").get() as {
+        n: number;
+      };
+      return row.n;
+    } finally {
+      db.close();
+    }
+  } catch {
+    return 0;
+  }
 }
 
 export class SdkCodegraphController implements CodegraphController {
@@ -47,7 +195,10 @@ export class SdkCodegraphController implements CodegraphController {
   private instances = new Map<string, CodeGraphInstance>();
 
   private async getOrOpen(root: string): Promise<CodeGraphInstance> {
-    const CodeGraph = resolveCodeGraphSdk();
+    // open() requires an initialized project — callers route here only via
+    // hasProject (usable index), so the hollow-dir case never reaches this.
+    ensureCodegraphStoreLayout(root);
+    const { CodeGraph } = resolveCodeGraphSdk();
     let cg = this.instances.get(root);
     if (!cg) {
       cg = await CodeGraph.open(root, { sync: true });
@@ -57,41 +208,121 @@ export class SdkCodegraphController implements CodegraphController {
   }
 
   async reindex(root: string, onProgress?: (p: ControllerProgress) => void): Promise<void> {
-    const CodeGraph = resolveCodeGraphSdk();
+    const { CodeGraph, isInitialized } = resolveCodeGraphSdk();
+    ensureCodegraphStoreLayout(root);
     onProgress?.({ message: "clearing existing index", percent: 5 });
-    // Destroy old instance if any, then init fresh.
+    // Release the in-memory instance's db handle first (close() — NOT
+    // uninitialize(), which also DELETES the directory; recreate() owns the
+    // disk-level discard). An open handle would block the file unlink on
+    // Windows.
     const old = this.instances.get(root);
     if (old) {
       try {
-        await old.uninitialize();
+        old.close();
       } catch {
         // Best effort — may already be closed.
       }
       this.instances.delete(root);
     }
-    onProgress?.({ message: "initializing CodeGraph", percent: 10 });
-    const cg = await CodeGraph.init(root);
+    onProgress?.({ message: "re-initializing CodeGraph", percent: 10 });
+    // The two rebuild entry points are exact complements, each refusing the
+    // other's state (real-machine 2026-08-30, GVGL first build): init()
+    // throws "already initialized" on an indexed project, and recreate()
+    // throws "not initialized … Run init() first" on a never-indexed one —
+    // so a fresh workspace's first build must take init(), while an
+    // initialized (incl. hollow 0-symbol) one takes recreate().
+    //
+    // recreate() is the SDK's documented "same result as a fresh init" path
+    // (`codegraph index` semantics) for the initialized case: it discards
+    // the existing db + WAL sidecars in O(1) and re-initializes instead of
+    // opening the old database and DELETE-ing every row.
+    const cg = isInitialized(root) ? await CodeGraph.recreate(root) : await CodeGraph.init(root);
     this.instances.set(root, cg);
     onProgress?.({ message: "indexing all files", percent: 20 });
     await cg.indexAll({
       onProgress: (p: { phase?: string; current?: number; total?: number }) => {
-        const pct = p.total ? 20 + Math.floor((75 * (p.current ?? 0)) / p.total) : undefined;
+        const pct = p.total ? 20 + Math.floor((75 * (p.current ?? 0)) / (p.total ?? 1)) : undefined;
         onProgress?.({
           message: `${p.phase ?? "indexing"}: ${p.current ?? 0}/${p.total ?? "?"}`,
           percent: pct,
         });
       },
     });
-    onProgress?.({ message: "CodeGraph index complete", percent: 100 });
+    // Post-verify (audit 2026-08-28): a resolved indexAll proves nothing — an
+    // empty parse (broken grammar load, wrong root, exclusion gone wrong)
+    // used to read as a green stage and an "indexed" status dot over a 0-node
+    // db. Fail loudly so the build row shows the real state.
+    const nodeCount = countIndexedSymbols(root);
+    if (nodeCount === 0) {
+      throw new Error(
+        "CodeGraph indexed 0 symbols — no parsable source files were found " +
+          "(check the workspace root and grammar availability)"
+      );
+    }
+    onProgress?.({ message: `CodeGraph index complete · ${nodeCount} symbols`, percent: 100 });
   }
 
-  async sync(root: string): Promise<void> {
+  async sync(root: string, onProgress?: (p: ControllerProgress) => void): Promise<ControllerSyncResult | void> {
     const cg = await this.getOrOpen(root);
-    await cg.sync();
+    // A sync behind the build button streams the same scanning/resolving
+    // phases a re-index does (the SDK's ExtractionOrchestrator emits them),
+    // then returns the change-count summary for the build log line.
+    const result = await cg.sync({
+      onProgress: (p: { phase?: string; current?: number; total?: number }) => {
+        onProgress?.({
+          message: `sync ${p.phase ?? "scanning"}: ${p.current ?? 0}/${p.total ?? "?"}`,
+          percent: p.total ? Math.floor((100 * (p.current ?? 0)) / p.total) : undefined,
+        });
+      },
+    });
+    if (result) {
+      return {
+        filesChecked: result.filesChecked,
+        filesAdded: result.filesAdded,
+        filesModified: result.filesModified,
+        filesRemoved: result.filesRemoved,
+        durationMs: result.durationMs,
+      };
+    }
   }
 
   hasProject(root: string): boolean {
-    return fs.existsSync(path.join(root, ".codegraph"));
+    // Routing input for sync-vs-reindex: "usable index", not "directory
+    // exists" (audit 2026-08-28). The SDK's isInitialized requires dir AND
+    // db; the node count on top routes a hollow/0-symbol leftover (failed
+    // init, empty parse) to a FULL REBUILD instead of a sync-over-nothing
+    // that would "succeed" while the symbols tab stays empty.
+    ensureCodegraphStoreLayout(root);
+    try {
+      const sdk = resolveCodeGraphSdk();
+      if (typeof sdk.isInitialized === "function" && !sdk.isInitialized(root)) return false;
+    } catch {
+      // SDK unloadable — fall back to the db-file presence check below.
+    }
+    return fs.existsSync(indexDbPath(root)) && countIndexedSymbols(root) > 0;
+  }
+
+  /**
+   * Release the tracked SDK instance's OS handles (sqlite db + WAL) for one
+   * root — or every tracked root when omitted. The app keeps instances open
+   * for its lifetime, but any teardown that deletes the project directory
+   * (tests today; a future workspace-removal flow would need it too) needs
+   * the handle gone first: Windows refuses to remove a directory whose file
+   * is still open (EPERM), where POSIX unlinks it silently — the asymmetry
+   * that hid this from CI.
+   */
+  dispose(root?: string): void {
+    const targets = root === undefined ? [...this.instances.keys()] : [root];
+    for (const key of targets) {
+      const cg = this.instances.get(key);
+      if (!cg) continue;
+      try {
+        cg.close();
+      } catch {
+        // Best effort — may already be closed.
+      }
+      this.instances.delete(key);
+    }
   }
 
   getMcpServer(): { connect(transport: unknown): Promise<void> } | null {

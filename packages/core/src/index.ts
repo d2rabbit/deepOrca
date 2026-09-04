@@ -52,6 +52,10 @@ export type {
 
 // Session
 export { SessionManager, getProjectCode, getCompactPromptTokenThreshold } from "./session";
+// Per-request local usage ledger (token-statistics rework P1) — desktop main
+// reads it (tokens summary / time windows), the engine appends to it.
+export { appendUsageRecord, readUsageLedger, usageLedgerPath, listUsageLedgerShards } from "./common/usage-ledger";
+export type { UsageRecord, UsageSource } from "./common/usage-ledger";
 export type {
   SessionMessage,
   SessionEntry,
@@ -210,13 +214,27 @@ export { resolveUvBinary, configureUvVendorRoot } from "./common/uv";
 
 export {
   CRG_MCP_SERVER_NAME,
+  CRG_DIR_NAME,
+  CRG_LEGACY_DIR_NAME,
   configureCrgVersionRoot,
   setCrgDisabled,
   isCrgDisabled,
   hasCrgProject,
+  migrateLegacyCrgDir,
   runCrgResetWithOutput,
-  runCrgVisualize,
 } from "./common/crg";
+
+// Generated-content layout — where the toolchain parks its output inside a
+// target project (user rule 2026-08-31: everything under .deeporca/).
+export {
+  DEEPORCA_PROJECT_DIR,
+  CRG_DATA_DIR,
+  CRG_LEGACY_DIR,
+  CODEGRAPH_STORE_DIR,
+  CODEGRAPH_LINK_DIR,
+  WIKI_STORE_DIR,
+  WIKI_LEGACY_STORE_DIR,
+} from "./common/generated-dirs";
 
 // Hardened child-process runner shared by the wiki/CRG/OCR CLI adapters.
 export { spawnTracked, configureSpawnTrackedLogger } from "./common/spawn-tracked";
@@ -304,10 +322,13 @@ export {
 export {
   supportsMultimodal,
   defaultsToThinkingMode,
+  isStepfunBaseUrl,
+  endpointQuotaKind,
   resolveModelSpec,
   resolveBackgroundLlm,
   findModelRegistration,
   type ModelCapabilityRegistration,
+  type EndpointQuotaKind,
   type ModelFamilyId,
   type ModelFamilySpec,
   type ModelSpec,
@@ -376,8 +397,6 @@ export {
   getReviewController,
   crgReindexDefinition,
   crgReindexRun,
-  crgVisualizeDefinition,
-  crgVisualizeRun,
   configureCrgGraphQuery,
   getCrgGraphQuery,
   createCrgGraphQuery,
@@ -403,17 +422,19 @@ export {
   getWikiController,
   indexBuildAllDefinition,
   indexBuildAllRun,
-  wikiTranslateDefinition,
-  wikiTranslateRun,
-  detectWikiLanguage,
-  wikiVariantPath,
   isWikiVariantFile,
-  containedUnderWiki,
-  listWikiBasePages,
   archScanRunDefinition,
   archScanRunRun,
+  configureArchifyPaths,
+  getArchifyPaths,
+  configureArchRenderer,
+  getArchRenderer,
+  configureArchifyLanguage,
+  getArchifyLanguage,
 } from "./actions";
 export type {
+  ArchifyPaths,
+  ArchRenderer,
   RegistryHost,
   ExecuteOptions,
   RunHandle,
@@ -436,6 +457,7 @@ export type {
   ReviewFullOutput,
   CodegraphController,
   ControllerProgress,
+  ControllerSyncResult,
   ReviewController,
   ReviewResult,
   ReviewComment,
@@ -449,6 +471,8 @@ export type {
   CrgChangedFunction,
   CrgImpactNode,
   CrgRiskData,
+  CrgRiskNode,
+  CrgRiskEdge,
   CrgCommunity,
 } from "./actions";
 

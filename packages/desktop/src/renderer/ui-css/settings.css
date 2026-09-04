@@ -113,10 +113,18 @@
   outline-offset: 1px;
 }
 .ui-settings-nav-icon {
+  /* Flex centering works for both tab icon kinds (SVG components and text
+     glyphs); a plain line box rides inline SVGs ~1.5px above the label. */
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-size: 14px;
   line-height: 1;
   width: 18px;
-  text-align: center;
+}
+.ui-settings-nav-icon svg {
+  width: 15px;
+  height: 15px;
 }
 .ui-settings-main {
   display: flex;
@@ -265,6 +273,131 @@
   color: var(--ui-accent);
   white-space: nowrap;
 }
+/* ── Endpoint-first model configuration (conventional layout) ─────────────
+   One card per endpoint: name/baseURL header, API key, quota line (follows
+   the endpoint), then the endpoint's models with an inline add-model row. */
+.ui-endpoint-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.ui-endpoint-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--ui-border-soft, #e3e6eb) 70%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--ui-surface-sunken, #eef1f6) 26%, var(--ui-surface, transparent));
+}
+.ui-endpoint-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.ui-endpoint-card-name {
+  font-size: 12.5px;
+}
+.ui-endpoint-badge {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--ui-border-soft, #e3e6eb) 80%, transparent);
+  color: var(--ui-text-faint, #8590a0);
+}
+.ui-endpoint-baseurl {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--ui-text-dim, #55606d);
+}
+.ui-endpoint-quota {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.ui-endpoint-quota-note {
+  opacity: 0.75;
+}
+.ui-endpoint-models {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-left: 8px;
+  border-left: 2px solid color-mix(in srgb, var(--ui-border-soft, #e3e6eb) 55%, transparent);
+}
+/* Collapsed-by-default model list toggle (per endpoint card). */
+.ui-endpoint-models-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  padding: 2px 4px;
+  margin-left: -4px;
+  border: none;
+  background: none;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ui-text-dim, #55606d);
+  cursor: pointer;
+  border-radius: var(--ui-radius-md);
+  transition:
+    color 0.12s var(--ui-ease),
+    background 0.12s var(--ui-ease);
+}
+.ui-endpoint-models-toggle:hover {
+  color: var(--ui-accent);
+  background: var(--ui-surface-hover);
+}
+.ui-endpoint-chevron {
+  width: 10px;
+  font-size: 10px;
+  line-height: 1;
+}
+.ui-endpoint-add {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+  /* Sits at the TOP of the section now. */
+  margin-bottom: 4px;
+}
+
+/* Connectivity probe result line (model-pool 测试 button). */
+.ui-endpoint-test {
+  font-size: 11.5px;
+  padding: 5px 10px;
+  border-radius: var(--ui-radius-sm);
+  border: 1px solid transparent;
+  margin-bottom: 2px;
+  overflow-wrap: anywhere;
+}
+.ui-endpoint-test.ok {
+  color: var(--ui-success);
+  background: color-mix(in srgb, var(--ui-success) 8%, transparent);
+  border-color: color-mix(in srgb, var(--ui-success) 25%, transparent);
+}
+.ui-endpoint-test.warn {
+  color: var(--ui-warning);
+  background: color-mix(in srgb, var(--ui-warning) 8%, transparent);
+  border-color: color-mix(in srgb, var(--ui-warning) 25%, transparent);
+}
+.ui-endpoint-test.error {
+  color: var(--ui-danger);
+  background: color-mix(in srgb, var(--ui-danger) 8%, transparent);
+  border-color: color-mix(in srgb, var(--ui-danger) 25%, transparent);
+}
+
 .ui-pool-add-form {
   display: flex;
   flex-direction: column;
@@ -487,9 +620,9 @@
   padding-bottom: calc(var(--ui-space-3) + 14px);
   overflow: hidden;
   transition:
-    border-color 0.15s ease,
-    background 0.15s ease,
-    transform 0.15s ease;
+    border-color 0.15s var(--ui-ease),
+    background 0.15s var(--ui-ease),
+    transform 0.15s var(--ui-ease);
 }
 .ui-plugin-group-card:hover {
   border-color: var(--ui-border-strong);
@@ -601,7 +734,7 @@
   border: 1px solid var(--ui-border-soft);
   border-radius: var(--ui-radius-md);
   animation: ui-card-enter 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
-  transition: border-color 0.15s ease;
+  transition: border-color 0.15s var(--ui-ease);
 }
 .ui-undo-item:hover {
   border-color: var(--ui-accent);
@@ -648,7 +781,6 @@
 }
 
 /* Highlight (session search) */
-
 
 /* Memory pipeline observability (L0–L3 counts + clear). */
 .ui-memory-stats {

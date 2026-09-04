@@ -2,7 +2,7 @@
 
 > 日期：2026-07-30 · 状态：调研完成
 > 目的：评估 A2UI（Agent-to-UI）协议能否、以及如何贡献给 DeepOrca。用户直觉是「本项目有 webview，可用于原型设计」。
-> 配套设计草案：`specs/a2ui-integration/design.md`
+> 配套设计草案：`specs/archive/a2ui-integration/design.md`
 
 ---
 
@@ -58,7 +58,7 @@ A2UI 是一套**协议 + 消息格式**，让 AI agent 通过**流式 JSON 消�
 - renderer 是单个 sandboxed `BrowserWindow`，`webPreferences` 里**无 `webviewTag`**，无 `<webview>`/`<iframe>`/BrowserView/WebContentsView。
 - 两个 HTML 生成 skill（`deep-design`、`bento-slides`）产物写磁盘 `.deeporca/designs/*.html` / `.bento.html`，**告诉用户自己去外部浏览器打开**。`write` 工具对 `.html` 与任意文本一视同仁，无渲染钩子。
 - IPC 契约（`ipc.ts`，633 行）**无任何 `design:*`/`preview:*`/`webview` 通道**。
-- DeepDesign spec（`specs/deep-design/design.md`，2026-07-29）规划的 `DesignStudioPanel`（`<webview src="file://.../*.html">`）**未实现**，roadmap 列 Phase 3。
+- DeepDesign spec（`specs/archive/deep-design/design.md`，2026-07-29）规划的 `DesignStudioPanel`（`<webview src="file://.../*.html">`）**未实现**，roadmap 列 Phase 3。
 
 > 生成侧（SKILL.md + seed.html + 3 个 DESIGN.md）已就位，渲染侧完全空白。用户「本项目本身存在 webview」的直觉，对应的是 spec 里**计划要建但尚未存在**的 webview。
 
@@ -114,7 +114,7 @@ Basic Catalog 组件**四个场景全部覆盖**，无需自研即可起步（�
 | Server | 自研 Node server（草案建议） | 官方 sample 全 Python，破坏「纯 Node MCP」一致性；Python 仅做 schema 校验，可 Node 化 |
 | 位置 | 主窗口内 React 富消息 | 最集成、上下文不割裂、与 `Message.tsx` 一脉相承 |
 
-> 详细层规则、改动点、风险见 `specs/a2ui-integration/design.md`。
+> 详细层规则、改动点、风险见 `specs/archive/a2ui-integration/design.md`。
 
 ---
 

@@ -69,7 +69,10 @@ export function buildReviewFixPrompt(findings: ReviewFinding[]): string {
 
 /**
  * Extract findings from a review.full action output (unknown-shaped for the
- * renderer). Returns [] on any shape mismatch — never throws.
+ * renderer). Returns [] on any shape mismatch — never throws. The delegation
+ * content prefix (`[HIGH] …`) is STRIPPED here: the fix brief already carries
+ * the severity through the `[结构风险 …]` tag, and a verbatim prefix made
+ * every item read "HIGH … [结构风险 HIGH …]" (review round 2026-09-01).
  */
 export function extractReviewFindings(output: unknown): ReviewFinding[] {
   if (output == null || typeof output !== "object") return [];
@@ -83,11 +86,13 @@ export function extractReviewFindings(output: unknown): ReviewFinding[] {
     const path = typeof rec.path === "string" ? rec.path : "";
     const startLine = Number(rec.startLine ?? rec.start_line ?? 0);
     if (!path || !Number.isFinite(startLine) || startLine <= 0) continue;
+    const rawContent = typeof rec.content === "string" ? rec.content : "";
+    const prefixed = rawContent.match(/^\[(CRITICAL|HIGH|MEDIUM|LOW)\]\s*([\s\S]*)$/);
     findings.push({
       path,
       startLine,
       endLine: rec.endLine != null ? Number(rec.endLine) : undefined,
-      content: typeof rec.content === "string" ? rec.content : "",
+      content: prefixed ? prefixed[2] : rawContent,
       existingCode: typeof rec.existingCode === "string" ? rec.existingCode : undefined,
       suggestionCode: typeof rec.suggestionCode === "string" ? rec.suggestionCode : undefined,
       crgRisk: typeof rec.crgRisk === "string" ? rec.crgRisk : undefined,

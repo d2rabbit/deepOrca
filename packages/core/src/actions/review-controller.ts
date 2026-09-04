@@ -1,20 +1,26 @@
 /**
  * ReviewController — the Seam between core's action layer and the actual code
- * review execution (OCR CLI or future alternatives).
+ * review execution (desktop's OcrCliController).
  *
- * Core defines this Interface + the correct OCR JSON types; desktop injects
- * a concrete Adapter (`OcrCliController` that spawns the `ocr` binary with
- * correct flags). This fixes the 5 known integration bugs:
- *  1. JSON field names now match OCR's actual output (path/start_line/content/...)
- *  2. --audience agent is always passed (clean JSON on stdout)
- *  3. --background supported (quality lever)
- *  4. Legacy IPC removed (actions are the sole path)
- *  5. LLM config via --provider/--model per-run override
+ * Core defines this Interface + the result types; desktop injects the concrete
+ * Adapter. Since 2026-08-31 the adapter runs Open Code Review in DELEGATION
+ * mode (open-codereview.ai/docs/delegate): OCR only performs the deterministic
+ * engineering — `ocr delegate preview` (reviewable-file selection) and
+ * `ocr delegate rule` (rules) — while the review itself is performed per file
+ * by the HOST (DeepOrca's own model via the sessionless background LLM task).
+ * No OCR-side LLM configuration or API key exists or is needed.
+ *
+ * Historical note: the first adapter generation spawned
+ * `ocr review --format json --audience agent` (OCR drove its own LLM) and its
+ * header tracked "5 known integration bugs" (field names, --audience agent,
+ * --background, legacy IPC removal, per-run --provider/--model overrides).
+ * Delegation mode retires that entire class: bugs 1-4 dissolved with the old
+ * invocation, bug 5 (LLM config) became unnecessary by design.
  */
 
 import type { ControllerProgress } from "./codegraph-controller";
 
-// --- OCR JSON output types (matching ocr review --format json --audience agent) ---
+// --- OCR review result types (shared by the delegate pipeline and consumers) ---
 
 export interface ReviewComment {
   path: string;
@@ -32,12 +38,18 @@ export interface ReviewResult {
   summary?: {
     filesReviewed?: number;
     comments?: number;
+    /** Changes the OCR pipeline dropped by policy (generated dot-paths). */
+    excludedByPolicy?: number;
+    /** Changes OCR cannot review (unsupported file type, e.g. docs). */
+    unsupportedFiles?: number;
     totalTokens?: number;
     inputTokens?: number;
     outputTokens?: number;
     elapsed?: string;
   };
   comments: ReviewComment[];
+  /** Set when the controller re-scoped a workspace run (e.g. HEAD fallback). */
+  effectiveScope?: { mode: "workspace" | "commit"; commit?: string };
   warnings?: unknown[];
   sessionId?: string;
 }
@@ -47,13 +59,16 @@ export interface ReviewOptions {
   from?: string;
   to?: string;
   commit?: string;
+  /** Whole-repository scope: every tracked file is a review target. */
+  all?: boolean;
 }
 
 export interface ReviewController {
   /**
-   * Run a code review. Spawns `ocr review --format json --audience agent`
-   * with the appropriate mode flags. Streams progress, returns structured
-   * result matching OCR's actual JSON schema.
+   * Run a code review via the delegation pipeline: `ocr delegate preview` +
+   * `ocr delegate rule` (deterministic, OCR side), then per-file diffs and
+   * host-model review (adapter side). Streams progress, returns a structured
+   * result in the ReviewResult shape below.
    */
   runReview(root: string, opts: ReviewOptions, onProgress?: (p: ControllerProgress) => void): Promise<ReviewResult>;
 

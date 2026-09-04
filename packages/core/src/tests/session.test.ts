@@ -14,6 +14,9 @@ import {
   withStreamIdleTimeout,
 } from "../session";
 import { classifyLlmError } from "../common/llm-error";
+import { countTextTokens, warmTokenCounter } from "../common/token-counter";
+import { readUsageLedger, usageLedgerPath } from "../common/usage-ledger";
+import { getUserConfigRoot } from "../common/app-dirs";
 import {
   APIUserAbortError,
   buildTestMessage,
@@ -399,7 +402,7 @@ test("SessionManager keeps both updates when two sessions are updated inside one
   assert.equal(reloaded.getSession("session-b")?.summary, "new b");
 });
 
-test("SessionManager keeps usagePerModel null until response usage is available", async () => {
+test("SessionManager fills usage from local counts when the response carries no usage", async () => {
   const workspace = createTempDir("deepcode-null-usage-per-model-workspace-");
   const home = createTempDir("deepcode-null-usage-per-model-home-");
   setHomeDir(home);
@@ -408,8 +411,15 @@ test("SessionManager keeps usagePerModel null until response usage is available"
 
   const sessionId = await manager.createSession({ text: "" });
 
-  assert.equal(manager.getSession(sessionId)?.usage, null);
-  assert.equal(manager.getSession(sessionId)?.usagePerModel, null);
+  // Local accounting (P1, 2026-09): usage no longer depends on API-reported
+  // usage — the payload and the response text are counted locally instead.
+  const session = manager.getSession(sessionId)!;
+  const usage = session.usage as ModelUsage;
+  assert.ok(usage.prompt_tokens > 0, "prompt counted from the payload");
+  assert.equal(usage.completion_tokens, countTextTokens("test-model", "no usage"));
+  assert.equal(usage.total_tokens, usage.prompt_tokens + usage.completion_tokens);
+  assert.equal(session.usagePerModel?.["test-model"]?.total_reqs, 1);
+  assert.equal(session.activeTokens, usage.prompt_tokens, "context meter = pre-flight count");
 });
 
 test("buildOpenAIMessages inserts interrupted results for missing tool messages", () => {
@@ -894,29 +904,27 @@ test("buildOpenAIMessages ignores tool messages that appear before their assista
   assert.doesNotMatch(openAIMessages[1]?.content ?? "", /too early/);
 });
 
-test("SessionManager accumulates response usage while active tokens track the latest response", async () => {
+test("SessionManager accumulates local usage while activeTokens tracks the latest payload", async () => {
   const workspace = createTempDir("deepcode-usage-workspace-");
   const home = createTempDir("deepcode-usage-home-");
   setHomeDir(home);
 
+  // API usage fields in the fixtures are now inert for statistics (P1: local
+  // counting is the accounting source) — they exercise pass-through only.
   const responses = [
     createChatResponse("first", {
       prompt_tokens: 10,
       completion_tokens: 5,
       total_tokens: 15,
       prompt_tokens_details: { cached_tokens: 7 },
-      completion_tokens_details: { reasoning_tokens: 3 },
       prompt_cache_hit_tokens: 7,
-      prompt_cache_miss_tokens: 3,
     }),
     createChatResponse("second", {
       prompt_tokens: 20,
       completion_tokens: 7,
       total_tokens: 27,
       prompt_tokens_details: { cached_tokens: 11 },
-      completion_tokens_details: { reasoning_tokens: 4 },
       prompt_cache_hit_tokens: 11,
-      prompt_cache_miss_tokens: 9,
     }),
   ];
   const manager = createMockedClientSessionManager(workspace, responses);
@@ -924,32 +932,35 @@ test("SessionManager accumulates response usage while active tokens track the la
   const sessionId = await manager.createSession({ text: "" });
   await manager.replySession(sessionId, { text: "" });
 
-  const session = manager.getSession(sessionId);
-  const usage = session?.usage as Record<string, any>;
-  const usagePerModel = session?.usagePerModel?.["test-model"] as Record<string, any>;
-  // activeTokens tracks the latest response's PROMPT side (context pressure), not total_tokens.
-  assert.equal(session?.activeTokens, 20);
-  assert.equal(usage.prompt_tokens, 30);
-  assert.equal(usage.completion_tokens, 12);
-  assert.equal(usage.total_tokens, 42);
-  assert.equal(usage.prompt_tokens_details.cached_tokens, 18);
-  assert.equal(usage.completion_tokens_details.reasoning_tokens, 7);
-  assert.equal(usage.prompt_cache_hit_tokens, 18);
-  assert.equal(usage.prompt_cache_miss_tokens, 12);
-  assert.equal(usagePerModel.prompt_tokens, 30);
-  assert.equal(usagePerModel.completion_tokens, 12);
-  assert.equal(usagePerModel.total_tokens, 42);
-  assert.equal(usagePerModel.prompt_tokens_details.cached_tokens, 18);
-  assert.equal(usagePerModel.completion_tokens_details.reasoning_tokens, 7);
-  assert.equal(usagePerModel.prompt_cache_hit_tokens, 18);
-  assert.equal(usagePerModel.prompt_cache_miss_tokens, 12);
-  assert.equal(usagePerModel.total_reqs, 2);
+  const session = manager.getSession(sessionId)!;
+  const usage = session.usage as ModelUsage;
+  const usagePerModel = session.usagePerModel?.["test-model"];
+  const chatRecords = readUsageLedger(usageLedgerPath(getUserConfigRoot(), workspace)).filter(
+    (record) => record.source === "chat"
+  );
+  assert.equal(chatRecords.length, 2, "one ledger record per chat request");
+  assert.ok(chatRecords.every((record) => record.estimated === true));
+  assert.ok(chatRecords[0]!.prompt > 0 && chatRecords[1]!.prompt > 0);
+  // activeTokens tracks the LATEST request's pre-flight count (context
+  // pressure), never the completion side.
+  assert.equal(session.activeTokens, chatRecords[1]!.prompt);
+  assert.equal(usage.prompt_tokens, chatRecords[0]!.prompt + chatRecords[1]!.prompt);
+  assert.equal(
+    usage.completion_tokens,
+    countTextTokens("test-model", "first") + countTextTokens("test-model", "second")
+  );
+  assert.equal(usage.total_tokens, usage.prompt_tokens + usage.completion_tokens);
+  assert.equal(usagePerModel?.total_reqs, 2);
+  assert.equal(usagePerModel?.prompt_tokens, usage.prompt_tokens);
 });
 
 test("SessionManager stores usage per model across model changes", async () => {
   const workspace = createTempDir("deepcode-usage-per-model-workspace-");
   const home = createTempDir("deepcode-usage-per-model-home-");
   setHomeDir(home);
+  // Both models are deepseek-family — warm the exact tokenizer up front so
+  // local counts are deterministic (no heuristic-vs-exact warmup race).
+  await warmTokenCounter("deepseek-v4-pro");
 
   let currentModel = "deepseek-v4-pro";
   const responses = [
@@ -996,30 +1007,36 @@ test("SessionManager stores usage per model across model changes", async () => {
   currentModel = "deepseek-v4-flash";
   await manager.replySession(sessionId, { text: "" });
 
-  const session = manager.getSession(sessionId);
-  assert.deepEqual(Object.keys(session?.usagePerModel ?? {}).sort(), ["deepseek-v4-flash", "deepseek-v4-pro"]);
-  assert.equal(session?.usagePerModel?.["deepseek-v4-pro"]?.prompt_tokens, 10);
-  assert.equal(session?.usagePerModel?.["deepseek-v4-pro"]?.completion_tokens, 5);
-  assert.equal(session?.usagePerModel?.["deepseek-v4-pro"]?.total_reqs, 1);
-  assert.equal(session?.usagePerModel?.["deepseek-v4-flash"]?.prompt_tokens, 20);
-  assert.equal(session?.usagePerModel?.["deepseek-v4-flash"]?.completion_tokens, 7);
-  assert.equal(session?.usagePerModel?.["deepseek-v4-flash"]?.prompt_cache_hit_tokens, 6);
-  assert.equal(session?.usagePerModel?.["deepseek-v4-flash"]?.total_reqs, 1);
-  assert.equal(session?.usage?.prompt_tokens, 30);
-  assert.equal(session?.usage?.completion_tokens, 12);
-  assert.equal(session?.usage?.total_tokens, 42);
+  const session = manager.getSession(sessionId)!;
+  assert.deepEqual(Object.keys(session.usagePerModel ?? {}).sort(), ["deepseek-v4-flash", "deepseek-v4-pro"]);
+  const chatRecords = readUsageLedger(usageLedgerPath(getUserConfigRoot(), workspace)).filter(
+    (record) => record.source === "chat"
+  );
+  assert.equal(chatRecords.length, 2);
+  assert.equal(chatRecords[0]?.model, "deepseek-v4-pro");
+  assert.equal(chatRecords[1]?.model, "deepseek-v4-flash");
+  const pro = session.usagePerModel?.["deepseek-v4-pro"];
+  const flash = session.usagePerModel?.["deepseek-v4-flash"];
+  assert.equal(pro?.prompt_tokens, chatRecords[0]?.prompt);
+  assert.equal(pro?.completion_tokens, countTextTokens("deepseek-v4-pro", "pro response"));
+  assert.equal(pro?.total_reqs, 1);
+  assert.equal(flash?.prompt_tokens, chatRecords[1]?.prompt);
+  assert.equal(flash?.completion_tokens, countTextTokens("deepseek-v4-flash", "flash response"));
+  assert.equal(flash?.total_reqs, 1);
+  assert.equal(session.usage?.prompt_tokens, (pro?.prompt_tokens ?? 0) + (flash?.prompt_tokens ?? 0));
+  assert.equal(session.usage?.total_tokens, session.usage!.prompt_tokens + session.usage!.completion_tokens);
 });
 
-test("SessionManager resets active tokens to latest post-compaction response usage", async () => {
+test("SessionManager compacts pre-flight when the payload nears the threshold", async () => {
   const workspace = createTempDir("deepcode-compact-usage-workspace-");
   const home = createTempDir("deepcode-compact-usage-home-");
   setHomeDir(home);
 
   const responses = [
-    createChatResponse("large", {
-      prompt_tokens: 139_990,
-      completion_tokens: 10,
-      total_tokens: 140_000,
+    createChatResponse("first", {
+      prompt_tokens: 10,
+      completion_tokens: 1,
+      total_tokens: 11,
     }),
     createChatResponse("summary", {
       prompt_tokens: 100,
@@ -1032,34 +1049,35 @@ test("SessionManager resets active tokens to latest post-compaction response usa
       total_tokens: 7,
     }),
   ];
-  const manager = createMockedClientSessionManager(workspace, responses);
+  // Explicit threshold: the initial filler counts ~110K heuristic tokens —
+  // too big for a single message to summarize away on turn 1 (nothing else
+  // in range), but on turn 2 it sits in the compactable middle, so the
+  // pre-flight budget crosses 100K × 0.9 and compaction fires BEFORE the
+  // request — not after a CONTEXT_WINDOW_EXCEEDED error.
+  const manager = createMockedClientSessionManager(workspace, responses, { compactTokenThreshold: 100_000 });
 
-  const sessionId = await manager.createSession({ text: "" });
-  assert.equal(manager.getSession(sessionId)?.activeTokens, 139_990);
+  const sessionId = await manager.createSession({ text: `context filler ${"x".repeat(440_000)}` });
+  const firstMeter = manager.getSession(sessionId)?.activeTokens ?? 0;
+  assert.ok(firstMeter > 90_000, "oversized turn still metered (nothing compactable on turn 1)");
 
-  await manager.replySession(sessionId, { text: "" });
+  await manager.replySession(sessionId, { text: "continue" });
 
-  const session = manager.getSession(sessionId);
-  const usage = session?.usage as Record<string, any>;
+  const session = manager.getSession(sessionId)!;
   // Compaction runs on the family lightweight model ("deepseek-v4-flash"), so
   // usagePerModel splits between the session model and the compaction model.
-  const usagePerModel = session?.usagePerModel?.["test-model"] as Record<string, any>;
-  const compactUsage = session?.usagePerModel?.["deepseek-v4-flash"] as Record<string, any>;
-  assert.equal(session?.activeTokens, 5);
-  // Total usage across all models.
-  assert.equal(usage.prompt_tokens, 140_095);
-  assert.equal(usage.completion_tokens, 35);
-  assert.equal(usage.total_tokens, 140_130);
-  // test-model: response 1 (139990+10) + response 3 (5+2)
-  assert.equal(usagePerModel.prompt_tokens, 139_995);
-  assert.equal(usagePerModel.completion_tokens, 12);
-  assert.equal(usagePerModel.total_tokens, 140_007);
-  assert.equal(usagePerModel.total_reqs, 2);
-  // deepseek-v4-flash: compaction response 2 (100+23)
-  assert.equal(compactUsage.prompt_tokens, 100);
-  assert.equal(compactUsage.completion_tokens, 23);
-  assert.equal(compactUsage.total_tokens, 123);
-  assert.equal(compactUsage.total_reqs, 1);
+  assert.ok(session.usagePerModel?.["deepseek-v4-flash"], "compaction ran (lightweight bucket present)");
+  assert.equal(session.usagePerModel?.["deepseek-v4-flash"]?.total_reqs, 1);
+  assert.equal(session.usagePerModel?.["test-model"]?.total_reqs, 2, "first turn + post-compaction turn");
+  assert.ok(session.activeTokens < 100_000, "meter reads the compacted payload, not the oversized one");
+  const ledger = readUsageLedger(usageLedgerPath(getUserConfigRoot(), workspace));
+  assert.ok(
+    ledger.some((record) => record.source === "compaction"),
+    "compaction request recorded"
+  );
+  assert.ok(
+    ledger.filter((record) => record.source === "chat").length >= 2,
+    "chat requests recorded around the compaction"
+  );
 });
 
 test("SessionManager streams chat completions and counts reasoning progress", async () => {
@@ -1122,13 +1140,18 @@ test("SessionManager streams chat completions and counts reasoning progress", as
 
   assert.equal(assistantMessage?.content, "hello");
   assert.equal((assistantMessage?.messageParams as any)?.reasoning_content, "思考");
-  assert.equal(manager.getSession(sessionId)?.activeTokens, 2);
+  assert.ok(
+    (manager.getSession(sessionId)?.activeTokens ?? 0) > 0,
+    "context meter set from the local pre-flight count"
+  );
   assert.deepEqual(
     progressEvents.map((event) => event.phase),
     ["start", "update", "update", "end"]
   );
-  assert.equal(progressEvents[1]?.estimatedTokens, 1);
-  assert.equal(progressEvents[2]?.formattedTokens, "3");
+  // Unified heuristic: "思考" = 2 CJK = 2 tokens.
+  assert.equal(progressEvents[1]?.estimatedTokens, 2);
+  // + "hello" = ceil(5/4) = 2 → 4 total.
+  assert.equal(progressEvents[2]?.formattedTokens, "4");
 });
 
 test("SessionManager persists session and user message before skill matching is cancelled", async () => {
@@ -1501,8 +1524,16 @@ test("activateSession tracks context pressure as prompt-side tokens, not total t
 
   const session = manager.getSession(sessionId);
   assert.equal(session?.status, "completed");
-  assert.equal(session?.activeTokens, 9000);
-  assert.equal(getFreshInputTokens(session?.usage ?? null), 500);
+  // P1: the meter reads the locally counted prompt side of the latest
+  // request (never total_tokens, never API-reported usage).
+  assert.equal(session?.activeTokens, session?.usage?.prompt_tokens);
+  assert.ok((session?.activeTokens ?? 0) > 0);
+  assert.ok((session?.usage?.total_tokens ?? 0) > (session?.activeTokens ?? 0), "completion side not metered");
+  // Cache telemetry rides along from the API usage (localUsage merges the
+  // API-reported cache fields so cumulative cache stats keep accumulating
+  // instead of freezing), so "fresh" is the locally counted prompt minus
+  // the API-reported cache hits.
+  assert.equal(getFreshInputTokens(session?.usage ?? null), (session?.usage?.prompt_tokens ?? 0) - 8500);
   assert.equal(responses.length, 0);
 });
 
@@ -1529,7 +1560,7 @@ test("activateSession recovers from context overflow via compact-and-retry", asy
   assert.equal(session?.status, "completed");
   assert.equal(session?.failReason, null);
   assert.equal(session?.assistantReply, "recovered answer");
-  assert.equal(session?.activeTokens, 120);
+  assert.ok((session?.activeTokens ?? 0) > 0, "meter refreshed from the recovered request's local count");
   assert.ok(
     manager.listSessionMessages(sessionId).some((message) => message.meta?.isSummary === true),
     "compaction should have inserted a summary message"
@@ -1601,6 +1632,28 @@ test("activateSession retries once after a stalled stream times out", async () =
   const session = manager.getSession(sessionId);
   assert.equal(session?.status, "completed");
   assert.equal(session?.assistantReply, "after retry");
-  assert.equal(session?.activeTokens, 90);
+  assert.ok((session?.activeTokens ?? 0) > 0, "meter set by the retried request");
   assert.equal(responses.length, 0);
+});
+
+test("create-phase failures still land a prompt-side ledger record", async () => {
+  const workspace = createTempDir("deepcode-create-fail-ledger-workspace-");
+  const home = createTempDir("deepcode-create-fail-ledger-home-");
+  setHomeDir(home);
+
+  const responses: unknown[] = [
+    createChatResponse("first answer", { prompt_tokens: 10, completion_tokens: 2, total_tokens: 12 }),
+    new Error("getaddrinfo EAI_AGAIN api.example.com"),
+  ];
+  const manager = createMockedClientSessionManagerWithClient(workspace, createQueuedChatClient(responses));
+  const sessionId = await manager.createSession({ text: "hello" });
+  await manager.replySession(sessionId, { text: "tell me more" });
+
+  const ledger = readUsageLedger(usageLedgerPath(getUserConfigRoot(), workspace));
+  const failed = ledger.filter((record) => record.completion === 0);
+  assert.ok(failed.length >= 1, "the create-phase failure is accounted, not silently dropped");
+  assert.ok(
+    failed.every((record) => record.prompt > 0),
+    "prompt side counted in full — same bias as the mid-stream failure path"
+  );
 });

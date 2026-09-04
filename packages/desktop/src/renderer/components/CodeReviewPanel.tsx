@@ -1,53 +1,145 @@
-import { useCallback, useEffect, useState, type JSX } from "react";
-import type { ActionProgressEvent, ActionRunResult, CrgIndexEntry } from "../../shared/ipc";
+import { useCallback, useEffect, useRef, useState, type JSX } from "react";
+import type { ActionProgressEvent, ActionRunResult, GitLogEntry, WorkspaceGroup } from "../../shared/ipc";
 import { api } from "../api";
-import { useI18n, type MessageKey } from "../i18n";
-import { Button, IconMagicWand, IconChat } from "../ui/index";
+import { useI18n } from "../i18n";
+import { Button, IconButton, IconMagicWand, IconChat, IconReview } from "../ui/index";
 import { extractReviewFindings, type ReviewFinding } from "../lib/review-fix";
+import {
+  isReviewRunning,
+  getReviewPercent,
+  getReviewProgress,
+  markReviewProgress,
+  markReviewRunning,
+  markReviewSettled,
+} from "../lib/review-run-state";
 
 /**
- * Code Review panel — Phase 4 rework (spec §六/§十二).
+ * Code review panel — pure workspace list (user ask 2026-09-01: keep the
+ * index-library interaction, drop the inline folding).
  *
- * Replaces the legacy 3-tab (Quality/Risk/Architecture) + Smart-Review structure
- * with an IndexLibraryPanel-style workspace-partitioned layout: a single
- * workspace card + one-click action buttons that route through the unified
- * ActionRegistry (the same actions the agent reaches as LLM tools):
- *   - 审查 (review.run/review.full) → OCR semantic review + CRG risk analysis
+ * One row per workspace: status dot (risk graph built?) + name + last review
+ * + an inline 审查 button (workspace scope with automatic HEAD fallback).
+ * Clicking a row opens the workspace's REVIEW TAB in the main content area —
+ * report history and risk map live in that tab.
  *
- * Pure code review — the brand drift gate (design.drift) moved to DesignPanel
- * (specs/ui-domain-regroup, 2026-08-21).
- *
- * Panel-derived state (workspace from api.crgList(), progress via the unified
- * onActionProgress event); `onShowGraph` hands the CRG architecture-graph
- * HTML up to the shared right dock, and `onOneClickFix` receives the CURRENT
- * findings so App can inject the fix plan into session mode (一键修复).
+ * The scope selector renders IN every row (user ask 2026-09-01: 范围与 item
+ * 集成): each workspace remembers its own scope, and a review runs against
+ * the ROW's workspace on demand (review.full takes the target root directly
+ * — 审查与活动区无关, no workspace switch).
  */
 
-type ReviewActionId = "review.full";
+type ReviewScope = { mode: "workspace" | "commit" | "range" | "all"; commit: string; from: string; to: string };
+
+const DEFAULT_SCOPE: ReviewScope = { mode: "workspace", commit: "HEAD", from: "", to: "HEAD" };
+
+/** Refs the scope dropdowns offer (user ask 2026-09-01: 不能让用户自己填 —
+ *  refs must be PICKED, not typed): each row fetches its OWN workspace's
+ *  branch names + recent commits (git reads take an explicit root). */
+interface ScopeRefs {
+  branches: string[];
+  commits: GitLogEntry[];
+}
+const EMPTY_REFS: ScopeRefs = { branches: [], commits: [] };
+/** Recent-commit dropdown depth. */
+const REFS_COMMIT_LIMIT = 50;
+
+function formatRelative(iso: string | undefined, justNow: string, never: string): string {
+  if (!iso) return never;
+  const delta = Date.now() - new Date(iso).getTime();
+  if (!Number.isFinite(delta) || delta < 0) return never;
+  const mins = Math.floor(delta / 60000);
+  if (mins < 1) return justNow;
+  if (mins < 60) return `${mins}m`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h`;
+  return `${Math.floor(hours / 24)}d`;
+}
 
 export function CodeReviewPanel({
-  onShowGraph,
+  onOpenReviewTab,
   onOneClickFix,
   onAskInChat,
 }: {
-  onShowGraph: (html: string) => void;
+  /** Open (or focus) the review tab for a workspace root in the main area. */
+  onOpenReviewTab: (root: string, reportId?: string) => void;
   /** One-click fix: hand the current findings to App (plan → session → fix). */
   onOneClickFix: (findings: ReviewFinding[]) => void;
   /** Flow bridge: quote the findings into the chat composer for follow-up. */
   onAskInChat?: (findings: ReviewFinding[]) => void;
 }): JSX.Element {
   const { t } = useI18n();
-  const [entry, setEntry] = useState<CrgIndexEntry | null>(null);
-  const [running, setRunning] = useState<ReviewActionId | null>(null);
-  const [progress, setProgress] = useState<string>("");
-  const [result, setResult] = useState<{ id: ReviewActionId; res: ActionRunResult } | null>(null);
+  const [workspaces, setWorkspaces] = useState<WorkspaceGroup[]>([]);
+  const [activeRoot, setActiveRoot] = useState<string>("");
+  const [hasGraph, setHasGraph] = useState<Record<string, boolean>>({});
+  const [lastReview, setLastReview] = useState<Record<string, string | undefined>>({});
+  // Per-workspace run state (user ask 2026-09-01: 一个审查不能影响其他项目):
+  // keyed by root so two concurrent reviews never cross-write each other's
+  // progress — a global `running` once disabled every other row and let
+  // workspace A's 100% bar leak onto workspace B's.
+  const [runningMap, setRunningMap] = useState<Record<string, boolean>>({});
+  const [progressMap, setProgressMap] = useState<Record<string, string>>({});
+  const [percentMap, setPercentMap] = useState<Record<string, number | null>>({});
+  const [lastRun, setLastRun] = useState<{ root: string; res: ActionRunResult } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Scope follows the workspace: one remembered setting per root (design
+  // spec §4.4 — in-memory for now; persisted with the settings if it earns
+  // its keep). Scope edits key by the ROW's root — the controls render on
+  // every row, so keying by the active root once corrupted A's scope when
+  // B's dropdown changed.
+  const [scopes, setScopes] = useState<Record<string, ReviewScope>>({});
+  // Pickable refs for the commit/range dropdowns — PER WORKSPACE (on-demand
+  // review: git reads take an explicit root, so every row gets its OWN
+  // branch/commit lists regardless of which workspace is active).
+  const [refsByRoot, setRefsByRoot] = useState<Record<string, ScopeRefs>>({});
 
-  // Resolve the current workspace + CRG graph state (mirrors IndexLibraryPanel).
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      await Promise.all(
+        workspaces.map(async (w) => {
+          try {
+            const [branches, commits] = await Promise.all([
+              api.gitListBranches(w.root),
+              api.gitLog(REFS_COMMIT_LIMIT, w.root),
+            ]);
+            if (alive) {
+              setRefsByRoot((prev) => ({ ...prev, [w.root]: { branches: branches ?? [], commits: commits ?? [] } }));
+            }
+          } catch {
+            if (alive) setRefsByRoot((prev) => ({ ...prev, [w.root]: EMPTY_REFS }));
+          }
+        })
+      );
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [workspaces]);
+
+  const updateScope = useCallback((root: string, patch: Partial<ReviewScope>) => {
+    setScopes((prev) => ({ ...prev, [root]: { ...(prev[root] ?? DEFAULT_SCOPE), ...patch } }));
+  }, []);
+
   const reload = useCallback(async () => {
     try {
-      const entries = await api.crgList();
-      setEntry(entries.length > 0 ? entries[0] : null);
+      const [ws, root, crg] = await Promise.all([api.listWorkspaceSessions(), api.getProjectRoot(), api.crgList()]);
+      setActiveRoot(root);
+      setWorkspaces(ws.workspaces);
+      const graphState: Record<string, boolean> = {};
+      for (const e of crg) graphState[e.root] = e.hasGraph;
+      setHasGraph(graphState);
+      setError(null);
+      // Last-review freshness per row (cheap meta reads, failures tolerated).
+      await Promise.all(
+        ws.workspaces.map(async (w) => {
+          try {
+            const list = await api.reviewListReports(w.root);
+            setLastReview((prev) => ({ ...prev, [w.root]: list[0]?.generatedAt }));
+          } catch {
+            // leave the row without freshness
+          }
+        })
+      );
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err));
     }
@@ -57,191 +149,330 @@ export function CodeReviewPanel({
     void reload();
   }, [reload]);
 
-  // Refresh the graph-state dot whenever a CRG rebuild settles — including
-  // out-of-band builds (agent-driven crg.reindex, post-turn auto sync). The
-  // dot used to load once and only refresh after THIS panel's own actions,
-  // so graphs built elsewhere left it stale (index-module stuck-state class).
-  useEffect(() => {
-    const unsub = api.onCrgProgress((evt: { done?: boolean }) => {
-      if (evt.done) void reload();
-    });
-    return unsub;
-  }, [reload]);
+  // Active-workspace switches refresh the active-row highlight + freshness.
+  useEffect(() => api.onProjectRootChanged(() => void reload()), [reload]);
 
-  // Subscribe to the unified action progress stream while an action runs.
+  // Restore per-root run state after remounts (user report 2026-09-01):
+  // review.full keeps running across sidebar switches / panel unmounts; the
+  // module-level store survives the mount cycle so the row shows its status
+  // IMMEDIATELY instead of waiting for the next heartbeat.
   useEffect(() => {
-    if (!running) {
-      setProgress("");
-      return;
+    const running: Record<string, boolean> = {};
+    const progress: Record<string, string> = {};
+    const percent: Record<string, number | null> = {};
+    for (const w of workspaces) {
+      running[w.root] = isReviewRunning(w.root);
+      progress[w.root] = getReviewProgress(w.root);
+      percent[w.root] = getReviewPercent(w.root);
     }
-    const unsub = api.onActionProgress((evt: ActionProgressEvent) => {
-      if (evt.actionId === running) {
-        setProgress(evt.percent != null ? `${evt.percent}% — ${evt.message}` : evt.message);
-      }
-    });
-    return unsub;
-  }, [running]);
+    setRunningMap(running);
+    setProgressMap(progress);
+    setPercentMap(percent);
+  }, [workspaces]);
 
-  const run = useCallback(
-    async (id: ReviewActionId, params: Record<string, unknown> = {}) => {
-      setRunning(id);
-      setResult(null);
+  // Live progress — ONE always-on subscription (not keyed to `running`): the
+  // terminal `data.done` event is the ONLY reliable run-end signal, and it
+  // must land even when this panel never fired the run (remount race: the
+  // old instance's `finally` clears the STORE but cannot reset a new
+  // instance's React state — that stuck "100% — done" bar). Events carry the
+  // root they ran against; unknown-root events without a live run are
+  // ignored so the wrapper's post-save 100% echo can't resurrect a settled
+  // bar.
+  const activeRootRef = useRef(activeRoot);
+  activeRootRef.current = activeRoot;
+  useEffect(() => {
+    return api.onActionProgress((evt: ActionProgressEvent) => {
+      if (evt.actionId !== "review.full") return;
+      const root = evt.root ?? activeRootRef.current;
+      if (!root) return;
+      if (evt.data && typeof evt.data === "object" && (evt.data as { done?: unknown }).done === true) {
+        markReviewSettled(root);
+        setRunningMap((p) => ({ ...p, [root]: false }));
+        setProgressMap((p) => ({ ...p, [root]: "" }));
+        setPercentMap((p) => ({ ...p, [root]: null }));
+        return;
+      }
+      // Heartbeat/stage events only matter for runs we know are live.
+      if (!isReviewRunning(root)) return;
+      if (evt.percent != null) setPercentMap((p) => ({ ...p, [root]: evt.percent! }));
+      const text = evt.percent != null ? `${evt.percent}% — ${evt.message}` : evt.message;
+      setProgressMap((p) => ({ ...p, [root]: text }));
+      markReviewProgress(root, text, evt.percent);
+    });
+  }, []);
+
+  const runReview = useCallback(
+    async (root: string) => {
+      if (runningMap[root]) return;
+      const scope = scopes[root] ?? DEFAULT_SCOPE;
+      // A half-filled range previously fell through to `{}` — a silent
+      // WORKSPACE run wearing the user's range intent (review round
+      // 2026-09-01). Surface it instead of re-scoping behind their back.
+      if (scope.mode === "range" && (!scope.from.trim() || !scope.to.trim())) {
+        setError(t("review.scope.rangeIncomplete"));
+        return;
+      }
+      // ON-DEMAND review (user ask 2026-09-01 round 2: 审查与活动区无关):
+      // review.full takes the target root directly — no workspace switch.
+      setRunningMap((p) => ({ ...p, [root]: true }));
+      markReviewRunning(root);
+      setLastRun(null);
       setError(null);
-      setProgress("");
       try {
-        const res = await api.actionRun(id, params);
-        setResult({ id, res });
-        // Refresh the graph-state dot after a completed review (review.full
-        // may have built/enriched via CRG).
+        const params =
+          scope.mode === "all"
+            ? { all: true }
+            : scope.mode === "commit"
+              ? { commit: scope.commit.trim() || "HEAD" }
+              : scope.mode === "range"
+                ? { from: scope.from.trim(), to: scope.to.trim() }
+                : {};
+        const res = await api.actionRun("review.full", { ...params, root });
+        setLastRun({ root, res });
         void reload();
       } catch (err: unknown) {
         setError(err instanceof Error ? err.message : String(err));
       } finally {
-        setRunning(null);
+        // Settles even when the panel unmounted mid-run: this closure keeps
+        // executing, and the store outlives the component. The terminal
+        // `data.done` event mirrors this for OTHER live panels.
+        markReviewSettled(root);
+        setRunningMap((p) => ({ ...p, [root]: false }));
+        setPercentMap((p) => ({ ...p, [root]: null }));
+        setProgressMap((p) => ({ ...p, [root]: "" }));
       }
     },
-    [reload]
+    [runningMap, reload, scopes, t]
   );
 
-  // CRG architecture graph: visualize emits a self-contained D3 HTML page that
-  // renders in the shared right dock — App owns the single-slot mutex with the
-  // design preview. Lost in the Phase-4 rework, restored 2026-08-19.
-  const [graphLoading, setGraphLoading] = useState(false);
-  const viewGraph = useCallback(async () => {
-    setGraphLoading(true);
-    try {
-      const res = await api.crgVisualize();
-      if (res.html) onShowGraph(res.html);
-      else setError(res.error ?? t("app.requestFailed"));
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setGraphLoading(false);
-    }
-  }, [onShowGraph, t]);
+  // Graph-state dot refreshes after out-of-band CRG rebuilds too.
+  useEffect(() => {
+    return api.onCrgProgress((evt: { done?: boolean }) => {
+      if (evt.done) void reload();
+    });
+  }, [reload]);
 
-  // Findings from the LATEST result drive the one-click fix button.
-  const currentFindings: ReviewFinding[] = result && result.res.ok ? extractReviewFindings(result.res.output) : [];
-
-  const projectLabel = entry?.label ?? entry?.root ?? "";
-  const hasGraph = entry?.hasGraph ?? false;
-
-  const buttons: { id: ReviewActionId; labelKey: MessageKey; hintKey: MessageKey }[] = [
-    { id: "review.full", labelKey: "review.action.full", hintKey: "review.action.full.hint" },
-  ];
+  const runFindings: ReviewFinding[] = lastRun && lastRun.res.ok ? extractReviewFindings(lastRun.res.output) : [];
 
   return (
     <div className="ui-side-panel">
       <div className="ui-side-panel-head">
         <span>{t("review.title")}</span>
+        <IconButton onClick={() => void reload()} title={t("scm.refresh")} aria-label={t("scm.refresh")}>
+          ⟳
+        </IconButton>
       </div>
       <div className="ui-side-panel-body">
-        {!projectLabel ? (
+        {error ? <div className="ui-error">{error}</div> : null}
+        {workspaces.length === 0 ? (
           <div className="ui-side-panel-empty">{t("review.noWorkspace")}</div>
         ) : (
-          <div className="ui-index-current">
-            <div className="ui-index-current-info">
-              <div className="ui-index-name">{projectLabel}</div>
-              <div className="ui-index-path">{entry?.root}</div>
-              <div className={`ui-index-state${hasGraph ? " on" : ""}`}>
-                {hasGraph ? t("review.graphReady") : t("review.graphUnbuilt")}
-              </div>
-            </div>
-
-            {/* Architecture graph — always mounted, gated on graph state (same
-                stability rule as the rail buttons). Opens in the right dock. */}
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-              <Button size="sm" variant="subtle" disabled={!hasGraph || graphLoading} onClick={() => void viewGraph()}>
-                {graphLoading ? t("actions.running") : t("crg.viewGraph")}
-              </Button>
-            </div>
-
-            {error ? <div className="ui-error">{error}</div> : null}
-
-            {buttons.map((b) => (
-              <div key={b.id} style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 8 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <Button size="sm" variant="subtle" onClick={() => void run(b.id)} disabled={running !== null}>
-                    {running === b.id ? t("actions.running") : t(b.labelKey)}
-                  </Button>
-                  {running === b.id && progress ? (
-                    <span className="ui-muted" style={{ fontSize: 11 }}>
-                      {progress}
-                    </span>
-                  ) : null}
-                </div>
-                <p className="ui-muted" style={{ fontSize: 10, margin: 0 }}>
-                  {t(b.hintKey)}
-                </p>
-                {result && result.id === b.id ? (
+          workspaces.map((w) => {
+            const graph = hasGraph[w.root] ?? false;
+            const isActive = w.root === activeRoot;
+            const run = lastRun && lastRun.root === w.root ? lastRun : null;
+            const scope = scopes[w.root] ?? DEFAULT_SCOPE;
+            const running = runningMap[w.root] ?? false;
+            const percent = percentMap[w.root] ?? null;
+            const rowRefs = refsByRoot[w.root] ?? EMPTY_REFS;
+            const scopeControls = (
+              <>
+                <select
+                  className="ui-review-scope-select"
+                  value={scope.mode}
+                  onChange={(e) => updateScope(w.root, { mode: e.target.value as ReviewScope["mode"] })}
+                  title={t("review.scope.title")}
+                >
+                  <option value="workspace">{t("review.scope.workspace")}</option>
+                  <option value="commit">{t("review.scope.commit")}</option>
+                  <option value="range">{t("review.scope.range")}</option>
+                  <option value="all">{t("review.scope.all")}</option>
+                </select>
+                {scope.mode === "commit" ? (
+                  <select
+                    className="ui-review-scope-select"
+                    value={scope.commit}
+                    onChange={(e) => updateScope(w.root, { commit: e.target.value })}
+                    title={t("review.scope.commit")}
+                  >
+                    <option value="HEAD">HEAD</option>
+                    {rowRefs.commits.map((c) => (
+                      <option key={c.hash} value={c.hash}>
+                        {c.shortHash} · {c.subject}
+                      </option>
+                    ))}
+                  </select>
+                ) : null}
+                {scope.mode === "range" ? (
                   <>
-                    <pre
-                      className="ui-muted"
-                      style={{
-                        fontSize: 10,
-                        margin: 0,
-                        maxHeight: 200,
-                        overflow: "auto",
-                        whiteSpace: "pre-wrap",
-                      }}
+                    <select
+                      className="ui-review-scope-select"
+                      value={scope.from}
+                      onChange={(e) => updateScope(w.root, { from: e.target.value })}
+                      title={t("review.scope.from")}
                     >
-                      {formatResult(result.res)}
-                    </pre>
-                    {currentFindings.length > 0 ? (
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
-                        <Button
-                          size="sm"
-                          variant="subtle"
-                          disabled={running !== null}
-                          title={t("review.fixHint")}
-                          onClick={() => onOneClickFix(currentFindings)}
-                        >
-                          <IconMagicWand /> {t("review.oneClickFix")}
-                        </Button>
-                        {onAskInChat ? (
-                          <Button
-                            size="sm"
-                            variant="subtle"
-                            disabled={running !== null}
-                            title={t("review.askInChat")}
-                            onClick={() => onAskInChat(currentFindings)}
-                          >
-                            <IconChat /> {t("review.askInChat")}
-                          </Button>
-                        ) : null}
-                        <span className="ui-muted" style={{ fontSize: 10 }}>
-                          {t("review.findingsCount", { n: currentFindings.length })}
-                        </span>
-                      </div>
-                    ) : null}
+                      <option value="">{t("review.scope.pickRef")}</option>
+                      <optgroup label={t("review.rgScopeBranches")}>
+                        {rowRefs.branches.map((b) => (
+                          <option key={b} value={b}>
+                            {b}
+                          </option>
+                        ))}
+                      </optgroup>
+                      <optgroup label={t("review.rgScopeCommits")}>
+                        {rowRefs.commits.map((c) => (
+                          <option key={c.hash} value={c.hash}>
+                            {c.shortHash} · {c.subject}
+                          </option>
+                        ))}
+                      </optgroup>
+                    </select>
+                    <span aria-hidden className="ui-review-scope-sep">
+                      →
+                    </span>
+                    <select
+                      className="ui-review-scope-select"
+                      value={scope.to}
+                      onChange={(e) => updateScope(w.root, { to: e.target.value })}
+                      title={t("review.scope.to")}
+                    >
+                      <option value="HEAD">HEAD</option>
+                      <optgroup label={t("review.rgScopeBranches")}>
+                        {rowRefs.branches.map((b) => (
+                          <option key={b} value={b}>
+                            {b}
+                          </option>
+                        ))}
+                      </optgroup>
+                      <optgroup label={t("review.rgScopeCommits")}>
+                        {rowRefs.commits.map((c) => (
+                          <option key={c.hash} value={c.hash}>
+                            {c.shortHash} · {c.subject}
+                          </option>
+                        ))}
+                      </optgroup>
+                    </select>
                   </>
                 ) : null}
+              </>
+            );
+            return (
+              <div key={w.root} className="ui-ik-rowwrap">
+                <div
+                  className={`ui-ik-row${isActive ? " active" : ""}`}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => onOpenReviewTab(w.root)}
+                  onKeyDown={(e) => {
+                    if (e.target !== e.currentTarget) return;
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      onOpenReviewTab(w.root);
+                    }
+                  }}
+                >
+                  <span className={`ui-ik-dot ${graph ? "on" : "off"}`} aria-hidden />
+                  <div className="ui-ik-row-main">
+                    <div className="ui-ik-name">
+                      {w.label}
+                      {isActive ? <span className="ui-review-active-chip">{t("review.activeChip")}</span> : null}
+                    </div>
+                    <div className="ui-ik-meta">
+                      {running
+                        ? (progressMap[w.root] ?? "")
+                        : formatRelative(lastReview[w.root], t("index.freshness.justNow"), t("review.lastReviewNever"))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Two-row card (user ask 2026-09-03): 第一行 = 工作区身份；
+                    第二行 = 范围选择 + 运行，整条操作带独占一行，不再与
+                    名称抢宽度。每行仍记忆自己的 scope；引用下拉按行根目录
+                    拉取，与激活行无关。 */}
+                <div className="ui-ik-rowops" onClick={(e) => e.stopPropagation()}>
+                  <div className={`ui-review-row-scope${scope.mode === "workspace" ? "" : " has-refs"}`}>
+                    {scopeControls}
+                  </div>
+                  <IconButton
+                    className={`ui-ik-runbtn${running ? " running" : ""}`}
+                    disabled={running}
+                    title={t("review.action.full.hint")}
+                    aria-label={t("review.action.full")}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void runReview(w.root);
+                    }}
+                  >
+                    {running ? (
+                      percent != null ? (
+                        <span className="ui-ik-runbtn-pct">{percent}%</span>
+                      ) : (
+                        <span className="ui-spinner" />
+                      )
+                    ) : (
+                      <IconReview />
+                    )}
+                  </IconButton>
+                </div>
+
+                {/* Determinate progress bar — per-root; any running row shows its own. */}
+                {running ? (
+                  <div
+                    className="ui-review-progress"
+                    role="progressbar"
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={Math.round(percent ?? 0)}
+                  >
+                    <div className="fill" style={{ width: `${Math.min(100, Math.max(3, percent ?? 0))}%` }} />
+                  </div>
+                ) : null}
+
+                {run && run.res.ok && runFindings.length > 0 ? (
+                  <div
+                    style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "0 10px 6px" }}
+                  >
+                    <Button
+                      size="sm"
+                      variant="subtle"
+                      disabled={runningMap[lastRun!.root] ?? false}
+                      title={t("review.fixHint")}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onOneClickFix(runFindings);
+                      }}
+                    >
+                      <IconMagicWand /> {t("review.oneClickFix")}
+                    </Button>
+                    {onAskInChat ? (
+                      <Button
+                        size="sm"
+                        variant="subtle"
+                        disabled={runningMap[lastRun!.root] ?? false}
+                        title={t("review.askInChat")}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onAskInChat(runFindings);
+                        }}
+                      >
+                        <IconChat /> {t("review.askInChat")}
+                      </Button>
+                    ) : null}
+                    <span className="ui-muted" style={{ fontSize: 10 }}>
+                      {t("review.findingsCount", { n: runFindings.length })}
+                    </span>
+                  </div>
+                ) : null}
+                {run && !run.res.ok ? (
+                  <div className="ui-error" style={{ margin: "0 10px 6px" }}>
+                    {`✗ ${run.res.code}: ${run.res.error}`}
+                  </div>
+                ) : null}
               </div>
-            ))}
-          </div>
+            );
+          })
         )}
       </div>
     </div>
   );
-}
-
-/** Render an ActionRunResult as readable text for the in-panel result area. */
-function formatResult(res: ActionRunResult): string {
-  if (!res.ok) return `✗ ${res.code}: ${res.error}`;
-  const out = res.output;
-  if (typeof out === "string") return out;
-  const findings = extractReviewFindings(out);
-  if (findings.length > 0) {
-    return findings
-      .map(
-        (c) =>
-          `${c.crgRisk ? `[${c.crgRisk}] ` : ""}${c.path}:${c.startLine} — ${c.content.replace(/\s+/g, " ").trim()}`
-      )
-      .join("\n");
-  }
-  try {
-    return JSON.stringify(out, null, 2);
-  } catch {
-    return String(out);
-  }
 }

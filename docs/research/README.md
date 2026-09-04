@@ -12,7 +12,7 @@
 
 ## 总览
 
-43 份文档（含 1 份 EN 孪生 + 08-18 新增 1 份 + 08-19 UI/UX 重设计 4 份 + 08-19 超大版本重构预研 2 份 + 08-21 新增 1 份 + 08-27 新增 1 份）：**✅ 21 · 🟡 10 · ⬜ 9 · ❌ 3（作废）**。整体消费率高；作废 3 份均为 2026-08-17 拍板（zread 对比线、MemOS 线、pi-sdk 线），理由见各行备注。
+48 份文档（含 1 份 EN 孪生 + 08-18 新增 1 份 + 08-19 UI/UX 重设计 4 份 + 08-19 超大版本重构预研 2 份 + 08-21 新增 1 份 + 08-27 新增 1 份 + 09-03 新增 3 份 + 09-04 新增 2 份）：**✅ 21 · 🟡 11 · ⬜ 13 · ❌ 3（作废）**。整体消费率高；作废 3 份均为 2026-08-17 拍板（zread 对比线、MemOS 线、pi-sdk 线），理由见各行备注。
 
 ---
 
@@ -63,7 +63,7 @@
 | [2026-08-15-remote-access-sunlogin-mapping.md](./2026-08-15-remote-access-sunlogin-mapping.md) | 向日葵式远程接入：WSS 反向隧道 + dispatch table + 三档入口 | 规划 `desktop/main/remote/`、`packages/relay/`；改 `shared/ipc.ts` | 🟡 | 仅 roadmap v3.6 规划层落地（§十三 改写、TunnelClient 列 P1）；M1-M4 代码零启动，M1 地基（dispatch 抽取 + 契约测试）未动工 |
 | [2026-08-15-routing-closure-plan.md](./2026-08-15-routing-closure-plan.md) | 路由 G1-G3 闭环修订 R1-R4（会话级冻结决策 + 显式失效） | `core/routing/`、`core/session.ts`、IndexLibraryPanel 路由卡 | ✅ | R1-R4 逐项在树（frozen Map、pinnedServers、元数据契约、LRU GC、60s 退避、5 语言路由卡）。遗留：lazy-connect 仅机制接缝（全服务器 pinned，无激活对象）；−30% token 实测未回写 |
 | [2026-08-15-spec-gap-audit.md](./2026-08-15-spec-gap-audit.md) | 16 份 spec 逐条对照 + 7 条跨模块链路审计（差距审计轮） | `specs/`、`core/tasks/task-tree-service.ts`、`TaskTreePanel.tsx`、`DesignPanel.tsx` | ✅ | 自闭环：L3 断链（task-lineage 入记忆）、L5 项目码、面板 15s 轮询、一键具现化全部在树。自认未实现项（dsh P1-1/P1-2/P1-4）去向见整合台账 |
-| [2026-08-15-trajectory-design-exploration.md](./2026-08-15-trajectory-design-exploration.md) | 澄清 activity-frames（行为记忆/agent 消费）与 task-tree（任务轨迹/人消费）分立 | `specs/task-tree/`（三件套）、`core/tasks/task-tree-service.ts`、`desktop/tools/activity-frames/` | ✅ | P0-P2 落地（TaskTreeService + 面板 + merge + 记忆驱动 fork 召回 + 谱系馈赠）；P3（branch=subagent 载体）未启动——external-repos 预研中 ruflo 三模式（journal/断点恢复/补偿）的预定落点。注：行为记忆侧由腾讯持久化记忆（memory 包）承接后，activity-frames 定位以本文"管线 B 画像"为准 |
+| [2026-08-15-trajectory-design-exploration.md](./2026-08-15-trajectory-design-exploration.md) | 澄清 activity-frames（行为记忆/agent 消费）与 task-tree（任务轨迹/人消费）分立 | `specs/archive/task-tree/`（三件套）、`core/tasks/task-tree-service.ts`、`desktop/tools/activity-frames/` | ✅ | P0-P2 落地（TaskTreeService + 面板 + merge + 记忆驱动 fork 召回 + 谱系馈赠）；P3（branch=subagent 载体）未启动——external-repos 预研中 ruflo 三模式（journal/断点恢复/补偿）的预定落点。注：行为记忆侧由腾讯持久化记忆（memory 包）承接后，activity-frames 定位以本文"管线 B 画像"为准 |
 | [2026-08-17-external-repos-prestudy.md](./2026-08-17-external-repos-prestudy.md) | dembrandt / graph-engineering / ruflo 三仓库集成预研 | 提案落点：`core/session.ts` builtin MCP、`core/actions/design.ts`、bundled skills、`specs/task-tree` P3 | 🟡 | **同日回写（`60d86d6b` 收官计划 E1）**：dembrandt 线已兑现且路线更彻底（完全离线 vendored + 内置 Chromium CDP，非本文提议的 npx MCP）——P1 的 `design.extract`/`design.drift` action 落地（`actions/design.ts:238+`，SSRF 防线 `common/dembrandt.ts`）；**P0 另一半 graph-engineering 收编未做（2026-08-18 评估建议关闭——与 code 插件组 CodeGraph/CRG/arch-scan/openwiki 能力重叠，待项目所有者拍板）**；ruflo→task-tree P3、crg paths-between、openai-client 降级链未启动（见文首回写注记与新预研 §1.3-6/7 衔接） |
 | [2026-08-17-dsh-consolidated.md](./2026-08-17-dsh-consolidated.md) | **dsh 调研整合台账**（预期 / 已吸收 / 可吸收候选池 / 暂缓否决） | `core/session.ts`、`core/common/*`、`core/routing/` | 🟡 | 取代三份 dsh 原文档作为唯一决策入口。已核实吸收 5+2 项（P0 三项 + MAX_SUBAGENT_DEPTH + reasoning 契约维持；#18/前缀保温部分）；候选池核心 4 项按推荐顺序：P1-1 崩溃合成收尾 → P1-2 两段式 compaction（含 #11 决策）→ P1-4 beforeToolExecution 钩子 → 前缀守恒收尾包（P1-3 判定已被自有演进基本覆盖，只补护栏）；C1 仅存"借生态"残值观望 |
 | [2026-08-17-opendesign-openpencli-vs-designer.md](./2026-08-17-opendesign-openpencli-vs-designer.md) | OpenDesign 0.15 + OpenPenCLI 对比现有 designer 模块与进化 | `core/actions/design.ts`、`renderer/openui/`、`renderer/dd/`、`design-store.ts`、`templates/plugins/design/` | ⬜ | 结论：designer 模块已是 OpenDesign 核心闭环的自有等价实现（且防漂移机制更强），OpenDesign 定位参考借鉴不引依赖。**OpenPenCLI 身份待确认**（最可能是 OpenPencil 两同名项目之一，需项目所有者指认）。建议动作仅 3 项 prompt/模板层演进：设计系统预设扩充 P1、taste 五维自评 + anti-slop P2、大页面两段式生成 P3 |
@@ -112,6 +112,32 @@
 | 文档 | 主题 | 对应模块 | 消费 | 备注 |
 | --- | --- | --- | --- | --- |
 | [2026-08-27-coord-chain-technology-survey.md](./2026-08-27-coord-chain-technology-survey.md) | **王牌路线 OC 技术调研**：联盟式许可链选型（否决 PoW/Hypercore/OrbitDB/CRDT）、node:crypto 零依赖原语清单、mDNS/ws/blob 分发方案、prior art（Keybase sigchain/SSB/Hypercore） | 产物：[`specs/coord-chain/`](../../specs/coord-chain/design.md) 三件套 + [`docs/features/coord-chain-plan.md`](../features/coord-chain-plan.md)；规划落点 `packages/ledger/`、`desktop/main/coord-chain/` | ⬜ | 三个判定：许可链而非公链；链上只有元数据、资产走内容寻址层；差异化核心是任务谱系接续开发。Hypercore 与 CRDT 库列为观察项不引入。**优先级高于 next-version**（资源冲突时 OC 优先）。同日需求收紧（补记 §6）：UX 对标腾讯文档/飞书共享文档空间，**共享只认工作区主题**（git remote 归一/显式主题名 → themeId，跨主题发现层隔离；projectCode 为机器本地路径派生不可用作主题，`packages/core/src/common/app-dirs.ts:51` 取证） |
+
+---
+
+## 2026-09-03 · 外部 Coding Agent 全景预研
+
+| 文档 | 主题 | 对应模块 | 消费 | 备注 |
+| --- | --- | --- | --- | --- |
+| [2026-09-03-hkuds-deepcode-prestudy.md](./2026-09-03-hkuds-deepcode-prestudy.md) | HKUDS/DeepCode（16.5k★，MIT，v2.1.0）全景：Paper2Code 论文原型 → v2.x 通用 coding agent harness（Python 内核 + CLI TUI + Tauri 桌面 + JSON-RPC App Server），逐维对位本仓 | 规划落点（未启动）：`core/common/*`（compaction 两段式/每回合冻结安全 profile）、`core/mcp`（HTTP transport + OAuth，遗留待办 #9 参照）、`core/skills`（依赖展开/渐进读取）、`desktop`（会话投影分离/schema 生成契约） | ⬜ | 纯调研留档，无代码变更。**最有价值单条**：其 compaction 两段式（大工具结果中段修剪 → 前缀重放摘要 → 拒绝不收缩摘要）与本仓 dsh-consolidated 候选池 P1-2/前缀收尾包独立同向——继 dsh 之后第二个实现者，建议回写台账作论据；MCP HTTP+OAuth 印证遗留待办 #9。**同名澄清**：HKUDS DeepCode ≠ 本仓遗留 `.deepcode` 前身，但两者共享 SKILL.md 方言且 `~/.deepcode` 路径可能交叠（文内 §2.5） |
+
+---
+
+## 2026-09-03 · Motion 动画库调研
+
+| 文档 | 主题 | 对应模块 | 消费 | 备注 |
+| --- | --- | --- | --- | --- |
+| [2026-09-03-motion-react-animation-prestudy.md](./2026-09-03-motion-react-animation-prestudy.md) | Motion for React（`motion` 13.2.0，MIT，Framer Motion 更名延续）对本仓动画增强的预研：能力清单 × 渲染层纯 CSS 现状（68 keyframes/170 transition/零动画库/零退出动画）逐表面对位，P0-P3 分阶段采用方案 + View Transitions API 等备选对比 | 规划落点（未启动）：`renderer/ui/motion.tsx`（LazyMotion strict + MotionConfig reducedMotion）、`components/WorkspaceSheet.tsx`（自 App.tsx 抽出，减行）、Toast/QuickDock/modal 退出动画、hub/PiP 布局动画 | ⬜ | 纯调研留档，无代码变更。结论：**值得引入但定位"编排层"**——进出场/布局/级联归 Motion（首渲染 +<6KB gz，domMax 走动态 chunk），循环装饰动画（呼吸/脉冲/rb-flow）保留 CSS；App.tsx 已 2536 行超 2500 标准，封装必须全落新文件。无依赖可先行项：7 个 ui-css 文件补 prefers-reduced-motion 块 |
+| [2026-09-03-smart-gateway-dual-lane-adaptation.md](./2026-09-03-smart-gateway-dual-lane-adaptation.md) | 「智能网关 × 复杂度双轨（复杂度仲裁 → 轻轨/重轨）」用户提案与本仓的适配方案：网关并入既有 skill 匹配 flash 调用（单调用双 verdict，轻轨零增量调用）；重轨 5 阶段全由原生机制组装（Plan Mode / runSubagent / runBackgroundLlmTask / review 动作 / multi-driver spec），仅新增 `core/routing/gate/` + `session-manager-depth.ts` 编排层；四红线（core UI-free / 前缀缓存瞬态尾部 / fail-open / i18n 6 目录）与 P0-P2 分期，P0 为纯观察、数据决策门 | 规划落点（未启动）：`core/routing/gate/`（新）、`core/session-manager-depth.ts`（新层）、`core/session-manager-skills.ts`（flash 返回扩展）、`core/session-types.ts`（`SessionEntry.lane`）、`core/settings.ts`（`complexityGate` 节）、`core/templates/prompts/depth-lane.md`、desktop lane 徽标 | ⬜ 未消费 → 🟡 | 纯方案留档，零代码变更。**关键发现**：`identifyMatchingSkillNames`（skills.ts:24-153）即提案"轻量预检 Agent"的既有同构先例（轻量模型/低温/JSON/缓存/fail-open），复杂度评分可并入同一 flash 调用实现"零增量成本轻轨"；重轨不引入 LangGraph。**2026-09-03 已按总口径落 spec**：`specs/next-version/depth-lane/`（design+tasks，P0 纯观察先行、数据决策门定 P1） |
+
+---
+
+## 2026-09-04 · backpass 记忆审计伴生工具
+
+| 文档 | 主题 | 对应模块 | 消费 | 备注 |
+| --- | --- | --- | --- | --- |
+| [2026-09-04-backpass-integration-feasibility.md](./2026-09-04-backpass-integration-feasibility.md) | kunchenguid/backpass（MIT，0.1.16/0.1.17，Node≥22.5，CLI 本地记忆优化：扫描 Claude/Codex/Pi/OpenCode/Grok/Cursor CLI/Hermes 会话→证据聚合→proposal→审核写回）对本仓的集成可行性：不必须集成；推荐 P0 只读 status/scan → P1 显式 analyze/propose → P2 受控 apply 的 L1/L2 受控 CLI sidecar 姿态，全程不碰 core、不新增内置 MCP、不自动 apply、注册 root 界定运行目录 | 规划落点（未启动）：`desktop/main/tools/`（受控 spawn backpass）、桌面 proposal/预算展示（仅 L1/L2 时） | ⬜ | 纯调研留档，无代码变更。**关键结论**：DeepOrca 自有 sessions 不在 backpass 支持列表（要学习需上游贡献正式 transcript adapter）；`apply` 不是 DeepOrca 原生权限流程；npm latest(0.1.16) 与 GitHub tag(0.1.17) 不同步；transcript 脱敏非安全保证，会经 `acpx` 发外部 harness。调研仅供参考，实现以 specs/ 为准 |
+| [2026-09-04-memory-audit-subagent-proposal.md](./2026-09-04-memory-audit-subagent-proposal.md) | **承接 backpass 调研的「怎么抄」方案**：不引 external CLI，用 DeepOrca 自有 session/记忆/子智能体通道重实现「跨会话证据→记忆规则迭代」。方案：`memory.audit` action（defineAction 三端自动承接）+ `runBackgroundLlmTask(profile:"review")` 只读审计 + 「确定性证据扫描(含 audit 哈希链 path_gate)→gap 聚合→LLM proposal 合成」三段式 + `AskUserQuestion` 逐项审核 + 自包含双语 HTML 报告 + 用户批准后主会话 `edit` 写回 AGENTS.md/SKILL.md；P0 纯观察、数据决策门定 P1 | 规划落点（未启动）：`core/actions/memory-audit.ts`（新）、`session-manager-base.ts` 注册两行、`desktop/main/tools/audit-*.ts`（报告/store）、核心记忆审计 skill（`templates/plugins/`） | ⬜ | 纯方案留档，无代码变更。**关键对位**：本仓已具备全部地基（自有 sessions 证据含 audit 哈希链、L0-L3 记忆、`profile:"review"` 只读后台循环、AskUserQuestion+双语 HTML 审核面），增量只有「证据扫描→gap 聚合→proposal 合成」一条语义管线；`specs/archive/memory-remediation/design.md` §五 2 早已把「session→SOP/规则自萃取」拍板为后续自研空白区，本方案是其第一个具体形态。P0-P1 零新增 IPC/i18n。_建议 next-version 储备_ |
 
 ---
 

@@ -10,7 +10,7 @@
 
 **Tech Stack:** TypeScript（ESM, strict, `verbatimModuleSyntax`）· Node ≥22 · `@a2ui/react@^0.10` + `@a2ui/web_core@^0.10`（Apache-2.0, React 18/19 peer）· node:test + node:assert/strict · esbuild（renderer bundle）
 
-**Spec 依据:** `specs/a2ui-integration/design.md`（设计草案）· `docs/research/2026-07-a2ui-integration.md`（调研）
+**Spec 依据:** `specs/archive/a2ui-integration/design.md`（设计草案）· `docs/research/2026-07-a2ui-integration.md`（调研）
 
 **架构关键事实（来自代码探查，必须遵守）:**
 - DeepOrca **没有** `@modelcontextprotocol/sdk` 依赖；所有自建 MCP server 用 `packages/core/src/gitmcp/rpc.ts` 的手写 ~100 行 JSON-RPC 循环。
@@ -1271,7 +1271,7 @@ git commit -m "feat(a2ui): register builtin plugin group + settings panel enable
 ## Task 16: 全量验证 + 文档收尾
 
 **Files:**
-- Modify: `specs/a2ui-integration/design.md`（标记已实现的任务）
+- Modify: `specs/archive/a2ui-integration/design.md`（标记已实现的任务）
 
 - [ ] **Step 1: 全量 check + test**
 
@@ -1288,12 +1288,12 @@ Expected: 全 PASS（typecheck + lint + format + 所有 workspace 测试）。
 
 - [ ] **Step 3: 更新 spec 状态**
 
-把 `specs/a2ui-integration/design.md` 顶部状态从「设计草案」改为对应实现状态；勾选 §7 已完成的阶段。
+把 `specs/archive/a2ui-integration/design.md` 顶部状态从「设计草案」改为对应实现状态；勾选 §7 已完成的阶段。
 
 - [ ] **Step 4: 最终 commit**
 
 ```bash
-git add specs/a2ui-integration/design.md
+git add specs/archive/a2ui-integration/design.md
 git commit -m "docs(a2ui): mark P1 implementation complete (prototype module + rich tool results)"
 ```
 

@@ -45,7 +45,7 @@
   flex-shrink: 0;
 }
 
-/* File-type badge icon spacing (ui/file-icon.tsx). */
+/* File-type badge icon spacing (ui/icons/file-type.tsx). */
 .ui-editor-overlay-title .ui-file-icon {
   margin-right: 6px;
   flex-shrink: 0;
@@ -147,8 +147,8 @@
   line-height: 22px;
   color: var(--ui-text);
   transition:
-    background 0.1s ease,
-    box-shadow 0.15s ease;
+    background 0.1s var(--ui-ease),
+    box-shadow 0.15s var(--ui-ease);
 }
 
 .ui-editor-file-entry:hover {
@@ -173,6 +173,23 @@
 
 .ui-editor-file-icon.is-dir {
   color: var(--ui-text-dim);
+}
+
+/* ── 树形目录（user ask 2026-09-03 十二轮 B3a）────────────────────────
+   VSCode/IDEA 展开逻辑：目录原地展开、深度缩进、箭头指示展开态（› 旋转
+   为 ˅）。首次展开懒加载并缓存；收起不清缓存。 */
+.ui-tree-chev {
+  flex: none;
+  width: 12px;
+  margin-right: 1px;
+  display: inline-flex;
+  justify-content: center;
+  color: var(--ui-text-faint);
+  font-size: 10px;
+  transition: transform 0.14s var(--ui-ease);
+}
+.ui-tree-chev.open {
+  transform: rotate(90deg);
 }
 
 .ui-editor-file-name {
@@ -208,9 +225,9 @@
   border-radius: 6px;
   white-space: nowrap;
   transition:
-    color 0.15s ease,
-    border-color 0.15s ease,
-    background 0.15s ease;
+    color 0.15s var(--ui-ease),
+    border-color 0.15s var(--ui-ease),
+    background 0.15s var(--ui-ease);
 }
 
 .ui-diff-overlay-action:hover {
@@ -378,10 +395,10 @@
   flex-shrink: 0;
 }
 .ui-git-add {
-  color: #3fb950;
+  color: var(--ui-success);
 }
 .ui-git-del {
-  color: #f85149;
+  color: var(--ui-danger);
 }
 
 /* Risk analysis (#14) */
@@ -447,7 +464,7 @@
 .ui-risk-bar-fill {
   height: 100%;
   border-radius: 2px;
-  transition: width 0.3s ease;
+  transition: width 0.3s var(--ui-ease);
 }
 
 /* Wiki pages (#16) */
@@ -482,10 +499,10 @@
    border; rounded card with its own shadow, like every other stage layer. */
 .ui-preview-panel {
   position: absolute;
-  top: calc(var(--ui-cockpit-h, 52px) + 10px);
+  top: calc(var(--ui-cockpit-h, 52px) + 6px);
   right: 14px;
-  bottom: 14px;
-  width: min(var(--ui-right-w, 480px), 46vw);
+  bottom: calc(14px + 52px + 6px);
+  width: clamp(400px, 28vw, 600px);
   z-index: 25;
   display: flex;
   flex-direction: column;
@@ -571,9 +588,16 @@
   color: var(--ui-text-faint);
   cursor: pointer;
   border-bottom: 2px solid transparent;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   transition:
     color 0.15s,
     border-color 0.15s;
+}
+.ui-preview-tab svg {
+  width: 13px;
+  height: 13px;
 }
 .ui-preview-tab:hover {
   color: var(--ui-text-secondary);
@@ -601,6 +625,48 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
+}
+/* PRD/spec 文档：与审查 tab 一致的独立滚动 */
+.ui-preview-panel-body .ui-proto-spec-doc {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--ui-text-faint, #8590a0) 38%, transparent) transparent;
+}
+.ui-preview-panel-body .ui-proto-spec-doc::-webkit-scrollbar {
+  width: 8px;
+}
+.ui-preview-panel-body .ui-proto-spec-doc::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--ui-text-faint, #8590a0) 32%, transparent);
+  border-radius: 999px;
+}
+
+/* Task quick sheet — the body IS the unique scroll layer (scroll contract
+   §6.5): long reports scroll inside the island instead of clipping under
+   the window edge. */
+.ui-task-quick .ui-preview-panel-body {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--ui-text-faint, #8590a0) 38%, transparent) transparent;
+}
+.ui-task-quick .ui-preview-panel-body::-webkit-scrollbar {
+  width: 8px;
+}
+.ui-task-quick .ui-preview-panel-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+.ui-task-quick .ui-preview-panel-body::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--ui-text-faint, #8590a0) 32%, transparent);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+.ui-task-quick .ui-preview-panel-body::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--ui-text-faint, #8590a0) 55%, transparent);
+  background-clip: padding-box;
 }
 
 /* ── Prototype panel (now embedded in preview panel, no own header) ───────── */
@@ -663,7 +729,7 @@
   gap: 12px;
   width: min(460px, calc(100vw - 48px));
   padding: 20px;
-  border-radius: 10px;
+  border-radius: var(--ui-radius-lg);
   background: var(--ui-surface);
   color: var(--ui-text);
   box-shadow: var(--ui-shadow-modal);
@@ -686,22 +752,28 @@
 }
 .ui-trust-btn {
   padding: 8px 14px;
-  border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: var(--ui-radius-md);
+  border: 1px solid var(--ui-border-soft);
   background: transparent;
   color: inherit;
   font-size: 12.5px;
   cursor: pointer;
+  transition:
+    border-color 0.15s var(--ui-ease),
+    background 0.15s var(--ui-ease);
+}
+.ui-trust-btn:hover:not(:disabled) {
+  background: var(--ui-surface-hover);
 }
 .ui-trust-btn:disabled {
   opacity: 0.5;
   cursor: default;
 }
 .ui-trust-btn--trusted:hover:not(:disabled) {
-  border-color: rgba(80, 200, 120, 0.6);
+  border-color: color-mix(in srgb, var(--ui-success) 60%, transparent);
 }
 .ui-trust-btn--quarantine:hover:not(:disabled) {
-  border-color: rgba(230, 160, 60, 0.7);
+  border-color: color-mix(in srgb, var(--ui-warning) 70%, transparent);
 }
 
 /* ── Index & Knowledge (specs/index-knowledge-rework) ─────────────────────── */
@@ -823,6 +895,14 @@
 }
 .ui-knowledge-subtab.subtab-symbols {
   --tab-hue: var(--ui-diagram-hue-3, #fbbf24);
+}
+/* Review sheet's reports/graph tabs ride the SAME pill row (user ask
+   2026-09-01) — two more hues from the diagram ramp. */
+.ui-knowledge-subtab.subtab-reports {
+  --tab-hue: var(--ui-diagram-hue-0, #60a5fa);
+}
+.ui-knowledge-subtab.subtab-graph {
+  --tab-hue: var(--ui-diagram-hue-4, #fb7185);
 }
 .ui-knowledge-subtab.active {
   background: color-mix(in srgb, var(--tab-hue, var(--ui-accent, #3b82f6)) 12%, transparent);
@@ -975,6 +1055,11 @@
   flex: 1;
   overflow-y: auto;
   padding: 10px 14px 14px;
+  /* Container query root: every reading surface below (wiki columns/pager,
+     arch TOC, tree split) adapts to THIS pane's width — the pane itself
+     follows the main window, so content tracks the window through the pane
+     instead of the viewport-wide @media breakpoints it replaced. */
+  container-type: inline-size;
 }
 .ui-knowledge-list {
   display: flex;
@@ -1074,6 +1159,9 @@
   background: transparent;
   color: var(--ui-text-dim);
   cursor: pointer;
+  transition:
+    color 0.15s var(--ui-ease),
+    background 0.15s var(--ui-ease);
 }
 
 .ui-taskrec-restore svg {
@@ -1084,6 +1172,12 @@
 .ui-taskrec-restore:hover:not(:disabled) {
   color: var(--ui-text);
   background: color-mix(in srgb, var(--ui-text-dim) 14%, transparent);
+}
+
+/* Armed (first click): the next click rewrites working files. */
+.ui-taskrec-restore.armed {
+  color: var(--ui-danger);
+  background: color-mix(in srgb, var(--ui-danger) 14%, transparent);
 }
 
 /* Prototype panel toolbar — standalone-window popout. */
@@ -1113,4 +1207,877 @@
 
 .ui-prototype-panel-popout:hover {
   background: color-mix(in srgb, var(--ui-text-dim) 14%, transparent);
+}
+
+/* ── Code review: expanded workspace detail (report history + risk map) ─────
+   Attaches under the clicked workspace row — same "detail under the row"
+   pattern as the knowledge build checklist. */
+.ui-review-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 10px;
+  margin-bottom: 6px;
+  border: 1px solid var(--ui-border-soft, #333);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--ui-surface-hover, transparent) 45%, transparent);
+}
+.ui-review-reports {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ui-review-reports-title {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ui-text-faint, #888);
+}
+.ui-review-report {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.ui-review-report:hover {
+  background: var(--ui-surface-hover);
+}
+.ui-review-report-time {
+  font-size: 12px;
+  color: var(--ui-text, inherit);
+}
+.ui-review-report-meta {
+  font-size: 11px;
+  color: var(--ui-text-faint, #888);
+  white-space: nowrap;
+}
+
+/* ── Code review main-area tab (report history + risk map) ──────────────────
+   The review module's counterpart of the knowledge tab: sub-view pills on
+   top, history rail + rendered report below. */
+.ui-review-tab {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ui-review-tab-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.ui-review-tab-tabs {
+  display: flex;
+  gap: 6px;
+  flex: none;
+}
+/* The review sheet's sub-tab bar reuses the knowledge pills verbatim
+   (.ui-knowledge-subtabs + .ui-knowledge-subtab in the TSX). Trim the
+   knowledge bar's chrome for this head: the floating back-pill clearance
+   comes from the bar's own right padding. */
+.ui-review-tab-tabs.ui-knowledge-subtabs {
+  flex: 1 1 auto;
+  padding: 8px 10px 8px 2px;
+  border-bottom: 1px solid var(--ui-border-soft, #333);
+  margin-bottom: -1px;
+}
+.ui-review-tab-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.ui-review-run-btn {
+  padding: 5px 14px;
+  border: none;
+  border-radius: 8px;
+  background: var(--ui-accent, #3b82f6);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: filter 0.14s var(--ui-ease);
+}
+.ui-review-run-btn:hover {
+  filter: brightness(1.1);
+}
+.ui-review-run-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.ui-review-run-progress {
+  flex: none;
+  padding: 0 12px 8px;
+  font-size: 11.5px;
+  color: var(--ui-text-dim, #888);
+}
+.ui-review-tab-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  gap: 10px;
+}
+.ui-review-history {
+  width: 230px;
+  flex: none;
+  overflow-y: auto;
+  border: 1px solid var(--ui-border-soft, #333);
+  border-radius: 10px;
+  padding: 6px;
+}
+.ui-review-history-item {
+  padding: 7px 9px;
+  border-radius: 7px;
+  cursor: pointer;
+}
+.ui-review-history-item:hover {
+  background: var(--ui-surface-hover);
+}
+.ui-review-history-item.active {
+  background: color-mix(in srgb, var(--ui-accent) 12%, transparent);
+}
+.ui-review-history-time {
+  font-size: 12px;
+  color: var(--ui-text, inherit);
+}
+.ui-review-history-meta {
+  font-size: 11px;
+  color: var(--ui-text-faint, #888);
+  margin-top: 2px;
+}
+.ui-review-history-empty {
+  padding: 14px 10px;
+  font-size: 12px;
+  color: var(--ui-text-faint, #888);
+}
+.ui-review-tab-content {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--ui-border-soft, #333);
+  border-radius: 10px;
+  overflow: hidden;
+  display: flex;
+}
+.ui-review-tab-graph {
+  min-height: 0;
+}
+
+/* Review scope selector — slim controls under the active workspace row. */
+.ui-review-scope {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 10px 6px 26px;
+  flex-wrap: wrap;
+}
+/* Determinate review progress — a slim accent-gradient fill under the
+   ACTIVE row, driven by the action's percent (user ask 2026-09-01: show a
+   BAR, not just the step text). Step text stays in the row meta. */
+.ui-review-progress {
+  height: 3px;
+  margin: 3px 12px 2px 26px;
+  border-radius: 999px;
+  background: var(--ui-surface-sunken, transparent);
+  overflow: hidden;
+}
+.ui-review-progress .fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--ui-diagram-hue-0, #60a5fa), var(--ui-diagram-hue-1, #a78bfa));
+  transition: width 0.4s var(--ui-ease);
+}
+/* The running step text can be long ("[9/20] reviewing src/…") — clamp it
+   to the row instead of wrapping the workspace list. */
+.ui-review-tab .ui-ik-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-review-scope-select {
+  font-size: 11px;
+  padding: 3px 6px;
+  border: 1px solid var(--ui-border-soft, #333);
+  border-radius: 6px;
+  background: var(--ui-surface, transparent);
+  color: var(--ui-text, inherit);
+  min-width: 0;
+  max-width: 230px;
+}
+/* Scope controls live INSIDE the workspace row (2026-09-01 integration).
+   workspace 模式：单个模式下拉与按钮同行；commit/range 模式：引用下拉换行
+   独占第二行——行内宽度优先保名称，绝不让范围把名称挤没（用户报告：
+   范围选择和名称覆盖在一起且超出长度）。
+   2026-09-02：has-refs 行改为 `width: calc(100% - 26px)` 的精确占位——
+   之前的 `flex-basis: 100%` + 26px margin 会把第二行推出行的右缘，
+   最后一个引用下拉在面板边缘被裁掉（用户截图报告）。 */
+.ui-ik-rowwrap .ui-ik-row {
+  flex-wrap: wrap;
+}
+.ui-review-row-scope {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  margin-left: auto;
+  min-width: 0;
+}
+.ui-review-row-scope.has-refs {
+  flex: 0 0 auto;
+  width: calc(100% - 26px);
+  max-width: 100%;
+  order: 5;
+  margin-left: 26px;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+}
+/* the run icon button stays on the FIRST line, right of the name */
+.ui-ik-rowwrap .ui-ik-row .ui-ik-runbtn {
+  order: 1;
+}
+.ui-review-row-scope .ui-review-scope-select {
+  max-width: none;
+  flex: 0 1 auto;
+  min-width: 0;
+}
+/* Ref pickers share the remaining width; the mode picker stays label-sized. */
+.ui-review-row-scope.has-refs .ui-review-scope-select {
+  flex: 1 1 140px;
+  min-width: 100px;
+}
+.ui-review-row-scope.has-refs .ui-review-scope-select:first-child {
+  flex: 0 0 auto;
+}
+/* Active workspace: subtle highlight + "当前" chip next to the name. */
+.ui-ik-row.active {
+  background: color-mix(in srgb, var(--ui-accent, #3b82f6) 6%, transparent);
+}
+.ui-review-active-chip {
+  margin-left: 7px;
+  padding: 0 7px;
+  border-radius: 999px;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--ui-accent, #3b82f6);
+  background: var(--ui-accent-soft, rgba(28, 111, 224, 0.12));
+}
+/* SVG-icon run button. */
+.ui-ik-runbtn {
+  color: var(--ui-accent, #3b82f6);
+  flex-shrink: 0;
+}
+.ui-ik-runbtn.running {
+  cursor: progress;
+}
+.ui-ik-runbtn-pct {
+  font-size: 9.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.ui-ik-runbtn .ui-spinner {
+  width: 12px;
+  height: 12px;
+}
+/* The range selector's from → to separator. */
+.ui-review-scope-sep {
+  font-size: 10px;
+  color: var(--ui-text-dim, #888);
+}
+
+/* Review scope bar — above the workspace list (user ask 2026-09-01). */
+.ui-review-scope-bar {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.ui-review-scope-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ui-text-faint, #888);
+}
+/* Scope owner — the workspace this selector belongs to (scope follows the
+   active workspace; design spec §3.1). */
+.ui-review-scope-label .owner {
+  color: var(--ui-accent, #3b82f6);
+  letter-spacing: 0;
+}
+
+/* Native report document inside the review tab. */
+.ui-report-doc {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  padding: 18px 22px 26px;
+}
+/* Title row: h1 + the primary "quote in chat" action (wiki-page-head parity —
+   the button keeps a fixed footprint so longer translations never squeeze the
+   title out of its own header). */
+.ui-report-doc-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 4px;
+}
+.ui-report-doc-head h1 {
+  margin: 0;
+}
+.ui-report-quote {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.ui-report-doc h1 {
+  font-size: 19px;
+  margin: 0 0 4px;
+}
+.ui-report-meta {
+  color: var(--ui-text-dim, #888);
+  font-size: 12.5px;
+  margin-bottom: 14px;
+}
+.ui-report-cards {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.ui-report-card {
+  min-width: 110px;
+  padding: 10px 16px;
+  border: 1px solid var(--ui-border-soft, #333);
+  border-radius: 10px;
+  background: var(--ui-surface-raised, transparent);
+}
+.ui-report-card .num {
+  font-size: 22px;
+  font-weight: 650;
+}
+.ui-report-card .lbl {
+  font-size: 11.5px;
+  color: var(--ui-text-dim, #888);
+}
+.ui-report-card.excluded {
+  border-color: color-mix(in srgb, #d97706 45%, transparent);
+}
+/* Policy-exclusion note under the cards (all-changes-excluded runs). */
+.ui-report-note {
+  color: #d97706;
+  background: color-mix(in srgb, #d97706 8%, transparent);
+  border: 1px solid color-mix(in srgb, #d97706 35%, transparent);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 12.5px;
+  margin: 0 0 16px;
+}
+/* Retry affordance in the risk-map error state. */
+.ui-review-retry {
+  margin-left: 8px;
+  padding: 3px 12px;
+  border: 1px solid var(--ui-border-soft, #444);
+  border-radius: 8px;
+  background: var(--ui-surface-raised, transparent);
+  color: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.ui-review-retry:hover {
+  border-color: var(--ui-accent, #4c8dff);
+}
+.ui-report-file {
+  margin-bottom: 14px;
+}
+.ui-report-file h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  margin: 0 0 6px;
+}
+.ui-report-file h2 code {
+  background: var(--ui-surface-sunken, transparent);
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-family: var(--ui-font-mono, monospace);
+  font-size: 12px;
+}
+.ui-report-file .cnt {
+  font-size: 11.5px;
+  color: var(--ui-text-dim, #888);
+}
+.ui-report-finding {
+  border: 1px solid var(--ui-border-soft, #333);
+  border-radius: 9px;
+  padding: 9px 12px;
+  margin: 8px 0;
+}
+.ui-report-finding .head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+.ui-report-finding .loc {
+  font-family: var(--ui-font-mono, monospace);
+  font-size: 12px;
+  color: var(--ui-text-dim, #888);
+}
+.chip {
+  font-size: 10.5px;
+  font-weight: 650;
+  padding: 1px 8px;
+  border-radius: 999px;
+}
+/* Severity chips — tinted-badge grammar in BOTH appearances (user report
+   2026-09-01 撞色: the old SOLID dark chips read as heavy blobs on light and
+   sank into dark). Translucent hue + colored text reads on any surface. */
+.chip.sev-critical {
+  background: color-mix(in srgb, #dc2626 13%, transparent);
+  color: #dc2626;
+}
+.chip.sev-high {
+  background: color-mix(in srgb, #ea580c 14%, transparent);
+  color: #ea580c;
+}
+.chip.sev-medium {
+  background: color-mix(in srgb, #d97706 15%, transparent);
+  color: #b45309;
+}
+.chip.sev-low {
+  background: color-mix(in srgb, #64748b 14%, transparent);
+  color: #64748b;
+}
+/* Dark appearance: the fixed SOLID chips above were tuned for light surfaces
+   and sink into dark backgrounds (user report 2026-09-01 撞色) — switch to
+   the tinted-badge grammar (translucent hue + colored text). */
+:root[data-appearance="dark"] .chip.sev-critical {
+  background: color-mix(in srgb, #f87171 20%, transparent);
+  color: #fca5a5;
+}
+:root[data-appearance="dark"] .chip.sev-high {
+  background: color-mix(in srgb, #fb923c 20%, transparent);
+  color: #fdba74;
+}
+:root[data-appearance="dark"] .chip.sev-medium {
+  background: color-mix(in srgb, #fbbf24 18%, transparent);
+  color: #fcd34d;
+}
+:root[data-appearance="dark"] .chip.sev-low {
+  background: color-mix(in srgb, #94a3b8 20%, transparent);
+  color: #cbd5e1;
+}
+.chip.crg {
+  background: color-mix(in srgb, var(--ui-accent, #3b82f6) 14%, transparent);
+  color: var(--ui-accent, #3b82f6);
+}
+/* Locatable CRG chip — has a graph binding; clicking jumps to the risk map
+   and selects the node (design §3.3 bidirectional locate). */
+.chip.crg.locate {
+  cursor: pointer;
+  background: transparent;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-accent, #3b82f6) 32%, transparent);
+  transition:
+    background 0.14s var(--ui-ease),
+    box-shadow 0.14s var(--ui-ease);
+}
+.chip.crg.locate:hover {
+  background: color-mix(in srgb, var(--ui-accent, #3b82f6) 18%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-accent, #3b82f6) 60%, transparent);
+}
+.chip.crg.locate .lnk {
+  font-weight: 800;
+  margin-left: 2px;
+}
+/* Locate flash — the report finding the map jumped back to (design §3.3). */
+.ui-report-finding.flash {
+  animation: ui-find-flash 1.8s var(--ui-ease);
+}
+@keyframes ui-find-flash {
+  0%,
+  55% {
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-accent, #3b82f6) 45%, transparent);
+    border-color: color-mix(in srgb, var(--ui-accent, #3b82f6) 60%, transparent);
+  }
+  100% {
+    box-shadow: none;
+  }
+}
+.ui-report-finding .body {
+  white-space: pre-wrap;
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+.ui-report-finding .code {
+  font-family: var(--ui-font-mono, monospace);
+  font-size: 12px;
+  border-radius: 8px;
+  padding: 8px 10px;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  margin: 6px 0 0;
+}
+.ui-report-finding .code.fenced {
+  background: var(--ui-surface-sunken, transparent);
+  border: 1px solid var(--ui-border-soft, #333);
+}
+/* Inline `code` inside the finding text flow. */
+.ui-report-finding .body code.inline {
+  font-family: var(--ui-font-mono, monospace);
+  font-size: 11.5px;
+  background: var(--ui-surface-sunken, transparent);
+  border-radius: 4px;
+  padding: 0 4px;
+}
+/* Existing/suggestion CODE BLOCKS — a real block frame (header strip with
+   the kind label + themed code surface + a 3px hue accent) instead of the
+   old whole-block pastel wash that clashed on both appearances (user report
+   2026-09-01). */
+.ui-report-codeblock {
+  border: 1px solid var(--ui-border-soft, #333);
+  border-radius: 9px;
+  overflow: hidden;
+  margin: 8px 0 0;
+}
+.ui-report-codeblock .cb-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  background: var(--ui-surface-sunken, transparent);
+  border-bottom: 1px solid var(--ui-border-soft, #333);
+  font-size: 11px;
+  color: var(--ui-text-dim, #888);
+  min-width: 0;
+}
+.ui-report-codeblock .cb-kind {
+  font-weight: 700;
+  flex: none;
+}
+.ui-report-codeblock .cb-file {
+  font-family: var(--ui-font-mono, monospace);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-report-codeblock pre.code {
+  margin: 0;
+  border: none;
+  border-radius: 0;
+  background: color-mix(in srgb, var(--ui-surface-sunken, transparent) 55%, transparent);
+}
+.ui-report-codeblock.kind-existing pre.code {
+  box-shadow: inset 3px 0 0 color-mix(in srgb, #dc2626 60%, transparent);
+}
+.ui-report-codeblock.kind-existing .cb-kind {
+  color: #dc2626;
+}
+.ui-report-codeblock.kind-suggestion pre.code {
+  box-shadow: inset 3px 0 0 color-mix(in srgb, #2f9e44 60%, transparent);
+}
+.ui-report-codeblock.kind-suggestion .cb-kind {
+  color: #2f9e44;
+}
+.ui-report-empty {
+  border: 1px dashed var(--ui-border-soft, #333);
+  border-radius: 10px;
+  padding: 18px;
+  text-align: center;
+  color: var(--ui-text-dim, #888);
+  font-size: 13px;
+}
+.ui-report-footer {
+  margin-top: 22px;
+  font-size: 11.5px;
+  color: var(--ui-text-faint, #888);
+}
+/* Degraded/unavailable status — a calm localized warning strip; the raw
+   model-facing statusNote never renders in the UI. */
+.ui-report-footer.degraded {
+  margin-top: 14px;
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  padding: 8px 11px;
+  border-radius: 9px;
+  background: color-mix(in srgb, #f08c00 12%, transparent);
+  color: color-mix(in srgb, #e67700 75%, var(--ui-text, #333));
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+.ui-report-footer.degraded svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+/* ── 两行工作区卡（user ask 2026-09-03）：上行身份、下行范围+运行 ──
+   用 :has 限定，知识库等单行卡片保持原状不受影响。 */
+.ui-ik-rowwrap:has(> .ui-ik-rowops) .ui-ik-row {
+  flex-wrap: nowrap;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  border-bottom: none;
+}
+.ui-ik-rowops {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px 9px 26px;
+  border: 1px solid var(--ui-border-soft, #333);
+  border-top: 1px dashed var(--ui-border-soft, #333);
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+  border-bottom-left-radius: 8px;
+  border-bottom-right-radius: 8px;
+  margin-bottom: 4px;
+}
+.ui-ik-rowops .ui-review-row-scope {
+  margin-left: 0;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+}
+.ui-ik-rowops .ui-review-row-scope.has-refs {
+  width: auto;
+  order: 0;
+  margin-left: 0;
+}
+.ui-ik-rowops .ui-review-row-scope .ui-review-scope-select {
+  flex: 1 1 120px;
+  min-width: 0;
+  max-width: none;
+}
+.ui-ik-rowops .ui-review-row-scope .ui-review-scope-select:first-child {
+  flex: 0 0 auto;
+}
+.ui-ik-rowops .ui-ik-runbtn {
+  margin-left: auto;
+  flex: none;
+}
+
+/* ── 选区 agent 交互浮窗（user ask 2026-09-03 十三轮 B3c-3 第一切片）── */
+.ui-edagent {
+  position: absolute;
+  right: 18px;
+  bottom: 18px;
+  z-index: 8;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+.ui-edagent-fab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 13px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--ui-accent) 40%, transparent);
+  background: color-mix(in srgb, var(--ui-surface-raised, #fff) 92%, transparent);
+  backdrop-filter: blur(10px);
+  color: var(--ui-accent);
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+  box-shadow: var(--ui-shadow-card);
+  transition:
+    transform 0.13s var(--ui-ease),
+    background 0.13s var(--ui-ease);
+}
+.ui-edagent-fab:hover {
+  transform: translateY(-1px);
+  background: var(--ui-accent-soft);
+}
+.ui-edagent-panel {
+  width: min(380px, 92%);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--ui-accent) 30%, var(--ui-border-soft));
+  background: var(--ui-surface-raised, #fff);
+  box-shadow: var(--ui-shadow-modal);
+}
+.ui-edagent-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--ui-accent);
+}
+.ui-edagent-close {
+  border: none;
+  background: none;
+  color: var(--ui-text-faint);
+  cursor: pointer;
+  font-size: 10px;
+}
+.ui-edagent-sel {
+  margin: 0;
+  max-height: 110px;
+  overflow: auto;
+  padding: 7px 9px;
+  border-radius: 8px;
+  background: var(--ui-surface-sunken);
+  border: 1px solid var(--ui-border-soft);
+  font-family: var(--ui-font-mono);
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: var(--ui-text-dim);
+  white-space: pre-wrap;
+}
+.ui-edagent-input {
+  width: 100%;
+  resize: vertical;
+  min-height: 54px;
+  padding: 7px 9px;
+  border-radius: 8px;
+  border: 1px solid var(--ui-border);
+  background: var(--ui-input-bg, var(--ui-surface));
+  color: var(--ui-text-primary);
+  font-size: 12.5px;
+  line-height: 1.5;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.ui-edagent-input:focus {
+  border-color: var(--ui-accent);
+}
+.ui-edagent-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ui-edagent-hint {
+  flex: 1;
+  font-size: 10.5px;
+  color: var(--ui-text-faint);
+}
+.ui-edagent-sent {
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ui-success, #2f9e44) 12%, transparent);
+  color: var(--ui-success, #2f9e44);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+/* 数字体执行态与结果（S2） */
+.ui-edagent-running {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11.5px;
+  color: var(--ui-accent);
+}
+.ui-edagent-result {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--ui-surface-sunken);
+  border: 1px solid var(--ui-border-soft);
+}
+.ui-edagent-result pre {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 11px;
+  line-height: 1.55;
+  color: var(--ui-text-dim);
+}
+.ui-edagent-result .btn {
+  align-self: flex-end;
+}
+.ui-edagent-tochat {
+  border: none;
+  background: none;
+  color: var(--ui-text-faint);
+  font-size: 11px;
+  cursor: pointer;
+  text-decoration: underline dotted;
+  transition: color 0.13s ease;
+}
+.ui-edagent-tochat:hover {
+  color: var(--ui-text-dim);
+}
+
+/* ── S4：diff 视图 + Monaco pending 装饰 ─────────────────────────────── */
+.ui-edagent-diffstat {
+  display: flex;
+  gap: 8px;
+  font-family: var(--ui-font-mono);
+  font-size: 11px;
+  font-weight: 700;
+}
+.ui-edagent-diffstat .add {
+  color: var(--ui-success, #2f9e44);
+}
+.ui-edagent-diffstat .del {
+  color: var(--ui-danger, #e03131);
+}
+.ui-edagent-diff {
+  max-height: 200px;
+  overflow-y: auto;
+  border-radius: 8px;
+  border: 1px solid var(--ui-border-soft);
+  background: var(--ui-surface-sunken);
+  font-family: var(--ui-font-mono);
+  font-size: 10.5px;
+  line-height: 1.5;
+}
+.ui-edagent-diff .dl {
+  display: flex;
+  gap: 6px;
+  padding: 0 8px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.ui-edagent-diff .dl .sign {
+  flex: none;
+  width: 10px;
+  text-align: center;
+  user-select: none;
+  opacity: 0.7;
+}
+.ui-edagent-diff .dl.add {
+  background: color-mix(in srgb, var(--ui-success, #2f9e44) 14%, transparent);
+  color: var(--ui-text);
+}
+.ui-edagent-diff .dl.add .sign {
+  color: var(--ui-success, #2f9e44);
+}
+.ui-edagent-diff .dl.del {
+  background: color-mix(in srgb, var(--ui-danger, #e03131) 13%, transparent);
+  color: var(--ui-text);
+}
+.ui-edagent-diff .dl.del .sign {
+  color: var(--ui-danger, #e03131);
+}
+.ui-edagent-diff .dl.ctx {
+  color: var(--ui-text-faint);
+}
+
+/* Monaco 内的 pending 装饰：数字体有替换代码待应用时的可视提示 */
+.monaco-editor .edagent-pending-line {
+  background: color-mix(in srgb, var(--ui-warning, #f59e0b) 14%, transparent);
+}
+.monaco-editor .edagent-pending-mark {
+  background: var(--ui-warning, #f59e0b);
+  width: 3px !important;
+  margin-left: 4px;
+  border-radius: 2px;
 }

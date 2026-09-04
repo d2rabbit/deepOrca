@@ -127,6 +127,7 @@ describe("review.run via IPC (Phase 1 — same action, second surface)", () => {
     const { helpers, handlers } = makeCapturingHelpers();
     registerActionIpc(helpers, {
       emit: (channel, payload) => emitted.push({ channel, payload }),
+      getRoot: () => PROJECT_ROOT,
       getRegistry: () => registry,
     });
     const runFn = handlers.get(IpcActionChannel.Run)! as (id: string, input: unknown) => Promise<unknown>;
@@ -148,7 +149,7 @@ describe("review.run via IPC (Phase 1 — same action, second surface)", () => {
     registry.register(pingDefinition, pingRun);
     registry.register(reviewRunDefinition, reviewRun);
     const { helpers, handlers } = makeCapturingHelpers();
-    registerActionIpc(helpers, { emit: () => {}, getRegistry: () => registry });
+    registerActionIpc(helpers, { emit: () => {}, getRoot: () => PROJECT_ROOT, getRegistry: () => registry });
     const ids = ((handlers.get(IpcActionChannel.List)! as () => unknown[])() as { id: string }[]).map((d) => d.id);
     assert.ok(ids.includes("system.ping"));
     assert.ok(ids.includes("review.run"));
@@ -159,7 +160,7 @@ describe("registerActionIpc (the IPC surface)", () => {
   test("registers List and Run channels", () => {
     const registry = makeRegistryWithPing();
     const { helpers, handlers } = makeCapturingHelpers();
-    registerActionIpc(helpers, { emit: () => {}, getRegistry: () => registry });
+    registerActionIpc(helpers, { emit: () => {}, getRoot: () => PROJECT_ROOT, getRegistry: () => registry });
     assert.ok(handlers.has(IpcActionChannel.List));
     assert.ok(handlers.has(IpcActionChannel.Run));
   });
@@ -167,7 +168,7 @@ describe("registerActionIpc (the IPC surface)", () => {
   test("ActionList returns the registered ping definition", () => {
     const registry = makeRegistryWithPing();
     const { helpers, handlers } = makeCapturingHelpers();
-    registerActionIpc(helpers, { emit: () => {}, getRegistry: () => registry });
+    registerActionIpc(helpers, { emit: () => {}, getRoot: () => PROJECT_ROOT, getRegistry: () => registry });
     const fn = handlers.get(IpcActionChannel.List)!;
     const defs = (fn as () => unknown[])();
     assert.ok(defs.some((d) => (d as { id: string }).id === "system.ping"));
@@ -175,7 +176,7 @@ describe("registerActionIpc (the IPC surface)", () => {
 
   test("ActionList returns [] when no registry is available (no project)", () => {
     const { helpers, handlers } = makeCapturingHelpers();
-    registerActionIpc(helpers, { emit: () => {}, getRegistry: () => null });
+    registerActionIpc(helpers, { emit: () => {}, getRoot: () => PROJECT_ROOT, getRegistry: () => null });
     const defs = (handlers.get(IpcActionChannel.List)! as () => unknown[])();
     assert.equal(defs.length, 0);
   });
@@ -186,6 +187,7 @@ describe("registerActionIpc (the IPC surface)", () => {
     const { helpers, handlers } = makeCapturingHelpers();
     registerActionIpc(helpers, {
       emit: (channel, payload) => emitted.push({ channel, payload }),
+      getRoot: () => PROJECT_ROOT,
       getRegistry: () => registry,
     });
     const runFn = handlers.get(IpcActionChannel.Run)! as (id: string, input: unknown) => Promise<unknown>;
@@ -210,7 +212,7 @@ describe("registerActionIpc (the IPC surface)", () => {
   test("ActionRun returns a structured error for an unknown action", async () => {
     const registry = makeRegistryWithPing();
     const { helpers, handlers } = makeCapturingHelpers();
-    registerActionIpc(helpers, { emit: () => {}, getRegistry: () => registry });
+    registerActionIpc(helpers, { emit: () => {}, getRoot: () => PROJECT_ROOT, getRegistry: () => registry });
     const runFn = handlers.get(IpcActionChannel.Run)! as (id: string, input: unknown) => Promise<unknown>;
     const res = (await runFn("missing.thing", {})) as { ok: false; code: string };
     assert.equal(res.ok, false);
@@ -219,7 +221,7 @@ describe("registerActionIpc (the IPC surface)", () => {
 
   test("ActionRun returns NO_PROJECT when no registry is available", async () => {
     const { helpers, handlers } = makeCapturingHelpers();
-    registerActionIpc(helpers, { emit: () => {}, getRegistry: () => null });
+    registerActionIpc(helpers, { emit: () => {}, getRoot: () => PROJECT_ROOT, getRegistry: () => null });
     const runFn = handlers.get(IpcActionChannel.Run)! as (id: string, input: unknown) => Promise<unknown>;
     const res = (await runFn("system.ping", {})) as { ok: false; code: string };
     assert.equal(res.ok, false);

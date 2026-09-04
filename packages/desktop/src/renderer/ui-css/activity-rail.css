@@ -1,0 +1,858 @@
+/* ===========================================================================
+   Activity rail + instruction TOC + pinned plan — 主会话舞台件
+   (designs/chat-redesign V4 · 落地实施方案 P1/P3/P4)
+
+   会话舞台 = 指令目录(左) · 会话列(唯一滚动层) · 活动区(右缘悬浮，与
+   左侧目录对称：有行为记录即常驻，user ask 2026-09-03 三轮)。目录与
+   活动区为隐形容器（无边框底色），只有内部元素拥有表面。活动小窗按
+   类型着色（--kc 顶缘 + 标题栏淡染），瞬态：运行中亮、结束隐，
+   ✕ 可临时收起、下拉点名再亮。
+   =========================================================================== */
+
+/* ── 舞台三栏 ── */
+.ui-chat-stage {
+  position: relative;
+  display: flex;
+  gap: 12px;
+  flex: 1;
+  min-height: 0;
+  padding: 12px 12px 0;
+}
+
+/* ── 指令目录（左列） ──
+   hub 关闭态（QuickDock 占左上角，user ask 2026-09-03 十二轮 图4）：
+   QuickDock 在舞台坐标 0–48px（top:10 + 高 38），指令目录下移到其下方
+   留 10px 间距；会话列同步给左侧留出呼吸距，不与左上角堆叠。 */
+.ui-shell:not(.panel-open) .ui-toc {
+  top: 58px;
+}
+.ui-shell:not(.panel-open) .ui-conversation {
+  padding-left: clamp(16px, 2.5vw, 28px);
+}
+.ui-toc {
+  position: absolute;
+  top: 10px;
+  left: 14px;
+  z-index: 22;
+  width: min(300px, 60vw);
+}
+.ui-toc-pill {
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--ui-border-soft);
+  background: color-mix(in srgb, var(--ui-surface, #fff) 82%, transparent);
+  backdrop-filter: blur(10px);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ui-text-dim);
+  box-shadow: var(--shadow-card);
+}
+.ui-toc-pill svg {
+  width: 11px;
+  height: 11px;
+}
+.ui-toc-pill .chev {
+  transition: transform 0.18s;
+  color: var(--ui-text-faint);
+  font-size: 10px;
+}
+.ui-toc.open .ui-toc-pill .chev {
+  transform: rotate(180deg);
+}
+.ui-toc-list {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  max-height: 340px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px;
+  border-radius: 12px;
+  border: 1px solid var(--ui-border-soft);
+  background: color-mix(in srgb, var(--ui-surface, #fff) 96%, transparent);
+  backdrop-filter: blur(16px);
+  box-shadow: var(--ui-shadow-modal);
+}
+.ui-toc-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  padding: 6px 9px;
+  border-radius: 9px;
+  cursor: pointer;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--ui-text-dim);
+}
+.ui-toc-item:hover {
+  background: var(--ui-accent-tint);
+  color: var(--ui-text);
+}
+.ui-toc-item .n {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  margin-top: 1px;
+  background: var(--ui-surface-sunken);
+  color: var(--ui-text-faint);
+  font-size: 9px;
+  font-weight: 800;
+}
+.ui-toc-item .tt {
+  flex: 1;
+  min-width: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ── 会话列（中） ── */
+.ui-chat-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* ── 活动区（右上覆盖层，screen-chat .live-rail 模型）──
+   只要会话有行为记录（App 里 has-live）就常驻：目录胶囊 + 下拉清单与
+   左侧指令目录对称（user ask 2026-09-03 三轮）；胶囊贴右缘（四轮），
+   会话滚动区右侧留胶囊大小固定位（见文件底部）。悬浮小窗/思考卡是
+   瞬态（运行中亮、结束隐，见 ActivityRail）。绝对定位不占 flex 位。 */
+.ui-actcol {
+  position: absolute;
+  top: 12px;
+  right: 4px; /* 贴右缘（user ask 2026-09-03 四轮）*/
+  bottom: auto;
+  z-index: 40;
+  width: 300px;
+  max-height: calc(100% - 20px);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  align-items: flex-end;
+  overflow: visible;
+  transition:
+    width 0.24s cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 0.2s;
+}
+.ui-actcol-label {
+  display: none;
+  writing-mode: vertical-rl;
+  align-items: center;
+  gap: 8px;
+  margin: auto;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+  color: var(--ui-text-faint);
+}
+.ui-actcol-label svg {
+  width: 12px;
+  height: 12px;
+}
+/* 浮动 Tab 打开 → 收缩为细条 */
+.ui-actcol.collapsed {
+  width: 40px;
+  align-items: center;
+  padding: 12px 0 12px 10px;
+  border-right: 1px solid var(--ui-border-soft);
+}
+.ui-actcol.collapsed > *:not(.ui-actcol-label) {
+  display: none !important;
+}
+.ui-actcol.collapsed .ui-actcol-label {
+  display: flex;
+}
+
+/* ── 思考瞬态卡 ── */
+.ui-think-card {
+  flex: none;
+  border-radius: 12px;
+  border: 1.5px dashed color-mix(in srgb, var(--ui-accent) 38%, transparent);
+  background: color-mix(in srgb, var(--ui-surface-raised) 88%, transparent);
+  padding: 9px 12px;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--ui-text-dim);
+}
+.ui-think-card .h {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+  font-size: 11px;
+  color: var(--ui-accent);
+  margin-bottom: 3px;
+}
+.ui-think-card .h svg {
+  width: 11px;
+  height: 11px;
+}
+.ui-think-card .h .cnt {
+  margin-left: auto;
+  color: var(--ui-text-faint);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+/* 思考正文（user ask 2026-09-03 六轮）：限高内滚的思考尾巴，
+   有内容可读但不吞掉下方活动胶囊区。 */
+.ui-think-card .bd {
+  max-height: 168px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* ── 实时活动流：胶囊 + 画中画堆叠 ──
+   flex-end：胶囊贴 actcol 右缘（user ask 2026-09-03 五轮——actcol 本身
+   right:4px 贴窗口右缘，旧的 flex-start 把胶囊顶到 300px 列左端，
+   留出 ~120px 空隙）。 */
+.ui-actcol .cap-row {
+  position: relative;
+  flex: none;
+  align-self: flex-end;
+}
+.ui-actcol .cap {
+  cursor: pointer;
+  align-self: flex-end;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 11px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ui-surface-raised) 82%, transparent);
+  border: 1px solid var(--ui-border-soft);
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--ui-text-dim);
+  box-shadow: var(--shadow-card);
+}
+.ui-actcol .cap svg {
+  width: 11px;
+  height: 11px;
+  color: var(--ok, #2f9e44);
+}
+.ui-actcol .cap .chev {
+  margin-left: 2px;
+  transition: transform 0.18s;
+  color: var(--ui-text-faint);
+  font-size: 10px;
+}
+.ui-actcol.open .cap .chev {
+  transform: rotate(180deg);
+}
+/* 全部活动清单：堆叠只露 4 扇，其余从这里查看（点击行置前）。
+   cap-row 右贴边后收缩为胶囊宽，清单给最小宽防缩窄（十二轮图3 收窄
+   280 → 232，宽了反而挡内容）。 */
+.ui-actcol .log {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 45;
+  width: max(100%, 232px);
+  max-height: 380px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  border-radius: 12px;
+  border: 1px solid var(--ui-border-soft);
+  background: color-mix(in srgb, var(--ui-surface-raised) 96%, transparent);
+  backdrop-filter: blur(16px);
+  box-shadow: var(--ui-shadow-modal);
+}
+.ui-actcol .log .lr {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 11px;
+  font-size: 11px;
+  border-bottom: 1px solid var(--ui-border-soft);
+  background: none;
+  color: var(--ui-text-dim);
+  text-align: left;
+}
+.ui-actcol .log .lr:last-child {
+  border-bottom: none;
+}
+.ui-actcol .log .lr:hover {
+  background: var(--ui-accent-tint);
+  color: var(--ui-text);
+}
+.ui-actcol .log .lr .ic {
+  width: 17px;
+  height: 17px;
+  border-radius: 5px;
+  display: grid;
+  place-items: center;
+  background: var(--ui-surface-sunken);
+  flex: none;
+}
+/* 清单行图标类型色（user ask 2026-09-03 十二轮 图3）：与轨迹 .ui-ev.k-*
+   同一色表（bash 橙 · read 蓝 · edit 粉 · grep 绿 · mcp 青 · skill 紫 ·
+   doc 石墨），三处配色不再分叉。 */
+.ui-actcol .ic.k-bash {
+  --kc: #e8590c;
+}
+.ui-actcol .ic.k-read {
+  --kc: #1c6fe0;
+}
+.ui-actcol .ic.k-edit {
+  --kc: #d6386c;
+}
+.ui-actcol .ic.k-grep {
+  --kc: #0ca678;
+}
+.ui-actcol .ic.k-mcp {
+  --kc: #1098ad;
+}
+.ui-actcol .ic.k-skill {
+  --kc: #9a36b8;
+}
+.ui-actcol .ic.k-doc {
+  --kc: #5f6b7a;
+}
+.ui-actcol .log .lr .ic svg {
+  width: 9px;
+  height: 9px;
+  color: var(--kc, var(--ui-text-dim));
+}
+.ui-actcol .log .lr .tt {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ui-text-secondary);
+}
+.ui-actcol .log .lr .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ui-border);
+  flex: none;
+}
+.ui-actcol .log .lr .dot.err {
+  background: var(--err, #e03131);
+}
+.ui-actcol .deck {
+  position: relative;
+  width: 284px;
+  height: 298px;
+  flex: none;
+}
+.pipwin {
+  position: absolute;
+  width: 240px;
+  height: 292px;
+  display: flex;
+  flex-direction: column;
+  border-radius: 12px;
+  border: 1px solid var(--ui-border-soft);
+  border-top: 3px solid var(--kc, var(--ui-border-soft));
+  background: color-mix(in srgb, var(--ui-surface-raised) 96%, transparent);
+  backdrop-filter: blur(16px);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+  overflow: hidden;
+  transition:
+    top 0.26s cubic-bezier(0.16, 1, 0.3, 1),
+    left 0.26s cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 0.2s;
+  animation: ui-pip-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes ui-pip-in {
+  from {
+    transform: translateY(-14px) scale(0.96);
+    opacity: 0;
+  }
+}
+/* 最新恒在最前最上；旧窗向右下退让 */
+.pipwin.p0 {
+  top: 0;
+  left: 0;
+  z-index: 15;
+}
+.pipwin.p1 {
+  top: 34px;
+  left: 20px;
+  z-index: 14;
+  opacity: 0.9;
+}
+.pipwin.p2 {
+  top: 68px;
+  left: 40px;
+  z-index: 13;
+  opacity: 0.72;
+}
+.pipwin.p3 {
+  top: 102px;
+  left: 60px;
+  z-index: 12;
+  opacity: 0.5;
+}
+.pipwin .ph {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ui-text-secondary);
+  border-bottom: 1px solid var(--ui-border-soft);
+  background: color-mix(in srgb, var(--kc, var(--ui-text-dim)) 8%, var(--ui-surface-sunken));
+  white-space: nowrap;
+  overflow: hidden;
+}
+.pipwin .ph .ic {
+  width: 17px;
+  height: 17px;
+  border-radius: 5px;
+  display: grid;
+  place-items: center;
+  background: var(--ui-surface-raised);
+  border: 1px solid var(--ui-border-soft);
+  flex: none;
+}
+.pipwin .ph .ic svg {
+  width: 10px;
+  height: 10px;
+  color: var(--kc, var(--ui-text-dim));
+}
+.pipwin .ph .tt {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pipwin .ph .live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ok, #2f9e44);
+  animation: breathe 1.2s infinite;
+  margin-left: auto;
+  flex: none;
+}
+.pipwin .ph .done-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ui-border);
+  margin-left: auto;
+  flex: none;
+}
+.pipwin .ph .err-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--err, #e03131);
+  margin-left: auto;
+  flex: none;
+}
+/* 小窗关闭（user ask 2026-09-03 二轮）：× 只隐藏当前这扇，胶囊目录保留；
+   新活动到来或下拉点名时再出现。 */
+.pipwin .ph .pip-close {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-left: 4px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ui-text-faint);
+  font-size: 9px;
+  cursor: pointer;
+  transition:
+    background 0.14s ease,
+    color 0.14s ease;
+}
+.pipwin .ph .pip-close:hover {
+  background: color-mix(in srgb, var(--err, #e03131) 14%, transparent);
+  color: var(--err, #e03131);
+}
+.pipwin .pb {
+  height: 252px;
+  padding: 8px 10px;
+  font-size: 11px;
+  line-height: 1.55;
+  color: var(--ui-text-dim);
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+.pipwin .pb::-webkit-scrollbar {
+  display: none;
+}
+/* 小窗正文 = ToolResultView（终端帧/diff/JSON 树/markdown，与展开体同一
+   渲染）；窄体小窗里代码井与 diff 收紧一档字号。 */
+.pipwin .pb .ui-md pre,
+.pipwin .pb .ui-diff {
+  font-size: 10px;
+}
+.pipwin .pb .ui-diff {
+  max-height: 170px;
+}
+.pipwin.err {
+  border-color: color-mix(in srgb, var(--err, #e03131) 30%, var(--ui-border-soft));
+}
+
+/* 类型色（与 demo/活动区色表一致） */
+.pipwin.k-bash {
+  --kc: #e8590c;
+}
+.pipwin.k-read {
+  --kc: #1c6fe0;
+}
+.pipwin.k-edit {
+  --kc: #d6386c;
+}
+.pipwin.k-grep {
+  --kc: #0ca678;
+}
+.pipwin.k-mcp {
+  --kc: #1098ad;
+}
+.pipwin.k-skill {
+  --kc: #9a36b8;
+}
+.pipwin.k-doc {
+  --kc: #5f6b7a;
+}
+
+/* ── 子代理组（活动区底部） ── */
+.ui-sub-rail {
+  margin-top: auto;
+  display: none;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+.ui-sub-rail.on {
+  display: flex;
+}
+.ui-sub-cap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 11px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--sub, #7048e8) 13%, var(--ui-surface-raised));
+  border: 1px solid color-mix(in srgb, var(--sub, #7048e8) 35%, transparent);
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--sub, #7048e8);
+  cursor: pointer;
+}
+.ui-sub-cap svg {
+  width: 11px;
+  height: 11px;
+}
+.ui-sub-cap .chev {
+  display: inline-flex;
+  transition: transform 0.18s;
+}
+.ui-sub-cap .chev svg {
+  width: 10px;
+  height: 10px;
+  color: inherit;
+}
+.ui-sub-rail.open .sub-cap .chev {
+  transform: rotate(180deg);
+}
+.ui-subdeck {
+  position: relative;
+  width: 100%;
+  height: 108px;
+}
+.ui-subwin {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 262px;
+  border-radius: 11px;
+  border: 1px solid color-mix(in srgb, var(--sub, #7048e8) 30%, var(--ui-border-soft));
+  border-left: 3px solid var(--sub, #7048e8);
+  background: color-mix(in srgb, var(--ui-surface-raised) 96%, transparent);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.15);
+  overflow: hidden;
+  cursor: pointer;
+}
+.ui-subwin .sph {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 9px;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--ui-text-secondary);
+  background: color-mix(in srgb, var(--sub, #7048e8) 8%, var(--ui-surface-sunken));
+  white-space: nowrap;
+  overflow: hidden;
+}
+.ui-subwin .sph svg {
+  width: 10px;
+  height: 10px;
+  color: var(--sub, #7048e8);
+  flex: none;
+}
+.ui-subwin .sph .tt {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ui-subwin .sph .live-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--ok, #2f9e44);
+  animation: breathe 1.2s infinite;
+  margin-left: auto;
+  flex: none;
+}
+.ui-subwin .sbody {
+  padding: 5px 10px 7px;
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: var(--ui-text-dim);
+  display: none;
+  flex-direction: column;
+  gap: 3px;
+  max-height: 170px;
+  overflow-y: auto;
+}
+.ui-subwin.open .sbody {
+  display: flex;
+}
+.ui-subwin .sbody .sa {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+}
+.ui-subwin .sbody .sa .a-verb {
+  font-weight: 650;
+  color: var(--ui-text-secondary);
+  flex: none;
+}
+.ui-subwin .sbody .sa .a-arg {
+  font-family: var(--ui-font-mono, ui-monospace, Menlo, monospace);
+  font-size: 9.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-subwin .sbody .sa .a-ms {
+  margin-left: auto;
+  color: var(--ui-text-faint);
+  font-size: 9px;
+  flex: none;
+}
+
+/* ── 钉住计划条 ── */
+.ui-pinned-plan {
+  flex: none;
+  border-radius: 11px;
+  border: 1px solid color-mix(in srgb, var(--ui-accent) 24%, var(--ui-border-soft));
+  background: color-mix(in srgb, var(--ui-surface-raised) 92%, transparent);
+  backdrop-filter: blur(12px);
+  font-size: 12px;
+  color: var(--ui-text-secondary);
+  animation: rise 0.3s ease both;
+  overflow: hidden;
+}
+.ui-pinned-plan .bar {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 7px 14px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--ui-text-secondary);
+  font-size: 12px;
+  text-align: left;
+}
+.ui-pinned-plan .bar .ic svg {
+  width: 12px;
+  height: 12px;
+  color: var(--ui-accent);
+  flex: none;
+}
+.ui-pinned-plan .bar .segs {
+  display: inline-flex;
+  gap: 4px;
+  flex: none;
+}
+.ui-pinned-plan .bar .segs i {
+  width: 14px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--ui-border);
+  transition: background 0.3s;
+}
+.ui-pinned-plan .bar .segs i.done {
+  background: var(--ok, #2f9e44);
+}
+.ui-pinned-plan .bar .segs i.run {
+  background: var(--ui-accent);
+  animation: breathe 1.2s infinite;
+}
+.ui-pinned-plan .bar .pbar {
+  flex: 1;
+  height: 4px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--ui-text) 12%, transparent);
+  overflow: hidden;
+}
+.ui-pinned-plan .bar .pbar i {
+  display: block;
+  height: 100%;
+  width: 0%;
+  background: var(--ui-accent);
+  transition: width 0.4s;
+}
+.ui-pinned-plan .bar .pct {
+  font-weight: 700;
+  color: var(--ui-accent);
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+  flex: none;
+}
+.ui-pinned-plan .bar .chev {
+  flex: none;
+  display: inline-flex;
+  color: var(--ui-text-faint);
+  transition: transform 0.18s;
+}
+.ui-pinned-plan .bar .chev svg {
+  width: 11px;
+  height: 11px;
+  color: var(--ui-text-faint);
+}
+.ui-pinned-plan.open .bar .chev {
+  transform: rotate(180deg);
+}
+.ui-pinned-plan .panel {
+  padding: 4px 0;
+  border-top: 1px solid var(--ui-border-soft);
+}
+.ui-pinned-plan .pp-seg {
+  padding: 8px 13px;
+  border-top: 1px solid var(--ui-border-soft);
+}
+.ui-pinned-plan .pp-seg:first-child {
+  border-top: none;
+}
+.ui-pinned-plan .pp-seg .pp-h {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 650;
+}
+.ui-pinned-plan .pp-seg .pp-h .idx {
+  flex: none;
+  padding: 0 7px;
+  border-radius: 5px;
+  font-size: 10px;
+  font-weight: 800;
+  background: var(--ui-surface-sunken);
+  color: var(--ui-text-dim);
+}
+.ui-pinned-plan .pp-seg .pp-h .st {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--ui-text-faint);
+}
+.ui-pinned-plan .pp-seg.run {
+  box-shadow: inset 3px 0 0 var(--ui-accent);
+  background: var(--ui-accent-tint);
+}
+.ui-pinned-plan .pp-seg.run .pp-h .st {
+  color: var(--ui-accent);
+}
+.ui-pinned-plan .pp-seg.done .pp-h .st {
+  color: var(--ok, #2f9e44);
+}
+.ui-pinned-plan .pp-steps {
+  padding: 4px 0 2px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ui-pinned-plan .pp-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  font-size: 11.5px;
+  color: var(--ui-text-dim);
+}
+.ui-pinned-plan .pp-step .box {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  margin-top: 2px;
+  border-radius: 4px;
+  border: 1.5px solid var(--ui-border);
+  display: grid;
+  place-items: center;
+}
+.ui-pinned-plan .pp-step .box svg {
+  width: 8px;
+  height: 8px;
+  color: #fff;
+  opacity: 0;
+}
+.ui-pinned-plan .pp-step.done {
+  color: var(--ui-text-faint);
+  text-decoration: line-through;
+}
+.ui-pinned-plan .pp-step.done .box {
+  background: var(--ok, #2f9e44);
+  border-color: var(--ok, #2f9e44);
+}
+.ui-pinned-plan .pp-step.done .box svg {
+  opacity: 1;
+}
+.ui-pinned-plan .pp-step.now {
+  color: var(--ui-text);
+  font-weight: 550;
+}
+.ui-pinned-plan .pp-step.now .box {
+  border-color: var(--ui-accent);
+  box-shadow: 0 0 0 3px var(--ui-accent-tint);
+}
+
+/* ── 悬浮定位（user ask 2026-09-03 四轮）：活动胶囊贴右缘；会话滚动区
+   右侧永久留出一个胶囊大小的固定位（人类指令与活动流保持距离），
+   悬浮小窗/思考卡仍直接浮在内容上（瞬态，仅运行期间）。运行结束
+   （has-live 摘除，见 App.tsx）胶囊与预留位一并消失。 ── */
+.ui-chat-stage.has-live .ui-conversation {
+  /* 胶囊 ≈140px（图标 + “实时活动 · N/15” + chevron）+ 28px 呼吸距 */
+  padding-right: 168px;
+}
+@media (max-width: 900px) {
+  .ui-actcol {
+    width: auto;
+    align-items: flex-end;
+  }
+  .ui-actcol .deck,
+  .ui-actcol .ui-think-card {
+    display: none;
+  }
+}

@@ -40,6 +40,10 @@ packages/desktop/src/renderer/dd/tailwind-script.ts
 # Granite embedding model, …
 packages/desktop/vendor/
 
+# Upstream source clones for research/inspection (e.g. the CRG repo checked
+# out for the 2026-09-01 deep dive) — never part of the product tree.
+vendor-src/
+
 # Pinned skill-up release binaries (scripts/get-skill-up.mjs) — CI-only tool,
 # never vendored into the desktop build.
 .cache/skill-up/
@@ -60,6 +64,12 @@ packages/desktop/vendor/
 
 # Generated workspace knowledge artifacts — the wiki pages and arch-map
 # surfaces ARE committed (R3-8: they are reviewable products of the index
-# build); only the binary CodeGraph DB (.codegraph/, has its own inner
-# .gitignore) stays untracked.
+# build), now at their centralized location .deeporca/deepwiki/ (2026-09-01).
+# The binary CodeGraph index, CRG graphs, review reports and run junk stay
+# untracked; `.codegraph` is the SDK-facing symlink into .deeporca/codegraph.
+.deeporca/codegraph/
+.deeporca/crg/
+.deeporca/reviews/
+.deeporca/prototypes/
+.codegraph
 

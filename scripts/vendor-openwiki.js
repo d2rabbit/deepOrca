@@ -130,28 +130,91 @@ function assertMirrorUrl(url, allowedHost) {
  *  lifecycle-script env (observed 2026-08-27), so the mirror is selected at
  *  the dist_url source itself instead of steering script env afterwards. */
 
-function buildSqliteBinding(staging) {
+/** Strict semver check on the Electron version before it ever reaches a URL,
+ *  path, or process argument — the value is read from the repo's own
+ *  electron package.json, but a tampered tree must fail here instead of
+ *  shaping an artifact URL or path. */
+function assertSafeElectronVersion(version) {
+  if (!/^\d+\.\d+\.\d+$/.test(version)) {
+    throw new Error(`unsafe electron version: ${JSON.stringify(version)}`);
+  }
+  return version;
+}
+
+/** Small GET-to-file helper (Node 24 global fetch; follows the mirror's CDN
+ *  redirects). Rejects non-2xx and absurdly small payloads so a captive
+ *  portal / HTML error page can never masquerade as a binary artifact. */
+async function downloadTo(url, destPath, label) {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`${label}: HTTP ${response.status} from ${url}`);
+  }
+  // Uint8Array, not Buffer — scripts/*.js lint without node globals.
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  if (bytes.length < 1024) {
+    throw new Error(`${label}: suspiciously small payload (${bytes.length}B) from ${url}`);
+  }
+  writeFileSync(destPath, bytes);
+  return destPath;
+}
+
+/** Stage a local --nodedir tree so node-gyp's configure reads everything
+ *  from disk. WHY (real-machine 2026-08-28): node-gyp 12 verifies every
+ *  downloaded artifact against the dist's SHASUMS256.txt, but Electron's
+ *  SHASUMS (a) omits the headers tarball entirely and (b) writes
+ *  `checksum *name` while node-gyp only strips a `./` prefix — never the
+ *  `*` — so every lookup resolves undefined and configure dies with
+ *  "local checksum … not match remote undefined" (npmmirror AND
+ *  electronjs.org alike). With nodedir set, node-gyp reads headers from
+ *  <dir>/include/node and links <dir>/Release/node.lib, downloading and
+ *  checksumming nothing. The headers tarball is extracted with the hoisted
+ *  `tar` package (pure JS — no shell, no command string). */
+async function stageElectronNodeDir(staging, electronVersion) {
+  const nodeDir = join(staging, "_electron_nodedir");
+  mkdirSync(join(nodeDir, "include"), { recursive: true });
+  mkdirSync(join(nodeDir, "Release"), { recursive: true });
+  const artifactsUrl = `${assertMirrorUrl("https://npmmirror.com/mirrors/electron/", "npmmirror.com")}v${electronVersion}/`;
+
+  const headersTarball = await downloadTo(
+    `${artifactsUrl}node-v${electronVersion}-headers.tar.gz`,
+    join(staging, "_electron_headers.tar.gz"),
+    "electron headers"
+  );
+  const { extract } = await import("tar");
+  await extract({ file: headersTarball, cwd: nodeDir, strip: 1 });
+  if (!existsSync(join(nodeDir, "include", "node", "node.h"))) {
+    throw new Error(`electron headers tarball did not extract include/node/node.h into ${nodeDir}`);
+  }
+  // The import library is Windows-only; POSIX links the .so/.dylib directly.
+  if (process.platform === "win32") {
+    await downloadTo(`${artifactsUrl}win-x64/node.lib`, join(nodeDir, "Release", "node.lib"), "electron node.lib");
+  }
+  return nodeDir;
+}
+
+async function buildSqliteBinding(staging) {
   // The binding builds inside the TEMP INSTALL's node_modules (staging's own
   // node_modules is only copied over after this step).
   const pkgDir = join(staging, "_npm_install", "node_modules", "better-sqlite3");
   if (!existsSync(pkgDir)) {
     throw new Error(`better-sqlite3 not found at ${pkgDir} — openwiki's dependency tree changed?`);
   }
-  const electronVersion = resolveElectronVersion();
+  const electronVersion = assertSafeElectronVersion(resolveElectronVersion());
   log(`building better-sqlite3 binding (electron v${electronVersion}) …`);
+  const nodedir = await stageElectronNodeDir(staging, electronVersion);
   const npmCli = resolveNpmCli();
-  const rebuildArgs = ["rebuild", "better-sqlite3", "--build-from-source"];
+  const rebuildArgs = ["rebuild", "better-sqlite3"];
   const env = {
     ...process.env,
     npm_config_runtime: "electron",
     npm_config_target: electronVersion,
-    // Header source: npmmirror carries the SAME Electron headers verbatim and
-    // stays reachable from China networks where electronjs.org (Cloudflare)
-    // times out (observed 2026-08-27). SECURITY: validated https + pinned host.
-    // Both spellings: node-gyp 12 only honors the canonical `disturl` when the
-    // config reaches its process through npm's lifecycle-env forwarding.
-    npm_config_dist_url: assertMirrorUrl("https://npmmirror.com/mirrors/electron/", "npmmirror.com"),
-    npm_config_disturl: assertMirrorUrl("https://npmmirror.com/mirrors/electron/", "npmmirror.com"),
+    // Headers + node.lib come from the staged nodedir tree (see
+    // stageElectronNodeDir) — node-gyp downloads nothing, so the broken
+    // SHASUMS verification path is never reached. build_from_source keeps
+    // better-sqlite3's own install script from preferring a (missing,
+    // github-hosted) prebuilt over compiling.
+    npm_config_nodedir: nodedir,
+    npm_config_build_from_source: "true",
   };
   // The rebuild must run in the INSTALL ROOT (npm resolves the package by
   // name from there), not inside the package dir.
@@ -176,8 +239,17 @@ async function main() {
   // skills/ dir was observed vanishing from an installed tree (real-machine
   // 2026-08-27) while the version marker stayed current — every build then
   // happily skipped while --init ENOENT'd at runtime. Require the same paths
-  // the installer copies before honoring the marker.
-  const requiredPaths = ["dist", "package.json", "skills"];
+  // the installer copies before honoring the marker. The better-sqlite3
+  // native binding is part of that contract: trees vendored before the
+  // buildSqliteBinding step existed carry the 0.3.3 marker but no binding,
+  // and every build then skipped while --init died with "Could not locate
+  // the bindings file" (real-machine 2026-08-28).
+  const requiredPaths = [
+    "dist",
+    "package.json",
+    "skills",
+    "node_modules/better-sqlite3/build/Release/better_sqlite3.node",
+  ];
   const treeComplete = requiredPaths.every((item) => existsSync(join(targetDir, item)));
 
   if (version === previousVersion && treeComplete && resolveCliEntry(targetDir) && !force) {
@@ -264,7 +336,7 @@ async function main() {
       // produced nothing while the build reported success). Must run BEFORE
       // the temp install dir is removed — npm rebuild resolves the package
       // from the install root.
-      buildSqliteBinding(staging);
+      await buildSqliteBinding(staging);
       // Copy the full node_modules from the temp install (openwiki's runtime deps).
       cpSync(tempNodeModules, join(staging, "node_modules"), { recursive: true });
       // Clean up temp install dir inside staging.

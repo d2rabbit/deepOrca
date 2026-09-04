@@ -1,14 +1,16 @@
 ---
 name: openwiki
-description: "Generate and maintain project-level Wiki knowledge graph using the openwiki CLI (LangChain). Use when a user asks to: 'generate wiki', 'update wiki', 'project documentation', 'knowledge graph', 'openwiki', 'wiki init', or 'wiki update'. Produces an openwiki/ directory in the project root with structured, cross-referenced documentation that follows the project."
+description: "Generate and maintain project-level Wiki knowledge graph using the openwiki CLI (LangChain). Use when a user asks to: 'generate wiki', 'update wiki', 'project documentation', 'knowledge graph', 'openwiki', 'wiki init', or 'wiki update'. Produces the canonical deepwiki/ store in the project root (via the app's staging lifecycle; the CLI's own openwiki/ directory is a run-local stage) with structured, cross-referenced documentation that follows the project."
 metadata:
   last_modified: Mon, 21 Jul 2026 08:00:00 GMT
 ---
+
 # OpenWiki — Project Wiki Knowledge Graph
 
-Generate and maintain a project-level Wiki knowledge graph using the `openwiki` CLI (by LangChain). The wiki lives in the project's `openwiki/` directory and follows the project through version control.
+Generate and maintain a project-level Wiki knowledge graph using the `openwiki` CLI (by LangChain). The wiki lives in the project's `deepwiki/` store and follows the project through version control (the app stages CLI runs in `openwiki/` and promotes validated output into `deepwiki/`).
 
 ## Contents
+
 - [What is OpenWiki](#what-is-openwiki)
 - [Prerequisites](#prerequisites)
 - [Core Commands](#core-commands)
@@ -25,11 +27,11 @@ OpenWiki is a CLI that writes and maintains agent-facing documentation for your 
 
 1. Scans the project structure, source code, and existing docs
 2. Generates a structured wiki with cross-referenced pages (architecture, modules, workflows, operations)
-3. Stores everything in `openwiki/` at the project root — version-controlled, project-level
+3. Stores everything in the `deepwiki/` store at the project root — version-controlled, project-level
 4. Supports incremental updates (only regenerates pages affected by git changes)
 5. Outputs compatible with Google Open Knowledge Format (OKF) v0.1
 
-The wiki serves both humans and AI agents: an agent reads `openwiki/` first to understand the project before diving into source code, dramatically reducing token consumption.
+The wiki serves both humans and AI agents: an agent reads `deepwiki/` first to understand the project before diving into source code, dramatically reducing token consumption.
 
 ---
 
@@ -50,7 +52,7 @@ cd /path/to/project
 openwiki --init
 ```
 
-This creates the `openwiki/` directory with initial wiki pages. First run does a full scan.
+This creates the `deepwiki/` store with initial wiki pages. First run does a full scan.
 
 ### Initialize with custom instructions
 
@@ -90,7 +92,7 @@ After `openwiki --init`, the project will contain:
 
 ```
 project-root/
-├── openwiki/
+├── deepwiki/
 │   ├── index.md              # Wiki entry point / table of contents
 │   ├── quickstart.md         # Getting started guide
 │   ├── architecture.md       # System architecture overview
@@ -105,20 +107,21 @@ project-root/
 │   └── glossary.md           # Domain terminology
 ├── src/
 ├── ...
-└── .gitignore                # Should NOT ignore openwiki/
+└── .gitignore                # Should NOT ignore deepwiki/
 ```
 
-**Key principle**: `openwiki/` is committed to version control. It follows the project.
+**Key principle**: `deepwiki/` is committed to version control. It follows the project.
 
 ---
 
 ## Workflow: Generate & Maintain Wiki
 
 ### Task Progress
+
 - [ ] **Step 1: Verify prerequisites.** Run `openwiki --version` to confirm CLI is available.
 - [ ] **Step 2: Initialize.** Run `openwiki --init` in the project root. Review generated pages.
-- [ ] **Step 3: Customize.** Edit `openwiki/INSTRUCTIONS.md` to set project-specific generation rules (language, focus areas, exclusions).
-- [ ] **Step 4: Commit.** Add `openwiki/` to version control: `git add openwiki/ && git commit -m "docs: initialize project wiki"`.
+- [ ] **Step 3: Customize.** Edit `deepwiki/INSTRUCTIONS.md` to set project-specific generation rules (language, focus areas, exclusions).
+- [ ] **Step 4: Commit.** Add `deepwiki/` to version control: `git add deepwiki/ && git commit -m "docs: initialize project wiki"`.
 - [ ] **Step 5: Update after changes.** After significant code changes, run `openwiki --update`.
 - [ ] **Step 6: Review & refine.** Check updated pages for accuracy. Edit manually if needed.
 - [ ] **Step 7: Automate (optional).** Set up CI to run `openwiki code --update --print` and create doc-update PRs.
@@ -127,7 +130,7 @@ project-root/
 
 - **If the project is large (>1000 files)** → use `openwiki --init --focus src/` to limit initial scan scope.
 - **If wiki should be in Chinese** → pass instruction: `openwiki --init "所有文档使用中文"`.
-- **If only specific modules need docs** → create `openwiki/INSTRUCTIONS.md` with focus directives.
+- **If only specific modules need docs** → create `deepwiki/INSTRUCTIONS.md` with focus directives.
 - **If updating in CI** → use `openwiki code --update --print` and pipe output to PR body.
 
 ---
@@ -136,14 +139,14 @@ project-root/
 
 The generated wiki is designed to be consumed by AI agents:
 
-1. **Session start**: Agent reads `openwiki/index.md` to get project overview
-2. **Task planning**: Agent reads relevant `openwiki/modules/*.md` for module context
+1. **Session start**: Agent reads `deepwiki/index.md` to get project overview
+2. **Task planning**: Agent reads relevant `deepwiki/modules/*.md` for module context
 3. **Code navigation**: Wiki cross-references guide agent to relevant source files
 4. **Reduced token usage**: Agent reads wiki summary instead of scanning entire codebase
 
 ### INSTRUCTIONS.md (project-level customization)
 
-Create `openwiki/INSTRUCTIONS.md` to control generation behavior:
+Create `deepwiki/INSTRUCTIONS.md` to control generation behavior:
 
 ```markdown
 # Wiki Generation Instructions
@@ -161,22 +164,22 @@ Create `openwiki/INSTRUCTIONS.md` to control generation behavior:
 
 ### Environment variables
 
-| Variable | Purpose | Example |
-|----------|---------|---------|
-| `OPENAI_API_KEY` | LLM API key for generation | `sk-...` |
+| Variable          | Purpose                             | Example                    |
+| ----------------- | ----------------------------------- | -------------------------- |
+| `OPENAI_API_KEY`  | LLM API key for generation          | `sk-...`                   |
 | `OPENAI_BASE_URL` | Custom endpoint (OpenAI-compatible) | `https://api.deepseek.com` |
-| `OPENWIKI_MODEL` | Model to use for generation | `deepseek-chat` |
+| `OPENWIKI_MODEL`  | Model to use for generation         | `deepseek-chat`            |
 
 ### CLI flags
 
-| Flag | Purpose |
-|------|---------|
+| Flag                    | Purpose                                               |
+| ----------------------- | ----------------------------------------------------- |
 | `--init [instructions]` | Initialize wiki (optionally with custom instructions) |
-| `--update` | Incremental update based on git diff |
-| `--focus <path>` | Limit scan to specific directory |
-| `--model <model>` | Override model for this run |
-| `--print` | Print changes instead of writing (for CI) |
-| `--lang <code>` | Output language (e.g., `zh`, `en`, `ja`) |
+| `--update`              | Incremental update based on git diff                  |
+| `--focus <path>`        | Limit scan to specific directory                      |
+| `--model <model>`       | Override model for this run                           |
+| `--print`               | Print changes instead of writing (for CI)             |
+| `--lang <code>`         | Output language (e.g., `zh`, `en`, `ja`)              |
 
 ### Reusing Orca's LLM configuration
 

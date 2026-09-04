@@ -5,20 +5,37 @@ import type {
   PermissionDecision,
   PermissionScope,
   ReasoningEffort,
+  EndpointQuotaResponse,
+  EndpointTestResponse,
 } from "../../shared/ipc";
 import { collectAllModelKeys, parseModelKey, resolveModelCapability, thinkingLabelKey } from "../lib/model-utils";
 import type { EndpointConfig, ModelRegistration } from "@deeporca/core";
-import { familyThinkLevels, resolveModelSpec } from "@deeporca/core/capabilities";
+import {
+  endpointModelFamily,
+  endpointQuotaKind,
+  familyThinkLevels,
+  resolveModelSpec,
+  FAMILY_MODEL_SUGGESTIONS,
+} from "@deeporca/core/capabilities";
+import type { ModelFamilyId } from "@deeporca/core/capabilities";
 import { api } from "../api";
-import { useI18n, type Locale, type MessageKey } from "../i18n";
+import { useI18n, type Locale, type MessageKey, type Translate } from "../i18n";
 import {
   Button,
   Checkbox,
   Field,
+  IconBolt,
+  IconBook,
+  IconBot,
   IconCheck,
+  IconExternal,
   IconInfo,
   IconLock,
+  IconPalette,
   IconSettings,
+  IconShield,
+  IconSparkle,
+  IconWarn,
   Input,
   Modal,
   Select,
@@ -37,13 +54,18 @@ type Props = {
   theme: Theme;
   /** Called when the user picks a theme in the Appearance tab. */
   onSelectTheme: (theme: Theme) => void;
+  /** Reports unsaved edits upward — the HOST owns the unsaved-changes
+   *  confirm so every close path (panel button, tab ✕, Esc, scrim) is
+   *  guarded by the same dialog instead of only the button. */
+  onDirtyChange?: (dirty: boolean) => void;
 };
 
-type Tab = "endpoints" | "model" | "appearance" | "memory" | "permissions" | "actions" | "about";
+type Tab = "endpoints" | "model" | "entities" | "appearance" | "memory" | "permissions" | "actions" | "about";
 
 const TABS: { id: Tab; labelKey: MessageKey }[] = [
   { id: "endpoints", labelKey: "settings.tab.endpoints" },
   { id: "model", labelKey: "settings.tab.model" },
+  { id: "entities", labelKey: "settings.tab.entities" },
   { id: "appearance", labelKey: "settings.tab.appearance" },
   { id: "memory", labelKey: "settings.tab.memory" },
   { id: "permissions", labelKey: "settings.tab.permissions" },
@@ -52,14 +74,35 @@ const TABS: { id: Tab; labelKey: MessageKey }[] = [
 ];
 
 const TAB_ICONS: Record<Tab, JSX.Element> = {
-  endpoints: <span>⌁</span>,
-  model: <span>✦</span>,
-  appearance: <span>◐</span>,
-  memory: <span>❍</span>,
+  endpoints: <IconBolt />,
+  model: <IconSparkle />,
+  entities: <IconBot />,
+  appearance: <IconPalette />,
+  memory: <IconBook />,
   permissions: <IconLock />,
   actions: <IconSettings />,
   about: <IconInfo />,
 };
+
+/** Human label for one endpoint probe result (model-pool 测试 button). */
+function endpointTestLabel(result: EndpointTestResponse, t: Translate): string {
+  switch (result.status) {
+    case "ok": {
+      const base = t("settings.endpoint.testOk", { ms: result.latencyMs });
+      return result.modelsCount === undefined
+        ? base
+        : base + t("settings.endpoint.testModels", { n: result.modelsCount });
+    }
+    case "auth-failed":
+      return t("settings.endpoint.testAuthFailed", { code: result.httpStatus ?? 0 });
+    case "http-error":
+      return t("settings.endpoint.testHttpError", { code: result.httpStatus ?? 0 });
+    case "no-models-route":
+      return t("settings.endpoint.testNoModels");
+    default:
+      return t("settings.endpoint.testUnreachable", { error: result.error ?? "" });
+  }
+}
 
 const PERMISSION_SCOPES: PermissionScope[] = [
   "read-in-cwd",
@@ -92,10 +135,42 @@ const LOCALE_OPTIONS: Locale[] = ["zh", "zh-TW", "zh-HK", "en", "ja", "ko"];
  */
 const ENDPOINT_PRESETS: Array<Pick<EndpointConfig, "id" | "name" | "baseURL">> = [
   { id: "deepseek", name: "DeepSeek", baseURL: "https://api.deepseek.com" },
-  // /v1 is REQUIRED by the opencode gateways (see core settings.ts comment).
+  // /v1 is REQUIRED by StepFun and the opencode gateways (see core settings.ts).
+  { id: "stepfun", name: "StepFun", baseURL: "https://api.stepfun.com/v1" },
+  { id: "stepfun-plan", name: "StepFun Plan", baseURL: "https://api.stepfun.com/step_plan/v1" },
   { id: "opencode-go", name: "OpenCodeGo", baseURL: "https://opencode.ai/zen/go/v1" },
   { id: "opencode-zen", name: "OpenCodeZen", baseURL: "https://opencode.ai/zen/v1" },
 ];
+
+/**
+ * Preset → family fallback for gateways whose baseURL host is not in core's
+ * registry (OpenCode's zen gateways serve DeepSeek models); consumed by
+ * endpointModelFamily when neither a registered model nor a host hint binds
+ * the endpoint. Presets on registry hosts (deepseek/stepfun) resolve without
+ * this map and are omitted.
+ */
+const ENDPOINT_PRESET_FAMILY: Partial<Record<string, ModelFamilyId>> = {
+  "opencode-go": "deepseek",
+  "opencode-zen": "deepseek",
+};
+
+/**
+ * The add-model suggestion list for one endpoint — bound to the endpoint's
+ * MODEL FAMILY (core's registry): StepFun endpoints suggest step-* ids,
+ * DeepSeek/zen-gateway endpoints suggest deepseek-* ids. A family that can't
+ * be determined (custom endpoint, no models, unknown host) falls back to the
+ * union so nothing is ever un-suggestable.
+ */
+function modelSuggestionsFor(ep: EndpointConfig): string[] {
+  const family = endpointModelFamily({
+    baseURL: ep.baseURL,
+    registeredModelIds: (ep.models ?? []).map((m) => m.id),
+    fallback: ENDPOINT_PRESET_FAMILY[ep.id],
+  });
+  const known = FAMILY_MODEL_SUGGESTIONS[family];
+  if (known.length > 0) return [...known];
+  return [...new Set(Object.values(FAMILY_MODEL_SUGGESTIONS).flat())];
+}
 
 /**
  * DeepOrca desktop changelog — bilingual, mirroring OPEN_SOURCE_CREDITS below:
@@ -231,6 +306,34 @@ const CHANGELOG: { version: string; date: string; changes: string[]; en: string[
       "Startup white-screen fix: SkillSpector installs asynchronously in the background; workspace list filters stale/temp dirs; 5s watchdog on quit.",
     ],
   },
+  {
+    version: "v0.9.0",
+    date: "2026-08",
+    changes: [
+      "架构图模块全面重建（Archify 引擎）:五类图（架构/流程/时序/数据流/生命周期）由类型化 JSON 经确定性校验门禁（9 项 showcase 检查 + 原子提交 + 篡改回执防护）编译为自包含交互式 HTML。",
+      "架构图交互与呈现:语义护照浮窗跟随所选节点;演示舞台常驻（放大铺满,不可退出）;画板跟随应用明暗实时切换;引导章节叙事、结论卡、信任边界、品牌图标（Archify/PostgreSQL/Redis 等内置标志）。",
+      "架构图生成质量:扫描技能升级完整表现面（精确语义类型定配色、双行标签、grid 布局）,修复新项目首次构建崩溃、空跑覆盖好图、回执可伪造、路径穿越等 12 类问题（红蓝对抗审查）。",
+      "任务式会话渲染重设计:会话以任务为单位组织展示,过程与结论层次分明。",
+      "模型池端点化改造:端点卡片化管理 + 实时额度监听（StepFun 余额 / 订阅额度）,模型/思考选择修复,标题栏下拉不再被遮挡。",
+      "索引构建可靠性:新项目首次构建崩溃修复;wiki 空跑自动重试且辅助模型正确继承主模型（不再落入未配置的默认模型）;失败阶段如实标注 failed/skipped,不再出现失败后仍打印完成字样的误导日志。",
+      "模型故障弹窗:网络中断、鉴权失败、402 余额不足等传输类构建错误主动弹出可操作的修复指引（充值/更换模型）,不再只躺在控制台里。",
+      "Wiki 能力:文档存储事务化迁移（deepwiki,坏运行不可损好文档）;每个小节的 Index 页固定排在首位;生成内容双语化;网关内容审查自动重试。",
+      "后台任务安全加固:文件写入全部收口到授权目录,bash 变更命令执行前拦截,产物检查点回滚——坏一次运行结构上不可能毁掉已有成果。",
+      "界面细节:工作区阅读面宽度自适应主窗口;插件详情 Markdown 补全;流程进度行双语化。",
+    ],
+    en: [
+      "Architecture-diagram module rebuilt on the Archify engine: five diagram types (architecture/workflow/sequence/dataflow/lifecycle) compiled from typed JSON through a deterministic validation gate (9 showcase checks + atomic commit + tamper-proof receipts) into self-contained interactive HTML.",
+      "Diagram interaction & presentation: the semantic passport floats beside the selected node; presentation stage stays locked (zoomed, no exit); the board follows the app light/dark live; guided chapter narratives, conclusion cards, trust boundaries and brand marks (Archify/PostgreSQL/Redis built-ins).",
+      "Diagram generation quality: the scan skill now authors the full showcase surface (accurate semantic types, two-line labels, grid placement); 12 defect classes fixed via red/blue review (first-build crash, hollow-run overwrites, forgeable receipts, path traversal).",
+      "Task-style session rendering redesign: sessions are organized around tasks, with process and conclusion clearly layered.",
+      "Endpoint-based model pool: endpoint cards with live quota monitoring (StepFun balance / subscription limits), model & reasoning picker fixes, top-bar dropdowns no longer clipped.",
+      "Index-build reliability: fixed the first-build crash on brand-new workspaces; hollow wiki runs auto-retry with the auxiliary model now correctly INHERITING the primary (no more falling into an unconfigured default); failed stages are honestly labeled failed/skipped — no success wording over failures.",
+      "Model-fault dialog: transport-class build errors (network drops, auth failures, 402 insufficient balance) proactively surface an actionable fix dialog (top up / switch models) instead of hiding in the console.",
+      "Wiki capability: transactional document store migration (deepwiki — a bad run can never damage good docs); every section's Index page pinned first; bilingual generation; automatic retry on gateway content moderation.",
+      "Background-task security hardening: all file writes scoped to granted dirs, mutating bash commands intercepted pre-execution, artifact checkpoint rollback — a bad run is structurally unable to destroy prior results.",
+      "UI details: workspace reading pane width adapts to the main window; plugin details markdown completed; build progress lines bilingualized.",
+    ],
+  },
 ];
 
 /**
@@ -322,9 +425,97 @@ const OPEN_SOURCE_CREDITS: Array<{ name: string; zh: string; en: string; license
     license: "MIT",
     url: "https://github.com/langchain-ai/openwiki",
   },
+  {
+    name: "Archify",
+    zh: "架构图引擎 —— 类型化 IR 经确定性校验门禁生成自包含交互式图表(架构/流程/时序/数据流/生命周期)。",
+    en: "Diagram engine — typed-IR specs compiled through a deterministic validation gate into self-contained interactive charts (architecture/workflow/sequence/dataflow/lifecycle).",
+    license: "MIT",
+    url: "https://github.com/tt-a1i/archify",
+  },
+  {
+    name: "Granite Embedding",
+    zh: "IBM Granite 多语言嵌入模型(97M) —— 本地语义路由与向量召回。",
+    en: "IBM Granite multilingual embedding (97M) — local semantic routing and vector recall.",
+    license: "Apache-2.0",
+    url: "https://huggingface.co/ibm-granite/granite-embedding-97m-multilingual-r2",
+  },
+  {
+    name: "dembrandt",
+    zh: "品牌设计系统摄取(设计 token / 品牌规范提取)。",
+    en: "Brand design-system ingestion (design tokens / brand spec extraction).",
+    license: "MIT",
+    url: "https://www.npmjs.com/package/dembrandt",
+  },
 ];
 
-/** Settings surface rendered inline in the main area (no modal shell). */
+/**
+ * Endpoint-card quota line — quota follows the ENDPOINT. StepFun endpoints
+ * show a live account balance (main probes /v1/accounts); OpenCode Go shows
+ * the subscription's rolling limits (the platform has no balance API —
+ * anomalyco/opencode#10448 — so static plan info is the honest surface).
+ * Endpoints without a quota probe render nothing.
+ */
+function EndpointQuotaLine({
+  baseURL,
+  apiKey,
+  quota,
+  onRefresh,
+  t,
+}: {
+  baseURL: string;
+  apiKey: string;
+  quota: EndpointQuotaResponse | "loading" | undefined;
+  onRefresh: () => void;
+  t: Translate;
+}): JSX.Element | null {
+  const kind = endpointQuotaKind(baseURL);
+  if (kind === "opencode-subscription") {
+    if (!quota || quota === "loading" || !quota.ok || quota.kind !== "opencode-subscription") {
+      return <div className="ui-field-hint">{t("settings.opencode.quotaLoading")}</div>;
+    }
+    const limits = quota.limits ?? { fiveHourUsd: 12, weeklyUsd: 30, monthlyUsd: 60 };
+    return (
+      <div className="ui-field-hint ui-endpoint-quota">
+        {t("settings.opencode.limitsLine", {
+          fiveHour: `$${limits.fiveHourUsd}`,
+          weekly: `$${limits.weeklyUsd}`,
+          monthly: `$${limits.monthlyUsd}`,
+        })}
+        <span className="ui-endpoint-quota-note">{t("settings.opencode.noBalanceApi")}</span>
+      </div>
+    );
+  }
+  if (kind !== "stepfun-account") return null;
+  if (!apiKey.trim()) {
+    return <div className="ui-field-hint">{t("settings.stepfun.quotaNeedsKey")}</div>;
+  }
+  if (quota === undefined || quota === "loading") {
+    return <div className="ui-field-hint">{t("settings.stepfun.quotaLoading")}</div>;
+  }
+  if (!quota.ok) {
+    return (
+      <div className="ui-field-hint warn">
+        {t("settings.stepfun.quotaError")}
+        {quota.error ? ` — ${quota.error}` : ""}
+      </div>
+    );
+  }
+  const time = quota.fetchedAt ? quota.fetchedAt.slice(11, 16) : "";
+  return (
+    <div className="ui-field-hint ui-endpoint-quota">
+      {t("settings.stepfun.quotaLine", {
+        balance: `¥${(quota.balance ?? 0).toFixed(2)}`,
+        cash: `¥${(quota.totalCashBalance ?? 0).toFixed(2)}`,
+        voucher: `¥${(quota.totalVoucherBalance ?? 0).toFixed(2)}`,
+        time,
+      })}
+      <Button variant="ghost" size="sm" onClick={onRefresh} title={t("settings.stepfun.quotaRefresh")}>
+        {t("settings.stepfun.quotaRefresh")}
+      </Button>
+    </div>
+  );
+}
+
 export function SettingsPanel({
   initial,
   initialTab,
@@ -333,6 +524,7 @@ export function SettingsPanel({
   platform,
   theme,
   onSelectTheme,
+  onDirtyChange,
 }: Props): JSX.Element {
   const { t, locale, setLocale } = useI18n();
   const [s, setS] = useState<EditableSettings>(initial);
@@ -340,28 +532,58 @@ export function SettingsPanel({
   const [tab, setTab] = useState<Tab>(isTab(initialTab) ? initialTab : "endpoints");
   /** Per-endpoint apiKey show/hide toggle (keyed by endpoint id). */
   const [showKeyByEndpoint, setShowKeyByEndpoint] = useState<Record<string, boolean>>({});
+  // Endpoint quota (subscription/prepaid providers — quota follows the
+  // ENDPOINT): refreshed whenever endpoints/keys change and every 60s while
+  // the panel is open; neither provider offers a push, so polling IS the
+  // "listen". StepFun probes need the endpoint's saved key; OpenCode's plan
+  // limits are static and fetched once per endpoint.
+  const [quotaByEndpoint, setQuotaByEndpoint] = useState<Record<string, EndpointQuotaResponse | "loading">>({});
   /** Memory gateway availability probe result. */
   const [memoryAvailable, setMemoryAvailable] = useState<boolean | null>(null);
   // Observability for the L0-L3 pipeline (channels existed with no UI):
   const [memoryStats, setMemoryStats] = useState<MemoryPipelineStats | null>(null);
+  /** Pending destructive-op confirm (themed modal) — replaces the native
+   *  window.confirm dialogs that rendered OS-styled and broke the theme. */
+  const [confirmRemove, setConfirmRemove] = useState<{ kind: "endpoint"; id: string } | { kind: "memory" } | null>(
+    null
+  );
+  /** Model-pool 测试 probe results, keyed by endpoint id (busy in flight). */
+  const [endpointTests, setEndpointTests] = useState<
+    Record<string, { busy: true } | { busy: false; result: EndpointTestResponse }>
+  >({});
   const [memoryClearState, setMemoryClearState] = useState<"idle" | "busy" | "ok" | "fail">("idle");
 
-  // ── Add-model form (model pool tab) ──────────────────────────────────────
-  const [addOpen, setAddOpen] = useState(false);
-  const [addEndpointId, setAddEndpointId] = useState<string>(ENDPOINT_PRESETS[0].id);
-  const [addModelId, setAddModelId] = useState("");
-  const [addApiKey, setAddApiKey] = useState("");
-  const [addThinking, setAddThinking] = useState(true);
-  const [addVision, setAddVision] = useState(false);
-  const [addError, setAddError] = useState("");
+  // ── Endpoint-first model config (conventional layout) ───────────────────
+  /** Per-endpoint add-model drafts: { modelId, thinking, vision }. */
+  const [addModelDrafts, setAddModelDrafts] = useState<
+    Record<string, { id: string; thinking: boolean; vision: boolean }>
+  >({});
+  /** Per-endpoint add-model validation errors (keyed by endpoint id). */
+  const [addModelErrors, setAddModelErrors] = useState<Record<string, string>>({});
+  // ── Collapsible per-endpoint model list ───────────────────────────────────
+  /** Model list sections start COLLAPSED; the toggle row expands them. */
+  const [modelsOpenByEndpoint, setModelsOpenByEndpoint] = useState<Record<string, boolean>>({});
+  /** The empty add-model form is not rendered by default — only after the
+   *  header's 添加模型 button asks for it (no placeholder row otherwise). */
+  const [addingModelByEndpoint, setAddingModelByEndpoint] = useState<Record<string, boolean>>({});
+  // ── Add-endpoint row ──────────────────────────────────────────────────────
+  const [addEpChoice, setAddEpChoice] = useState<string>(ENDPOINT_PRESETS[0].id);
+  const [addEpName, setAddEpName] = useState("");
+  const [addEpBase, setAddEpBase] = useState("");
+  const [addEpError, setAddEpError] = useState("");
 
   // ── Save/close hardening ──────────────────────────────────────────────────
-  // Close used to throw away half-edited settings silently, and a failed
-  // updateSettings rejected into an unhandled promise (no feedback at all).
+  // A failed updateSettings used to reject into an unhandled promise (no
+  // feedback at all). Unsaved-changes confirmation is owned by the HOST via
+  // onDirtyChange — see requestCloseSettings in App.
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [confirmClose, setConfirmClose] = useState(false);
   const dirty = JSON.stringify(s) !== JSON.stringify(initial);
+
+  // Report dirty-ness upward so every close path is guarded uniformly.
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+  }, [dirty, onDirtyChange]);
 
   const handleSave = useCallback(async () => {
     if (saving) return;
@@ -375,14 +597,6 @@ export function SettingsPanel({
       setSaving(false);
     }
   }, [onSave, s, saving]);
-
-  const handleClose = useCallback((): void => {
-    if (dirty) {
-      setConfirmClose(true);
-      return;
-    }
-    onClose();
-  }, [dirty, onClose]);
 
   // Probe the memory gateway whenever the memory tab is opened.
   useEffect(() => {
@@ -450,49 +664,151 @@ export function SettingsPanel({
     });
   }
 
-  /**
-   * Submit the model-pool add form. The endpoint's saved key is reused — the
-   * key field only appears (and is only applied) when the endpoint has none.
-   */
-  function submitAddModel(): void {
-    const modelId = addModelId.trim();
+  /** Append a model registration to one endpoint (endpoint-first cards). */
+  function submitAddModelTo(endpointId: string): void {
+    const draft = addModelDrafts[endpointId] ?? { id: "", thinking: true, vision: false };
+    const modelId = draft.id.trim();
+    const fail = (message: string): void => setAddModelErrors((prev) => ({ ...prev, [endpointId]: message }));
     if (!modelId) {
-      setAddError(t("settings.pool.modelIdRequired"));
+      fail(t("settings.pool.modelIdRequired"));
       return;
     }
-    const existing = s.endpoints.find((ep) => ep.id === addEndpointId);
-    if (existing?.models?.some((m) => m.id === modelId)) {
-      setAddError(t("settings.pool.duplicateModel"));
+    if (s.endpoints.find((ep) => ep.id === endpointId)?.models?.some((m) => m.id === modelId)) {
+      fail(t("settings.pool.duplicateModel"));
       return;
     }
-    setS((prev) => {
-      const ep = prev.endpoints.find((e) => e.id === addEndpointId);
-      const registration: ModelRegistration = { id: modelId, thinking: addThinking, vision: addVision };
-      if (!ep) {
-        const preset = presetFor(addEndpointId);
-        if (!preset) return prev;
-        const materialized: EndpointConfig = { ...preset, apiKey: addApiKey.trim(), models: [registration] };
-        return { ...prev, endpoints: [...prev.endpoints, materialized] };
-      }
-      return {
-        ...prev,
-        endpoints: prev.endpoints.map((e) =>
-          e.id === addEndpointId
-            ? {
-                ...e,
-                apiKey: addApiKey.trim() ? addApiKey.trim() : e.apiKey,
-                models: [...(e.models ?? []), registration],
-              }
-            : e
-        ),
-      };
+    setS((prev) => ({
+      ...prev,
+      endpoints: prev.endpoints.map((ep) =>
+        ep.id === endpointId
+          ? { ...ep, models: [...(ep.models ?? []), { id: modelId, thinking: draft.thinking, vision: draft.vision }] }
+          : ep
+      ),
+    }));
+    setAddModelDrafts((prev) => ({ ...prev, [endpointId]: { id: "", thinking: true, vision: false } }));
+    setAddModelErrors((prev) => ({ ...prev, [endpointId]: "" }));
+    // Success dismisses the form — the fresh row in the list is the feedback.
+    setAddingModelByEndpoint((prev) => ({ ...prev, [endpointId]: false }));
+  }
+
+  /** Expand a card's model list (toggle row in the card body). */
+  function toggleModels(endpointId: string): void {
+    setModelsOpenByEndpoint((prev) => ({ ...prev, [endpointId]: !prev[endpointId] }));
+  }
+
+  /** Header 添加模型 button: expand the section and reveal the add-model form
+   *  (clicking again while the form is open acts as its cancel). */
+  function openAddModel(endpointId: string): void {
+    setModelsOpenByEndpoint((prev) => ({ ...prev, [endpointId]: true }));
+    setAddingModelByEndpoint((prev) => ({ ...prev, [endpointId]: !prev[endpointId] }));
+    setAddModelErrors((prev) => ({ ...prev, [endpointId]: "" }));
+  }
+
+  /** Drop an endpoint card entirely (its models go with it; presets can be
+   *  re-added from the add-endpoint row — updateEndpoint re-materializes).
+   *  Gated by the themed confirm modal: one click removes the saved apiKey
+   *  too, and unlike the sessions list there is no undo for settings edits. */
+  function askRemoveEndpoint(endpointId: string): void {
+    setConfirmRemove({ kind: "endpoint", id: endpointId });
+  }
+
+  /** Memory clear (L0–L3) body — also gated by the themed confirm modal. */
+  async function performMemoryClear(): Promise<void> {
+    setMemoryClearState("busy");
+    try {
+      const res = await api.memoryClear();
+      setMemoryClearState(res.ok ? "ok" : "fail");
+      setMemoryStats(await api.memoryStats());
+    } catch {
+      setMemoryClearState("fail");
+    }
+  }
+
+  /** Model-pool 测试 button: probe reachability + API usability. The probe
+   *  folds every failure into a typed envelope, so this never rejects. */
+  const runEndpointTest = useCallback(async (endpointId: string, baseURL: string, apiKey: string): Promise<void> => {
+    setEndpointTests((prev) => ({ ...prev, [endpointId]: { busy: true } }));
+    const result = await api.endpointTest(baseURL, apiKey);
+    setEndpointTests((prev) => ({ ...prev, [endpointId]: { busy: false, result } }));
+  }, []);
+
+  function removeEndpoint(endpointId: string): void {
+    setS((prev) => ({ ...prev, endpoints: prev.endpoints.filter((ep) => ep.id !== endpointId) }));
+    setAddModelDrafts((prev) => {
+      const next = { ...prev };
+      delete next[endpointId];
+      return next;
     });
-    setAddOpen(false);
-    setAddModelId("");
-    setAddApiKey("");
-    setAddThinking(true);
-    setAddVision(false);
-    setAddError("");
+    setAddModelErrors((prev) => {
+      const next = { ...prev };
+      delete next[endpointId];
+      return next;
+    });
+    setModelsOpenByEndpoint((prev) => {
+      const next = { ...prev };
+      delete next[endpointId];
+      return next;
+    });
+    setAddingModelByEndpoint((prev) => {
+      const next = { ...prev };
+      delete next[endpointId];
+      return next;
+    });
+    setShowKeyByEndpoint((prev) => {
+      const next = { ...prev };
+      delete next[endpointId];
+      return next;
+    });
+    setQuotaByEndpoint((prev) => {
+      const next = { ...prev };
+      delete next[endpointId];
+      return next;
+    });
+  }
+
+  /** Materialize an endpoint card from a preset or a custom name+baseURL. */
+  function submitAddEndpoint(): void {
+    const fail = (message: string): void => setAddEpError(message);
+    if (addEpChoice === "__custom") {
+      const name = addEpName.trim();
+      const baseURL = addEpBase.trim();
+      if (!name) {
+        fail(t("settings.endpoint.nameRequired"));
+        return;
+      }
+      if (!/^https?:\/\/.+/.test(baseURL)) {
+        fail(t("settings.endpoint.baseUrlInvalid"));
+        return;
+      }
+      const slug =
+        name
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-+|-+$/g, "") || "custom";
+      let id = `custom-${slug}`;
+      let suffix = 2;
+      const taken = new Set(s.endpoints.map((ep) => ep.id));
+      while (taken.has(id)) {
+        id = `custom-${slug}-${suffix++}`;
+      }
+      // Prepend + auto-expand: the add row lives at the TOP of the section, so
+      // an appended, collapsed card at the list tail reads as "nothing happened".
+      setS((prev) => ({ ...prev, endpoints: [{ id, name, baseURL, apiKey: "", models: [] }, ...prev.endpoints] }));
+      setModelsOpenByEndpoint((prev) => ({ ...prev, [id]: true }));
+      setAddEpName("");
+      setAddEpBase("");
+      setAddEpError("");
+      return;
+    }
+    if (s.endpoints.some((ep) => ep.id === addEpChoice)) {
+      fail(t("settings.endpoint.exists"));
+      return;
+    }
+    const preset = presetFor(addEpChoice);
+    if (!preset) return;
+    setS((prev) => ({ ...prev, endpoints: [{ ...preset, apiKey: "", models: [] }, ...prev.endpoints] }));
+    setModelsOpenByEndpoint((prev) => ({ ...prev, [addEpChoice]: true }));
+    setAddEpError("");
   }
 
   /** Update a model registration by endpoint id + index. */
@@ -533,19 +849,6 @@ export function SettingsPanel({
 
   /** All model keys from endpoints that have registered models. */
   const allModelKeys = collectAllModelKeys(s.endpoints);
-
-  /** Flattened model-pool entries: every registered model + its source endpoint. */
-  const poolEntries = s.endpoints.flatMap((ep) =>
-    (ep.models ?? []).map((model, index) => ({
-      endpointId: ep.id,
-      endpointName: ep.name || ep.id,
-      model,
-      index,
-    }))
-  );
-
-  /** Whether the endpoint currently selected in the add form already has a key. */
-  const addEndpointHasKey = !!s.endpoints.find((ep) => ep.id === addEndpointId)?.apiKey?.trim();
 
   /** Resolve display label for a model key: "endpointName/modelId". */
   function modelLabel(key: string): string {
@@ -600,35 +903,109 @@ export function SettingsPanel({
     return ep?.models?.some((m) => m.id === parsed.modelId && m.vision);
   });
 
+  const refreshQuota = (endpointIds: string[]): void => {
+    for (const id of endpointIds) {
+      setQuotaByEndpoint((prev) => (prev[id] ? prev : { ...prev, [id]: "loading" }));
+      void api
+        .endpointQuota(id)
+        .then((res) => setQuotaByEndpoint((prev) => ({ ...prev, [id]: res })))
+        .catch(() => setQuotaByEndpoint((prev) => ({ ...prev, [id]: { ok: false, error: "unreachable" } })));
+    }
+  };
+  useEffect(() => {
+    // Quota follows the endpoint: stepfun probes its account API (needs the
+    // endpoint's saved key); opencode's plan limits are static, so the 60s
+    // interval only re-probes stepfun entries.
+    const withKind = s.endpoints.filter((ep) => {
+      const kind = endpointQuotaKind(ep.baseURL);
+      return kind === "stepfun-account" ? ep.apiKey.trim() !== "" : kind === "opencode-subscription";
+    });
+    if (withKind.length === 0) return;
+    // Debounced initial probe: this effect re-runs on EVERY apiKey keystroke
+    // (s.endpoints identity changes), so an immediate probe fires a request
+    // per character with a partial key — surface "余额查询失败" noise while
+    // the user is still typing. Wait for typing to settle instead.
+    const probe = setTimeout(() => refreshQuota(withKind.map((ep) => ep.id)), 500);
+    const liveIds = withKind.filter((ep) => endpointQuotaKind(ep.baseURL) === "stepfun-account").map((ep) => ep.id);
+    const timer = setInterval(() => {
+      if (liveIds.length > 0) refreshQuota(liveIds);
+    }, 60_000);
+    return () => {
+      clearTimeout(probe);
+      clearInterval(timer);
+    };
+  }, [s.endpoints]);
+
+  const confirmRemoveTarget =
+    confirmRemove?.kind === "endpoint" ? (s.endpoints.find((ep) => ep.id === confirmRemove.id) ?? null) : null;
+
   return (
     <div className="ui-settings-panel">
+      {/* Themed destructive-op confirms — the shared Modal overlay (z100)
+          layers correctly above this settings card; window.confirm rendered
+          OS-styled and ignored the app theme entirely. */}
+      {confirmRemoveTarget ? (
+        <Modal
+          onClose={() => setConfirmRemove(null)}
+          title={t("settings.endpoint.deleteEndpoint")}
+          subtitle={t("settings.endpoint.deleteEndpointConfirm", {
+            name: confirmRemoveTarget.name || confirmRemoveTarget.id,
+            count: confirmRemoveTarget.models?.length ?? 0,
+          })}
+          actions={
+            <>
+              <Button variant="subtle" size="sm" onClick={() => setConfirmRemove(null)}>
+                {t("common.cancel")}
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={() => {
+                  removeEndpoint(confirmRemoveTarget.id);
+                  setConfirmRemove(null);
+                }}
+              >
+                {t("settings.endpoint.delete")}
+              </Button>
+            </>
+          }
+        />
+      ) : confirmRemove?.kind === "memory" ? (
+        <Modal
+          onClose={() => setConfirmRemove(null)}
+          title={t("settings.memory.clear")}
+          subtitle={t("settings.memory.clearConfirm")}
+          actions={
+            <>
+              <Button variant="subtle" size="sm" onClick={() => setConfirmRemove(null)}>
+                {t("common.cancel")}
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={() => {
+                  setConfirmRemove(null);
+                  void performMemoryClear();
+                }}
+              >
+                {t("settings.memory.clear")}
+              </Button>
+            </>
+          }
+        />
+      ) : null}
       <div className="ui-settings-panel-head">
         <span className="ui-settings-panel-title">{t("settings.title")}</span>
         <div className="ui-settings-panel-actions">
           <Button variant="primary" size="sm" disabled={saving} onClick={() => void handleSave()}>
             {saving ? t("settings.saving") : t("common.save")}
           </Button>
-          <Button size="sm" onClick={handleClose}>
+          <Button size="sm" onClick={onClose}>
             {t("common.close")}
           </Button>
         </div>
       </div>
       {saveError ? <div className="ui-scm-error">{saveError}</div> : null}
-      {confirmClose ? (
-        <Modal
-          title={t("settings.unsavedTitle")}
-          subtitle={t("settings.unsavedBody")}
-          onClose={() => setConfirmClose(false)}
-          actions={
-            <>
-              <Button onClick={() => setConfirmClose(false)}>{t("common.cancel")}</Button>
-              <Button variant="primary" onClick={onClose}>
-                {t("settings.unsavedDiscard")}
-              </Button>
-            </>
-          }
-        />
-      ) : null}
 
       <div className="ui-settings-layout">
         <nav className="ui-settings-nav" aria-label={t("settings.title")}>
@@ -655,172 +1032,246 @@ export function SettingsPanel({
           </div>
 
           <div className="ui-settings-body">
-            {/* ── Section 1: Model Pool ─────────────────────────────────── */}
+            {/* ── Section 1: Endpoints & models (endpoint-first, conventional) ── */}
             {tab === "endpoints" ? (
-              <>
-                <section className="ui-settings-section">
-                  <div className="ui-settings-section-title">{t("settings.pool.title")}</div>
-                  <div className="ui-field-hint" style={{ marginBottom: 8 }}>
-                    {t("settings.pool.hint")}
-                  </div>
+              <section className="ui-settings-section">
+                <div className="ui-settings-section-title">{t("settings.pool.title")}</div>
+                <div className="ui-field-hint" style={{ marginBottom: 8 }}>
+                  {t("settings.pool.hint")}
+                </div>
 
-                  {poolEntries.length === 0 ? (
-                    <div className="ui-field-hint">{t("settings.pool.empty")}</div>
-                  ) : (
-                    <div className="ui-pool-table">
-                      {poolEntries.map(({ endpointId, endpointName, model, index }) => (
-                        <div className="ui-pool-row" key={`${endpointId}/${model.id}/${index}`}>
-                          <code className="ui-pool-model-id">{model.id}</code>
-                          <span className="ui-pool-endpoint">{endpointName}</span>
-                          <Checkbox
-                            checked={!!model.thinking}
-                            onChange={(e) => updateModel(endpointId, index, { thinking: e.target.checked })}
-                            label={t("settings.endpoint.thinkingCap")}
-                          />
-                          <Checkbox
-                            checked={!!model.vision}
-                            onChange={(e) => updateModel(endpointId, index, { vision: e.target.checked })}
-                            label={t("settings.endpoint.visionCap")}
-                          />
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => removeModel(endpointId, index)}
-                            title={t("settings.endpoint.delete")}
-                          >
-                            {t("settings.endpoint.delete")}
-                          </Button>
-                        </div>
+                {/* Add-endpoint row — pinned to the TOP of the section. */}
+                <div className="ui-endpoint-add">
+                  <Field label={t("settings.endpoint.addEndpoint")}>
+                    <Select value={addEpChoice} onChange={(e) => setAddEpChoice(e.target.value)}>
+                      {ENDPOINT_PRESETS.map((preset) => (
+                        <option key={preset.id} value={preset.id}>
+                          {preset.name}
+                        </option>
                       ))}
-                    </div>
-                  )}
-
-                  {addOpen ? (
-                    <div className="ui-pool-add-form">
-                      <Field label={t("settings.pool.endpoint")}>
-                        <Select value={addEndpointId} onChange={(e) => setAddEndpointId(e.target.value)}>
-                          {ENDPOINT_PRESETS.map((preset) => (
-                            <option key={preset.id} value={preset.id}>
-                              {preset.name}
-                            </option>
-                          ))}
-                        </Select>
-                      </Field>
-
-                      {/* The endpoint's saved key is reused automatically; only
-                          ask for one when the endpoint has none yet. */}
-                      {!addEndpointHasKey ? (
-                        <Field label={t("settings.endpoint.apiKey")}>
-                          <Input
-                            type="password"
-                            value={addApiKey}
-                            placeholder={t("settings.endpoint.apiKey")}
-                            aria-label={t("settings.endpoint.apiKey")}
-                            autoComplete="off"
-                            onChange={(e) => setAddApiKey(e.target.value)}
-                          />
-                        </Field>
-                      ) : null}
-
-                      <Field label={t("settings.endpoint.modelId")} hint={t("settings.pool.modelIdHint")}>
+                      <option value="__custom">{t("settings.endpoint.custom")}</option>
+                    </Select>
+                  </Field>
+                  {addEpChoice === "__custom" ? (
+                    <>
+                      <Field label={t("settings.endpoint.nameLabel")}>
                         <Input
                           type="text"
-                          value={addModelId}
-                          placeholder="deepseek-v4-pro"
-                          aria-label={t("settings.endpoint.modelId")}
-                          list="ui-pool-model-suggestions"
-                          onChange={(e) => setAddModelId(e.target.value)}
-                        />
-                        <datalist id="ui-pool-model-suggestions">
-                          <option value="deepseek-v4-pro" />
-                          <option value="deepseek-v4-flash" />
-                          <option value="deepseek-v4-flash-vision-exp" />
-                        </datalist>
-                      </Field>
-
-                      <div className="ui-row-inline">
-                        <Checkbox
-                          checked={addThinking}
-                          onChange={(e) => setAddThinking(e.target.checked)}
-                          label={t("settings.endpoint.thinkingCap")}
-                        />
-                        <Checkbox
-                          checked={addVision}
-                          onChange={(e) => setAddVision(e.target.checked)}
-                          label={t("settings.endpoint.visionCap")}
-                        />
-                      </div>
-
-                      {addError ? <div className="ui-field-hint warn">{addError}</div> : null}
-
-                      <div className="ui-row-inline">
-                        <Button variant="primary" size="sm" onClick={submitAddModel}>
-                          {t("settings.endpoint.addModel")}
-                        </Button>
-                        <Button
-                          size="sm"
-                          onClick={() => {
-                            setAddOpen(false);
-                            setAddError("");
+                          value={addEpName}
+                          placeholder={t("settings.endpoint.nameLabel")}
+                          aria-label={t("settings.endpoint.nameLabel")}
+                          onChange={(e) => setAddEpName(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") submitAddEndpoint();
                           }}
-                        >
-                          {t("common.cancel")}
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <Button variant="ghost" size="sm" onClick={() => setAddOpen(true)}>
-                      {t("settings.endpoint.addModel")}
-                    </Button>
-                  )}
-                </section>
+                        />
+                      </Field>
+                      <Field label={t("settings.endpoint.baseUrlLabel")}>
+                        <Input
+                          type="text"
+                          value={addEpBase}
+                          placeholder="https://api.example.com/v1"
+                          aria-label={t("settings.endpoint.baseUrlLabel")}
+                          onChange={(e) => setAddEpBase(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") submitAddEndpoint();
+                          }}
+                        />
+                      </Field>
+                    </>
+                  ) : null}
+                  <Button variant="primary" size="sm" onClick={submitAddEndpoint}>
+                    {t("settings.endpoint.addEndpoint")}
+                  </Button>
+                  {addEpError ? <div className="ui-field-hint warn">{addEpError}</div> : null}
+                </div>
 
-                <section className="ui-settings-section">
-                  <div className="ui-settings-section-title">{t("settings.pool.keys")}</div>
-                  <div className="ui-field-hint" style={{ marginBottom: 8 }}>
-                    {t("settings.pool.keysHint")}
-                  </div>
-
-                  <div className="ui-endpoint-list">
-                    {ENDPOINT_PRESETS.map((preset) => {
-                      const ep = s.endpoints.find((e) => e.id === preset.id);
-                      const apiKey = ep?.apiKey ?? "";
-                      const visible = !!showKeyByEndpoint[preset.id];
+                {s.endpoints.length === 0 ? (
+                  <div className="ui-field-hint">{t("settings.pool.empty")}</div>
+                ) : (
+                  <div className="ui-endpoint-cards">
+                    {s.endpoints.map((ep) => {
+                      const preset = presetFor(ep.id);
+                      const keyVisible = !!showKeyByEndpoint[ep.id];
+                      const models = ep.models ?? [];
+                      const modelsOpen = !!modelsOpenByEndpoint[ep.id];
+                      const addingModel = !!addingModelByEndpoint[ep.id];
+                      const draft = addModelDrafts[ep.id] ?? { id: "", thinking: true, vision: false };
+                      const draftError = addModelErrors[ep.id] ?? "";
+                      const suggestions = modelSuggestionsFor(ep);
+                      const endpointTest = endpointTests[ep.id];
                       return (
-                        <div className="ui-endpoint-row" key={preset.id}>
-                          <div className="ui-endpoint-fields">
-                            <div className="ui-endpoint-preset-name">
-                              <strong>{preset.name}</strong>
-                            </div>
-                            <div className="ui-row-inline">
-                              <Input
-                                type={visible ? "text" : "password"}
-                                value={apiKey}
-                                placeholder={t("settings.endpoint.apiKey")}
-                                aria-label={t("settings.endpoint.apiKey")}
-                                autoComplete="off"
-                                onChange={(e) => updateEndpoint(preset.id, { apiKey: e.target.value })}
-                              />
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() =>
-                                  setShowKeyByEndpoint((prev) => ({
-                                    ...prev,
-                                    [preset.id]: !prev[preset.id],
-                                  }))
-                                }
-                              >
-                                {visible ? t("common.hide") : t("common.show")}
-                              </Button>
-                            </div>
+                        <div className="ui-endpoint-card" key={ep.id}>
+                          <div className="ui-endpoint-card-head">
+                            <strong className="ui-endpoint-card-name">{ep.name || ep.id}</strong>
+                            {preset ? <span className="ui-endpoint-badge">{t("settings.endpoint.preset")}</span> : null}
+                            <code className="ui-endpoint-baseurl" title={ep.baseURL}>
+                              {ep.baseURL}
+                            </code>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              disabled={endpointTest?.busy}
+                              onClick={() => void runEndpointTest(ep.id, ep.baseURL, ep.apiKey ?? "")}
+                            >
+                              {endpointTest?.busy ? t("settings.endpoint.testing") : t("settings.endpoint.test")}
+                            </Button>
+                            <Button variant="ghost" size="sm" onClick={() => openAddModel(ep.id)}>
+                              {t("settings.endpoint.addModel")}
+                            </Button>
+                            <Button variant="ghost" size="sm" onClick={() => askRemoveEndpoint(ep.id)}>
+                              {t("settings.endpoint.deleteEndpoint")}
+                            </Button>
                           </div>
+                          {endpointTest && !endpointTest.busy ? (
+                            <div
+                              className={`ui-endpoint-test ${
+                                endpointTest.result.status === "ok"
+                                  ? "ok"
+                                  : endpointTest.result.status === "network-error" ||
+                                      endpointTest.result.status === "auth-failed"
+                                    ? "error"
+                                    : "warn"
+                              }`}
+                            >
+                              {endpointTestLabel(endpointTest.result, t)}
+                            </div>
+                          ) : null}
+
+                          <div className="ui-row-inline">
+                            <Input
+                              type={keyVisible ? "text" : "password"}
+                              value={ep.apiKey ?? ""}
+                              placeholder={t("settings.endpoint.apiKey")}
+                              aria-label={`${ep.name || ep.id} ${t("settings.endpoint.apiKey")}`}
+                              autoComplete="off"
+                              onChange={(e) => updateEndpoint(ep.id, { apiKey: e.target.value })}
+                            />
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setShowKeyByEndpoint((prev) => ({ ...prev, [ep.id]: !prev[ep.id] }))}
+                            >
+                              {keyVisible ? t("common.hide") : t("common.show")}
+                            </Button>
+                          </div>
+
+                          {/* Quota follows the ENDPOINT card (outside the model
+                              collapse): balance/plan limits stay visible. */}
+                          <EndpointQuotaLine
+                            baseURL={ep.baseURL}
+                            apiKey={ep.apiKey ?? ""}
+                            quota={quotaByEndpoint[ep.id]}
+                            onRefresh={() => refreshQuota([ep.id])}
+                            t={t}
+                          />
+
+                          <button
+                            type="button"
+                            className="ui-endpoint-models-toggle"
+                            aria-expanded={modelsOpen}
+                            aria-controls={`ui-endpoint-models-${ep.id}`}
+                            onClick={() => toggleModels(ep.id)}
+                          >
+                            <span className="ui-endpoint-chevron" aria-hidden="true">
+                              {modelsOpen ? "▾" : "▸"}
+                            </span>
+                            {t("settings.endpoint.models")} ({models.length})
+                          </button>
+
+                          {modelsOpen ? (
+                            <div className="ui-endpoint-models" id={`ui-endpoint-models-${ep.id}`}>
+                              {models.map((model, index) => (
+                                <div className="ui-pool-row" key={model.id}>
+                                  <code className="ui-pool-model-id">{model.id}</code>
+                                  <Checkbox
+                                    checked={!!model.thinking}
+                                    onChange={(e) => updateModel(ep.id, index, { thinking: e.target.checked })}
+                                    label={t("settings.endpoint.thinkingCap")}
+                                  />
+                                  <Checkbox
+                                    checked={!!model.vision}
+                                    onChange={(e) => updateModel(ep.id, index, { vision: e.target.checked })}
+                                    label={t("settings.endpoint.visionCap")}
+                                  />
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => removeModel(ep.id, index)}
+                                    title={t("settings.endpoint.delete")}
+                                  >
+                                    {t("settings.endpoint.delete")}
+                                  </Button>
+                                </div>
+                              ))}
+
+                              {/* The empty form is on-demand only — never a
+                                  standing placeholder row. */}
+                              {addingModel ? (
+                                <>
+                                  <div className="ui-row-inline">
+                                    <Input
+                                      type="text"
+                                      value={draft.id}
+                                      placeholder={t("settings.endpoint.modelId")}
+                                      aria-label={`${ep.name || ep.id} ${t("settings.endpoint.modelId")}`}
+                                      list={`ui-pool-model-suggestions-${ep.id}`}
+                                      autoFocus
+                                      onChange={(e) =>
+                                        setAddModelDrafts((prev) => ({
+                                          ...prev,
+                                          [ep.id]: { ...draft, id: e.target.value },
+                                        }))
+                                      }
+                                      onKeyDown={(e) => {
+                                        if (e.key === "Enter") submitAddModelTo(ep.id);
+                                      }}
+                                    />
+                                    <Checkbox
+                                      checked={draft.thinking}
+                                      onChange={(e) =>
+                                        setAddModelDrafts((prev) => ({
+                                          ...prev,
+                                          [ep.id]: { ...draft, thinking: e.target.checked },
+                                        }))
+                                      }
+                                      label={t("settings.endpoint.thinkingCap")}
+                                    />
+                                    <Checkbox
+                                      checked={draft.vision}
+                                      onChange={(e) =>
+                                        setAddModelDrafts((prev) => ({
+                                          ...prev,
+                                          [ep.id]: { ...draft, vision: e.target.checked },
+                                        }))
+                                      }
+                                      label={t("settings.endpoint.visionCap")}
+                                    />
+                                    <Button variant="primary" size="sm" onClick={() => submitAddModelTo(ep.id)}>
+                                      {t("settings.endpoint.addModel")}
+                                    </Button>
+                                  </div>
+                                  {draftError ? <div className="ui-field-hint warn">{draftError}</div> : null}
+                                </>
+                              ) : models.length === 0 ? (
+                                <div className="ui-field-hint">{t("settings.endpoint.noModels")}</div>
+                              ) : null}
+                            </div>
+                          ) : null}
+
+                          {/* Family-bound suggestions: this endpoint's family
+                              models only (modelSuggestionsFor). */}
+                          <datalist id={`ui-pool-model-suggestions-${ep.id}`}>
+                            {suggestions.map((modelId) => (
+                              <option key={modelId} value={modelId} />
+                            ))}
+                          </datalist>
                         </div>
                       );
                     })}
                   </div>
-                </section>
-              </>
+                )}
+              </section>
             ) : null}
 
             {/* ── Section 2: Model Capabilities ─────────────────────────── */}
@@ -834,7 +1285,10 @@ export function SettingsPanel({
 
                   <Field label={t("settings.model")}>
                     <Select value={primaryModelKey} onChange={(e) => patch({ model: bareModelId(e.target.value) })}>
-                      <option value="">{t("settings.endpoint.noModels")}</option>
+                      {/* "none selected" — NOT settings.endpoint.noModels, which
+                          would falsely read "no models registered" while the
+                          pool has entries. */}
+                      <option value="">{t("settings.capabilities.none")}</option>
                       {allModelKeys.map((key) => (
                         <option key={key} value={key}>
                           {modelLabel(key)}
@@ -877,9 +1331,23 @@ export function SettingsPanel({
                   <Field label={t("settings.compactThreshold")} hint={t("settings.compactThresholdHint")}>
                     <Input
                       type="text"
-                      value={s.compactTokenThreshold}
+                      /* Stored in tokens, edited in K: the field always renders
+                         a trailing "K" so no mental math is needed ("512K").
+                         Everything non-numeric is stripped on input. */
+                      value={
+                        s.compactTokenThreshold === "" || Number(s.compactTokenThreshold) <= 0
+                          ? ""
+                          : `${Math.round(Number(s.compactTokenThreshold) / 1000)}K`
+                      }
                       placeholder={t("settings.compactThresholdPlaceholder")}
-                      onChange={(e) => patch({ compactTokenThreshold: e.target.value })}
+                      onChange={(e) => {
+                        const digits = e.target.value.replace(/[^0-9.]/g, "");
+                        const n = Number.parseFloat(digits);
+                        patch({
+                          compactTokenThreshold:
+                            digits === "" || !Number.isFinite(n) || n <= 0 ? "" : String(Math.round(n * 1000)),
+                        });
+                      }}
                     />
                   </Field>
 
@@ -1058,17 +1526,7 @@ export function SettingsPanel({
                     type="button"
                     className="ui-memory-clear"
                     disabled={memoryClearState === "busy"}
-                    onClick={async () => {
-                      if (!window.confirm(t("settings.memory.clearConfirm"))) return;
-                      setMemoryClearState("busy");
-                      try {
-                        const res = await api.memoryClear();
-                        setMemoryClearState(res.ok ? "ok" : "fail");
-                        setMemoryStats(await api.memoryStats());
-                      } catch {
-                        setMemoryClearState("fail");
-                      }
-                    }}
+                    onClick={() => setConfirmRemove({ kind: "memory" })}
                   >
                     {t("settings.memory.clear")}
                   </button>
@@ -1128,6 +1586,49 @@ export function SettingsPanel({
               <section className="ui-settings-section" style={{ maxWidth: "none", padding: 0 }}>
                 <ActionsPanel />
               </section>
+            ) : null}
+            {/* ── 数字体（user ask 2026-09-03 十二轮 B4）────────────────────
+                数字体 = 产品内的智能体（刻意不用「智能体」这个词）。这里只读
+                展示已存在的内置数字体 —— 对应真实的静默子代理管线与 define-
+                action 控制器；自定义能力暂不开放。 */}
+            {tab === "entities" ? (
+              <>
+                <section className="ui-settings-section">
+                  <div className="ui-settings-section-title">{t("settings.entities.title")}</div>
+                  <p className="ui-about-desc">{t("settings.entities.intro")}</p>
+                </section>
+                <section className="ui-settings-section">
+                  <div className="ui-opt-row">
+                    {(
+                      [
+                        { icon: <IconBot />, key: "arch" },
+                        { icon: <IconShield />, key: "review" },
+                        { icon: <IconBook />, key: "wiki" },
+                        { icon: <IconWarn />, key: "risk" },
+                        { icon: <IconExternal />, key: "web" },
+                      ] as const
+                    ).map((agent) => (
+                      <div key={agent.key} className="ui-opt entities-agent">
+                        <span className="ui-settings-nav-icon" aria-hidden="true">
+                          {agent.icon}
+                        </span>
+                        <div className="ui-settings-entity-main">
+                          <div className="ui-settings-entity-head">
+                            <span className="ui-settings-entity-name">
+                              {t(`settings.entities.${agent.key}.name` as never)}
+                            </span>
+                            <span className="ui-skill-card-badge bundled">{t("settings.entities.builtin")}</span>
+                          </div>
+                          <div className="ui-settings-entity-desc">
+                            {t(`settings.entities.${agent.key}.desc` as never)}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="ui-about-desc">{t("settings.entities.customSoon")}</p>
+                </section>
+              </>
             ) : null}
             {tab === "about" ? (
               <>

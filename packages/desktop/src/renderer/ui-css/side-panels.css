@@ -465,8 +465,10 @@
   z-index: 50;
   display: grid;
   place-items: center;
-  padding: var(--ui-space-6, 32px);
-  background: rgba(0, 0, 0, 0.42);
+  /* Top padding clears the cockpit window bar — the panel must not rise
+     level with the main window title on short windows. */
+  padding: calc(var(--ui-cockpit-h, 52px) + var(--ui-space-6, 32px)) var(--ui-space-6, 32px) var(--ui-space-6, 32px);
+  background: rgba(0, 0, 0, 0.35);
   -webkit-app-region: no-drag;
   animation: ui-overlay-fade 0.18s ease both;
 }
@@ -480,7 +482,7 @@
   flex-direction: column;
   width: min(1080px, 92vw);
   height: min(760px, 88vh);
-  max-height: calc(100vh - 64px);
+  max-height: calc(100vh - var(--ui-cockpit-h, 52px) - 64px);
   border: 1px solid var(--ui-border-soft);
   border-radius: var(--ui-radius-lg);
   background: var(--ui-surface);
@@ -570,6 +572,11 @@
   flex-direction: column;
   gap: 4px;
   padding: var(--ui-space-2) var(--ui-space-1) 0;
+  /* 与聊天框同宽同中轴（user ask 2026-09-03 十二轮 图2）—— 进度条不再
+     撑满 dock，与 .ui-composer 用同一 clamp，视觉上和输入框对齐成一体。 */
+  max-width: clamp(320px, 82%, 760px);
+  margin: 0 auto;
+  width: 100%;
 }
 .ui-context-progress-head {
   display: flex;
@@ -625,8 +632,8 @@
   box-shadow: 0 0 6px color-mix(in srgb, var(--ui-accent) 45%, transparent);
   transition:
     width 0.35s cubic-bezier(0.22, 0.8, 0.2, 1),
-    background 0.3s ease,
-    box-shadow 0.3s ease;
+    background 0.3s var(--ui-ease),
+    box-shadow 0.3s var(--ui-ease);
 }
 .ui-context-progress-fill.near {
   background: linear-gradient(
@@ -810,6 +817,13 @@
 .ui-detail-doc {
   margin-bottom: var(--ui-space-4);
 }
+/* Plugin detail docs read as documents, not chat bubbles: comfortable
+   measure + relaxed line-height so the markdown layer above breathes. */
+.ui-detail-doc .ui-md {
+  max-width: 72ch;
+  font-size: 13px;
+  line-height: 1.7;
+}
 .ui-detail-caps h3,
 .ui-detail-doc h3 {
   margin: 0 0 var(--ui-space-2);
@@ -870,7 +884,7 @@
   animation: ui-pulse 1.5s ease-in-out infinite;
 }
 .ui-task-progress-dot.done {
-  background: #3fb950;
+  background: var(--ui-success);
   animation: none;
 }
 .ui-task-progress-label {
@@ -889,20 +903,10 @@
   color: var(--ui-text-faint);
   font-variant-numeric: tabular-nums;
 }
-.ui-task-progress-bar {
-  height: 3px;
-  background: var(--ui-surface-sunken);
-  border-radius: 2px;
-  overflow: hidden;
-}
-.ui-task-progress-fill {
-  height: 100%;
-  background: var(--ui-accent);
-  border-radius: 2px;
-  transition: width 0.3s ease;
-}
+/* Bar geometry is owned by vscode.css (later in the import order); only the
+   done-state fill color is layered here. */
 .ui-task-progress-item.done .ui-task-progress-fill {
-  background: #3fb950;
+  background: var(--ui-success);
 }
 .ui-task-progress-line {
   font-size: 10px;
@@ -913,80 +917,9 @@
   text-overflow: ellipsis;
 }
 
-/* ── Process output panel (Ctrl+O toggle) ──────────────────────────────────── */
-.ui-process-panel {
-  display: flex;
-  flex-direction: column;
-  max-height: 260px;
-  min-height: 80px;
-  border-top: 1px solid var(--ui-border-soft);
-  background: var(--ui-surface-sunken);
-  animation: ui-slide-up 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-@keyframes ui-slide-up {
-  from {
-    opacity: 0;
-    transform: translateY(12px);
-  }
-}
-/* Per-process status cards */
-.ui-process-cards {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 4px var(--ui-space-3);
-  border-bottom: 1px solid var(--ui-border-soft);
-}
-.ui-process-card {
-  display: flex;
-  align-items: center;
-  gap: var(--ui-space-2);
-  padding: 3px 0;
-  font-size: 11px;
-}
-.ui-process-card-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #3fb950;
-  flex-shrink: 0;
-  animation: ui-pulse 1.5s ease-in-out infinite;
-}
-.ui-process-card-pid {
-  color: var(--ui-text-faint);
-  font-family: var(--ui-font-mono, monospace);
-  flex-shrink: 0;
-}
-.ui-process-card-cmd {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--ui-text-dim);
-}
-.ui-process-card-deadline {
-  color: var(--ui-warning);
-  font-size: 10px;
-  flex-shrink: 0;
-}
-.ui-process-card-stop {
-  background: var(--ui-danger);
-  color: #fff;
-  border: none;
-  border-radius: var(--ui-radius-sm);
-  width: 18px;
-  height: 18px;
-  font-size: 8px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  transition: opacity 0.15s;
-}
-.ui-process-card-stop:hover {
-  opacity: 0.8;
-}
+/* ── Process output panel — REMOVED (user ask 2026-09-03: 没有要过这个
+   面板; auto-opened on any running process then lingered as an empty slab).
+   The .ui-process-* rules were deleted; ui-pulse stays (task progress dots). */
 @keyframes ui-pulse {
   0%,
   100% {
@@ -995,103 +928,6 @@
   50% {
     opacity: 0.4;
   }
-}
-.ui-process-panel-head {
-  display: flex;
-  align-items: center;
-  gap: var(--ui-space-2);
-  padding: 4px var(--ui-space-3);
-  border-bottom: 1px solid var(--ui-border-soft);
-  background: var(--ui-surface);
-  flex: none;
-}
-.ui-process-panel-title {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--ui-text);
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-.ui-process-running-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--ui-success, #34c759);
-  animation: ui-dot-pulse 1.4s ease-in-out infinite;
-}
-.ui-process-panel-meta {
-  font-size: 11px;
-  color: var(--ui-text-faint);
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.ui-process-panel-actions {
-  display: flex;
-  gap: 2px;
-  flex: none;
-}
-.ui-process-btn {
-  display: grid;
-  place-items: center;
-  width: 24px;
-  height: 22px;
-  border: none;
-  border-radius: var(--ui-radius-sm);
-  background: transparent;
-  color: var(--ui-text-dim);
-  font-size: 13px;
-  cursor: pointer;
-  transition: background 0.12s ease;
-}
-.ui-process-btn:hover {
-  background: var(--ui-surface-hover);
-  color: var(--ui-text);
-}
-.ui-process-btn-stop:hover {
-  background: color-mix(in srgb, var(--ui-danger) 18%, transparent);
-  color: var(--ui-danger);
-}
-.ui-process-btn-close:hover {
-  background: var(--ui-danger);
-  color: #fff;
-}
-.ui-process-panel-body {
-  flex: 1;
-  overflow-y: auto;
-  padding: 6px var(--ui-space-3);
-  font-family: var(--ui-font-mono);
-  font-size: 11.5px;
-  line-height: 1.5;
-  color: var(--ui-text-dim);
-}
-.ui-process-line {
-  display: flex;
-  gap: var(--ui-space-2);
-  white-space: pre-wrap;
-  word-break: break-all;
-}
-.ui-process-line-no {
-  flex: none;
-  min-width: 32px;
-  text-align: right;
-  color: var(--ui-text-faint);
-  opacity: 0.5;
-  font-size: 11px;
-  user-select: none;
-}
-.ui-process-line-text {
-  flex: 1;
-  min-width: 0;
-}
-.ui-process-panel-status {
-  padding: 3px var(--ui-space-3);
-  font-size: 11px;
-  color: var(--ui-text-faint);
-  border-top: 1px solid var(--ui-border-soft);
 }
 
 /* Session item stagger entrance — each item fades in with a slight delay
@@ -1210,33 +1046,6 @@
     opacity: 0;
     transform: translateY(4px);
   }
-}
-
-/* Composer busy state — subtle accent border pulse while streaming */
-.ui-composer-card.busy {
-  border-color: var(--ui-accent);
-  animation: ui-composer-busy-pulse 2s ease-in-out infinite;
-}
-@keyframes ui-composer-busy-pulse {
-  0%,
-  100% {
-    box-shadow:
-      var(--ui-shadow-card),
-      0 0 0 2px var(--ui-accent-soft);
-  }
-  50% {
-    box-shadow:
-      var(--ui-shadow-card),
-      0 0 0 4px var(--ui-accent-soft);
-  }
-}
-
-/* Composer ready state — gentle glow when text is ready to send */
-.ui-composer-card.ready:not(.busy) {
-  border-color: color-mix(in srgb, var(--ui-accent) 50%, var(--ui-border-soft));
-  box-shadow:
-    var(--ui-shadow-card),
-    0 0 0 1px var(--ui-accent-soft);
 }
 
 /* ── Composer breathing （呼吸感） ────────────────────────────────────────────

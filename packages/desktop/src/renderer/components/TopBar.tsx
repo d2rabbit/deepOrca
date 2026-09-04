@@ -3,6 +3,7 @@ import type { ModelConfigSelection, ReasoningEffort, SettingsSummary } from "../
 import { api } from "../api";
 import { useI18n, type MessageKey } from "../i18n";
 import { DropdownSelect, Pill, Select, type DropdownOption } from "../ui/index";
+import { IconWindowClose, IconWindowMaxRestore, IconWindowMin } from "../ui/icons";
 import { formatTokens, compactTokenThreshold } from "../lib/token-usage";
 import { collectAllModelKeys, parseModelKey, resolveModelCapability, thinkingLabelKey } from "../lib/model-utils";
 import { familyThinkLevels, resolveModelSpec } from "@deeporca/core/capabilities";
@@ -46,9 +47,9 @@ type Props = {
   actions?: ReactNode;
 };
 
-/** Default model lineup (DeepSeek V4 family) used when no endpoint models are
- * configured — mirrors the registry's registered deepseek models. */
-const FALLBACK_MODELS = ["deepseek-v4-pro", "deepseek-v4-flash", "deepseek-v4-flash-vision-exp"];
+/** Capability-resolution default (settings.model empty on a fresh install) —
+ * NEVER a selectable option: the menu lists configured models only. */
+const DEFAULT_MODEL = "deepseek-v4-pro";
 
 /** Sentinel option value: opens the settings panel's model pool (endpoints
  * tab). Selecting it never changes the model — the controlled value stays
@@ -93,26 +94,10 @@ function currentThinkingKey(s: SettingsSummary, options: ThinkingOption[]): stri
   return options.find((o) => o.key === "high")?.key ?? options.find((o) => o.thinkingEnabled)?.key ?? "off";
 }
 
-// Window caption glyphs as inline SVG (Windows 11 Fluent style). 1.5px stroke
-// at 12px render size gives a crisp 1.5px line; `currentColor` lets the
-// theme dictate the foreground via the existing --ui-text-dim / --ui-text /
-// --ui-danger palette.
-const ICON_MIN = (
-  <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true" focusable="false">
-    <line x1="2" y1="6" x2="10" y2="6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-  </svg>
-);
-const ICON_MAX_RESTORE = (
-  <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true" focusable="false">
-    <rect x="2.5" y="2.5" width="7" height="7" fill="none" stroke="currentColor" strokeWidth="1.5" />
-  </svg>
-);
-const ICON_CLOSE = (
-  <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true" focusable="false">
-    <line x1="3" y1="3" x2="9" y2="9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-    <line x1="9" y1="3" x2="3" y2="9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-  </svg>
-);
+// Window caption glyphs come from the central icon library (ui/icons/window).
+// 1.5px stroke at 12px render size gives a crisp 1.5px line; `currentColor`
+// lets the theme dictate the foreground via the existing --ui-text-dim /
+// --ui-text / --ui-danger palette.
 
 /** Slim draggable window bar: window controls + project/branch + dual model selectors + token mini. */
 // Memoized: all props are primitives or stable references from App.
@@ -176,7 +161,7 @@ export const TopBar = memo(function TopBar({
         title={t("window.minimize")}
         onClick={() => void api.minimizeWindow()}
       >
-        {ICON_MIN}
+        <IconWindowMin />
       </button>
       <button
         className="ui-win-ctrl max"
@@ -184,7 +169,7 @@ export const TopBar = memo(function TopBar({
         title={t("window.zoom")}
         onClick={() => void api.toggleMaximizeWindow()}
       >
-        {ICON_MAX_RESTORE}
+        <IconWindowMaxRestore />
       </button>
       <button
         className="ui-win-ctrl close"
@@ -192,24 +177,22 @@ export const TopBar = memo(function TopBar({
         title={t("window.close")}
         onClick={() => void api.closeWindow()}
       >
-        {ICON_CLOSE}
+        <IconWindowClose />
       </button>
     </div>
   );
 
-  // Build the model list from settings endpoints. Falls back to hardcoded
-  // list when endpoints have no registered models (backward compat).
-  // Selection values are endpointId/modelId keys (so selecting a model also
-  // selects its endpoint) — except in the fallback case, where bare model
-  // names are used (no endpoints configured).
-  const availableModels = useMemo(() => {
-    if (!settings?.endpoints?.length) return FALLBACK_MODELS;
-    const keys = collectAllModelKeys(settings.endpoints);
-    return keys.length === 0 ? FALLBACK_MODELS : keys;
-  }, [settings?.endpoints]);
+  // Configured models ONLY (real-machine 2026-08-28): the hardcoded DeepSeek
+  // lineup used to fill the menu when nothing was configured, offering models
+  // the endpoints don't serve. Now an unconfigured workspace shows just the
+  // pool entry point. Values are endpointId/modelId keys.
+  const availableModels = useMemo(
+    () => (settings?.endpoints ? collectAllModelKeys(settings.endpoints) : []),
+    [settings?.endpoints]
+  );
 
   // Check if current model supports thinking (for the thinking dropdown gating).
-  const currentModel = settings?.model || FALLBACK_MODELS[0]!;
+  const currentModel = settings?.model || DEFAULT_MODEL;
   // Resolve capability against the primary endpoint's registration when the
   // current model is registered there; falls back to the hardcoded tables.
   const currentKey = useMemo(() => {
@@ -234,9 +217,10 @@ export const TopBar = memo(function TopBar({
     return modelCap.thinking ? familyOptions : familyOptions.filter((o) => o.key === "off");
   }, [currentModel, modelCap.thinking]);
 
-  const modelSelectValue = availableModels.includes(currentKey)
-    ? currentKey
-    : (availableModels[0] ?? FALLBACK_MODELS[0]!);
+  // Current model not among the configured keys (unconfigured workspace, or
+  // a legacy bare name): the trigger shows the pool entry point instead of
+  // pretending some other model is active.
+  const modelSelectValue = availableModels.includes(currentKey) ? currentKey : POOL_CONFIG_VALUE;
 
   return (
     <div className="ui-window-bar">
@@ -285,7 +269,7 @@ export const TopBar = memo(function TopBar({
       <div className="ui-window-bar-spacer">
         {center}
         {streaming ? (
-          <span className="ui-topbar-streaming" aria-label="streaming">
+          <span className="ui-topbar-streaming" aria-label={t("topbar.streaming")}>
             <span className="ui-topbar-streaming-dot" />
             <span className="ui-topbar-streaming-dot" />
             <span className="ui-topbar-streaming-dot" />
@@ -317,10 +301,10 @@ export const TopBar = memo(function TopBar({
                   : m;
                 return { value: m, label };
               }),
-              // Pool entry point: one click from the top bar to the model pool
-              // (endpoints tab). Makes the pool the visible source of truth —
-              // especially when it is empty and the list above is the hardcoded
-              // fallback pair. The controlled value never moves; the menu just
+              // Pool entry point: one click from the top bar to the endpoints
+              // tab. The menu lists CONFIGURED models only, so this is also
+              // the sole option (and the trigger label) on an unconfigured
+              // workspace. The controlled value never moves; the menu just
               // closes and the settings panel opens.
               { value: POOL_CONFIG_VALUE, label: t("topbar.configureModelPool") },
             ]}
@@ -367,7 +351,7 @@ export const TopBar = memo(function TopBar({
       <button
         className="ui-topbar-pill ui-topbar-tokens"
         onClick={onOpenTokens}
-        title={`${t("topbar.tokenPanelTitle")}${cacheRate != null && cacheRate > 0 ? ` · cache ${cacheRate}%` : ""}${totalReqs ? ` · ${totalReqs} reqs` : ""}`}
+        title={`${t("topbar.tokenPanelTitle")}${cacheRate != null && cacheRate > 0 ? ` · ${t("tokens.cacheHitRate", { n: cacheRate })}` : ""}${totalReqs ? ` · ${t("tokens.requests")} ${totalReqs}` : ""}`}
       >
         <span className="ui-topbar-token-part">
           <span className="ui-topbar-token-label">{t("topbar.contextTokens")}</span>

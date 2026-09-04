@@ -19,14 +19,17 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { ActionRegistry } from "@deeporca/core";
 import { IpcEvent } from "../shared/ipc.js";
+import { WIKI_STORE_DIR } from "./tools/wiki-staging.js";
 import type { KnowledgeBuildJobSnapshot, KnowledgeBuildStageState } from "../shared/ipc.js";
+import { saveIndexJobRecord } from "./tools/jobs-store.js";
 
 function existsCodegraph(root: string): boolean {
   return existsSync(join(root, ".codegraph", "codegraph.db"));
 }
 
 function existsWiki(root: string): boolean {
-  return existsSync(join(root, "openwiki"));
+  // Canonical .deeporca/deepwiki/ store — the openwiki/ dir is a run-local stage.
+  return existsSync(join(root, WIKI_STORE_DIR));
 }
 
 /** Console ring buffer cap — enough history for a long build's console view. */
@@ -39,23 +42,24 @@ type IndexBuildResult = {
 
 type Emit = (channel: string, payload: unknown) => void;
 
+// Settle-time history (task-tree-hub §4.4): a finished build used to leave NO
+// trace — the 索引与知识 domain of the task hub had nothing to list. Fail-open:
+// a stuck write never fails the build.
+
 type Job = KnowledgeBuildJobSnapshot;
 
-function initialStages(mode: "init" | "update"): KnowledgeBuildStageState[] {
-  const stages: KnowledgeBuildStageState[] = [
+function initialStages(): KnowledgeBuildStageState[] {
+  // All three stages run on EVERY build (each refreshes in place when its
+  // artifacts exist) — arch included: an update build that dropped the arch
+  // row entirely read as "架构图没有执行" with no explanation (2026-08-27).
+  return [
     // The action always starts with the symbol index — mark it running from
     // the first broadcast so the very first frame reads "正在生成/更新索引"
     // instead of the generic "构建中…" fallback (progress complaint).
     { id: "codegraph", labelKey: "codegraph", status: "running", startedAt: nowIso() },
     { id: "wiki", labelKey: "wiki", status: "pending" },
+    { id: "arch-scan", labelKey: "arch", status: "pending" },
   ];
-  if (mode === "init") {
-    stages.push({ id: "arch-scan", labelKey: "arch", status: "pending" });
-  }
-  // Bilingual translation runs on BOTH modes (stage 4 on init, stage 3 on
-  // update) — its [n/4] prefix matches this array position.
-  stages.push({ id: "wiki-translate", labelKey: "wiki-translate", status: "pending" });
-  return stages;
 }
 
 function nowIso(): string {
@@ -95,7 +99,7 @@ export class BuildJobManager {
       startedAt,
       updatedAt: startedAt,
       running: true,
-      stages: initialStages(resolved),
+      stages: initialStages(),
       logs: [`${logStamp()} build ${resolved} started`],
     };
     this.jobs.set(root, job);
@@ -147,12 +151,16 @@ export class BuildJobManager {
       const failed = report.filter((s) => !s.ok && !s.skipped);
       if (failed.length > 0) {
         job.stage = "failed";
-        job.error = failed.map((s) => `${s.stage}: ${s.error ?? "failed"}`.slice(0, 200)).join("; ");
+        // FULL text — the per-stage error carries the decodable diagnostics
+        // (prototypes listing, last validate path). UI render sites clip for
+        // display via formatBuildError; truncating here amputated exactly the
+        // evidence the message exists to carry (blue-team F1, 2026-08-30).
+        job.error = failed.map((s) => `${s.stage}: ${s.error ?? "failed"}`).join("; ");
         job.running = false;
         this.pushLog(job, `build FAILED — ${job.error}`);
         console.log(`[build:${job.root}] FAILED — ${job.error}`);
         this.broadcast(job);
-        this.emitSettled(job.root);
+        this.emitSettled(job);
         return;
       }
       job.stage = "done";
@@ -164,7 +172,7 @@ export class BuildJobManager {
       // Post-build: tell the renderer to refresh the knowledge status for
       // this root — the build may have produced wiki pages / arch maps that
       // the left-rail row and knowledge tab need to re-read.
-      this.emitSettled(job.root);
+      this.emitSettled(job);
     } catch (err) {
       job.stage = "failed";
       job.error = err instanceof Error ? err.message : String(err);
@@ -176,7 +184,7 @@ export class BuildJobManager {
       this.pushLog(job, `build FAILED — ${job.error}`);
       console.log(`[build:${job.root}] FAILED — ${job.error}`);
       this.broadcast(job);
-      this.emitSettled(job.root);
+      this.emitSettled(job);
     }
   }
 
@@ -184,19 +192,22 @@ export class BuildJobManager {
    * Fold one progress line into the job: stage state machine + console log +
    * main-process log + broadcast. The action prefixes every line with
    * "[n/3]"; the stage that line n refers to is n-1 in our stage list (the
-   * action always runs codegraph → wiki → arch-scan; update mode stops at 2).
+   * action always runs codegraph → wiki → arch-scan).
    */
   private record(job: Job, message: string, percent?: number): void {
     job.stage = message;
     if (typeof percent === "number") job.percent = percent;
     job.updatedAt = nowIso();
-    const stageMatch = message.match(/^\[(\d)\/4\]\s*(.*)$/);
+    const stageMatch = message.match(/^\[(\d)\/3\]\s*(.*)$/);
     if (stageMatch) {
       const idx = Number(stageMatch[1]) - 1;
       const rest = stageMatch[2] ?? "";
       const stage = job.stages[idx];
       if (stage) {
-        // Earlier stages implicitly finished once a later one starts talking.
+        // Earlier stages implicitly finished once a later one starts talking —
+        // but a stage that already announced a TERMINAL verdict keeps it
+        // (red-team B-2, 2026-08-30: "stage failed" then the next "[2/3]"
+        // header promoted the failed stage to a green done).
         for (let i = 0; i < idx; i++) {
           const prev = job.stages[i];
           if (prev && prev.status === "running") this.setStage(job, prev, "done");
@@ -204,6 +215,12 @@ export class BuildJobManager {
         }
         if (/done|complete/i.test(rest)) {
           this.setStage(job, stage, "done");
+        } else if (/\bstage failed\b/i.test(rest)) {
+          // Terminal failure verdict from the action itself — parseable so the
+          // stage never flashes green and the detail carries the verdict.
+          this.setStage(job, stage, "failed", rest);
+        } else if (/\bstage skipped\b/i.test(rest)) {
+          this.setStage(job, stage, "skipped", rest);
         } else if (stage.status !== "done") {
           this.setStage(job, stage, "running", rest);
         }
@@ -233,8 +250,23 @@ export class BuildJobManager {
     if (job.logs.length > MAX_LOG_LINES) job.logs.splice(0, job.logs.length - MAX_LOG_LINES);
   }
 
-  /** Build settled (success or failure): panels re-read statuses/artifacts. */
-  private emitSettled(root: string): void {
+  /** Build settled (success or failure): panels re-read statuses/artifacts,
+   *  and the run lands in the workspace's task-tree history (jobs store). */
+  private emitSettled(job: Job): void {
+    const root = job.root;
+    try {
+      saveIndexJobRecord(root, {
+        root,
+        mode: job.mode,
+        status: job.stage === "done" ? "done" : "error",
+        startedAt: job.startedAt,
+        endedAt: job.updatedAt,
+        stages: job.stages.map((s) => ({ id: s.id, status: s.status, error: s.error })),
+        error: job.error ?? undefined,
+      });
+    } catch {
+      // fail-open — the store already logs
+    }
     this.emit(IpcEvent.ActionProgress, {
       actionId: "knowledge.buildComplete",
       message: "build settled",

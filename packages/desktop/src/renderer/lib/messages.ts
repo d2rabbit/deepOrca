@@ -24,7 +24,9 @@ function truncate(value: string, max: number): string {
   return value.length <= max ? value : `${value.slice(0, max)}…`;
 }
 
-function firstNonEmptyLine(value: string): string {
+/** First non-blank line, whitespace-collapsed — the one-line preview shape
+ *  shared by message previews and the message/ tool ResultHint. */
+export function firstNonEmptyLine(value: string): string {
   for (const line of value.split(/\r?\n/)) {
     const trimmed = line.trim().replace(/\s+/g, " ");
     if (trimmed) {

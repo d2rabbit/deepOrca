@@ -1,0 +1,48 @@
+# Task Tree — 任务核对表
+
+## P0（已完成 2026-08-15）
+
+- [x] core `tasks/types.ts`：TaskNode（含 why 叙事字段）/TaskBranch/TaskTreeIndex/TaskReflogEntry
+- [x] core `tasks/task-tree-service.ts`：createTree/appendStep/fork/switchBranch/abandon/getTree/getNode/listTrees/readReflog
+- [x] 存储：`.deeporca/task-trees/<treeId>/{tree.json, nodes/<id>.json, reflog.jsonl}`（0700/0600、原子写、单写者、读优先 pending）
+- [x] Action：task.create / task.step / task.fork / task.switch / task.abandon / task.list（RegistryHost 注入）
+- [x] 验收①：agent 会话内可 `task.fork`（why 必填）
+- [x] 验收②：面板可见双分支（含 why）——desktop `TaskTreePanel` + rail "tasktree" + IPC tasktree:list/get
+- [x] 验收③：重启后树恢复（测试锁定）
+- [x] 测试：6 用例（fork/switch/abandon/recovery/fail-open/id 防穿越/分支名净化）
+- [x] 消歧规则写入 design.md：plan→tree 单向只读物化
+
+## 面板操作化 + 工作区绑定（2026-08-15 补充完成）
+
+- [x] 面板自有完整操作面：tasktree:create/fork/switch/abandon/merge 五个 mutation IPC（特权层级 + 参数校验：treeId UUID、分支名白名单、why 必填）；UI 含建树表单、fork 表单（why 必填）、分支级 switch⇄/merge⇦/abandon✕ 按钮、abandon 二次确认、merge 冲突清单提示
+- [x] 工作区绑定：面板订阅 onProjectRootChanged（切换即重置选择+刷新+提示），头部显示当前工作区名；main 侧 service 经 bridge 当前 SessionManager 解析（setProjectRoot 重建 manager → 惰性 service 自动指向新根）；跨根隔离测试锁定（root 互不可见 + 各自磁盘目录）
+- [x] 真机验收：面板五操作经真实 IPC 全链路通过；工作区切换 → 列表重置 → 新工作区建树仅在新根可见 → 恢复原工作区
+
+## P1（2026-08-15 完成，除注记项）
+
+- [x] merge + 冲突报告（artifact 级 cherry-pick；task.merge 返回冲突清单供人确认——确认清单 UI 列入 P2 树图改版）
+- [x] session 绑定：SessionEntry 扩展 `taskRef: {treeId, branch, nodeId}` + normalize；task.create/fork 自动绑定；分支头 sessionRef 单次绑定防抢占
+- [x] `/resume` branch 级：activateSession 恢复绑定分支为 active（fail-open）
+- [x] Plan Mode 步骤物化（单向只读，§十一 规则；标题去重、计划内重复行折叠、幂等）
+- [x] memory 谱系：L2 增量 spec 先行 → `specs/archive/task-tree/memory-lineage.md`（实现列 P2）
+
+## P2（2026-08-15 完成，快照切换除外）
+
+- [x] 记忆驱动 fork 闭环（最小可用环）：①埋点 = AskUserQuestion 触发 `probeTaskRecallAtDecision`（一次/会话，隐藏 <task-recall-hints> 提示）；②召回 = `TaskTreeService.recallAtDecision`（token-Jaccard，世系映射 fork→分支）；③分歧判断留给 agent/人（候选带 outcome）；④提议 = task.recall Action 输出候选；⑤播种 = fork(memorySnapshot) 注入 contextSummary（memory-spawn ✦）；⑥回收 = merge/abandon 经 `appendSessionSystemMessage` 写 <task-lineage> 隐藏消息——现有记忆 capture 管道自然摄取，**零 memory 包改动**（memory-lineage.md 的 L2 字段实现因此降级为可选增强）
+- [x] 树图 UI：泳道式画布（每分支一列、世系自上而下、active 高亮、abandoned 灰显、⚠ 冲突清单渲染、✦ 徽章）
+- [x] merge 冲突确认清单：冲突持久化进 merge 节点 meta + 面板渲染
+- [x] PM-Design 整合：design.materialize 在绑定会话中产出 → 分支 step 节点
+- [x] artifact 快照切换（file-history 复用）——**2026-08-18 拍板：纳入本阶段收尾批实施，同日收尾批落地**（原"待出现真实需求再立项"缓期作废；与 file-history 的 per-session 语义冲突转为实施时须解决的约束，不再作为延后理由）。台账：`docs/spec-open-items-status.md` §一 #10
+  - [x] S1 存储复用：`GitFileHistory` 以 tree 级 gitDir（`<treeDir>/file-history`）+ 分支名派生 ref 实例化——不动会话级 file-history 的任何行为（语义冲突的解法：两套独立仓库/ref 空间）
+  - [x] S2 快照记录：`appendStep` 时 artifactRefs 中可解析为工作区文件的存在者自动 checkpoint（`recordCheckpoint`），node.meta.stamp 快照哈希+文件数（节点同 id 重写，同 sessionRef 绑定先例）；无可解析文件则不记（纯上下文节点现状不变）
+  - [x] S3 显式恢复：`restoreNodeSnapshot(treeId, nodeId)`（预检 canRestore，失败结构化报错）+ IPC 特权通道 + 面板时间线 ⏪ 按钮
+  - [x] S4 切换联动：`switchBranch` 先对出向分支做 tracked-files 安全 checkpoint（有历史才做），目标分支头世系最近快照存在则恢复——"branch 切换 = 文件快照切换"；目标无快照不动文件；全程 try/catch fail-open 不影响上下文切换
+  - [x] S5 测试：快照往返（写入→改→恢复还原）/不存在 ref 跳过/切换自动恢复（A 有快照 B 无）/恢复失败不抛穿/历史目录不污染 listTrees
+
+## P1 收尾：session 绑定可见化 + 整树归档联动（2026-08-18，冻结前完善）
+
+- [x] core：`TaskTreeIndex` 扩展 `sessionIds/archived/archivedAt`（读取规范化旧格式）；bindSession 台账累计；`archiveTree/unarchiveTree/removeSessionBinding`；reflog op 扩展 archive/unarchive；`TaskTreeSummary` 透出新字段；测试 3 用例（台账+归档往返 / 删绑定保节点史 / 旧格式兼容）
+- [x] IPC：`tasktree:archive/unarchive`（带可选 workspaceRoot，特权）；SessionArchive 载荷扩展 `(id, workspaceRoot?)`
+- [x] main 级联：归档/删除会话 → 树归档判定"其余绑定会话全部不活跃才归档"；删除会话清台账 id；unarchive 不联动树；树永不删除
+- [x] renderer：Sidebar 会话行任务徽标（taskRef 数据源，归档会话行同置）→ 主区新 tab 打开（多 tab 可并存/关闭，跨工作区走切根时序）；TaskTreePanel `treeId` 单树模式（隐藏列表/表单）；任务面板主列表隐藏归档树 + 底部"已归档"折叠区（查看/⤺恢复）；详情归档横幅
+- [x] i18n：8 新 key × 6 语言（archivedSection/unarchive/op.archive/op.unarchive/sessionTask/taskFallback/closeTab/archivedBanner）

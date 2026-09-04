@@ -1,0 +1,1376 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-appearance="light">
+<head>
+<meta charset="UTF-8">
+<title>DeepOrca — 代码审查模块设计稿（真实产品风格）</title>
+<!--
+  代码审查模块 HTML 设计稿 —— 按真实产品的设计语言重绘
+  （designs/redesign/ 下为历史脏数据，本稿不采用其 orca-dark 体系）
+
+  设计依据（与 packages/desktop/src/renderer 一一对应）：
+  · 外壳 = Tide Stage：cockpit（窗口条 pill 组 + surface chips 浮片）+
+    stage（会话 + 环境光晕）+ Hub（⌘B：玻璃 rail 图标列 → flyout 内容卡）+
+    sheet（工作区表面圆角哑光卡片，覆盖于会话之上）
+  · 主题 = Aqua：styles.css 的 --ui-* 语义 token，浅色 pinstripe /
+    深色 graphite，[data-appearance] 切换；代码井浅 #f1f3f5 / 深 #2b2e34
+    （严禁黑色规则）
+  · 审查模块组件 = editor-panel.css 真实类名：ui-review-tab-pill（圆角页签）、
+    ui-review-history（报告历史 rail）、ui-report-*（原生报告：severity 实色
+    chip / 按文件分组 / 现状-建议色块）、ui-ik-row（工作区行）、
+    ui-review-scope 行下范围条（追随当前工作区，各自记忆）、chip.sev-*
+    （#7f1d1d/#c2410c/#b45309/#64748b）
+  · 交互逻辑 = 805ec73→f3dd487 后的真实行为：范围条追随当前工作区（行下
+    形态，切换工作区时随行移动并各自记忆设置）；行内
+    「一键代码审查」仅对当前工作区可用；运行进度行内展示，完成后自动刷新
+    历史并选中最新报告；报告/图谱为 Tab 内页签；图谱点选联动侧卡（Top1
+    服务端预填）；图谱内页自带浅/深配色（与 crg-risk-graph.ts 一致）
+
+  交互演示：① 范围切换显出 ref 输入（按工作区记忆）② 点击工作区行切换
+  当前工作区：范围条追随、报告历史/图谱各自独立，未建图谱的工作区禁用图谱页签
+  ③ 一键审查 → 运行进度 → 完成后
+  chips + 历史顶部插入并选中新报告 ③ 报告历史三份切换（含全排除解释卡）
+  ④ 报告/图谱页签 ⑤ 图谱点选/悬停联动侧卡 ⑥ 双向定位：报告内可定位
+  CRG 芯片 → 切图谱选中节点；图谱侧卡「相关审查意见」→ 回报告滚动高亮
+  ⑦ 右上角浅色/深色外观切换
+-->
+<style>
+  /* ── Aqua 主题语义 token（styles.css） ────────────────────── */
+  :root {
+    --pinstripe-a: #eef2f7;
+    --pinstripe-b: #e5eaf1;
+    --pinstripes: repeating-linear-gradient(0deg, var(--pinstripe-a) 0px, var(--pinstripe-a) 1px, var(--pinstripe-b) 1px, var(--pinstripe-b) 2px);
+    --gel-top: #7fb2f7; --gel-mid: #3f86ef; --gel-bot: #1862d8;
+
+    --ui-bg: var(--pinstripes);
+    --ui-surface: #f7f9fc;
+    --ui-surface-raised: #ffffff;
+    --ui-surface-sunken: #eef1f6;
+    --ui-surface-hover: rgba(20, 60, 130, 0.07);
+    --ui-text: #1b2129;
+    --ui-text-dim: #55606d;
+    --ui-text-faint: #8590a0;
+    --ui-text-on-accent: #ffffff;
+    --ui-accent: #1c6fe0;
+    --ui-accent-strong: #0f52bd;
+    --ui-accent-soft: rgba(28, 111, 224, 0.12);
+    --ui-accent-fill: linear-gradient(var(--gel-top), var(--gel-mid) 52%, var(--gel-bot));
+    --ui-focus-ring: rgba(60, 132, 235, 0.6);
+    --ui-border: #9aa7b6;
+    --ui-border-soft: #c3cdd9;
+    --ui-success: #2f9e44;
+    --ui-danger: #d1453b;
+    --ui-warning: #cf9310;
+    --ui-info: #7b4fe0;
+    --ui-radius-sm: 6px; --ui-radius-md: 9px; --ui-radius-lg: 12px; --ui-radius-pill: 999px;
+    --ui-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
+    --ui-shadow-card: 0 1px 2px rgba(0, 0, 0, 0.18), 0 6px 20px rgba(20, 50, 100, 0.14);
+    --ui-shadow-modal: 0 18px 60px rgba(20, 40, 80, 0.3);
+    --ui-ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+    --ui-font-sans: "Lucida Grande", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --ui-font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    --code-well: #f1f3f5;
+    --code-well-border: #dde2e9;
+  }
+  :root[data-appearance="dark"] {
+    --pinstripe-a: #23262b; --pinstripe-b: #1f2226;
+    --pinstripes: repeating-linear-gradient(0deg, var(--pinstripe-a) 0px, var(--pinstripe-a) 1px, var(--pinstripe-b) 1px, var(--pinstripe-b) 2px);
+    --ui-surface: #26292e;
+    --ui-surface-raised: #2c3037;
+    --ui-surface-sunken: #1e2126;
+    --ui-surface-hover: rgba(255, 255, 255, 0.06);
+    --ui-text: #e7ebf1;
+    --ui-text-dim: #a7b0bd;
+    --ui-text-faint: #6f7a89;
+    --ui-accent-soft: rgba(90, 150, 240, 0.18);
+    --ui-border: #3a3f47;
+    --ui-border-soft: #2c3037;
+    --ui-success: #4cc266;
+    --ui-danger: #ff6a5f;
+    --ui-warning: #e6b23a;
+    --ui-info: #a583f0;
+    --ui-shadow-card: 0 1px 2px rgba(0, 0, 0, 0.5), 0 8px 24px rgba(0, 0, 0, 0.4);
+    --ui-shadow-modal: 0 18px 60px rgba(0, 0, 0, 0.6);
+    --code-well: #2b2e34;
+    --code-well-border: #3e434b;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    font-family: var(--ui-font-sans);
+    font-size: 13.5px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    color: var(--ui-text);
+    background: var(--ui-bg);
+    overflow: hidden;
+    transition: background 0.2s var(--ui-ease), color 0.2s var(--ui-ease);
+  }
+  button { font-family: inherit; cursor: pointer; border: none; background: none; color: inherit; }
+  input, select { font-family: inherit; }
+  .mono { font-family: var(--ui-font-mono); }
+
+  /* ── Tide Stage 外壳 ───────────────────────────────────────── */
+  .shell {
+    position: relative;
+    height: 100%;
+    overflow: hidden;
+  }
+  /* 环境光晕（stage ambient glow） */
+  .shell::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(1100px 760px at 16% -8%, color-mix(in srgb, var(--ui-accent) 8%, transparent), transparent 62%),
+      radial-gradient(900px 680px at 102% 108%, color-mix(in srgb, var(--ui-info) 7%, transparent), transparent 58%);
+    z-index: 0;
+  }
+  .shell > * { position: relative; z-index: 1; }
+
+  /* ── Cockpit（透明窗口条 + pill 组 + surface chips） ──────── */
+  .cockpit {
+    position: relative;
+    z-index: 300;
+    height: 52px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px 0 42px;
+  }
+  .c-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 26px;
+    padding: 0 11px;
+    border-radius: var(--ui-radius-pill);
+    background: color-mix(in srgb, var(--ui-surface, #fff) 72%, transparent);
+    border: 1px solid color-mix(in srgb, var(--ui-border-soft) 55%, transparent);
+    box-shadow: var(--ui-shadow-sm);
+    backdrop-filter: blur(14px);
+    font-size: 11.5px;
+    font-weight: 500;
+    color: var(--ui-text-dim);
+    white-space: nowrap;
+  }
+  .c-pill .dot { width: 7px; height: 7px; border-radius: 50%; }
+  .c-pill .dot.accent { background: var(--ui-accent); }
+  .c-pill .dot.ok { background: var(--ui-success); }
+  .c-pill .tnum { font-family: var(--ui-font-mono); font-size: 10.5px; color: var(--ui-text-faint); }
+  .c-pill b { font-weight: 600; color: var(--ui-text); }
+  .c-spacer { flex: 1; }
+
+  /* surface chips —— 审查 Tab 在此（引擎 Tab 的继任者） */
+  .surface-chips {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px;
+    border-radius: var(--ui-radius-pill);
+    background: color-mix(in srgb, var(--ui-surface, #fff) 72%, transparent);
+    border: 1px solid color-mix(in srgb, var(--ui-border-soft) 55%, transparent);
+    box-shadow: var(--ui-shadow-sm);
+    backdrop-filter: blur(14px);
+    max-width: min(56vw, 100%);
+  }
+  .s-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    height: 26px;
+    max-width: 180px;
+    padding: 0 10px;
+    border-radius: var(--ui-radius-pill);
+    font-size: 11.5px;
+    font-weight: 500;
+    color: var(--ui-text-dim);
+    white-space: nowrap;
+    overflow: hidden;
+  }
+  .s-chip:hover { background: var(--ui-surface-hover); color: var(--ui-text); }
+  .s-chip.active {
+    background: linear-gradient(135deg, color-mix(in srgb, var(--ui-accent) 22%, transparent), color-mix(in srgb, var(--ui-info) 16%, transparent));
+    color: var(--ui-accent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-accent) 34%, transparent);
+  }
+  .s-chip .x {
+    display: grid; place-items: center;
+    width: 15px; height: 15px;
+    margin-left: 2px;
+    border-radius: 50%;
+    font-size: 9px;
+    color: var(--ui-text-faint);
+    opacity: 0;
+  }
+  .s-chip:hover .x { opacity: 1; }
+  .s-chip .x:hover { background: var(--ui-surface-hover); color: var(--ui-text); }
+
+  /* 外观切换（演示用） */
+  .theme-seg {
+    display: inline-flex;
+    padding: 2px;
+    border-radius: var(--ui-radius-pill);
+    background: color-mix(in srgb, var(--ui-surface, #fff) 72%, transparent);
+    border: 1px solid color-mix(in srgb, var(--ui-border-soft) 55%, transparent);
+    box-shadow: var(--ui-shadow-sm);
+    backdrop-filter: blur(14px);
+    font-size: 10.5px;
+  }
+  .theme-seg button {
+    padding: 3px 10px;
+    border-radius: var(--ui-radius-pill);
+    color: var(--ui-text-faint);
+    font-size: 10.5px;
+  }
+  .theme-seg button.on { background: var(--ui-surface-raised); color: var(--ui-accent); font-weight: 600; box-shadow: var(--ui-shadow-sm); }
+  .win-controls { display: flex; gap: 6px; }
+  .win-controls i { width: 12px; height: 12px; border-radius: 50%; display: block; }
+  .wc-min { background: #e6b23a; } .wc-max { background: #4cc266; } .wc-close { background: #ff6a5f; }
+
+  /* ── Hub：rail + flyout ────────────────────────────────────── */
+  .hub-rail {
+    position: absolute;
+    top: 60px;
+    bottom: 14px;
+    left: 14px;
+    width: 64px;
+    z-index: 31;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 10px 6px 8px;
+    border-radius: 16px;
+    background: color-mix(in srgb, var(--ui-surface, #fff) 86%, transparent);
+    backdrop-filter: blur(20px) saturate(1.25);
+    border: 1px solid color-mix(in srgb, var(--ui-border-soft) 62%, transparent);
+    box-shadow: var(--ui-shadow-modal);
+    overflow: hidden;
+  }
+  .hub-mark { flex: none; font-size: 17px; margin-bottom: 8px; color: var(--ui-accent); }
+  .hub-items { flex: 1; width: 100%; display: flex; flex-direction: column; gap: 2px; overflow: hidden; }
+  .hub-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    min-height: 44px;
+    padding: 6px 2px 5px;
+    border: 1px solid transparent;
+    border-radius: 11px;
+    color: var(--ui-text-dim);
+    font-size: 10px;
+    cursor: pointer;
+    transition: background 0.14s var(--ui-ease), color 0.14s var(--ui-ease), border-color 0.14s var(--ui-ease);
+  }
+  .hub-item:hover { background: var(--ui-surface-hover); color: var(--ui-text); }
+  .hub-item.active {
+    background: linear-gradient(135deg, color-mix(in srgb, var(--ui-accent) 18%, transparent), color-mix(in srgb, var(--ui-info) 12%, transparent));
+    color: var(--ui-accent);
+    border-color: color-mix(in srgb, var(--ui-accent) 30%, transparent);
+  }
+  .hub-item .ic { font-size: 16px; line-height: 1; }
+  .hub-collapse { flex: none; margin-top: 6px; width: 34px; height: 26px; border-radius: 8px; color: var(--ui-text-faint); font-size: 13px; }
+  .hub-collapse:hover { background: var(--ui-surface-hover); color: var(--ui-text); }
+
+  .hub-flyout {
+    position: absolute;
+    top: 60px;
+    bottom: 14px;
+    left: calc(14px + 64px + 10px);
+    width: 322px;
+    z-index: 30;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    border-radius: 18px;
+    background: color-mix(in srgb, var(--ui-surface, #fff) 86%, transparent);
+    backdrop-filter: blur(20px) saturate(1.25);
+    border: 1px solid color-mix(in srgb, var(--ui-border-soft) 62%, transparent);
+    box-shadow: var(--ui-shadow-modal);
+    overflow: hidden;
+  }
+  .hub-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 14px 8px;
+    flex: none;
+  }
+  .hub-title { font-size: 13px; font-weight: 700; }
+  .hub-close {
+    margin-left: auto;
+    width: 22px; height: 22px;
+    border-radius: 7px;
+    color: var(--ui-text-faint);
+    font-size: 11px;
+  }
+  .hub-close:hover { background: var(--ui-surface-hover); color: var(--ui-text); }
+  .hub-body { flex: 1; min-height: 0; padding: 2px 10px 12px; overflow: hidden; }
+
+  /* ── 审查面板（flyout 内容 = CodeReviewPanel） ───────────────
+     范围条追随工作区：贴着「当前工作区」行下方（ui-review-scope 的
+     "slim controls under the active workspace row" 形态），随激活行移动，
+     每工作区独立记忆自己的范围设置。 */
+  .rev-scope-wrap {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    flex-wrap: wrap;
+    margin: -2px 0 6px;
+    padding: 0 10px 0 26px; /* 左缩进对齐行内内容区 */
+  }
+  .rev-scope-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ui-text-faint);
+  }
+  .rev-scope-label .owner { color: var(--ui-accent); letter-spacing: 0; }
+  .rev-scope-select, .rev-scope-input {
+    font-size: 11px;
+    padding: 3px 6px;
+    border: 1px solid var(--ui-border-soft);
+    border-radius: var(--ui-radius-sm);
+    background: var(--ui-surface);
+    color: var(--ui-text);
+    min-width: 0;
+  }
+  .rev-scope-select { max-width: 118px; }
+  .rev-scope-input { width: 104px; font-family: var(--ui-font-mono); font-size: 10.5px; }
+  .rev-scope-fields { display: none; align-items: center; gap: 5px; flex-wrap: wrap; }
+  .rev-scope-fields.show { display: flex; }
+  .rev-scope-fields .tag { font-size: 10px; color: var(--ui-text-faint); font-family: var(--ui-font-mono); }
+
+  /* 工作区行（ui-ik-row：索引库同款） */
+  .ws-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    margin-bottom: 4px;
+    border-radius: 8px;
+    border: 1px solid var(--ui-border-soft);
+    cursor: pointer;
+    transition: background 0.14s var(--ui-ease);
+  }
+  .ws-row:hover { background: var(--ui-surface-hover); }
+  .ws-row.active { border-color: color-mix(in srgb, var(--ui-accent) 45%, transparent); background: var(--ui-accent-soft); }
+  .ws-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; background: var(--ui-text-dim); }
+  .ws-dot.on { background: var(--ui-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-accent) 22%, transparent); }
+  .ws-dot.busy { background: var(--ui-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-accent) 22%, transparent); animation: pulse 1.1s infinite; }
+  @keyframes pulse { 50% { opacity: 0.35; } }
+  .ws-main { flex: 1; min-width: 0; }
+  .ws-name { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ws-path { font-size: 10.5px; color: var(--ui-text-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ws-meta { font-size: 11px; color: var(--ui-text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ws-meta .prog { font-family: var(--ui-font-mono); font-size: 10px; color: var(--ui-accent); }
+  .ws-btn {
+    flex-shrink: 0;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--ui-border-soft);
+    background: transparent;
+    color: var(--ui-accent);
+    transition: all 0.14s var(--ui-ease);
+  }
+  .ws-btn:hover { background: var(--ui-accent); color: var(--ui-text-on-accent); border-color: var(--ui-accent); }
+  .ws-btn:disabled { opacity: 0.45; cursor: default; background: transparent; color: var(--ui-text-faint); border-color: var(--ui-border-soft); }
+  .ws-btn.gel {
+    background: var(--ui-accent-fill);
+    border-color: transparent;
+    color: #fff;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  }
+  .post-run { display: flex; align-items: center; gap: 6px; padding: 0 4px 8px; flex-wrap: wrap; }
+  .p-chip {
+    font-size: 10.5px;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: var(--ui-radius-pill);
+    border: 1px solid var(--ui-border-soft);
+    background: var(--ui-surface);
+    color: var(--ui-text-dim);
+  }
+  .p-chip:hover { border-color: color-mix(in srgb, var(--ui-accent) 40%, transparent); color: var(--ui-accent); }
+  .p-chip .cnt { margin-left: 4px; font-family: var(--ui-font-mono); font-size: 10px; color: var(--ui-text-faint); }
+
+  .rev-note {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--ui-border-soft);
+    font-size: 10.5px;
+    color: var(--ui-text-faint);
+    line-height: 1.6;
+  }
+
+  /* ── Sheet（审查 Tab = ReviewWorkspace） ───────────────────── */
+  .ui-sheet {
+    position: absolute;
+    top: 56px;
+    left: calc(14px + 64px + 10px + 322px + 10px);
+    right: 16px;
+    bottom: 16px;
+    z-index: 28;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    background: var(--ui-surface);
+    border-top: 1px solid color-mix(in srgb, var(--ui-border-soft) 62%, transparent);
+    border-radius: 14px;
+    box-shadow: var(--ui-shadow-card);
+    overflow: hidden;
+    animation: sheet-in 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  @keyframes sheet-in { from { opacity: 0; transform: translateY(10px); } }
+  .sheet-close {
+    position: absolute;
+    top: 12px;
+    right: 14px;
+    z-index: 6;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 28px;
+    padding: 0 12px;
+    border: 1px solid color-mix(in srgb, var(--ui-border-soft) 65%, transparent);
+    border-radius: var(--ui-radius-pill);
+    background: color-mix(in srgb, var(--ui-surface, #fff) 88%, transparent);
+    backdrop-filter: blur(10px);
+    box-shadow: var(--ui-shadow-sm);
+    color: var(--ui-text-dim);
+    font-size: 11.5px;
+    font-weight: 500;
+  }
+  .sheet-close:hover { background: var(--ui-surface-hover); color: var(--ui-text); border-color: color-mix(in srgb, var(--ui-accent) 40%, transparent); }
+
+  /* tab 头部：pill 页签 + 当前工作区徽标 */
+  .rev-tab-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+    padding: 10px 70px 8px 16px;
+    border-bottom: 1px solid var(--ui-border-soft);
+    background: var(--ui-surface);
+    flex: none;
+  }
+  .rev-tab-tabs { display: flex; gap: 6px; flex: none; }
+  .rev-pill {
+    padding: 5px 14px;
+    border: 1px solid var(--ui-border-soft);
+    border-radius: var(--ui-radius-pill);
+    background: transparent;
+    color: var(--ui-text-dim);
+    font-size: 12px;
+    transition: background 0.14s var(--ui-ease), color 0.14s var(--ui-ease);
+  }
+  .rev-pill:hover { background: var(--ui-surface-hover); }
+  .rev-pill:disabled { opacity: 0.4; cursor: default; }
+  .rev-pill.active {
+    background: color-mix(in srgb, var(--ui-accent) 14%, transparent);
+    border-color: color-mix(in srgb, var(--ui-accent) 55%, transparent);
+    color: var(--ui-text);
+    font-weight: 600;
+  }
+  .rev-tab-active {
+    font-size: 11px;
+    padding: 3px 10px;
+    border-radius: var(--ui-radius-pill);
+    background: color-mix(in srgb, var(--ui-success) 14%, transparent);
+    color: var(--ui-success);
+  }
+  .rev-tab-head .scope-hint { font-size: 11px; color: var(--ui-text-faint); }
+
+  /* 主体：历史 rail + 内容 */
+  .rev-tab-body {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    gap: 10px;
+    padding: 12px 16px;
+  }
+  .rev-history {
+    width: 230px;
+    flex: none;
+    overflow-y: auto;
+    border: 1px solid var(--ui-border-soft);
+    border-radius: 10px;
+    padding: 6px;
+    background: var(--ui-surface);
+  }
+  .rev-history-item {
+    padding: 7px 9px;
+    border-radius: 7px;
+    cursor: pointer;
+  }
+  .rev-history-item:hover { background: var(--ui-surface-hover); }
+  .rev-history-item.active { background: color-mix(in srgb, var(--ui-accent) 12%, transparent); }
+  .rh-time { font-size: 12px; color: var(--ui-text); display: flex; align-items: center; gap: 6px; }
+  .rh-time .new { font-size: 9.5px; font-weight: 700; color: var(--ui-success); background: color-mix(in srgb, var(--ui-success) 14%, transparent); padding: 0 6px; border-radius: 99px; }
+  .rh-meta { font-size: 11px; color: var(--ui-text-faint); margin-top: 2px; }
+  .rev-empty { padding: 14px 10px; font-size: 12px; color: var(--ui-text-faint); }
+
+  .rev-tab-content {
+    flex: 1;
+    min-width: 0;
+    border: 1px solid var(--ui-border-soft);
+    border-radius: 10px;
+    overflow: hidden;
+    display: flex;
+    background: var(--ui-surface);
+  }
+
+  /* ── 原生报告文档（ui-report-*） ───────────────────────────── */
+  .report-doc { flex: 1; min-width: 0; overflow-y: auto; padding: 18px 24px 26px; }
+  .report-doc h1 { font-size: 19px; margin: 0 0 4px; }
+  .rp-meta { color: var(--ui-text-dim); font-size: 12.5px; margin-bottom: 14px; display: flex; flex-wrap: wrap; gap: 4px 14px; }
+  .rp-cards { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+  .rp-card {
+    min-width: 110px;
+    padding: 10px 16px;
+    border: 1px solid var(--ui-border-soft);
+    border-radius: 10px;
+    background: var(--ui-surface-raised);
+  }
+  .rp-card .num { font-size: 22px; font-weight: 650; }
+  .rp-card .lbl { font-size: 11.5px; color: var(--ui-text-dim); }
+  .rp-card.excluded { border-color: color-mix(in srgb, #d97706 45%, transparent); }
+  .rp-card.excluded .num { color: #d97706; }
+  .rp-empty-note {
+    border: 1px solid color-mix(in srgb, #d97706 45%, transparent);
+    background: color-mix(in srgb, #d97706 8%, transparent);
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: 12px;
+    color: var(--ui-text-dim);
+    margin-bottom: 14px;
+  }
+  .rp-file { margin-bottom: 14px; }
+  .rp-file h2 { display: flex; align-items: center; gap: 8px; font-size: 13px; margin: 0 0 6px; }
+  .rp-file h2 code {
+    background: var(--ui-surface-sunken);
+    border-radius: 6px;
+    padding: 2px 8px;
+    font-family: var(--ui-font-mono);
+    font-size: 12px;
+  }
+  .rp-file .cnt { font-size: 11.5px; color: var(--ui-text-dim); }
+  .rp-finding {
+    border: 1px solid var(--ui-border-soft);
+    border-radius: 9px;
+    padding: 9px 12px;
+    margin: 8px 0;
+    background: var(--ui-surface-raised);
+  }
+  .rp-finding .head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
+  .rp-finding .loc { font-family: var(--ui-font-mono); font-size: 12px; color: var(--ui-text-dim); margin-left: auto; }
+  .chip { font-size: 10.5px; font-weight: 650; padding: 1px 8px; border-radius: 99px; color: #fff; }
+  .chip.sev-critical { background: #7f1d1d; }
+  .chip.sev-high { background: #c2410c; }
+  .chip.sev-medium { background: #b45309; }
+  .chip.sev-low { background: #64748b; }
+  .chip.crg { background: color-mix(in srgb, var(--ui-accent) 14%, transparent); color: var(--ui-accent); }
+  /* 可定位芯片：CRG 富化 + 图谱双向定位入口 */
+  .chip.crg.locate {
+    cursor: pointer;
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-accent) 28%, transparent);
+    transition: box-shadow 0.14s var(--ui-ease), background 0.14s var(--ui-ease);
+  }
+  .chip.crg.locate:hover { background: color-mix(in srgb, var(--ui-accent) 24%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-accent) 55%, transparent); }
+  .chip.crg.locate .lnk { margin-left: 3px; font-weight: 800; }
+  /* 报告内定位高亮（图谱回跳后闪烁） */
+  .rp-finding.flash { animation: find-flash 1.8s var(--ui-ease); }
+  @keyframes find-flash {
+    0%, 55% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-accent) 45%, transparent); border-color: color-mix(in srgb, var(--ui-accent) 60%, transparent); }
+    100% { box-shadow: none; }
+  }
+  .rp-finding .body { white-space: pre-wrap; font-size: 12.5px; line-height: 1.55; }
+  .rp-finding .body code {
+    font-family: var(--ui-font-mono);
+    font-size: 11.5px;
+    background: var(--ui-surface-sunken);
+    border-radius: 4px;
+    padding: 0 4px;
+    color: var(--ui-accent);
+  }
+  .rp-finding .code {
+    font-family: var(--ui-font-mono);
+    font-size: 12px;
+    border-radius: 8px;
+    padding: 8px 10px;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    margin: 6px 0 0;
+  }
+  .rp-finding .code.existing { background: color-mix(in srgb, #d14545 8%, transparent); border: 1px solid color-mix(in srgb, #d14545 25%, transparent); }
+  .rp-finding .code.suggestion { background: color-mix(in srgb, #2f9e44 8%, transparent); border: 1px solid color-mix(in srgb, #2f9e44 25%, transparent); }
+  .rp-finding .sug-label { font-size: 11px; color: var(--ui-success); margin-top: 6px; }
+  .rp-footer { margin-top: 22px; font-size: 11.5px; color: var(--ui-text-faint); }
+
+  /* 图谱内页（crg-risk-graph.ts 自带配色：浅/深双态） */
+  .graph-doc { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
+  .graph-top {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--ui-border-soft);
+    background: var(--ui-surface);
+    flex: none;
+  }
+  .graph-top .g-sub { font-size: 11.5px; color: var(--ui-text-dim); }
+  .legend { display: flex; gap: 12px; margin-left: auto; font-size: 10.5px; color: var(--ui-text-faint); align-items: center; }
+  .legend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 4px; vertical-align: -1px; }
+  /* 图谱画布 —— 固定浅色棋盘（同 crg-risk-graph 的 <svg> 区） */
+  .graph-stage { flex: 1; display: flex; min-height: 0; background: #eef1f6; }
+  :root[data-appearance="dark"] .graph-stage { background: #1b1e24; }
+  .g-board { flex: 1; position: relative; overflow: hidden; }
+  .g-board svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .g-file-card { fill: #ffffff; stroke: #d9dee6; stroke-width: 1; rx: 10; }
+  :root[data-appearance="dark"] .g-file-card { fill: #1f2229; stroke: #34383f; }
+  .g-file-label { fill: #3c4653; font-size: 10.5px; font-weight: 650; font-family: var(--ui-font-mono); }
+  :root[data-appearance="dark"] .g-file-label { fill: #e6e9ef; }
+  .g-func { cursor: pointer; }
+  .g-func .g-hit { fill: transparent; }
+  .g-func:hover .g-hit { fill: rgba(59, 130, 246, 0.06); }
+  .g-func.dim { opacity: 0.22; }
+  .g-func.sel .g-hit { fill: rgba(59, 130, 246, 0.08); }
+  .g-fdot.sec { stroke: #7c3aed; stroke-width: 2; }
+  .g-fname { fill: #1b2129; font-size: 10.5px; font-family: var(--ui-font-mono); }
+  :root[data-appearance="dark"] .g-fname { fill: #e6e9ef; }
+  .g-fscore { fill: #66707d; font-size: 10px; font-family: var(--ui-font-mono); text-anchor: end; }
+  .g-edge { fill: none; stroke: #b3bcc9; stroke-opacity: 0.35; stroke-width: 1; }
+  .g-edge.hot { stroke: #d64545; stroke-opacity: 0.9; stroke-width: 1.6; }
+  .g-edge.dim { stroke-opacity: 0.06; }
+  :root[data-appearance="dark"] .g-edge { stroke: #4a5160; }
+  .g-aside {
+    width: 252px; flex-shrink: 0;
+    background: #ffffff;
+    border-left: 1px solid #d9dee6;
+    padding: 14px 16px;
+    overflow: hidden;
+  }
+  :root[data-appearance="dark"] .g-aside { background: #1f2229; border-color: #34383f; }
+  .g-aside h3 { font-size: 12.5px; margin-bottom: 8px; word-break: break-all; color: #1b2129; }
+  :root[data-appearance="dark"] .g-aside h3 { color: #e6e9ef; }
+  .g-aside .row { font-size: 11px; color: #55606d; margin: 5px 0; display: flex; gap: 6px; word-break: break-all; }
+  :root[data-appearance="dark"] .g-aside .row { color: #9aa5b3; }
+  .g-aside .row b { font-weight: 600; flex-shrink: 0; color: #3c4653; }
+  :root[data-appearance="dark"] .g-aside .row b { color: #e6e9ef; }
+  .g-aside .nb { margin-top: 10px; }
+  .g-aside .nb-head {
+    font-size: 9.5px; font-weight: 700;
+    letter-spacing: 0.08em; text-transform: uppercase;
+    color: #8590a0; margin-bottom: 4px;
+  }
+  .g-aside .nb div {
+    font-size: 10.5px; padding: 3px 0;
+    border-bottom: 1px dashed #e2e6ec;
+    color: #55606d;
+    font-family: var(--ui-font-mono);
+    word-break: break-all;
+  }
+  :root[data-appearance="dark"] .g-aside .nb div { border-color: #34383f; color: #9aa5b3; }
+  /* 侧卡 → 报告 定位区块（相关审查意见） */
+  .g-aside .fi { margin-top: 10px; }
+  .g-aside .fi-head {
+    font-size: 9.5px; font-weight: 700;
+    letter-spacing: 0.08em; text-transform: uppercase;
+    color: #8590a0; margin-bottom: 4px;
+  }
+  .g-aside .fi-item {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 10.5px;
+    padding: 4px 6px;
+    margin-bottom: 3px;
+    border: 1px solid transparent;
+    border-radius: 7px;
+    color: #55606d;
+    cursor: pointer;
+    word-break: break-all;
+  }
+  .g-aside .fi-item:hover { background: rgba(0, 0, 0, 0.05); border-color: rgba(28, 111, 224, 0.35); }
+  :root[data-appearance="dark"] .g-aside .fi-item { color: #9aa5b3; }
+  :root[data-appearance="dark"] .g-aside .fi-item:hover { background: rgba(255, 255, 255, 0.06); }
+  .fi-item .fs { flex: none; width: 7px; height: 7px; border-radius: 50%; }
+  .fi-item .fs.hi { background: #d14545; }
+  .fi-item .fs.md { background: #cf9310; }
+  .fi-item .fs.lo { background: #8590a0; }
+  .fi-item .fj { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fi-empty { font-size: 10.5px; color: #8590a0; padding: 2px 6px; }
+  :root[data-appearance="dark"] .fi-empty { color: #6f7a89; }
+  .risk-hi { color: #d64545; }
+  .risk-md { color: #d97706; }
+  .risk-lo { color: #64748b; }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- ── Cockpit：窗口条 + pill 组 + surface chips（审查 Tab 的浮片） ── -->
+  <header class="cockpit">
+    <span class="c-pill"><span class="dot accent"></span><b>deeporca</b></span>
+    <span class="c-pill"><span class="dot ok"></span>DeepSeek V4 <span class="tnum">· 128K</span></span>
+    <span class="c-pill"><span class="dot"></span><span class="tnum">▮▮▮▯▯ 62%</span></span>
+
+    <div class="c-spacer"></div>
+
+    <!-- surface chips：对话恒在首位，审查 Tab 激活态（渐变 + 内描边） -->
+    <div class="surface-chips">
+      <button class="s-chip">◈ 对话</button>
+      <button class="s-chip active">◎ 审查 · <span id="chipLabel">deeporca</span> <span class="x">✕</span></button>
+      <button class="s-chip">✦ 知识 · deeporca <span class="x">✕</span></button>
+    </div>
+
+    <div class="c-spacer"></div>
+
+    <div class="theme-seg" id="themeSeg">
+      <button data-app="light" class="on">浅色</button>
+      <button data-app="dark">深色</button>
+    </div>
+    <div class="win-controls"><i class="wc-min"></i><i class="wc-max"></i><i class="wc-close"></i></div>
+  </header>
+
+  <!-- ── Hub 层级 1：玻璃 rail（⌘B） —— 审查模块激活 ── -->
+  <nav class="hub-rail">
+    <span class="hub-mark">◈</span>
+    <div class="hub-items">
+      <button class="hub-item"><span class="ic">☰</span>会话</button>
+      <button class="hub-item"><span class="ic">⑂</span>Git</button>
+      <button class="hub-item"><span class="ic">◈</span>索引</button>
+      <button class="hub-item active"><span class="ic">◎</span>审查</button>
+      <button class="hub-item"><span class="ic">▦</span>任务</button>
+      <button class="hub-item"><span class="ic">✎</span>编辑器</button>
+      <button class="hub-item"><span class="ic">⬡</span>Token</button>
+      <button class="hub-item"><span class="ic">⊞</span>插件</button>
+    </div>
+    <button class="hub-collapse" title="收起 Hub">⟨</button>
+  </nav>
+
+  <!-- ── Hub 层级 2：flyout 内容卡（CodeReviewPanel：范围条 + 工作区列表） ── -->
+  <section class="hub-flyout">
+    <header class="hub-head">
+      <span class="hub-title">代码审查</span>
+      <button class="hub-close" title="收起为图标列">✕</button>
+    </header>
+    <div class="hub-body">
+
+      <!-- 工作区列表（ui-ik-row：索引库同款）；范围条追随激活工作区行 -->
+      <div class="ws-row active" data-root="deeporca" data-label="deeporca">
+        <span class="ws-dot on" title="风险图谱已构建"></span>
+        <div class="ws-main">
+          <div class="ws-name">deeporca</div>
+          <div class="ws-path">~/dev/others/deepOrca</div>
+          <div class="ws-meta">44 分钟前审查</div>
+        </div>
+        <button class="ws-btn gel" data-run>一键代码审查</button>
+      </div>
+
+      <!-- 范围条：当前工作区的属性（ui-review-scope：行下细控件，随激活行移动） -->
+      <div class="rev-scope-wrap" id="scopeWrap">
+        <span class="rev-scope-label">审查范围 · <span class="owner" id="scopeOwner">deeporca</span></span>
+        <select class="rev-scope-select" id="scopeSelect">
+          <option value="workspace" selected>未提交变更</option>
+          <option value="commit">单个提交</option>
+          <option value="range">引用范围</option>
+          <option value="all">全域审查</option>
+        </select>
+        <div class="rev-scope-fields" id="fieldsCommit">
+          <span class="tag">commit</span>
+          <input class="rev-scope-input" id="inputCommit" value="HEAD" spellcheck="false">
+        </div>
+        <div class="rev-scope-fields" id="fieldsRange">
+          <span class="tag">from</span>
+          <input class="rev-scope-input" id="inputFrom" value="feature/api-refactor" spellcheck="false">
+          <span class="tag">to</span>
+          <input class="rev-scope-input" id="inputTo" value="HEAD" spellcheck="false">
+        </div>
+      </div>
+
+      <div class="ws-row" data-root="bento" data-label="bento-desktop" title="点按切换当前工作区（范围与历史随之追随）">
+        <span class="ws-dot" title="风险图谱未构建"></span>
+        <div class="ws-main">
+          <div class="ws-name">bento-desktop</div>
+          <div class="ws-path">~/dev/clients/bento-desktop</div>
+          <div class="ws-meta">未审查</div>
+        </div>
+        <button class="ws-btn" disabled>一键代码审查</button>
+      </div>
+
+      <div class="rev-note">
+        范围条追随「当前工作区」并各自记忆设置；切换工作区后，报告历史、
+        风险图谱与范围随之切换。<br>干净工作区自动回退审查最新提交（HEAD）。
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Sheet：审查 Tab = ReviewWorkspace（覆盖于 stage 上） ── -->
+  <section class="ui-sheet">
+    <button class="sheet-close">✕ 返回对话</button>
+
+    <div class="rev-tab-head">
+      <div class="rev-tab-tabs">
+        <button class="rev-pill active" data-view="reports">审查报告</button>
+        <button class="rev-pill" data-view="graph">风险图谱</button>
+      </div>
+      <span class="rev-tab-active">● 当前工作区</span>
+      <span class="scope-hint" id="scopeHint">当前范围：未提交变更</span>
+    </div>
+
+    <div class="rev-tab-body" id="viewReports" style="display:flex;">
+      <!-- 报告历史 rail -->
+      <div class="rev-history" id="histRail">
+        <div class="rev-history-item active" data-report="a">
+          <div class="rh-time">09:41</div>
+          <div class="rh-meta">成功 · 5 个文件 · 8 条意见</div>
+        </div>
+        <div class="rev-history-item" data-report="b">
+          <div class="rh-time">08:12</div>
+          <div class="rh-meta">完成（有警告） · 1 个文件 · 2 条意见</div>
+        </div>
+        <div class="rev-history-item" data-report="c">
+          <div class="rh-time">07:55</div>
+          <div class="rh-meta">成功 · 0 个文件 · 0 条意见</div>
+        </div>
+      </div>
+
+      <!-- 内容画布（ui-review-tab-content：报告文档） -->
+      <div class="rev-tab-content" id="contentReports">
+
+      <!-- 报告 A：正常发现（severity 实色芯片 + CRG 芯片 + 现状/建议色块） -->
+      <div class="report-doc" id="reportA">
+        <h1>代码审查报告 — deeporca</h1>
+        <div class="rp-meta">
+          <span>范围：提交 HEAD 的变更</span>
+          <span>生成时间：2026-09-01 09:41</span>
+          <span>状态：成功</span>
+        </div>
+        <div class="rp-cards">
+          <div class="rp-card"><div class="num">5</div><div class="lbl">审查文件</div></div>
+          <div class="rp-card"><div class="num">8</div><div class="lbl">审查意见</div></div>
+        </div>
+
+        <div class="rp-file">
+          <h2><code>src/auth/login.ts</code> <span class="cnt">2</span></h2>
+          <div class="rp-finding" id="f-login-a">
+            <div class="head">
+              <span class="chip sev-high">高</span><span class="chip crg locate" data-qn="login" title="在风险图谱中定位该函数">CRG: HIGH (12 callers)<span class="lnk"> · 定位 ◎</span></span>
+              <span class="loc">login.ts:12</span>
+            </div>
+            <div class="body">鉴权失败分支把完整令牌写入日志（敏感信息泄漏）。建议只记录令牌指纹（前 4 位 + 哈希）。</div>
+            <div class="sug-label">建议</div>
+            <pre class="code suggestion">logger.warn(`auth failed — fingerprint ${sha1(token).slice(0, 4)}`)  // 不再打印明文</pre>
+          </div>
+          <div class="rp-finding" id="f-login-b">
+            <div class="head">
+              <span class="chip sev-medium">中</span><span class="chip crg locate" data-qn="login" title="在风险图谱中定位该函数">CRG: HIGH (12 callers)<span class="lnk"> · 定位 ◎</span></span>
+              <span class="loc">login.ts:15</span>
+            </div>
+            <div class="body">登录失败计数与锁定在并发下非原子：多个请求可同时通过检查，导致限流失效。建议原子自增或加锁。</div>
+          </div>
+        </div>
+
+        <div class="rp-file">
+          <h2><code>packages/core/src/session.ts</code> <span class="cnt">2</span></h2>
+          <div class="rp-finding">
+            <div class="head">
+              <span class="chip sev-medium">中</span><span class="chip crg">CRG: MEDIUM (12 callers)</span>
+              <span class="loc">session.ts:490</span>
+            </div>
+            <div class="body">compaction 阈值对模型名大小写敏感：配置写成 <code>"DeepSeek-V4"</code>（大写）时 <code>includes("deepseek-v4")</code> 失配，阈值静默回落到 128K。建议统一 <code>toLowerCase()</code> 后匹配。</div>
+            <pre class="code existing">// session.ts:488
+if (activeTokens &gt; (model.includes("deepseek-v4") ? 512_000 : 128_000))</pre>
+            <div class="sug-label">建议</div>
+            <pre class="code suggestion">if (activeTokens &gt; (model.toLowerCase().includes("deepseek-v4") ? 512_000 : 128_000))</pre>
+          </div>
+          <div class="rp-finding">
+            <div class="head">
+              <span class="chip sev-high">高</span><span class="chip crg">CRG: HIGH (8 callers)</span>
+              <span class="loc">session.ts:500</span>
+            </div>
+            <div class="body"><code>replaceWithSummary()</code> 非原子操作，与流式追加存在竞态窗口：压缩期间新到达的消息可能丢失。建议加会话级互斥或先入队后替换。</div>
+          </div>
+        </div>
+
+        <div class="rp-file">
+          <h2><code>packages/core/src/actions/review.ts</code> <span class="cnt">2</span></h2>
+          <div class="rp-finding">
+            <div class="head">
+              <span class="chip sev-medium">中</span><span class="chip crg">CRG: MEDIUM (4 callers)</span>
+              <span class="loc">review.ts:323</span>
+            </div>
+            <div class="body">全域审查的 <code>slice(0, 800)</code> 在点路径过滤之前执行：<code>git ls-files</code> 按字节序输出，<code>.deeporca/</code> 下的生成物占满名额后，真实源码的 CRG 富化会系统性为空。建议先 <code>filter</code> 再 <code>slice</code>。</div>
+          </div>
+          <div class="rp-finding">
+            <div class="head">
+              <span class="chip sev-low">低</span>
+              <span class="loc">review.ts:244</span>
+            </div>
+            <div class="body">degraded 状态文案仍引用旧目录名 <code>.code-review-graph/</code>，规范路径已迁移为 <code>.deeporca/crg/</code>，建议同步措辞。</div>
+          </div>
+        </div>
+
+        <div class="rp-file">
+          <h2><code>packages/desktop/src/main/tools/crg-cli.ts</code> <span class="cnt">1</span></h2>
+          <div class="rp-finding">
+            <div class="head">
+              <span class="chip sev-low">低</span>
+              <span class="loc">crg-cli.ts:93</span>
+            </div>
+            <div class="body">图谱构建心跳文案为硬编码中文，直接流经进度通道，非中文环境下的用户界面会混入中文。建议由宿主侧按 locale 注入。</div>
+          </div>
+        </div>
+
+        <div class="rp-file">
+          <h2><code>src/session/store.ts</code> <span class="cnt">1</span></h2>
+          <div class="rp-finding" id="f-store">
+            <div class="head">
+              <span class="chip sev-medium">中</span><span class="chip crg locate" data-qn="storeSession" title="在风险图谱中定位该函数">CRG: MEDIUM (3 callers)<span class="lnk"> · 定位 ◎</span></span>
+              <span class="loc">store.ts:38</span>
+            </div>
+            <div class="body"><code>storeSession()</code> 直接覆盖写入会话文件，中途崩溃会留下半写状态。建议临时文件 + 原子 <code>rename</code>。</div>
+          </div>
+        </div>
+
+        <p class="rp-footer">语义审查（ocr）+ 结构富化（CRG 风险图谱）· 由 DeepOrca 委托审查管线生成</p>
+      </div>
+
+      <!-- 报告 B：完成（有警告） -->
+      <div class="report-doc" id="reportB" style="display:none;">
+        <h1>代码审查报告 — deeporca</h1>
+        <div class="rp-meta">
+          <span>范围：提交 8f2c1a4 的变更</span>
+          <span>生成时间：2026-09-01 08:12</span>
+          <span>状态：完成（有警告）</span>
+        </div>
+        <div class="rp-cards">
+          <div class="rp-card"><div class="num">1</div><div class="lbl">审查文件</div></div>
+          <div class="rp-card"><div class="num">2</div><div class="lbl">审查意见</div></div>
+        </div>
+        <div class="rp-file">
+          <h2><code>packages/core/src/tests/crg-query.test.ts</code> <span class="cnt">2</span></h2>
+          <div class="rp-finding">
+            <div class="head"><span class="chip sev-medium">中</span><span class="loc">crg-query.test.ts:110</span></div>
+            <div class="body">风险概述测试的节点 <code>file_path</code> 用相对路径，与 <code>detectChanges</code> 绝对路径断言约定不一致，后续若加跨表匹配会踩形态差异。</div>
+          </div>
+          <div class="rp-finding">
+            <div class="head"><span class="chip sev-low">低</span><span class="loc">crg-query.test.ts:160</span></div>
+            <div class="body">缺少 <code>risk_index</code> 缺失时降级路径的调用方状态文案断言。</div>
+          </div>
+        </div>
+        <p class="rp-footer">语义审查（ocr）only — CRG graph 存在但本次范围无匹配结构数据 · 富化跳过</p>
+      </div>
+
+      <!-- 报告 C：全排除（空审查可解释） -->
+      <div class="report-doc" id="reportC" style="display:none;">
+        <h1>代码审查报告 — deeporca</h1>
+        <div class="rp-meta">
+          <span>范围：未提交的工作区变更（vs HEAD）</span>
+          <span>生成时间：2026-09-01 07:55</span>
+          <span>状态：成功</span>
+        </div>
+        <div class="rp-cards">
+          <div class="rp-card"><div class="num">0</div><div class="lbl">审查文件</div></div>
+          <div class="rp-card"><div class="num">0</div><div class="lbl">审查意见</div></div>
+          <div class="rp-card excluded"><div class="num">9</div><div class="lbl">策略排除</div></div>
+        </div>
+        <div class="rp-empty-note">以上变更全部按策略排除（生成物 / 点路径，7 个）或不支持审查该文件类型（2 个），因此本次没有可审查内容。</div>
+        <p class="rp-footer">语义审查（ocr）· 0 发现 · 排除明细见 ocr delegate preview 输出</p>
+      </div>
+
+      <!-- 空态：无报告的工作区（bento-desktop 初始态） -->
+      <div class="report-doc" id="reportEmpty" style="display:none;">
+        <h1>代码审查报告 — <span id="emptyOwner">bento-desktop</span></h1>
+        <div class="rp-meta">
+          <span>暂无审查报告</span>
+        </div>
+        <div class="rev-empty" style="padding: 40px 10px; text-align: center; border: 1px dashed var(--ui-border-soft); border-radius: 10px;">
+          该工作区还没有审查报告。<br><br>
+          在上方范围条选定范围后，点击列表行上的「一键代码审查」开始第一次审查。<br>
+          <span style="color: var(--ui-text-faint); font-size: 11px;">范围设置会按工作区记忆；此后报告历史与风险图谱将出现在这里。</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+    <!-- 子视图：风险图谱（图谱视图独占内容画布，历史 rail 让位） -->
+    <div class="rev-tab-content rev-tab-graph" id="viewGraph" style="display:none;">
+      <div class="graph-doc">
+      <div class="graph-top">
+        <span class="g-sub">Top 6 风险节点 · 6 条调用边 · 简化视图（自研渲染）</span>
+        <div class="legend">
+          <span><i style="background:#d64545"></i>高风险</span>
+          <span><i style="background:#d97706"></i>中风险</span>
+          <span><i style="background:#64748b"></i>低风险</span>
+          <span><i style="background:transparent;border:2px solid #7c3aed"></i>安全相关</span>
+        </div>
+      </div>
+      <div class="graph-stage">
+        <div class="g-board">
+          <svg viewBox="0 0 820 520" preserveAspectRatio="xMidYMid meet" id="gSvg">
+            <g id="gEdges"></g>
+            <g id="gCards"></g>
+          </svg>
+        </div>
+        <aside class="g-aside" id="gAside">
+          <h3 id="gaName">login</h3>
+          <div class="row"><b>位置</b><span id="gaPath">src/auth/login.ts:12</span></div>
+          <div class="row"><b>风险分</b><span id="gaScore" class="risk-hi">0.92</span></div>
+          <div class="row"><b>调用者数</b><span id="gaCallers">12</span></div>
+          <div class="row"><b>测试覆盖</b><span id="gaCov">uncovered</span></div>
+          <div class="row"><b>安全</b><span id="gaSec" class="risk-hi">● 相关</span></div>
+          <div class="nb">
+            <div class="nb-head">调用邻居</div>
+            <div id="gaNb"></div>
+          </div>
+          <div class="fi">
+            <div class="fi-head">相关审查意见 · 点击回跳报告</div>
+            <div id="gaFindings"></div>
+          </div>
+        </aside>
+      </div>
+    </div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+/* ── 浅色/深色外观切换（data-appearance，真实产品同机制） ── */
+(function () {
+  var seg = document.getElementById("themeSeg");
+  seg.addEventListener("click", function (e) {
+    var btn = e.target.closest("button[data-app]");
+    if (!btn) return;
+    document.documentElement.setAttribute("data-appearance", btn.dataset.app);
+    seg.querySelectorAll("button").forEach(function (b) { b.classList.toggle("on", b === btn); });
+  });
+})();
+
+/* ── 审查范围：追随工作区 —— 每工作区独立记忆；范围条随激活行移动 ── */
+var scopeState = {
+  deeporca: { mode: "workspace" },
+  bento: { mode: "commit", commit: "HEAD" },
+};
+var activeRoot = "deeporca";
+(function () {
+  var sel = document.getElementById("scopeSelect");
+  var fc = document.getElementById("fieldsCommit");
+  var fr = document.getElementById("fieldsRange");
+  var owner = document.getElementById("scopeOwner");
+  var hint = document.getElementById("scopeHint");
+  function apply() {
+    var s = scopeState[activeRoot] || { mode: "workspace" };
+    sel.value = s.mode;
+    fc.classList.toggle("show", s.mode === "commit");
+    fr.classList.toggle("show", s.mode === "range");
+    document.getElementById("inputCommit").value = s.commit || "HEAD";
+    document.getElementById("inputFrom").value = s.from || "";
+    document.getElementById("inputTo").value = s.to || "HEAD";
+    owner.textContent = activeRoot === "bento" ? "bento-desktop" : "deeporca";
+    var hintText = {
+      workspace: "未提交变更",
+      commit: "提交 " + (s.commit || "HEAD") + " 的变更",
+      range: (s.from || "?") + "…" + (s.to || "HEAD"),
+      all: "全域审查（整个仓库）",
+    };
+    hint.textContent = "当前范围：" + hintText[s.mode];
+  }
+  function collect() {
+    var s = (scopeState[activeRoot] = scopeState[activeRoot] || {});
+    s.mode = sel.value;
+    s.commit = document.getElementById("inputCommit").value;
+    s.from = document.getElementById("inputFrom").value;
+    s.to = document.getElementById("inputTo").value;
+    apply();
+  }
+  sel.addEventListener("change", collect);
+  document.getElementById("inputCommit").addEventListener("input", collect);
+  document.getElementById("inputFrom").addEventListener("input", collect);
+  document.getElementById("inputTo").addEventListener("input", collect);
+  window.applyScope = apply;
+  apply();
+})();
+
+/* ── 报告/图谱页签（switchView 供双向定位复用） ── */
+var switchView = (function () {
+  var pills = document.querySelectorAll(".rev-pill");
+  return function (v) {
+    pills.forEach(function (p) { p.classList.toggle("active", p.dataset.view === v); });
+    document.getElementById("viewReports").style.display = v === "reports" ? "flex" : "none";
+    document.getElementById("viewGraph").style.display = v === "graph" ? "flex" : "none";
+  };
+})();
+(function () {
+  var pills = document.querySelectorAll(".rev-pill");
+  pills.forEach(function (p) {
+    p.addEventListener("click", function () { switchView(p.dataset.view); });
+  });
+})();
+
+/* ── 报告历史：三份切换（selectReport 供双向定位复用） ── */
+var selectReport = (function () {
+  var rail = document.getElementById("histRail");
+  return function (k) {
+    rail.querySelectorAll(".rev-history-item").forEach(function (h) { h.classList.toggle("active", h.dataset.report === k); });
+    ["a", "b", "c"].forEach(function (id) {
+      document.getElementById("report" + id.toUpperCase()).style.display = id === k ? "" : "none";
+    });
+  };
+})();
+(function () {
+  var rail = document.getElementById("histRail");
+  rail.addEventListener("click", function (e) {
+    var item = e.target.closest(".rev-history-item");
+    if (!item) return;
+    selectReport(item.dataset.report);
+  });
+})();
+
+/* ── 切换当前工作区：范围条追随、报告历史/图谱各自独立、范围各自记忆 ── */
+(function () {
+  var rail = document.getElementById("histRail");
+  var wrap = document.getElementById("scopeWrap");
+  var chipLabel = document.getElementById("chipLabel");
+  var emptyDoc = document.getElementById("reportEmpty");
+  var graphPill = document.querySelector('.rev-pill[data-view="graph"]');
+  var rows = Array.prototype.slice.call(document.querySelectorAll(".ws-row"));
+  var railSnap = {
+    deeporca: rail.innerHTML,
+    bento: '<div class="rev-empty">暂无审查报告 — 首次审查后出现在这里</div>',
+  };
+  var h1 = document.querySelector("#reportA h1");
+  var h1Snap = { deeporca: h1.textContent, bento: "代码审查报告 — bento-desktop" };
+  rows.forEach(function (r) {
+    r.addEventListener("click", function () {
+      var root = r.dataset.root;
+      if (root === activeRoot) return;
+      railSnap[activeRoot] = rail.innerHTML; /* 当前工作区的历史快照（含运行后的新项） */
+      h1Snap[activeRoot] = h1.textContent;
+      activeRoot = root;
+      rows.forEach(function (x) {
+        var on = x === r;
+        x.classList.toggle("active", on);
+        x.querySelector(".ws-btn").disabled = !on;
+        x.querySelector(".ws-btn").classList.toggle("gel", on);
+        x.querySelector(".ws-dot").classList.toggle("on", x.dataset.root === "deeporca");
+      });
+      r.after(wrap); /* 范围条随激活行移动 */
+      window.applyScope(); /* 并加载该工作区记忆的范围 */
+      rail.innerHTML = railSnap[root] || "";
+      var ownerName = root === "bento" ? "bento-desktop" : "deeporca";
+      chipLabel.textContent = ownerName;
+      document.getElementById("emptyOwner").textContent = ownerName;
+      h1.textContent = h1Snap[root];
+      document.getElementById("reportA").style.display = "none";
+      document.getElementById("reportB").style.display = "none";
+      document.getElementById("reportC").style.display = "none";
+      emptyDoc.style.display = root === "bento" ? "" : "none";
+      if (root === "deeporca") selectReport("a");
+      graphPill.disabled = root !== "deeporca"; /* 图谱未构建的工作区禁用图谱页签 */
+      graphPill.title = root === "deeporca" ? "风险图谱" : "风险图谱未构建（切换回 deeporca 后可用）";
+      graphPill.classList.remove("active");
+      if (root !== "deeporca") switchView("reports");
+    });
+  });
+})();
+
+/* ── 一键代码审查（事件委托，仅当前工作区可发起）：进度 → chips + 历史插入 ── */
+(function () {
+  var rail = document.getElementById("histRail");
+  document.querySelector(".hub-body").addEventListener("click", function (e) {
+    var btn = e.target.closest(".ws-btn[data-run]");
+    if (!btn || btn.disabled || btn.classList.contains("running")) return;
+    var row = btn.closest(".ws-row");
+    if (row.dataset.root !== activeRoot) return; /* 激活根门控 */
+    var meta = row.querySelector(".ws-meta");
+    var dot = row.querySelector(".ws-dot");
+    btn.disabled = true;
+    btn.classList.add("running");
+    btn.textContent = "审查中…";
+    dot.classList.add("busy");
+    var pct = 3;
+    var timer = setInterval(function () {
+      pct += 5;
+      if (pct >= 100) { clearInterval(timer); finish(btn, row, meta, dot); return; }
+      meta.innerHTML = '审查中 <span class="prog">' + pct + '%</span> — [' + Math.max(1, Math.ceil(pct / 24)) + "/5] 委托审查 src/auth.ts";
+    }, 110);
+  });
+  function finish(btn, row, meta, dot) {
+    var old = row.parentNode.querySelector(".post-run");
+    if (old) old.remove();
+    btn.disabled = false;
+    btn.classList.remove("running");
+    btn.textContent = "一键代码审查";
+    dot.classList.remove("busy");
+    meta.textContent = "刚刚审查";
+    var chips = document.createElement("div");
+    chips.className = "post-run";
+    chips.innerHTML = '<button class="p-chip">✦ 一键修复<span class="cnt">5</span></button><button class="p-chip">💬 追问（带入对话）</button>';
+    row.after(chips);
+    var fresh = document.createElement("div");
+    fresh.className = "rev-history-item active";
+    fresh.dataset.report = "a";
+    fresh.innerHTML = '<div class="rh-time">09:47 <span class="new">刚刚</span></div><div class="rh-meta">成功 · 5 个文件 · 8 条意见</div>';
+    rail.insertBefore(fresh, rail.firstChild);
+    rail.querySelectorAll(".rev-history-item:not(:first-child)").forEach(function (h) { h.classList.remove("active"); });
+    /* bento（之前是空态）：切到报告视图展示新报告 */
+    if (activeRoot === "bento") {
+      document.getElementById("reportEmpty").style.display = "none";
+      document.getElementById("reportA").style.display = "";
+    }
+    selectReport("a");
+    var toast = document.createElement("div");
+    toast.style.cssText = "position:fixed;top:64px;right:20px;background:var(--ui-surface-raised);border:1px solid color-mix(in srgb, var(--ui-success) 40%, transparent);color:var(--ui-success);border-radius:10px;padding:10px 14px;font-size:12px;z-index:99;box-shadow:var(--ui-shadow-card);animation:sheet-in .3s both;";
+    toast.textContent = "✓ 审查完成 — 报告已写入 .deeporca/reviews/ 并选中";
+    document.body.appendChild(toast);
+    setTimeout(function () { toast.remove(); }, 1800);
+  }
+})();
+
+/* ── 风险图谱：分组卡片 + 贝塞尔 CALLS 边 + 点选/悬停联动侧卡 ── */
+(function () {
+  var CARD_W = 372, ROW_H = 30, HEAD_H = 30, GAP_X = 42, GAP_Y = 28;
+  var files = [
+    { path: "src/auth/login.ts", funcs: [
+        { qn: "login", name: "login", score: 0.92, callers: 12, cov: "uncovered", sec: true },
+        { qn: "refreshSession", name: "refreshSession", score: 0.71, callers: 6, cov: "partial", sec: false } ] },
+    { path: "src/auth/token.ts", funcs: [
+        { qn: "verifyToken", name: "verifyToken", score: 0.87, callers: 8, cov: "covered", sec: true } ] },
+    { path: "src/session/store.ts", funcs: [
+        { qn: "sessionGuard", name: "sessionGuard", score: 0.74, callers: 5, cov: "uncovered", sec: false },
+        { qn: "storeSession", name: "storeSession", score: 0.66, callers: 3, cov: "partial", sec: false } ] },
+  ];
+  var edges = [
+    ["login", "verifyToken"], ["login", "refreshSession"], ["login", "sessionGuard"],
+    ["sessionGuard", "storeSession"], ["verifyToken", "refreshSession"], ["refreshSession", "storeSession"] ];
+  var pos = {}, cardsHtml = "";
+  files.forEach(function (f, gi) {
+    var col = gi % 2, r = Math.floor(gi / 2);
+    var x = 38 + col * (CARD_W + GAP_X), y = 36 + r * (HEAD_H + f.funcs.length * ROW_H + 22 + GAP_Y);
+    cardsHtml += '<rect class="g-file-card" x="' + x + '" y="' + y + '" width="' + CARD_W + '" height="' + (HEAD_H + f.funcs.length * ROW_H + 12) + '"/>';
+    cardsHtml += '<text class="g-file-label" x="' + (x + 14) + '" y="' + (y + 19) + '">' + (f.path.length > 40 ? "…" + f.path.slice(-38) : f.path) + '</text>';
+    f.funcs.forEach(function (n, fi) {
+      var cx = x + 22, cy = y + HEAD_H + fi * ROW_H + ROW_H / 2;
+      pos[n.qn] = { x: cx, y: cy };
+      var rad = 4 + n.score * 6;
+      var color = n.score >= 0.66 ? "#d64545" : n.score >= 0.33 ? "#d97706" : "#64748b";
+      cardsHtml += '<g class="g-func" data-qn="' + n.qn + '">' +
+        '<rect class="g-hit" x="' + (x + 6) + '" y="' + (cy - ROW_H / 2 + 2) + '" width="' + (CARD_W - 12) + '" height="' + (ROW_H - 3) + '" rx="6"/>' +
+        '<circle class="g-fdot' + (n.sec ? " sec" : "") + '" cx="' + cx + '" cy="' + cy + '" r="' + rad.toFixed(1) + '" fill="' + color + '"/>' +
+        '<text class="g-fname" x="' + (x + 38) + '" y="' + (cy + 4) + '">' + n.name + '</text>' +
+        '<text class="g-fscore" x="' + (x + CARD_W - 12) + '" y="' + (cy + 4) + '">' + n.score.toFixed(2) + '</text></g>';
+    });
+  });
+  document.getElementById("gCards").innerHTML = cardsHtml;
+  document.getElementById("gEdges").innerHTML = edges.map(function (e) {
+    var a = pos[e[0]], b = pos[e[1]];
+    if (!a || !b) return "";
+    var mid = (a.x + b.x) / 2;
+    return '<path class="g-edge" data-src="' + e[0] + '" data-dst="' + e[1] + '" d="M ' + a.x.toFixed(1) + ' ' + a.y.toFixed(1) + ' C ' + mid.toFixed(1) + ' ' + a.y.toFixed(1) + ', ' + mid.toFixed(1) + ' ' + b.y.toFixed(1) + ', ' + b.x.toFixed(1) + ' ' + b.y.toFixed(1) + '"/>';
+  }).join("");
+
+  var info = {};
+  files.forEach(function (f) { f.funcs.forEach(function (n) { info[n.qn] = n; }); });
+  /* 节点 ↔ 报告意见绑定表（真实实现：findings 的 path + startLine 落在
+     node 的 [lineStart, lineEnd] 区间内即绑定；此处按演示数据直写） */
+  var bindings = {
+    login: [
+      { id: "f-login-a", sev: "hi", label: "[高] 明文令牌写入日志" },
+      { id: "f-login-b", sev: "md", label: "[中] 失败计数非原子（限流失效）" },
+    ],
+    storeSession: [
+      { id: "f-store", sev: "md", label: "[中] 会话文件非原子写入" },
+    ],
+  };
+  window.graphShow = show;
+  window.graphBindings = bindings;
+  var nodeEls = document.querySelectorAll(".g-func");
+  var lineEls = document.querySelectorAll(".g-edge");
+  var pathOf = {};
+  files.forEach(function (f) { f.funcs.forEach(function (n) { pathOf[n.qn] = f.path; }); });
+  function show(qn) {
+    var d = info[qn];
+    if (!d) return;
+    var nb = {};
+    lineEls.forEach(function (l) {
+      var s = l.getAttribute("data-src"), t = l.getAttribute("data-dst");
+      if (s === qn) nb[t] = "→ " + (info[t] ? info[t].name : t);
+      if (t === qn) nb[s] = "← " + (info[s] ? info[s].name : s);
+    });
+    document.getElementById("gaName").textContent = d.name;
+    document.getElementById("gaPath").textContent = pathOf[qn] + ":" + (12 + files.findIndex(function (f) { return f.funcs.some(function (x) { return x.qn === qn; }); }) * 3);
+    var sc = document.getElementById("gaScore");
+    sc.textContent = d.score.toFixed(2);
+    sc.className = d.score >= 0.66 ? "risk-hi" : d.score >= 0.33 ? "risk-md" : "risk-lo";
+    document.getElementById("gaCallers").textContent = d.callers;
+    document.getElementById("gaCov").textContent = d.cov;
+    var sec = document.getElementById("gaSec");
+    sec.textContent = d.sec ? "● 相关（密钥/鉴权路径）" : "—";
+    sec.className = d.sec ? "risk-hi" : "";
+    document.getElementById("gaNb").innerHTML = Object.keys(nb).map(function (k) {
+      return "<div>" + nb[k] + "</div>";
+    }).join("") || '<div style="border:none;">无圈内邻居</div>';
+    /* 相关审查意见（绑定表：节点 → 报告 finding；点击回跳定位） */
+    var fi = bindings[qn] || [];
+    document.getElementById("gaFindings").innerHTML = fi.length === 0
+      ? '<div class="fi-empty">该节点无对应审查意见</div>'
+      : fi.map(function (f) {
+          return '<div class="fi-item" data-fid="' + f.id + '" title="回到报告并定位该意见">' +
+                 '<span class="fs ' + f.sev + '"></span><span class="fj">' + f.label + '</span><span>↗</span></div>';
+        }).join("");
+    nodeEls.forEach(function (g) {
+      g.classList.toggle("dim", g.getAttribute("data-qn") !== qn);
+      g.classList.toggle("sel", g.getAttribute("data-qn") === qn);
+    });
+    lineEls.forEach(function (l) {
+      var hit = l.getAttribute("data-src") === qn || l.getAttribute("data-dst") === qn;
+      l.classList.toggle("hot", hit);
+      l.classList.toggle("dim", !hit);
+    });
+  }
+  nodeEls.forEach(function (g) {
+    g.addEventListener("click", function () { show(g.getAttribute("data-qn")); });
+    g.addEventListener("mouseenter", function () { show(g.getAttribute("data-qn")); });
+  });
+  document.getElementById("gSvg").addEventListener("mouseleave", function () {
+    nodeEls.forEach(function (g) { g.classList.remove("dim"); g.classList.remove("sel"); });
+    lineEls.forEach(function (l) { l.classList.remove("hot"); l.classList.remove("dim"); });
+  });
+  if (nodeEls.length > 0) show(nodeEls[0].getAttribute("data-qn"));
+})();
+
+/* ── 双向定位：报告 ↔ 风险图谱 ──
+   报告 → 图谱：可定位 CRG 芯片点击 → 切图谱页签并选中该函数节点；
+   图谱 → 报告：侧卡"相关审查意见"点击 → 切回报告、选中所在报告并滚动高亮。 */
+(function () {
+  document.querySelectorAll(".chip.crg.locate").forEach(function (chip) {
+    chip.addEventListener("click", function () {
+      switchView("graph");
+      if (window.graphShow) window.graphShow(chip.dataset.qn);
+    });
+  });
+  document.addEventListener("click", function (e) {
+    var item = e.target.closest(".fi-item");
+    if (!item) return;
+    selectReport("a");
+    switchView("reports");
+    var el = document.getElementById(item.dataset.fid);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    el.classList.remove("flash");
+    void el.offsetWidth; /* 重触发动画 */
+    el.classList.add("flash");
+  });
+})();
+</script>
+</body>
+</html>

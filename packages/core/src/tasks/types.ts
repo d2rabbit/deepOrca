@@ -52,6 +52,9 @@ export interface TaskBranch {
   headId: string;
   createdAt: string;
   abandoned?: boolean;
+  /** Set when this branch's picks were merged into another branch — panels
+   *  render 已合并 + a merge-back edge from it (user ask 2026-09-03 九轮). */
+  mergedInto?: string;
 }
 
 /** On-disk index (lightweight — nodes live in nodes/<id>.json). */
@@ -78,7 +81,7 @@ export interface TaskTreeIndex {
 /** One reflog line (append-only operation journal). */
 export interface TaskReflogEntry {
   at: string;
-  op: "create" | "fork" | "switch" | "append" | "abandon" | "archive" | "unarchive";
+  op: "create" | "fork" | "switch" | "append" | "merge" | "abandon" | "archive" | "unarchive";
   branch: string;
   nodeId?: string;
   detail?: string;

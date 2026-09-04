@@ -166,7 +166,7 @@ test("background task flushes its own arch surfaces to the target root only", as
   await manager.initMcpServers();
 
   // Task 1 against root A — its arch surface must land in A's prototypes.
-  const resultA = await manager.runBackgroundLlmTask({ skill: "arch-scan", root: rootA });
+  const resultA = await manager.runBackgroundLlmTask({ skill: "a2ui-flush-probe", root: rootA });
   assert.ok(resultA.iterations >= 1);
   assert.deepEqual(prototypesOf(rootA), ["arch-alpha.json"]);
 
@@ -177,7 +177,7 @@ test("background task flushes its own arch surfaces to the target root only", as
 
   // Task 2 against root B — must write arch-beta, sweep arch-stale, keep the
   // non-arch proto-user surface OUT, and must NOT re-flush A's arch-alpha.
-  const resultB = await manager.runBackgroundLlmTask({ skill: "arch-scan", root: rootB });
+  const resultB = await manager.runBackgroundLlmTask({ skill: "a2ui-flush-probe", root: rootB });
   assert.ok(resultB.iterations >= 1);
   assert.deepEqual(prototypesOf(rootB), ["arch-beta.json"]);
   assert.deepEqual(prototypesOf(rootA), ["arch-alpha.json"]);
@@ -221,7 +221,7 @@ test("background task aborts before the first LLM call on a pre-aborted signal",
   });
 
   await assert.rejects(
-    manager.runBackgroundLlmTask({ skill: "arch-scan", signal: AbortSignal.abort() }),
+    manager.runBackgroundLlmTask({ skill: "a2ui-flush-probe", signal: AbortSignal.abort() }),
     (err: unknown) => err instanceof Error && err.name === "AbortError"
   );
   assert.equal(llmCalls, 0);

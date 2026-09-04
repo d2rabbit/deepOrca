@@ -91,6 +91,10 @@ export function spawnTracked(opts: SpawnTrackedOptions): Promise<SpawnTrackedRes
     const child: ChildProcess = spawn(command, args, {
       cwd,
       env: env ? { ...process.env, ...env } : process.env,
+      // windowsHide (user ask 2026-08-31): a console child spawned from the
+      // GUI main process allocated a visible conhost that flashed on every
+      // tool invocation (Windows only). Hide it — stdio stays piped.
+      windowsHide: true,
       stdio: ["ignore", "pipe", "pipe"],
     });
     if (logSpawn !== false) {

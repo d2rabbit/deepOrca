@@ -302,14 +302,53 @@ g.edgePaths path, g.edgePath path, path.flowchart-link, path.flowchart-v2-link {
  * hue classes so the injected stylesheet can paint them. Purely additive —
  * on any parse/serialize failure the original SVG is returned untouched.
  */
-export function decorateMermaidSvg(svg: string): string {
-  if (typeof DOMParser === "undefined") return svg;
-  ensureHueStyles();
-  try {
-    const doc = new DOMParser().parseFromString(svg, "image/svg+xml");
-    const root = doc.documentElement;
-    if (!root || root.getElementsByTagName("parsererror").length > 0) return svg;
 
+/**
+ * mermaid in htmlLabels mode serializes line-broken labels (`<br/>` in the
+ * chart SOURCE) through DOMPurify, which emits the HTML void form `<br>`
+ * inside foreignObject. XML parsing (image/svg+xml below) rejects the
+ * unclosed form, so ONE `<br/>` label used to fail the parse of the WHOLE
+ * svg — every DOM round-trip (decorate + forceNaturalSvgSize) silently
+ * no-oped, the svg kept its responsive `width="100%"` + INLINE max-width
+ * (which no stylesheet override can beat), and the arch-card fit pass then
+ * measured the CSS-collapsed 300px replaced-element default as "natural"
+ * size — a 1800px chart displayed at ~540px, 18px text at ~5px effective
+ * (real-machine "整体架构还是这么小", 2026-08-29). Self-close the void forms
+ * before parsing. `/` is excluded from the attribute scan and a lookbehind
+ * rejects an already-closed tail, so `<br/>` and quoted URLs are untouched.
+ */
+const VOID_TAG_RE = /<(br|img|hr|wbr|source|col|input|track|area|base|embed)((?:"[^"]*"|'[^']*'|[^>"'/])*)(?<!\/)>/g;
+function closeVoidTags(svg: string): string {
+  return svg.replace(VOID_TAG_RE, "<$1$2/>");
+}
+
+/**
+ * Parse an svg string for DOM round-trips; null on any parse failure.
+ * Malformed input surfaces <parsererror> as the document ROOT (jsdom) or as
+ * a child of an <html> wrapper root (Chromium) — both shapes are rejected;
+ * the old descendants-only check missed the first and trusted the second.
+ */
+function parseSvgDocument(svg: string): Document | null {
+  if (typeof DOMParser === "undefined") return null;
+  try {
+    const doc = new DOMParser().parseFromString(closeVoidTags(svg), "image/svg+xml");
+    const root = doc.documentElement;
+    if (!root) return null;
+    if (root.getElementsByTagName("parsererror").length > 0) return null;
+    const tag = root.tagName.toLowerCase();
+    if (tag.includes("parsererror") || tag === "html") return null;
+    return doc;
+  } catch {
+    return null;
+  }
+}
+
+export function decorateMermaidSvg(svg: string): string {
+  ensureHueStyles();
+  const doc = parseSvgDocument(svg);
+  if (!doc) return svg;
+  const root = doc.documentElement;
+  try {
     // Semantic-kind paint (design system adopted from Cocoon-AI's
     // architecture-diagram-generator, MIT): when the chart's classDefs tag a
     // node with a known kind (entry/store/frontend/backend/bus/cloud/
@@ -348,6 +387,38 @@ export function decorateMermaidSvg(svg: string): string {
   }
 }
 
+/**
+ * Drop node declarations whose id equals an ENCLOSING subgraph's id. Mermaid
+ * refuses to render those ("Setting EX as parent of EX would create a cycle")
+ * — a real failure mode on LLM-authored arch maps, where the writer declares
+ * `subgraph EX["示例"]` and then a node `EX["examples"]` inside it. The
+ * subgraph itself already renders as the container and edges referencing the
+ * id keep pointing at it, so removing the inner duplicate is safe and keeps
+ * the graph's meaning intact.
+ */
+export function stripSubgraphSelfNodes(chart: string): string {
+  if (!chart.includes("subgraph")) return chart;
+  const stack: string[] = [];
+  return chart
+    .split("\n")
+    .filter((line) => {
+      const trimmed = line.trim();
+      const sub = trimmed.match(/^subgraph\s+([A-Za-z0-9_.-]+)/);
+      if (sub) {
+        stack.push(sub[1]);
+        return true;
+      }
+      if (/^end\b/.test(trimmed)) {
+        stack.pop();
+        return true;
+      }
+      if (stack.length === 0) return true;
+      const node = trimmed.match(/^([A-Za-z0-9_.-]+)(?=\s*[[(])/);
+      return !(node && stack.includes(node[1]));
+    })
+    .join("\n");
+}
+
 /** Render one chart definition to an SVG string. Serialized: never parallel. */
 export function renderMermaidSvg(chart: string): Promise<string> {
   const job = renderQueue.then(async () => {
@@ -357,8 +428,9 @@ export function renderMermaidSvg(chart: string): Promise<string> {
     // are var()-live; this refreshes the mermaid-native edges/labels/pie
     // fills that the decorate pass does not cover.
     if (configuredSkin !== currentSkin()) configureMermaid(mermaid);
-    const { svg } = await mermaid.render(`mermaid-diagram-${++diagramCounter}`, chart);
-    return decorateMermaidSvg(svg);
+    const { svg } = await mermaid.render(`mermaid-diagram-${++diagramCounter}`, stripSubgraphSelfNodes(chart));
+    const decorated = decorateMermaidSvg(svg);
+    return decorated;
   });
   // Keep the queue alive across failures; the caller sees the rejection.
   renderQueue = job.catch(() => undefined);

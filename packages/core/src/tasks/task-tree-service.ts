@@ -469,15 +469,23 @@ export class TaskTreeService {
 
     try {
       this.writeNodeFile(this.treeDir(treeId), node);
+      // Merge completeness (user ask 2026-09-03 九轮): stamp the SOURCE branch
+      // mergedInto=<target> so panels render 已合并 + a merge-back edge from
+      // real branch-level data instead of guessing.
+      const src = index.branches[srcBranch];
       const next: TaskTreeIndex = {
         ...index,
-        branches: { ...index.branches, [index.activeBranch]: { ...target, headId: node.id } },
+        branches: {
+          ...index.branches,
+          [index.activeBranch]: { ...target, headId: node.id },
+          ...(src ? { [srcBranch]: { ...src, mergedInto: index.activeBranch } } : {}),
+        },
         updatedAt: at,
       };
       this.pendingIndexes.set(treeId, next);
       this.appendReflog(treeId, {
         at,
-        op: "append",
+        op: "merge",
         branch: index.activeBranch,
         nodeId: node.id,
         detail: `merge ← ${srcBranch} (${picks.join(",")})`,
@@ -693,11 +701,19 @@ export class TaskTreeService {
         const tree = this.getTree(summary.id);
         if (!tree) continue;
         const reflog = this.readReflog(summary.id, 500);
+        // Merged-outcome derivation is branch-level data first (mergedInto,
+        // user ask 2026-09-03 九轮); the reflog scan stays as a legacy
+        // fallback for trees merged before the stamp existed.
         const mergedBranches = new Set(
-          reflog
-            .filter((e) => e.op === "append" && (e.detail ?? "").startsWith("merge ←"))
-            .map((e) => (e.detail ?? "").match(/^merge ← (\S+)/)?.[1] ?? "")
+          Object.entries(tree.index.branches)
+            .filter(([, b]) => Boolean(b.mergedInto))
+            .map(([name]) => name)
         );
+        for (const e of reflog) {
+          if (e.op !== "append" || !(e.detail ?? "").startsWith("merge ←")) continue;
+          const src = (e.detail ?? "").match(/^merge ← (\S+)/)?.[1];
+          if (src) mergedBranches.add(src);
+        }
         // Map each fork node to its branch BY LINEAGE (a fork stops being the
         // branch head once steps land on it — head equality would miss it).
         const branchLineage = new Map<string, Set<string>>();

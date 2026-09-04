@@ -924,8 +924,13 @@ export function resolveSettingsSources(
   // primaryEndpointId was resolved above (before the thinkingEnabled fallback)
   // so the capability lookup can honour it.
 
-  const secondaryModel =
-    trimString(safeProject?.secondaryModel) || trimString(userSettings?.secondaryModel) || DEFAULT_SECONDARY_MODEL;
+  // "继承主模型" (the settings UI's inherit-primary option, stored as empty)
+  // is a FIRST-CLASS choice — no synthetic default here. A hardcoded fallback
+  // silently switched wiki retries and every secondary consumer to
+  // deepseek-v4-flash even when the user never picked it, and an unfunded
+  // v4-flash then failed those runs with 402 (real-machine 2026-08-30).
+  // Consumers inherit the primary model when this is empty.
+  const secondaryModel = trimString(safeProject?.secondaryModel) || trimString(userSettings?.secondaryModel) || "";
 
   const secondaryEndpointId =
     trimString(safeProject?.secondaryEndpointId) || trimString(userSettings?.secondaryEndpointId) || primaryEndpointId;
@@ -1058,6 +1063,9 @@ export function applyModelConfigSelection(
 
 export const DEFAULT_MODEL = "deepseek-v4-pro";
 export const DEFAULT_BASE_URL = "https://api.deepseek.com";
+/** @deprecated no longer applied by resolveCurrentSettings — empty
+ *  secondaryModel means INHERIT THE PRIMARY MODEL (2026-08-30). Kept only for
+ *  the exported API surface. */
 export const DEFAULT_SECONDARY_MODEL = "deepseek-v4-flash";
 /** Default LLM stream idle watchdog: 5 minutes of stream silence. */
 export const DEFAULT_STREAM_IDLE_TIMEOUT_MS = 300_000;
@@ -1095,6 +1103,13 @@ export type EndpointConfig = {
 /** Built-in endpoint presets offered in the settings panel. */
 export const ENDPOINT_PRESETS: ReadonlyArray<Pick<EndpointConfig, "id" | "name" | "baseURL">> = [
   { id: "deepseek", name: "DeepSeek", baseURL: "https://api.deepseek.com" },
+  // StepFun (step-3.7-flash first-party vision/reasoning family). /v1 REQUIRED:
+  // the SDK appends /chat/completions verbatim and StepFun serves the
+  // OpenAI-compatible surface at /v1/chat/completions. Two channels, same
+  // models: pay-as-you-go /v1 and the Step Plan SUBSCRIPTION channel
+  // /step_plan/v1 (quota-billed; also serves step-router-v1).
+  { id: "stepfun", name: "StepFun", baseURL: "https://api.stepfun.com/v1" },
+  { id: "stepfun-plan", name: "StepFun Plan", baseURL: "https://api.stepfun.com/step_plan/v1" },
   // opencode Zen/Go are OpenAI-compatible gateways that REQUIRE the /v1
   // segment (the SDK appends /chat/completions verbatim; without /v1 the
   // request hits the website and comes back as an HTML 404 page).

@@ -15,7 +15,7 @@
 3. **pm-design-v2 独立导出**：拍板**做**——原 §二"建议做"落定，升入 §一 #8；**同日收尾批已完成，并随后升级格式拍板为 `.ddp`（pm-design 原型）/`.ddu`（ui-design 文档）专用 ZIP 压缩包**（manifest + 源文件 + index.html，`.ddu` 含可独立打开的编译渲染）。
 4. **skill-routing 目标表 G3 大技能分片召回注入**：拍板**纳入收尾批实施**——推翻此前"建议缓做"评估（缓做理由 book-distill ≤300 行缓解论不再作为延后依据），升入 §一 #9；**同日收尾批已完成**。
 5. **task-tree artifact 快照切换**（tasks.md:35）：拍板**纳入收尾批实施**——推翻原"待真实需求再立项"缓期（file-history per-session 语义冲突作为实施时须解决的约束而非缓期理由——解法=tree 级独立仓库），升入 §一 #10；**同日收尾批已完成**。
-6. **域声明**：**deep-design = pm-design + ui-design**——deep-design 域为 pm-design 与 ui-design 的合并域（已同步至 `specs/deep-design/design.md` 状态行与 §六速览）。
+6. **域声明**：**deep-design = pm-design + ui-design**——deep-design 域为 pm-design 与 ui-design 的合并域（已同步至 `specs/archive/deep-design/design.md` 状态行与 §六速览）。
 
 未拍板维持原状：bwrap/WSL2、graph-engineering（仍留 §二）；**设置面板路径授权 UI 归位下一版强化清单**（§二——初版台账误入 §一，next-version-plan 强化清单口径为"进下一版窗口"，如需提前入收尾批须另行拍板）。
 

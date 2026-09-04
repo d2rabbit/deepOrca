@@ -112,6 +112,14 @@ export type SessionEntry = {
    * arch-scan) use these so workspace building leaks zero chat behavior.
    */
   isSilentSubagent?: boolean;
+  /**
+   * Per-session scratch workspace under the project's `.deeporca/` store
+   * (`<root>/.deeporca/sessions/<id>/`, stored ROOT-RELATIVE for
+   * portability) — multi-session groundwork: every concurrent session gets
+   * its own isolated directory for session-scoped artifacts instead of
+   * sharing one top-level scratch space. Created at session creation.
+   */
+  workspaceDir?: string;
 };
 
 export type SessionsIndex = {

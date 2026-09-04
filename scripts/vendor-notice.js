@@ -46,6 +46,12 @@ const MANIFEST = [
     notes: "Published npm package `openwiki`, installed with runtime dependencies.",
   },
   {
+    name: "Archify",
+    upstream: "https://github.com/tt-a1i/archify",
+    license: "MIT",
+    notes: "Agent skill package (typed JSON IR diagram renderers), git-pinned tag v2.15.0.",
+  },
+  {
     name: "uv",
     upstream: "https://github.com/astral-sh/uv",
     license: "MIT OR Apache-2.0",

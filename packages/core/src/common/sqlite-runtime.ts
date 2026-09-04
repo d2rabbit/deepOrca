@@ -124,11 +124,13 @@ function listNodeCandidates(): string[] {
             encoding: "utf8",
             timeout: 3000,
             stdio: ["ignore", "pipe", "ignore"],
+            windowsHide: true,
           })
         : execFileSync("which", ["-a", "node"], {
             encoding: "utf8",
             timeout: 3000,
             stdio: ["ignore", "pipe", "ignore"],
+            windowsHide: true,
           });
     for (const line of result.trim().split("\n")) {
       push(line.trim());
@@ -253,6 +255,7 @@ function probeNodeMajor(bin: string): number {
       encoding: "utf8",
       timeout: 5000,
       stdio: ["ignore", "pipe", "ignore"],
+      windowsHide: true,
     }).trim();
     const major = parseInt(out.replace(/^v/, ""), 10);
     return Number.isFinite(major) ? major : -1;
@@ -273,6 +276,7 @@ function probeNodeSqlite(bin: string): "ok" | "flag" | null {
         encoding: "utf8",
         timeout: 5000,
         stdio: ["ignore", "pipe", "ignore"],
+        windowsHide: true,
       }).trim();
       const major = parseInt(out.replace(/^v/, ""), 10);
       return Number.isFinite(major) && major < 25;

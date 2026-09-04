@@ -25,7 +25,7 @@ export type {
 
 // Controller seams (host-injected; core has zero tool-specific code).
 export { configureCodegraphController, getCodegraphController } from "./codegraph-controller";
-export type { CodegraphController, ControllerProgress } from "./codegraph-controller";
+export type { CodegraphController, ControllerProgress, ControllerSyncResult } from "./codegraph-controller";
 export { configureReviewController, getReviewController } from "./review-controller";
 export type { ReviewController, ReviewResult, ReviewComment, ReviewOptions } from "./review-controller";
 
@@ -41,8 +41,8 @@ export {
   reviewFullRun,
 } from "./review";
 export type { ReviewInput, ReviewAvailability, ReviewFullOutput } from "./review";
-export { crgReindexDefinition, crgReindexRun, crgVisualizeDefinition, crgVisualizeRun } from "./crg";
-export type { CrgReindexOutput, CrgVisualizeOutput } from "./crg";
+export { crgReindexDefinition, crgReindexRun } from "./crg";
+export type { CrgReindexOutput } from "./crg";
 // CRG query layer (Node.js direct SQLite read — replaces Python MCP server).
 export {
   configureCrgGraphQuery,
@@ -51,7 +51,15 @@ export {
   formatCrgContextForOcr,
   mergeReviewWithCrgRisk,
 } from "./crg-query";
-export type { CrgGraphQuery, CrgChangedFunction, CrgImpactNode, CrgRiskData, CrgCommunity } from "./crg-query";
+export type {
+  CrgGraphQuery,
+  CrgChangedFunction,
+  CrgImpactNode,
+  CrgRiskData,
+  CrgRiskNode,
+  CrgRiskEdge,
+  CrgCommunity,
+} from "./crg-query";
 // CRG build controller (build only — queries go through CrgGraphQuery).
 export { configureCrgController, getCrgController } from "./crg-controller";
 export type { CrgController } from "./crg-controller";
@@ -77,17 +85,18 @@ export {
 export type { WikiInitOutput, WikiPage, WikiPageDetail, WikiFrontmatter, WikiController, WikiResult } from "./wiki";
 export { indexBuildAllDefinition, indexBuildAllRun } from "./index-build";
 export type { IndexBuildInput, IndexBuildStage, IndexBuildOutput } from "./index-build";
-export { wikiTranslateDefinition, wikiTranslateRun } from "./wiki-translate";
-export type { WikiTranslateInput, WikiTranslateOutput } from "./wiki-translate";
-export {
-  detectWikiLanguage,
-  wikiVariantPath,
-  isWikiVariantFile,
-  containedUnderWiki,
-  listWikiBasePages,
-} from "./wiki-translate";
+export { isWikiVariantFile } from "./wiki-variants";
 export { archScanRunDefinition, archScanRunRun } from "./arch-scan";
 export type { ArchScanInput, ArchScanOutput } from "./arch-scan";
+export {
+  configureArchifyPaths,
+  getArchifyPaths,
+  configureArchRenderer,
+  getArchRenderer,
+  configureArchifyLanguage,
+  getArchifyLanguage,
+} from "./archify-controller";
+export type { ArchifyPaths, ArchRenderer } from "./archify-controller";
 export {
   browserSessionStartDefinition,
   browserSessionStartRun,

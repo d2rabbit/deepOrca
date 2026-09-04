@@ -2,37 +2,7 @@ import { useCallback, useEffect, useRef, useState, type JSX } from "react";
 import type { FileMatch } from "../../shared/ipc";
 import { api } from "../api";
 import { useI18n } from "../i18n";
-
-/** SVG icon for a directory folder. */
-function FolderIcon(): JSX.Element {
-  return (
-    <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false">
-      <path
-        d="M1.5 3.5A1 1 0 0 1 2.5 2.5h3.586a1 1 0 0 1 .707.293l1.414 1.414a1 1 0 0 0 .707.293h4.586a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1v-8z"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.2"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-/** SVG icon for a file document. */
-function FileIcon(): JSX.Element {
-  return (
-    <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false">
-      <path
-        d="M3.5 2.5h6l3 3v7a1 1 0 0 1-1 1h-8a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1z"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.2"
-        strokeLinejoin="round"
-      />
-      <path d="M9.5 2.5v3h3" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
-    </svg>
-  );
-}
+import { IconFileOutline, IconFolderOutline } from "../ui/icons";
 
 type Props = {
   /** Whether the menu is visible (based on @ token detection). */
@@ -165,7 +135,9 @@ export function FileMentionMenu({ open, query, onSelect, onClose, anchorRect }: 
               }}
               onMouseEnter={() => setActiveIndex(i)}
             >
-              <span className="ui-file-mention-icon">{item.type === "directory" ? <FolderIcon /> : <FileIcon />}</span>
+              <span className="ui-file-mention-icon">
+                {item.type === "directory" ? <IconFolderOutline /> : <IconFileOutline />}
+              </span>
               <span className="ui-file-mention-path">{item.path}</span>
               <span className="ui-file-mention-type">
                 {item.type === "directory" ? t("fileMenu.dir") : (item.path.split(".").pop() ?? "")}

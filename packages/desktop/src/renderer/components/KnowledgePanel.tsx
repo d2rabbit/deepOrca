@@ -2,16 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState, type JSX } from "rea
 import { api } from "../api";
 import { useI18n, type MessageKey, type Translate } from "../i18n";
 import { Button, IconMenuBars } from "../ui/index";
-import { A2uiSurface } from "../a2ui/A2uiSurface";
 import type { ActionProgressEvent, KnowledgeStatusResponse, KnowledgeSymbol, WikiPageEntry } from "../../shared/ipc";
-import { BASIC_CATALOG_ID } from "../../shared/a2ui-legacy";
 import { SymbolGraphView } from "./SymbolGraphView";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { StreamdownView } from "./StreamdownView";
-import { MermaidDiagram } from "./MermaidDiagram";
 import { TocNav, useHeadingToc } from "./TocNav";
 import { buildStageVerb, formatBuildDuration } from "./KnowledgeBuildProgress";
 import { FRONTMATTER_RE } from "../lib/frontmatter";
+import { wikiStorePath } from "../lib/generated-paths";
 import { useBuildJobs } from "../hooks/useBuildJobs";
 
 /**
@@ -28,6 +26,9 @@ import { useBuildJobs } from "../hooks/useBuildJobs";
 
 type Props = {
   root: string;
+  /** App light/dark — synced into the archify viewer via ?theme= so the
+   *  embedded board blends with the surrounding surface (2026-08-30). */
+  appearance?: "light" | "dark";
   onOpenFile: (path: string) => void;
   /** Flow bridge: quote a wiki page into the chat composer as an @-mention. */
   onQuoteToChat?: (root: string, path: string, title: string) => void;
@@ -95,7 +96,13 @@ function groupSymbols(syms: KnowledgeSymbol[]): Array<[string, KnowledgeSymbol[]
   return Object.entries(groups).sort((a, b) => b[1].length - a[1].length);
 }
 
-export function KnowledgePanel({ root, onOpenFile, onQuoteToChat }: Props): JSX.Element {
+/** Stable identity of a listed symbol (the row key) — used to keep the
+ *  selection across result refreshes, where object identity changes. */
+function symbolKey(s: KnowledgeSymbol): string {
+  return `${s.kind}:${s.filePath}:${s.startLine}:${s.name}`;
+}
+
+export function KnowledgePanel({ root, appearance, onOpenFile, onQuoteToChat }: Props): JSX.Element {
   const { t } = useI18n();
   const [status, setStatus] = useState<KnowledgeStatusResponse | null>(null);
   const [sub, setSub] = useState<SubTab>("wiki");
@@ -247,10 +254,28 @@ export function KnowledgePanel({ root, onOpenFile, onQuoteToChat }: Props): JSX.
     };
   }, [root, symbolQuery]);
 
-  // 架构图直出：the map IS the first level — auto-select the NEWEST artifact
-  // and render it full-pane. No artifact list, no "root"-style intermediate
-  // concept (product decision); reselect whenever the current pick vanishes
-  // (deleted or replaced by a fresh scan).
+  // List-view auto-select (real-machine 2026-08-28: the pane opened with a
+  // dead "select a symbol" hint on the right while the first group sat fully
+  // loaded) — same product rule as the arch map's 直出: the detail follows
+  // the results. Sticky while the current symbol survives the result set
+  // (rebound to the FRESH object so the row highlight's reference equality
+  // keeps working); a query that drops it moves the selection to the new
+  // head; no results clears it back to the empty-state hint.
+  useEffect(() => {
+    setSymbolSel((prev) => {
+      if (symbols.length === 0) return null;
+      if (prev) {
+        const still = symbols.find((s) => symbolKey(s) === symbolKey(prev));
+        if (still) return still;
+      }
+      return symbols[0];
+    });
+  }, [symbols]);
+
+  // 架构图直出：auto-select the NEWEST artifact and show its LAUNCHER pane
+  // (archify era 2026-08-29: the interactive map opens in the host's sandboxed
+  // preview window — this pane launches it). Reselect whenever the current
+  // pick vanishes (deleted or replaced by a fresh scan).
   const archFilePaths = (status?.archmaps.files ?? []).map((f) => f.path).join("|");
   // Artifact pager neighbours (Oink: pager shares the tree's one order —
   // here: mtime-desc, the exact order the auto-select newest logic uses).
@@ -279,13 +304,16 @@ export function KnowledgePanel({ root, onOpenFile, onQuoteToChat }: Props): JSX.
   }, [archFilePaths, preview]);
 
   // Reading order for prev/next paging (Oink shell idea: the sidebar tree and
-  // the pager share ONE root and order — directory-grouped depth-first).
+  // the pager share ONE root and order). Pages before dirs at EVERY level:
+  // root-level overview pages (index/quickstart) read first, then sections —
+  // the same order WikiTree renders (real-machine 2026-08-27: dirs-first sank
+  // Index/综合说明 to the bottom and made Index the pager's LAST page).
   const wikiOrder = useMemo(() => {
     const root = buildWikiTree(wikiPages);
     const order: string[] = [];
     const walk = (dir: { dirs: Map<string, ReturnType<typeof buildWikiTree>>; pages: WikiPage[] }): void => {
-      for (const d of [...dir.dirs.values()].sort((a, b) => a.name.localeCompare(b.name))) walk(d);
       for (const page of dir.pages) order.push(page.path);
+      for (const d of [...dir.dirs.values()].sort((a, b) => a.name.localeCompare(b.name))) walk(d);
     };
     walk(root);
     return order;
@@ -300,22 +328,19 @@ export function KnowledgePanel({ root, onOpenFile, onQuoteToChat }: Props): JSX.
     return { prev: idx > 0 ? at(idx - 1) : null, next: idx >= 0 ? at(idx + 1) : null };
   }, [wikiOrder, wikiSel, wikiPages]);
 
-  // Inline wiki preview: auto-select the first page once, load on selection.
+  // Inline wiki preview: auto-select the landing page once, load on selection.
+  // Prefer the wiki's index page (the 前言/导航), else the first page in the
+  // tree's reading order — the raw list's first entry is a subdirectory page.
   useEffect(() => {
     if (!wikiSel && wikiPages.length > 0) {
-      setWikiSel(wikiPages[0].path);
+      // wikiOrder[0] (NOT wikiPages[0]): the raw list is path-sorted, so its
+      // first entry is a subdirectory page even when root pages exist.
+      const indexPage = wikiPages.find((pg) => /^index\.md$/i.test(pg.path));
+      const firstInOrder = wikiPages.find((pg) => pg.path === wikiOrder[0]);
+      setWikiSel((indexPage ?? firstInOrder ?? wikiPages[0]).path);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot default selection
   }, [wikiPages, wikiSel]);
-
-  // 原文/译文 toggle (backend bilingual translation): per-page preference,
-  // reset when the selection changes — landing on a new page should always
-  // show the original first, then honor a deliberate toggle.
-  const wikiEntry = wikiPages.find((pg) => pg.path === wikiSel) ?? null;
-  const [preferTranslation, setPreferTranslation] = useState(false);
-  useEffect(() => {
-    setPreferTranslation(false);
-  }, [wikiSel]);
-  const readPath = preferTranslation && wikiEntry?.translation ? wikiEntry.translation.path : wikiSel;
 
   useEffect(() => {
     if (!wikiSel) return;
@@ -324,7 +349,7 @@ export function KnowledgePanel({ root, onOpenFile, onQuoteToChat }: Props): JSX.
     setWikiContent(null);
     (async () => {
       try {
-        const res = await api.editorReadFile(`${root}/openwiki/${readPath}`);
+        const res = await api.editorReadFile(wikiStorePath(root, wikiSel));
         if (!alive) return;
         setWikiContent(res.ok && !res.binary ? (res.content ?? "") : null);
       } catch {
@@ -336,7 +361,7 @@ export function KnowledgePanel({ root, onOpenFile, onQuoteToChat }: Props): JSX.
     return () => {
       alive = false;
     };
-  }, [root, wikiSel, readPath]);
+  }, [root, wikiSel]);
 
   return (
     <div className="ui-knowledge-view">
@@ -396,7 +421,7 @@ export function KnowledgePanel({ root, onOpenFile, onQuoteToChat }: Props): JSX.
                     ) : wikiContent != null ? (
                       <WikiPageView
                         raw={wikiContent}
-                        onOpenFile={() => onOpenFile(`${root}/openwiki/${wikiSel}`)}
+                        onOpenFile={() => onOpenFile(wikiStorePath(root, wikiSel))}
                         openLabel={t("index.openInEditor")}
                         onQuote={onQuoteToChat ? (title) => onQuoteToChat(root, wikiSel, title) : undefined}
                         quoteLabel={t("index.quoteWiki")}
@@ -405,9 +430,6 @@ export function KnowledgePanel({ root, onOpenFile, onQuoteToChat }: Props): JSX.
                         next={wikiNeighbours.next}
                         onNavigate={(path) => setWikiSel(path)}
                         tocLabel={t("index.wikiToc")}
-                        translation={wikiEntry?.translation}
-                        preferTranslation={preferTranslation}
-                        onToggleTranslation={setPreferTranslation}
                       />
                     ) : (
                       <div className="ui-side-panel-empty">{t("index.wikiPreviewFailed")}</div>
@@ -458,10 +480,11 @@ export function KnowledgePanel({ root, onOpenFile, onQuoteToChat }: Props): JSX.
                 >
                   ⌂ {t("symbols.home")}
                 </button>
-                <div className="ui-knowledge-symbol-viewtoggle">
+                <div className="ui-knowledge-symbol-viewtoggle" role="group">
                   <button
                     type="button"
                     className={symbolView === "graph" ? "active" : ""}
+                    aria-pressed={symbolView === "graph"}
                     onClick={() => setSymbolView("graph")}
                   >
                     ◈ {t("index.symbolViewGraph")}
@@ -469,6 +492,7 @@ export function KnowledgePanel({ root, onOpenFile, onQuoteToChat }: Props): JSX.
                   <button
                     type="button"
                     className={symbolView === "list" ? "active" : ""}
+                    aria-pressed={symbolView === "list"}
                     onClick={() => setSymbolView("list")}
                   >
                     <IconMenuBars /> {t("index.symbolViewList")}
@@ -482,75 +506,76 @@ export function KnowledgePanel({ root, onOpenFile, onQuoteToChat }: Props): JSX.
               ) : symbols.length === 0 ? (
                 <div className="ui-side-panel-empty">{t("index.symbolsNoMatch")}</div>
               ) : (
-                <div className="ui-knowledge-wiki">
-                  <div className="ui-knowledge-wiki-list">
-                    {groupSymbols(symbols).map(([kind, group]) => (
-                      <div key={kind} className="ui-knowledge-wiki-group">
-                        <div className="ui-knowledge-wiki-group-label">
-                          {kind} <span className="ui-knowledge-wiki-group-count">{group.length}</span>
+                <div className="ui-symbol-graph-scroll">
+                  <div className="ui-knowledge-wiki">
+                    <div className="ui-knowledge-wiki-list">
+                      {groupSymbols(symbols).map(([kind, group]) => (
+                        <div key={kind} className="ui-knowledge-wiki-group">
+                          <div className="ui-knowledge-wiki-group-label">
+                            {kind} <span className="ui-knowledge-wiki-group-count">{group.length}</span>
+                          </div>
+                          {group.map((sym) => (
+                            <button
+                              key={`${sym.kind}:${sym.filePath}:${sym.startLine}:${sym.name}`}
+                              type="button"
+                              className={`ui-knowledge-item${symbolSel && symbolKey(symbolSel) === symbolKey(sym) ? " selected" : ""}`}
+                              onClick={() => setSymbolSel(sym)}
+                              title={`${sym.kind} · ${sym.filePath}:${sym.startLine}`}
+                            >
+                              <span className="ui-knowledge-item-name">{sym.name}</span>
+                              <span className="ui-knowledge-item-meta">
+                                {sym.filePath.split("/").pop()}:{sym.startLine}
+                              </span>
+                            </button>
+                          ))}
                         </div>
-                        {group.map((sym) => (
-                          <button
-                            key={`${sym.kind}:${sym.filePath}:${sym.startLine}:${sym.name}`}
-                            type="button"
-                            className={`ui-knowledge-item${symbolSel === sym ? " selected" : ""}`}
-                            onClick={() => setSymbolSel(sym)}
-                            title={`${sym.kind} · ${sym.filePath}:${sym.startLine}`}
-                          >
-                            <span className="ui-knowledge-item-name">{sym.name}</span>
-                            <span className="ui-knowledge-item-meta">
-                              {sym.filePath.split("/").pop()}:{sym.startLine}
-                            </span>
-                          </button>
-                        ))}
-                      </div>
-                    ))}
-                  </div>
-                  <div className="ui-knowledge-wiki-preview">
-                    {symbolSel ? (
-                      <div className="ui-knowledge-symbol-detail">
-                        <div className="ui-knowledge-symbol-detail-head">
-                          <span className="ui-knowledge-sym-kind">{symbolSel.kind}</span>
-                          <strong className="ui-knowledge-symbol-detail-name">{symbolSel.name}</strong>
+                      ))}
+                    </div>
+                    <div className="ui-knowledge-wiki-preview">
+                      {symbolSel ? (
+                        <div className="ui-knowledge-symbol-detail">
+                          <div className="ui-knowledge-symbol-detail-head">
+                            <span className="ui-knowledge-sym-kind">{symbolSel.kind}</span>
+                            <strong className="ui-knowledge-symbol-detail-name">{symbolSel.name}</strong>
+                          </div>
+                          {symbolSel.signature ? (
+                            <pre className="ui-knowledge-symbol-signature">{symbolSel.signature}</pre>
+                          ) : null}
+                          <div className="ui-knowledge-symbol-location">
+                            {symbolSel.filePath}:{symbolSel.startLine}
+                          </div>
+                          <div className="ui-knowledge-preview-actions">
+                            <Button
+                              size="sm"
+                              variant="subtle"
+                              onClick={() => onOpenFile(`${root}/${symbolSel.filePath}`)}
+                            >
+                              {t("index.openInEditor")}
+                            </Button>
+                          </div>
                         </div>
-                        {symbolSel.signature ? (
-                          <pre className="ui-knowledge-symbol-signature">{symbolSel.signature}</pre>
-                        ) : null}
-                        <div className="ui-knowledge-symbol-location">
-                          {symbolSel.filePath}:{symbolSel.startLine}
-                        </div>
-                        <div className="ui-knowledge-preview-actions">
-                          <Button
-                            size="sm"
-                            variant="subtle"
-                            onClick={() => onOpenFile(`${root}/${symbolSel.filePath}`)}
-                          >
-                            {t("index.openInEditor")}
-                          </Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="ui-side-panel-empty">{t("index.symbolPickHint")}</div>
-                    )}
+                      ) : (
+                        <div className="ui-side-panel-empty">{t("index.symbolPickHint")}</div>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}
             </div>
           ) : (
-            <div className="ui-knowledge-arch">
+            <div className="ui-knowledge-arch ui-arch-board">
               {(status?.archmaps.files ?? []).length === 0 ? (
                 <div className="ui-side-panel-empty">{t("index.archmapsEmpty")}</div>
-              ) : preview ? (
-                <div className="ui-knowledge-preview ui-knowledge-preview-full">
-                  <KnowledgeArchPreview
-                    path={preview}
-                    title={(status?.archmaps.files ?? []).find((f) => f.path === preview)?.name ?? preview}
-                    onOpenFile={onOpenFile}
-                    onNavigate={(path) => setPreview(path)}
-                    neighbours={archNeighbours}
-                  />
-                </div>
-              ) : null}
+              ) : (
+                <ArchBoard
+                  files={status?.archmaps.files ?? []}
+                  selected={preview}
+                  appearance={appearance}
+                  onSelect={(p) => setPreview(p)}
+                  onOpenFile={onOpenFile}
+                  neighbours={archNeighbours}
+                />
+              )}
             </div>
           )}
         </ErrorBoundary>
@@ -628,9 +653,6 @@ function WikiPageView({
   next,
   onNavigate,
   tocLabel,
-  translation,
-  preferTranslation,
-  onToggleTranslation,
 }: {
   raw: string;
   onOpenFile: () => void;
@@ -646,10 +668,6 @@ function WikiPageView({
   next: WikiPage | null;
   onNavigate: (path: string) => void;
   tocLabel: string;
-  /** Backend bilingual sibling (wiki.translate stage) — enables 原文/译文. */
-  translation?: WikiPageEntry["translation"];
-  preferTranslation: boolean;
-  onToggleTranslation: (preferred: boolean) => void;
 }): JSX.Element {
   const { t } = useI18n();
   const { title, description, body } = useMemo(() => extractWikiPageMeta(raw), [raw]);
@@ -664,56 +682,37 @@ function WikiPageView({
 
   return (
     <div className="ui-wiki-page">
+      {/* 横幅只保留动作（user ask 2026-09-03）：标题/简介/面包屑全部
+          下沉到正文头部，跟随正文滚动 —— 元数据来自 front matter，
+          纯渲染组装，不影响文档生成物。 */}
       <div className="ui-wiki-page-head">
-        <div className="ui-wiki-page-head-main">
-          {crumb.length > 1 ? (
-            <div className="ui-wiki-breadcrumb" aria-hidden>
-              {crumb.slice(0, -1).map((part, i) => (
-                <span key={i} className="ui-wiki-breadcrumb-part">
-                  {part}
-                </span>
-              ))}
-            </div>
-          ) : null}
-          <div className="ui-wiki-page-head-row">
-            <span className="ui-wiki-page-icon" aria-hidden>
-              ▤
-            </span>
-            {title ? <h1 className="ui-wiki-page-title">{title}</h1> : <span className="ui-wiki-page-title" />}
-            {translation ? (
-              <div className="ui-wiki-lang-toggle" role="group">
-                <button
-                  type="button"
-                  className={`ui-wiki-lang-btn${!preferTranslation ? " active" : ""}`}
-                  aria-pressed={!preferTranslation}
-                  onClick={() => onToggleTranslation(false)}
-                >
-                  {t("index.wikiOriginal")}
-                </button>
-                <button
-                  type="button"
-                  className={`ui-wiki-lang-btn${preferTranslation ? " active" : ""}`}
-                  aria-pressed={preferTranslation}
-                  onClick={() => onToggleTranslation(true)}
-                >
-                  {t("index.wikiTranslation")} · {translation.lang.toUpperCase()}
-                </button>
-              </div>
-            ) : null}
-            {onQuote ? (
-              <Button size="sm" variant="primary" className="ui-wiki-page-quote" onClick={() => onQuote(quoteTitle)}>
-                {quoteLabel}
-              </Button>
-            ) : null}
-            <Button size="sm" variant="subtle" onClick={onOpenFile}>
-              {openLabel}
-            </Button>
-          </div>
-          {description ? <div className="ui-wiki-page-desc">{description}</div> : null}
-        </div>
+        <span className="ui-wiki-page-icon" aria-hidden>
+          ▤
+        </span>
+        {onQuote ? (
+          <Button size="sm" variant="primary" className="ui-wiki-page-quote" onClick={() => onQuote(quoteTitle)}>
+            {quoteLabel}
+          </Button>
+        ) : null}
+        <Button size="sm" variant="subtle" onClick={onOpenFile}>
+          {openLabel}
+        </Button>
       </div>
       <div className="ui-wiki-columns">
         <div ref={docRef} className="ui-wiki-doc-wrap">
+          <div className="ui-wiki-doc-head">
+            {crumb.length > 1 ? (
+              <div className="ui-wiki-breadcrumb" aria-hidden>
+                {crumb.slice(0, -1).map((part, i) => (
+                  <span key={i} className="ui-wiki-breadcrumb-part">
+                    {part}
+                  </span>
+                ))}
+              </div>
+            ) : null}
+            {title ? <h1 className="ui-wiki-page-title">{title}</h1> : null}
+            {description ? <div className="ui-wiki-page-desc">{description}</div> : null}
+          </div>
           <StreamdownView className="ui-knowledge-agents-md ui-md ui-wiki-doc" markdown={body} />
         </div>
         <TocNav entries={toc} activeId={activeId} label={tocLabel} onJump={jump} />
@@ -742,314 +741,143 @@ function WikiPageView({
   );
 }
 
-/** Architecture-map preview. Two artifact generations:
- *  - `.md` (current): a Mermaid diagram document — only the diagrams render
- *    (the map IS a picture; the prose between the fences is scan narration).
- *  - `.json` (legacy): the persisted A2UI surface JSON replayed through the
- *    real A2UI component renderer (the same one the conversation surfaces use). */
-type ArchContent =
-  | { kind: "md"; markdown: string }
-  | { kind: "html"; html: string }
-  | { kind: "a2ui"; messagesJson: string; surfaceId: string };
-
-/** Extract ```mermaid fence bodies — the arch doc's prose is not displayed. */
-/** One rendered chart plus the document section it belongs to.
- *  The nearest preceding heading becomes the chart's title — arch-scan writes
- *  its narration as headed sections, so the heading IS the relationship the
- *  chart bears to the ones around it (top-level → module → detail). */
-type ArchSection = { title: string; chart: string };
-
-/** Split an arch doc into headed mermaid sections (state machine over lines —
- *  fence-aware, so a heading inside a diagram is never mistaken for a doc
- *  heading). Charts with no preceding heading fall back to 图 N. Fences may be
- *  indented (list-nested or hand-written docs) — the skill contract only
- *  guarantees top-level fences for its OWN output; silently dropping every
- *  indented chart was a compat regression vs the old regex extractor. */
-function extractArchSections(markdown: string): ArchSection[] {
-  const sections: ArchSection[] = [];
-  let heading = "";
-  let inFence = false;
-  let chartLines: string[] = [];
-  for (const line of markdown.split(/\r?\n/)) {
-    if (!inFence && /^\s*```mermaid\s*$/.test(line)) {
-      inFence = true;
-      chartLines = [];
-      continue;
-    }
-    if (inFence && /^\s*```\s*$/.test(line)) {
-      inFence = false;
-      const chart = chartLines.join("\n").trim();
-      if (chart) sections.push({ title: heading, chart });
-      continue;
-    }
-    if (inFence) {
-      chartLines.push(line);
-      continue;
-    }
-    const h = line.match(/^#{1,4}\s+(.+?)\s*#*\s*$/);
-    if (h) heading = h[1].trim();
-  }
-  return sections;
+/** pathToFileURL-equivalent for the renderer (no node:url in the browser
+ *  bundle): POSIX → file:///<encoded>, Windows → file:///C:/<encoded> — the
+ *  bare `file://${path}` form parses Windows drive letters as the URL host
+ *  and truncates at `#`/`%` (repo discipline: ipc-security.ts). */
+function toFileUrl(p: string): string {
+  const isWin = /^[A-Za-z]:[\\/]/.test(p);
+  const norm = p.replace(/\\/g, "/");
+  const encoded = norm
+    .split("/")
+    .map((seg) => encodeURIComponent(seg))
+    .join("/");
+  return isWin ? `file:///${encoded}` : `file://${encoded.startsWith("/") ? "" : "/"}${encoded}`;
 }
 
 /**
- * One chart FITTED inside its card within a NARROW SCALE BAND. Real-machine
- * feedback ("图好乱"): uncapped fill-width scaling made text sizes swing
- * wildly across cards — a 3-node chart ballooned while a dense one shrank to
- * noise. Every chart now renders at 18px source font, and the scale is
- * clamped to [minScale, maxScale] so effective text height stays comparable
- * card-to-card; a chart that doesn't fill its card just centers with air.
- * Explicit scaled box (transform alone doesn't grow the layout box); the
- * inner box stays unscaled and is what the observer measures.
+ * Architecture BOARD (user decision 2026-08-29: 嵌入自家画板 + 一级直出 +
+ * 子级类似索引关系图动态绘制):
+ *   - HERO (the newest `architecture` artifact) embeds archify's validated
+ *     HTML INLINE via iframe — the first level is directly expanded when the
+ *     tab opens, no launcher, no external window;
+ *   - SUB-LEVEL artifacts (module/dataflow/sequence/…) render with OUR
+ *     dynamic SVG map (ArchifyMiniMap, symbol-graph interaction grammar);
+ *   - the rail lists every artifact; selecting swaps the pane (hero embeds,
+ *     sub-levels draw); a secondary button still opens the standalone window.
  */
-function ArchChartFit({
-  chart,
-  minScale,
-  maxScale,
-}: {
-  chart: string;
-  minScale: number;
-  maxScale: number;
-}): JSX.Element {
-  const frameRef = useRef<HTMLDivElement>(null);
-  const innerRef = useRef<HTMLDivElement>(null);
-  const [natural, setNatural] = useState({ w: 0, h: 0 });
-  const [boxW, setBoxW] = useState(0);
-  // Card content width (frame) — belt-and-braces measurement, same rationale
-  // as the symbol graph (a lone contentRect observer missed a maximize).
-  const measure = useCallback(() => {
-    const frame = frameRef.current;
-    const inner = innerRef.current;
-    if (frame) {
-      const w = Math.floor(frame.getBoundingClientRect().width);
-      if (w > 0) setBoxW((prev) => (Math.abs(prev - w) > 1 ? w : prev));
-    }
-    if (inner && (inner.offsetWidth > 0 || inner.offsetHeight > 0)) {
-      setNatural((prev) =>
-        prev.w === inner.offsetWidth && prev.h === inner.offsetHeight
-          ? prev
-          : { w: inner.offsetWidth, h: inner.offsetHeight }
-      );
-    }
-  }, []);
-  useEffect(() => {
-    measure();
-    let ro: ResizeObserver | undefined;
-    if (typeof ResizeObserver !== "undefined") {
-      ro = new ResizeObserver(() => measure());
-      if (frameRef.current) ro.observe(frameRef.current);
-      if (innerRef.current) ro.observe(innerRef.current);
-    }
-    window.addEventListener("resize", measure);
-    return () => {
-      ro?.disconnect();
-      window.removeEventListener("resize", measure);
-    };
-  }, [measure]);
-  const scale = natural.w > 0 && boxW > 0 ? Math.min(maxScale, Math.max(minScale, boxW / natural.w)) : 1;
-  return (
-    <div className="ui-arch-chart-fit" ref={frameRef}>
-      <div
-        className="ui-arch-chart-box"
-        style={natural.w > 0 ? { width: natural.w * scale, height: natural.h * scale } : undefined}
-      >
-        <div
-          ref={innerRef}
-          className="ui-arch-chart-inner"
-          style={natural.w > 0 ? { transform: `scale(${scale})`, transformOrigin: "top left" } : undefined}
-        >
-          <MermaidDiagram chart={chart} />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/**
- * Arch map viewer — a BOARD, not a document (real-machine feedback round 4:
- * the vertical stack still read as one long messy column).
- *   - the FIRST chart (arch-scan's overall view) is the HERO card, full width;
- *   - every following module chart is a card in a responsive CSS grid
- *     (auto-fit ≥ 380px columns) — a maximized window shows 2-4 cards per
- *     row, so the page fills BOTH dimensions instead of one long column;
- *   - a drill rail joins the hero zone to the module zone (the scan IS a
- *     top-down progression);
- *   - each chart fits its card independently (down freely, up capped), so
- *     text sizes stay comparable and nothing balloons or shrinks to noise.
- * Documents with no mermaid block fall back to full markdown so nothing
- * renders blank.
- */
-function ArchDiagrams({
-  markdown,
-  onOpenSource,
-  tocLabel,
-}: {
-  markdown: string;
-  onOpenSource: (() => void) | null;
-  tocLabel: string;
-}): JSX.Element {
-  const { t } = useI18n();
-  const sections = useMemo(() => extractArchSections(markdown), [markdown]);
-  // On-this-page rail (Oink adaptation): one entry per chart section,
-  // scrollspy over the board's own scroll container.
-  const boardRef = useRef<HTMLDivElement>(null);
-  const { toc, activeId } = useHeadingToc(boardRef, sections, {
-    selector: ".ui-arch-card",
-    idPrefix: "arch",
-    scrollerClosest: ".ui-arch-board",
-    textOf: (el) => el.getAttribute("data-toc") ?? "",
-  });
-  const jump = (id: string): void => {
-    boardRef.current?.querySelector(`#${CSS.escape(id)}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
-  };
-
-  if (sections.length === 0) {
-    return <StreamdownView className="ui-knowledge-agents-md ui-md ui-knowledge-arch-md" markdown={markdown} />;
-  }
-  const [hero, ...modules] = sections;
-  const head = (section: ArchSection, n: number): JSX.Element => (
-    <div className="ui-arch-section-head">
-      <span className="ui-arch-section-badge">{t("index.archChart", { n })}</span>
-      <span className="ui-arch-section-title">{section.title || t("index.archChart", { n })}</span>
-    </div>
-  );
-
-  return (
-    <div className="ui-arch-viewer">
-      <div className="ui-arch-toolbar">
-        <span className="ui-arch-count">{t("index.archChartCount", { n: sections.length })}</span>
-        {onOpenSource ? (
-          <Button size="sm" variant="subtle" onClick={onOpenSource}>
-            {t("index.openInEditor")}
-          </Button>
-        ) : null}
-      </div>
-      <div className="ui-arch-shell">
-        <div className="ui-arch-board" ref={boardRef}>
-          <div
-            className="ui-arch-card ui-arch-card--hero"
-            data-toc={`${t("index.archChart", { n: 1 })} · ${hero.title || ""}`}
-          >
-            {head(hero, 1)}
-            <ArchChartFit chart={hero.chart} minScale={0.6} maxScale={1.8} />
-          </div>
-          {modules.length > 0 ? (
-            <>
-              <div className="ui-arch-flow" aria-hidden>
-                <span className="ui-arch-flow-line" />
-                <span className="ui-arch-flow-node">◆</span>
-                <span className="ui-arch-flow-line" />
-              </div>
-              <div className="ui-arch-grid">
-                {modules.map((section, i) => (
-                  <div
-                    className="ui-arch-card"
-                    key={i}
-                    data-toc={`${t("index.archChart", { n: i + 2 })} · ${section.title || ""}`}
-                  >
-                    {head(section, i + 2)}
-                    <ArchChartFit chart={section.chart} minScale={0.55} maxScale={1.6} />
-                  </div>
-                ))}
-              </div>
-            </>
-          ) : null}
-        </div>
-        <TocNav entries={toc} activeId={activeId} label={tocLabel} onJump={jump} className="ui-arch-toc" />
-      </div>
-    </div>
-  );
-}
-
-function KnowledgeArchPreview({
-  path,
-  title,
-  onOpenFile,
-  onNavigate,
+function ArchBoard({
+  files,
+  selected,
+  appearance,
+  onSelect,
+  onOpenFile: _onOpenFile,
   neighbours,
 }: {
-  path: string;
-  title: string;
+  files: Array<{ name: string; path: string; mtime: string; type?: string; htmlPath?: string }>;
+  selected: string | null;
+  appearance?: "light" | "dark";
+  onSelect: (path: string) => void;
   onOpenFile: (path: string) => void;
-  /** Artifact pager (Oink idea: one order, pager navigates it). */
-  onNavigate: (path: string) => void;
   neighbours: { prevName: string | null; prevPath: string | null; nextName: string | null; nextPath: string | null };
 }): JSX.Element {
   const { t } = useI18n();
-  const archTitle = title.replace(/^arch-/, "").replace(/\.(json|md|html)$/, "");
-  const [content, setContent] = useState<ArchContent | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
+  // Hero = newest architecture artifact; fall back to newest of any type.
+  const heroPath = useMemo(() => {
+    const archs = files.filter((f) => f.type === "architecture");
+    const pool = archs.length > 0 ? archs : files;
+    return [...pool].sort((a, b) => b.mtime.localeCompare(a.mtime))[0]?.path ?? null;
+  }, [files]);
+  const current = selected ?? heroPath;
+  const currentEntry = files.find((f) => f.path === current) ?? null;
+  const [rendered, setRendered] = useState<string | null>(null);
+  // In-app fullscreen overlay (user ask 2026-08-30: A2UI 动态弹窗, NOT an OS
+  // window) — the same embed URL expanded to cover the app, ESC to dismiss.
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  // Theme the embed loads with — frozen at mount so an appearance toggle does
+  // NOT rewrite the iframe src (that would reload the diagram and drop the
+  // reader's pan/zoom); live changes ride the deeporca-theme postMessage
+  // channel handled by the host viewer patch instead.
+  // Theme the embed loads with — captured at gate resolution so an appearance
+  // toggle NEVER rewrites the iframe src (a src change navigates the frame,
+  // dropping the reader's pan/zoom). Live changes ride the deeporca-theme
+  // postMessage channel handled by the host viewer patch instead.
+  const appearanceRef = useRef(appearance);
+  appearanceRef.current = appearance;
+  const [embedSrc, setEmbedSrc] = useState<string | null>(null);
+  const frameRef = useRef<HTMLIFrameElement | null>(null);
   useEffect(() => {
+    // Fire on appearance change AND after each fresh frame (embedSrc switch):
+    // fresh frames already carry the theme in their src, so this is a no-op
+    // for them — it exists so a mid-load toggle is re-asserted.
+    if (!appearance) return;
+    frameRef.current?.contentWindow?.postMessage({ type: "deeporca-theme", theme: appearance }, "*");
+  }, [appearance, embedSrc]);
+
+  // ALWAYS run the render gate on selection (review round 7, security): the
+  // host verifies the deliver-receipt (sha sidecar) and re-renders anything
+  // it did not produce — an htmlPath that merely EXISTS never embeds. Valid
+  // receipts take the hash-check fast path (no spawn).
+  useEffect(() => {
+    setErr(null);
+    // Reset the on-demand result whenever the SELECTION changes — a stale
+    // htmlPath from artifact A would flash A's iframe under B's title
+    // (review round 7) and keep the ⧉ button pointing at A.
+    setRendered(null);
+    setEmbedSrc(null);
+    if (!currentEntry) {
+      setBusy(false);
+      return;
+    }
     let alive = true;
-    setContent(null);
-    setError(null);
+    setBusy(true);
     (async () => {
-      try {
-        const result = await api.knowledgeReadArchmap(path);
-        if (!alive) return;
-        if (!result.ok) {
-          setError(result.error ?? t("app.requestFailed"));
-          return;
-        }
-        if (result.markdown != null) {
-          setContent({ kind: "md", markdown: result.markdown });
-          return;
-        }
-        if (result.html != null) {
-          setContent({ kind: "html", html: result.html });
-          return;
-        }
-        const surface = result.surface;
-        // Prefer replaying the recorded message history; fall back to a
-        // synthesized snapshot for older files that only stored components.
-        const messages =
-          Array.isArray(surface.messages) && surface.messages.length > 0
-            ? surface.messages
-            : [
-                {
-                  version: "v0.9",
-                  createSurface: { surfaceId: surface.surfaceId, catalogId: BASIC_CATALOG_ID },
-                },
-                {
-                  version: "v0.9",
-                  updateComponents: { surfaceId: surface.surfaceId, components: surface.components ?? [] },
-                },
-                {
-                  version: "v0.9",
-                  updateDataModel: { surfaceId: surface.surfaceId, path: "/", value: surface.dataModel ?? {} },
-                },
-              ];
-        setContent({ kind: "a2ui", messagesJson: JSON.stringify(messages), surfaceId: surface.surfaceId });
-      } catch (err) {
-        if (alive) setError(err instanceof Error ? err.message : String(err));
-      }
-    })();
+      const res = await api.knowledgeArchRender(currentEntry.path);
+      if (!alive) return;
+      if (res.ok && res.htmlPath) {
+        setRendered(res.htmlPath);
+        setEmbedSrc(
+          `${toFileUrl(res.htmlPath)}?present=1${appearanceRef.current ? `&theme=${appearanceRef.current}` : ""}`
+        );
+      } else setErr(res.error ?? t("app.requestFailed"));
+    })().finally(() => alive && setBusy(false));
     return () => {
       alive = false;
     };
-  }, [path, t]);
+  }, [currentEntry?.path, currentEntry?.htmlPath, t]); // eslint-disable-line react-hooks/exhaustive-deps -- entry identity changes per list refresh; only path/htmlPath drive the gate
 
-  if (error) return <div className="ui-knowledge-preview-error">{error}</div>;
-  const meta =
-    content?.kind === "md"
-      ? "Mermaid"
-      : content?.kind === "html"
-        ? "HTML Board"
-        : content?.kind === "a2ui"
-          ? `A2UI v0.9 · ${content.surfaceId}`
-          : "…";
+  // Render-phase reset (red-team A-1): a selection switch must drop the
+  // previous artifact's embed in the SAME commit as the title change — the
+  // effect-based reset alone painted one committed frame of artifact A's
+  // iframe under artifact B's header.
+  const lastGatePath = useRef<string | null>(null);
+  if ((currentEntry?.path ?? null) !== lastGatePath.current) {
+    lastGatePath.current = currentEntry?.path ?? null;
+    if (rendered) setRendered(null);
+    if (embedSrc) setEmbedSrc(null);
+  }
+
+  if (!currentEntry) return <div className="ui-side-panel-empty">{t("index.archmapsEmpty")}</div>;
+  // Trust ONLY gate output (receipt-verified) — a bare htmlPath could be
+  // model-authored HTML (review round 7, security).
+  const htmlSrc = rendered ?? undefined;
+  const title = currentEntry.name
+    .replace(/^arch-/, "")
+    .replace(/\.(architecture|workflow|sequence|dataflow|lifecycle)$/, "");
+
   return (
-    <div className="ui-knowledge-archframe">
-      <div className="ui-knowledge-archframe-head">
-        <span className="ui-knowledge-archframe-title">◈ {archTitle}</span>
+    <div className="ui-arch-board">
+      <div className="ui-arch-board-head">
+        <span className="ui-arch-board-title">◈ {title}</span>
+        <span className="ui-arch-board-meta">{currentEntry.type ?? "diagram"}</span>
         <div className="ui-arch-pager">
           {neighbours.prevPath ? (
             <button
               type="button"
               title={neighbours.prevName ?? undefined}
               aria-label={t("index.wikiPrev")}
-              onClick={() => onNavigate(neighbours.prevPath ?? "")}
+              onClick={() => onSelect(neighbours.prevPath ?? "")}
             >
               ←
             </button>
@@ -1059,48 +887,78 @@ function KnowledgeArchPreview({
               type="button"
               title={neighbours.nextName ?? undefined}
               aria-label={t("index.wikiNext")}
-              onClick={() => onNavigate(neighbours.nextPath ?? "")}
+              onClick={() => onSelect(neighbours.nextPath ?? "")}
             >
               →
             </button>
           ) : null}
         </div>
-        <span className="ui-knowledge-archframe-meta">{meta}</span>
       </div>
-      <div className="ui-knowledge-preview-a2ui">
-        {content?.kind === "md" ? (
-          <ArchDiagrams
-            markdown={content.markdown}
-            onOpenSource={() => onOpenFile(path)}
-            tocLabel={t("index.wikiToc")}
-          />
-        ) : content?.kind === "html" ? (
-          /* The layered board: self-contained, JavaScript-free HTML painted on a
-           * fully-sandboxed canvas (empty sandbox = no scripts, no same-origin,
-           * no navigation — the board is pure CSS). Same srcDoc channel the CRG
-           * architecture graph uses in the right dock. */
-          <iframe
-            srcDoc={content.html}
-            title={archTitle}
-            sandbox=""
-            /* Transparent, not white: the board's own prefers-color-scheme
-             * supplies both palettes, and a hard white backing lit the whole
-             * pane when the system ran dark. (The board follows the SYSTEM
-             * scheme — a sandboxed srcDoc iframe cannot see the in-app
-             * appearance toggle.) */
-            style={{ width: "100%", height: "100%", border: "none", background: "transparent" }}
-          />
-        ) : content?.kind === "a2ui" ? (
-          <A2uiSurface messagesJson={content.messagesJson} surfaceId={content.surfaceId} />
-        ) : (
+      {/* Hero: iframe primary (archify validated render) + graph drill-down
+          (SymbolGraphView grammar) side by side — the user sees BOTH the
+          polished render AND the navigable component graph. */}
+      <div className="ui-arch-board-pane">
+        {busy ? (
           <div className="ui-knowledge-preview-loading" />
-        )}
+        ) : err ? (
+          <div className="ui-knowledge-preview-error">{err}</div>
+        ) : htmlSrc ? (
+          // Inline embed of archify's validated, self-contained artifact.
+          // sandbox: scripts only (round 7) — the viewer runtime works
+          // without same-origin; the framed doc cannot touch app storage.
+          <iframe
+            key={htmlSrc}
+            ref={frameRef}
+            // Mid-load theme toggles post into a frame whose listener isn't
+            // installed yet and are lost — re-assert from the latest
+            // appearance once the document is actually live.
+            onLoad={() => {
+              const theme = appearanceRef.current;
+              const w = frameRef.current?.contentWindow;
+              if (theme && w) w.postMessage({ type: "deeporca-theme", theme }, "*");
+            }}
+            className="ui-arch-board-frame"
+            // present=1 = the mode from the user's correct reference (图2):
+            // SVG fills the frame, archify's internal interactions (node
+            // click → SEMANTIC PASSPORT panel near the node) work as the
+            // vendored viewer designed them.
+            // embedSrc is frozen per gate resolution — appearance toggles
+            // never mutate this src (they postMessage instead), so the
+            // reader's pan/zoom survives a theme switch.
+            src={embedSrc ?? undefined}
+            // No allow-same-origin (review round 7): the artifact is
+            // self-contained and needs no same-origin resources — the
+            // scripts+same-origin pair would let a hostile framed doc reach
+            // into same-origin storage. Scripts alone keep the viewer alive.
+            sandbox="allow-scripts"
+            title={title}
+          />
+        ) : null}
       </div>
+      {/* Sub-level rail: every OTHER artifact */}
+      {files.length > 1 ? (
+        <div className="ui-arch-board-rail">
+          {files
+            .filter((f) => f.path !== currentEntry.path)
+            .map((f) => (
+              <button
+                type="button"
+                key={f.path}
+                className={`ui-arch-rail-chip${f.path === current ? " active" : ""}`}
+                onClick={() => onSelect(f.path)}
+              >
+                <span className="sym-dot" style={{ background: f.type === "architecture" ? "#2dd4bf" : "#a78bfa" }} />
+                <span className="ui-arch-rail-name">
+                  {f.name.replace(/^arch-/, "").replace(/\.(architecture|workflow|sequence|dataflow|lifecycle)$/, "")}
+                </span>
+                <span className="ui-arch-rail-type">{f.type ?? ""}</span>
+              </button>
+            ))}
+        </div>
+      ) : null}
     </div>
   );
 }
-
-// ── Wiki directory tree (R3-6): standard collapsible explorer tree ─────────
 
 type WikiTreeDir = {
   name: string;
@@ -1159,17 +1017,6 @@ function WikiTreeDirView({
       </button>
       {open ? (
         <div className="ui-wiki-tree-children">
-          {[...dir.dirs.values()].map((child) => (
-            <WikiTreeDirView
-              key={child.name}
-              dir={child}
-              depth={depth + 1}
-              selected={selected}
-              onSelect={onSelect}
-              formatRelative={formatRelative}
-              defaultOpen={depth < 1}
-            />
-          ))}
           {dir.pages.map((page) => (
             <button
               key={page.path}
@@ -1183,6 +1030,17 @@ function WikiTreeDirView({
               <span className="ui-knowledge-item-name">{page.title}</span>
               <span className="ui-knowledge-item-meta">{formatRelative(page.mtime)}</span>
             </button>
+          ))}
+          {[...dir.dirs.values()].map((child) => (
+            <WikiTreeDirView
+              key={child.name}
+              dir={child}
+              depth={depth + 1}
+              selected={selected}
+              onSelect={onSelect}
+              formatRelative={formatRelative}
+              defaultOpen={depth < 1}
+            />
           ))}
         </div>
       ) : null}
@@ -1204,19 +1062,9 @@ function WikiTree({
   const root = useMemo(() => buildWikiTree(pages), [pages]);
   return (
     <div className="ui-wiki-tree">
-      {[...root.dirs.values()]
-        .sort((a, b) => a.name.localeCompare(b.name))
-        .map((dir) => (
-          <WikiTreeDirView
-            key={dir.name}
-            dir={dir}
-            depth={0}
-            selected={selected}
-            onSelect={onSelect}
-            formatRelative={formatRelative}
-            defaultOpen={true}
-          />
-        ))}
+      {/* Pages before dirs at every level — root-level overview pages (Index /
+          综合说明) pin to the TOP instead of sinking below the sections. The
+          order must mirror the wikiOrder walk (pager shares it). */}
       {root.pages.map((page) => (
         <button
           key={page.path}
@@ -1231,6 +1079,19 @@ function WikiTree({
           <span className="ui-knowledge-item-meta">{formatRelative(page.mtime)}</span>
         </button>
       ))}
+      {[...root.dirs.values()]
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map((dir) => (
+          <WikiTreeDirView
+            key={dir.name}
+            dir={dir}
+            depth={0}
+            selected={selected}
+            onSelect={onSelect}
+            formatRelative={formatRelative}
+            defaultOpen={true}
+          />
+        ))}
     </div>
   );
 }

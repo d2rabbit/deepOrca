@@ -1,0 +1,935 @@
+/* ───────────────────────────────────────────────────────────────────────────
+   Task hub — workspace task tree V2 (designs/task-tree-hub, user approved
+   2026-09-01). Layout: an 84px GRAPH RAIL (tracks' exclusive territory —
+   lines can never overlap content) + content column (cards + always-open
+   traces) + detail card. Sidebar rows reuse ui-ik-row.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+.ui-taskhub-active {
+  height: 2px;
+  margin: 2px 12px 4px 26px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--ui-diagram-hue-0, #60a5fa), var(--ui-diagram-hue-1, #a78bfa));
+}
+
+.ui-taskhub {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  --taskhub-trunk: var(--ui-border, #c3cdd9);
+  --taskhub-fork: var(--ui-diagram-hue-1, #a78bfa);
+}
+
+/* padding-right clears the sheet's absolute ✕ 返回对话 button (top-right),
+   which otherwise overlaps the token badge. */
+.ui-taskhub-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 150px 8px 16px;
+  flex-wrap: wrap;
+}
+.ui-taskhub-pills {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.ui-taskhub-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--ui-border-soft, #d9dee6);
+  background: transparent;
+  color: var(--ui-text-dim, #66707d);
+  font-size: 12px;
+  cursor: pointer;
+  transition:
+    color 0.13s var(--ui-ease),
+    border-color 0.13s var(--ui-ease),
+    background 0.13s var(--ui-ease);
+}
+.ui-taskhub-pill.on {
+  background: color-mix(in srgb, var(--ui-accent, #3b82f6) 14%, transparent);
+  border-color: color-mix(in srgb, var(--ui-accent, #3b82f6) 38%, var(--ui-border-soft, #e3e6eb));
+  color: var(--ui-text, inherit);
+  font-weight: 650;
+}
+
+/* token summary badge + popover */
+.ui-taskhub-tokens {
+  position: relative;
+}
+.ui-taskhub-token-badge {
+  padding: 3px 12px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--git-fg, #d63865) 35%, var(--ui-border-soft, #e3e6eb));
+  background: color-mix(in srgb, var(--git-fg, #d63865) 8%, transparent);
+  color: var(--git-fg, #d63865);
+  font-size: 11.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.ui-taskhub-token-pop {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 30;
+  min-width: 280px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--ui-border-soft, #e3e6eb);
+  background: var(--ui-surface-raised, #fff);
+  box-shadow: var(--ui-shadow-modal, 0 18px 60px rgba(0, 0, 0, 0.32));
+}
+.ui-taskhub-token-line {
+  font-size: 11.5px;
+  color: var(--ui-text-dim, #66707d);
+  padding: 2px 0;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+.ui-taskhub-token-line.model .model-name {
+  font-family: var(--ui-font-mono, monospace);
+  font-size: 10.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-taskhub-token-line.model .model-nums {
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+/* body: graph rail + rows | detail */
+.ui-taskhub-body {
+  display: flex;
+  gap: 12px;
+  flex: 1;
+  min-height: 0;
+  padding: 0 16px 16px;
+}
+
+.ui-taskhub-graph {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+  display: flex;
+  border: 1px solid var(--ui-border-soft, #e3e6eb);
+  border-radius: 14px;
+  /* 底色比主题表面深一档（user ask 2026-09-03 十轮）：sunken 混入 raised，
+     明暗两系主题都成立（sunken 在两种主题里都比 raised 深），与外围底色
+     拉开可辨识的对比，点阵轨道更清楚。 */
+  background: radial-gradient(color-mix(in srgb, var(--ui-text-dim, #66707d) 18%, transparent) 1px, transparent 1.2px)
+    color-mix(in srgb, var(--ui-surface-sunken, #eef1f6) 55%, var(--ui-surface-raised, #fff));
+  background-size: 22px 22px;
+}
+/* 84px rail — tracks' EXCLUSIVE territory. */
+.ui-taskhub-railwrap {
+  width: 84px;
+  flex: none;
+  position: sticky;
+  left: 0;
+}
+.ui-taskhub-tracks {
+  display: block;
+  overflow: visible;
+}
+.ui-taskhub-tracks .edge.trunk {
+  stroke: var(--taskhub-trunk);
+  stroke-width: 2;
+  fill: none;
+}
+.ui-taskhub-tracks .node {
+  cursor: pointer;
+}
+.ui-taskhub-tracks .node .halo {
+  opacity: 0;
+  transition: opacity 0.2s var(--ui-ease);
+}
+.ui-taskhub-tracks .node:hover .halo,
+.ui-taskhub-tracks .node.sel .halo {
+  opacity: 1;
+}
+.ui-taskhub-tracks .node.running .pulse {
+  animation: ui-taskhub-pulse 1.8s ease-out infinite;
+  transform-origin: center;
+  transform-box: fill-box;
+}
+@keyframes ui-taskhub-pulse {
+  0% {
+    opacity: 0.55;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.ui-taskhub-rows {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 10px 14px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.ui-taskhub-row {
+  display: flex;
+  flex-direction: column;
+}
+.ui-taskhub-card-wrap {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.ui-taskhub-card {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 10px;
+  margin: 2px 0;
+  border-radius: 9px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  min-height: 40px;
+  width: 100%;
+  transition:
+    background 0.12s var(--ui-ease),
+    border-color 0.12s var(--ui-ease);
+}
+.ui-taskhub-card:hover {
+  background: var(--ui-accent-soft, rgba(28, 111, 224, 0.08));
+}
+.ui-taskhub-card.sel {
+  border-color: color-mix(in srgb, var(--ui-accent, #3b82f6) 45%, var(--ui-border-soft, #e3e6eb));
+  background: var(--ui-accent-soft, rgba(28, 111, 224, 0.08));
+}
+.ui-taskhub-card .t {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.ui-taskhub-card .name {
+  font-weight: 650;
+  font-size: 13px;
+}
+.ui-taskhub-card .meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 11.5px;
+  color: var(--ui-text-dim, #66707d);
+}
+.meta-branch {
+  font-family: var(--ui-font-mono, monospace);
+  font-size: 10.5px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 1px 9px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.chip.tag-review {
+  color: var(--dot-review, #2f9e44);
+  background: color-mix(in srgb, var(--dot-review, #2f9e44) 13%, transparent);
+}
+.chip.tag-index {
+  color: var(--dot-index, #e8590c);
+  background: color-mix(in srgb, var(--dot-index, #e8590c) 13%, transparent);
+}
+.chip.tag-prototype {
+  color: var(--dot-prototype, #be4bdb);
+  background: color-mix(in srgb, var(--dot-prototype, #be4bdb) 12%, transparent);
+}
+.chip.tag-session {
+  color: var(--dot-session, #1c6fe0);
+  background: color-mix(in srgb, var(--dot-session, #1c6fe0) 12%, transparent);
+}
+.chip.tag-pm-design {
+  color: #e64980;
+  background: color-mix(in srgb, #e64980 12%, transparent);
+}
+.chip.tag-ui-design {
+  color: #7950f2;
+  background: color-mix(in srgb, #7950f2 12%, transparent);
+}
+.chip.st-running {
+  color: var(--ui-accent, #3b82f6);
+  background: var(--ui-accent-soft, rgba(28, 111, 224, 0.12));
+}
+.chip.st-abandoned {
+  color: var(--ui-text-faint, #8590a0);
+  background: color-mix(in srgb, var(--ui-text-faint, #8590a0) 14%, transparent);
+}
+
+/* git binding badge */
+.git-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 1px 8px;
+  border-radius: 6px;
+  font-family: var(--ui-font-mono, monospace);
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--git-fg, #d63865);
+  background: color-mix(in srgb, var(--git-fg, #d63865) 11%, transparent);
+  flex-shrink: 0;
+}
+.git-chip .hash {
+  opacity: 0.75;
+}
+
+/* ── always-open trace（DeepSeek-harness event-log 形态）── */
+.ui-taskhub-trace {
+  margin: 2px 0 12px;
+  border: 1px solid var(--ui-border-soft, #e3e6eb);
+  border-radius: 12px;
+  /* 轨迹区在加深的点阵底上用 raised 卡面（user ask 2026-09-03 十轮）——
+     与图底色拉开层次，不再只靠线框分辨；主题自适应。 */
+  background: var(--ui-surface-raised, #fff);
+  overflow: hidden;
+}
+.ui-taskhub-trace .tr-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--ui-border-soft, #e3e6eb);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ui-text-dim, #66707d);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: var(--ui-surface-sunken, #eef1f6);
+}
+.ui-taskhub-trace .tr-body {
+  padding: 10px 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.ui-taskhub-trace .turn {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ui-taskhub-trace .turn-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--ui-text-faint, #8590a0);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.ui-taskhub-trace .turn-head .ln {
+  flex: 1;
+  height: 0;
+  border-top: 1px dashed var(--ui-border-soft, #e3e6eb);
+}
+.ui-taskhub-trace .user-msg {
+  display: flex;
+  gap: 9px;
+  padding: 8px 11px;
+  border-radius: 10px;
+  background: var(--ui-accent-soft, rgba(28, 111, 224, 0.08));
+  border: 1px solid color-mix(in srgb, var(--ui-accent, #3b82f6) 26%, transparent);
+}
+.ui-taskhub-trace .user-msg .ic {
+  flex-shrink: 0;
+}
+.ui-taskhub-trace .user-msg .ic svg {
+  width: 15px;
+  height: 15px;
+}
+.ui-taskhub-trace .user-msg .who {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--ui-accent, #3b82f6);
+  margin-bottom: 2px;
+}
+.ui-taskhub-trace .user-msg .txt {
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+.ui-taskhub-trace .steps {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-left: 6px;
+}
+.ui-taskhub-trace .step {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 5px 9px;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+.ui-taskhub-trace .step::before {
+  content: "";
+  position: absolute;
+  left: 13px;
+  top: 0;
+  bottom: -4px;
+  width: 1.5px;
+  background: var(--ui-border-soft, #e3e6eb);
+}
+.ui-taskhub-trace .step:last-child::before {
+  display: none;
+}
+.ui-taskhub-trace .step .ic {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  flex-shrink: 0;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  background: var(--ui-surface-raised, #fff);
+  border: 1px solid var(--ui-border-soft, #e3e6eb);
+}
+.ui-taskhub-trace .step .body {
+  min-width: 0;
+  flex: 1;
+}
+.ui-taskhub-trace .step .l1 {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+.ui-taskhub-trace .step .tool {
+  font-weight: 700;
+  font-family: var(--ui-font-mono, monospace);
+  font-size: 11.5px;
+}
+.ui-taskhub-trace .step .arg {
+  color: var(--ui-text-dim, #66707d);
+  font-family: var(--ui-font-mono, monospace);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 60ch;
+}
+.ui-taskhub-trace .step .ms {
+  margin-left: auto;
+  font-size: 10.5px;
+  color: var(--ui-text-faint, #8590a0);
+  font-variant-numeric: tabular-nums;
+}
+.ui-taskhub-trace .step .ok {
+  color: var(--dot-review, #2f9e44);
+  font-weight: 700;
+}
+.ui-taskhub-trace .step .fail {
+  color: #e03131;
+  font-weight: 700;
+}
+.ui-taskhub-trace .step .ic.t-bash {
+  color: var(--dot-index, #e8590c);
+}
+.ui-taskhub-trace .step .ic.t-read {
+  color: var(--ui-accent, #3b82f6);
+}
+.ui-taskhub-trace .step .ic.t-write,
+.ui-taskhub-trace .step .ic.t-edit {
+  color: #f76707;
+}
+.ui-taskhub-trace .step .ic.t-skill {
+  color: #be4bdb;
+}
+.ui-taskhub-trace .step .ic.t-web {
+  color: #0ca678;
+}
+.ui-taskhub-trace .step .ic.t-mcp {
+  color: #1098ad;
+}
+.ui-taskhub-trace .step .ic.t-agent {
+  color: var(--taskhub-fork, #a78bfa);
+}
+.ui-taskhub-trace .step .ic.t-assistant {
+  color: var(--ui-text-dim, #66707d);
+}
+.ui-taskhub-trace .step .ic.t-question {
+  color: #e64980;
+}
+.ui-taskhub-trace .subagent-block {
+  margin: 2px 0 2px 14px;
+  border-left: 2.5px solid color-mix(in srgb, var(--taskhub-fork, #a78bfa) 55%, transparent);
+  border-radius: 0 10px 10px 0;
+  background: color-mix(in srgb, var(--taskhub-fork, #a78bfa) 5%, transparent);
+  padding: 7px 10px 8px;
+}
+.ui-taskhub-trace .subagent-block .sa-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11.5px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+.ui-taskhub-trace .subagent-block .sa-head svg {
+  width: 13px;
+  height: 13px;
+}
+.ui-taskhub-trace .subagent-block .steps {
+  padding-left: 0;
+}
+.mcp-badge {
+  display: inline-flex;
+  padding: 0 6px;
+  border-radius: 5px;
+  font-size: 9.5px;
+  font-weight: 700;
+  background: color-mix(in srgb, #1098ad 14%, transparent);
+  color: #1098ad;
+  vertical-align: 1px;
+}
+.ui-taskhub-trace .tr-more {
+  font-size: 11px;
+  color: var(--ui-text-faint, #8590a0);
+  padding: 4px 2px 0;
+}
+
+/* floating detail window (portal, fixed at the click point) */
+.ui-taskhub-pop {
+  position: fixed;
+  z-index: 90;
+  width: min(420px, calc(100vw - 24px));
+  max-width: calc(100vw - 16px);
+  max-height: min(70vh, 560px);
+  overflow-y: auto;
+}
+.ui-taskhub-pop .ui-taskhub-detail-card {
+  box-shadow: var(--ui-shadow-modal, 0 18px 60px rgba(0, 0, 0, 0.32));
+  border-color: color-mix(in srgb, var(--ui-accent, #3b82f6) 32%, var(--ui-border-soft, #e3e6eb));
+}
+.ui-taskhub-detail-head h2 {
+  font-size: 13.5px;
+}
+.ui-taskhub-detail-head .ui-risk-pop-close {
+  margin-left: auto;
+  border: none;
+  background: transparent;
+  color: var(--ui-text-dim, #66707d);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 2px 4px;
+}
+/* detail card */
+.ui-taskhub-detail {
+  width: 312px;
+  flex: none;
+  overflow-y: auto;
+}
+.ui-taskhub-detail-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--ui-border-soft, #e3e6eb);
+  background: var(--ui-surface-raised, #fff);
+  box-shadow: var(--ui-shadow-card, 0 8px 28px rgba(20, 40, 80, 0.08));
+}
+.ui-taskhub-detail-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.ui-taskhub-detail-head .glyph {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  flex-shrink: 0;
+  background: var(--ui-accent-soft, rgba(28, 111, 224, 0.12));
+  color: var(--ui-accent, #3b82f6);
+}
+.ui-taskhub-detail-head h2 {
+  font-size: 14.5px;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.ui-taskhub-detail-card .sub {
+  font-size: 11.5px;
+  color: var(--ui-text-dim, #66707d);
+  margin-top: -6px;
+}
+.ui-taskhub-detail-card .rows .row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12.5px;
+  padding: 3px 0;
+}
+.ui-taskhub-detail-card .rows .k {
+  color: var(--ui-text-dim, #66707d);
+  flex-shrink: 0;
+}
+.dsec {
+  margin-top: 4px;
+  padding-top: 10px;
+  border-top: 1px solid var(--ui-border-soft, #e3e6eb);
+}
+.dsec .hd {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ui-text-faint, #8590a0);
+  margin-bottom: 6px;
+}
+.actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.btn {
+  padding: 5px 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid color-mix(in srgb, var(--ui-accent, #3b82f6) 38%, var(--ui-border-soft, #e3e6eb));
+  background: var(--ui-accent-soft, rgba(28, 111, 224, 0.1));
+  color: var(--ui-text, inherit);
+}
+.btn:hover {
+  background: color-mix(in srgb, var(--ui-accent, #3b82f6) 18%, transparent);
+}
+.btn.subtle {
+  background: transparent;
+  border-color: var(--ui-border-soft, #e3e6eb);
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* fork inline form */
+.ui-taskhub-forkform {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ui-taskhub-forkform .forkform-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.ui-taskhub-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 120px;
+  color: var(--ui-text-dim, #66707d);
+  font-size: 12.5px;
+}
+
+/* ── Task quick sheet content (report / build quick views, 2026-09-02) ──── */
+.ui-quick-report {
+  padding: 4px 2px;
+}
+.ui-quick-report-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-bottom: 8px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--ui-border-soft);
+}
+.ui-quick-report-title {
+  font-weight: 600;
+  font-size: 13px;
+}
+.ui-quick-report-time {
+  font-size: 11px;
+  color: var(--ui-text-faint);
+  font-variant-numeric: tabular-nums;
+}
+.ui-quick-report-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 36px 0 28px;
+  text-align: center;
+}
+.ui-quick-report-empty .empty-glyph {
+  width: 42px;
+  height: 42px;
+  border-radius: 13px;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--dot-review, #2f9e44) 12%, transparent);
+  color: var(--dot-review, #2f9e44);
+}
+.ui-quick-report-empty .empty-glyph svg {
+  width: 20px;
+  height: 20px;
+}
+.ui-quick-report-empty .empty-title {
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--ui-text);
+}
+.ui-quick-report-empty .empty-hint {
+  font-size: 11.5px;
+  color: var(--ui-text-faint);
+}
+.ui-quick-report-error {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, #e5484d 40%, transparent);
+  color: #e5484d;
+  margin-bottom: 8px;
+  font-size: 12px;
+}
+.ui-quick-build-stages {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ui-quick-build-stage {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border: 1px solid var(--ui-border-soft);
+  border-radius: 8px;
+  font-size: 12px;
+}
+.ui-quick-build-stage .name {
+  font-weight: 600;
+}
+.ui-quick-build-stage .status {
+  margin-left: auto;
+  color: var(--ui-text-faint);
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+}
+.ui-quick-build-stage .err {
+  color: #e5484d;
+  font-size: 11px;
+}
+
+/* Thin overlay-style scrollbars on the task-hub scroll surfaces — the
+   native track strip read as a bright seam against the dotted canvas and
+   the floating detail sheet (scroll contract §6.5). */
+.ui-taskhub-graph,
+.ui-taskhub-pop,
+.ui-taskhub-detail {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--ui-text-faint, #8590a0) 38%, transparent) transparent;
+}
+.ui-taskhub-graph::-webkit-scrollbar,
+.ui-taskhub-pop::-webkit-scrollbar,
+.ui-taskhub-detail::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.ui-taskhub-graph::-webkit-scrollbar-track,
+.ui-taskhub-pop::-webkit-scrollbar-track,
+.ui-taskhub-detail::-webkit-scrollbar-track {
+  background: transparent;
+}
+.ui-taskhub-graph::-webkit-scrollbar-thumb,
+.ui-taskhub-pop::-webkit-scrollbar-thumb,
+.ui-taskhub-detail::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--ui-text-faint, #8590a0) 32%, transparent);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+.ui-taskhub-graph::-webkit-scrollbar-thumb:hover,
+.ui-taskhub-pop::-webkit-scrollbar-thumb:hover,
+.ui-taskhub-detail::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--ui-text-faint, #8590a0) 55%, transparent);
+  background-clip: padding-box;
+}
+
+/* pop 内的详情卡跟随自适应宽度（外层定宽已废除） */
+.ui-taskhub-pop .ui-taskhub-detail {
+  width: 100%;
+  flex: 1 1 auto;
+}
+
+/* ── 设计稿 V2.1 对齐补齐（user ask 2026-09-03 八轮：渲染太简单）──
+   工作区胶囊 · 图例条 · 域 pill 色点 · 域淡化过滤 · fork 环/叉边。 */
+
+/* 工作区胶囊（设计稿 .ws）*/
+.ui-taskhub-ws {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 3px 12px;
+  border-radius: 999px;
+  background: var(--ui-accent-soft);
+  color: var(--ui-accent);
+  font-weight: 650;
+  font-size: 12px;
+  flex: none;
+}
+.ui-taskhub-ws .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ui-accent);
+}
+
+/* 域 pill 色点 */
+.ui-taskhub-pill .sw {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+}
+.ui-taskhub-pill .sw-session {
+  background: var(--dot-session);
+}
+.ui-taskhub-pill .sw-index {
+  background: var(--dot-index);
+}
+.ui-taskhub-pill .sw-review {
+  background: var(--dot-review);
+}
+.ui-taskhub-pill .sw-prototype {
+  background: var(--dot-prototype);
+}
+
+/* 图例条（设计稿 .legend）*/
+.ui-taskhub-legend {
+  display: flex;
+  gap: 14px;
+  font-size: 11px;
+  color: var(--ui-text-dim);
+  flex-wrap: wrap;
+  align-items: center;
+  margin-left: auto;
+}
+.ui-taskhub-legend .it {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.ui-taskhub-legend .sw {
+  width: 10px;
+  height: 10px;
+  flex: none;
+  display: inline-block;
+}
+.ui-taskhub-legend .sw.round {
+  border-radius: 50%;
+  background: var(--dot-session);
+}
+.ui-taskhub-legend .sw.ring {
+  border-radius: 50%;
+  background: var(--ui-surface-raised);
+  border: 2px solid var(--line-fork, #7048e8);
+}
+.ui-taskhub-legend .sw.diamond {
+  transform: rotate(45deg);
+  border-radius: 2px;
+  background: var(--dot-review);
+}
+.ui-taskhub-legend .ln {
+  width: 18px;
+  height: 0;
+  border-top: 2px solid var(--line-fork, #7048e8);
+  display: inline-block;
+}
+.ui-taskhub-legend .ln.dash {
+  border-top-style: dashed;
+  opacity: 0.5;
+}
+
+/* 域过滤 = 淡化非选中域（图结构保持完整，设计稿行为）*/
+.ui-taskhub-graph .ui-taskhub-row,
+.ui-taskhub-graph .ui-taskhub-trace {
+  transition:
+    opacity 0.15s ease,
+    filter 0.15s ease;
+}
+.ui-taskhub-graph[data-dim="session"] .ui-taskhub-row:not([data-domain="session"]),
+.ui-taskhub-graph[data-dim="index"] .ui-taskhub-row:not([data-domain="index"]),
+.ui-taskhub-graph[data-dim="review"] .ui-taskhub-row:not([data-domain="review"]),
+.ui-taskhub-graph[data-dim="prototype"] .ui-taskhub-row:not([data-domain="prototype"]) {
+  opacity: 0.22;
+  filter: saturate(0.2);
+}
+
+/* fork 叉边（紫）与 abandoned 虚线渐隐 */
+.ui-taskhub-tracks .edge.fork {
+  stroke: var(--line-fork, #7048e8);
+  fill: none;
+}
+.ui-taskhub-tracks .edge.fork-abandoned {
+  stroke: var(--line-fork, #7048e8);
+  fill: none;
+  stroke-dasharray: 3 5;
+  opacity: 0.45;
+}
+
+/* fork 节点行卡： quieter、窄一档，hover 提示可切分支 */
+.ui-taskhub-row.fork-row .ui-taskhub-card {
+  min-height: 0;
+  padding: 5px 12px;
+  border-left: 2.5px solid color-mix(in srgb, var(--line-fork, #7048e8) 55%, transparent);
+  background: color-mix(in srgb, var(--line-fork, #7048e8) 4%, transparent);
+}
+.ui-taskhub-row.fork-row .ui-taskhub-card:hover {
+  background: color-mix(in srgb, var(--line-fork, #7048e8) 10%, transparent);
+}
+.ui-taskhub-row.fork-row .ui-taskhub-card .name {
+  font-size: 12.5px;
+  color: var(--ui-text-dim);
+}
+.chip.tag-fork {
+  color: var(--line-fork, #7048e8);
+  background: color-mix(in srgb, var(--line-fork, #7048e8) 12%, transparent);
+}
+
+/* fork 双模式选择（九轮）+ 已合并徽章 */
+.ui-taskhub-forkmode {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.ui-taskhub-forkmode-note {
+  font-size: 11px;
+  color: var(--ui-text-faint);
+  line-height: 1.5;
+}
+.chip.st-merged {
+  color: var(--line-fork, #7048e8);
+  background: color-mix(in srgb, var(--line-fork, #7048e8) 12%, transparent);
+}

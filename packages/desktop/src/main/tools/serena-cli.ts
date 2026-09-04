@@ -120,12 +120,14 @@ export class SerenaCliController implements SerenaController {
           encoding: "utf8",
           timeout: 3000,
           stdio: ["ignore", "pipe", "ignore"],
+          windowsHide: true,
         });
       } else {
         execFileSync("which", ["uv"], {
           encoding: "utf8",
           timeout: 3000,
           stdio: ["ignore", "pipe", "ignore"],
+          windowsHide: true,
         });
       }
       this.cachedAvailable = true;

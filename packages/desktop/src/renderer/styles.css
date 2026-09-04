@@ -127,6 +127,11 @@
     box-shadow: 0 0 0 3px rgba(40, 120, 240, 0.22);
   }
 }
+/* Keyboard focus outranks the idle pulse: the animation repaints box-shadow
+   continuously, which would otherwise hide the global :focus-visible ring. */
+.ui-btn--primary:focus-visible {
+  animation: none;
+}
 
 /* Glossy gumdrop window controls. */
 .ui-gumdrop {

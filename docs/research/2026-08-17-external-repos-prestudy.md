@@ -195,7 +195,7 @@ token 预算约束（323 个工具必然触发路由）与本仓权限 scopes �
 `.claude-flow/` 写入与 daemon 进程：sideEffects 如实声明，沙箱侧按
 `process_start`/`file_write` 审计口径对待。
 
-**L3 模式移植**（进 `specs/task-tree/design.md` 的 P3 与 session 层）：
+**L3 模式移植**（进 `specs/archive/task-tree/design.md` 的 P3 与 session 层）：
 
 | ruflo 的模式 | 强化本仓的落点 |
 | --- | --- |
@@ -251,7 +251,7 @@ host、拒绝 localhost/环回/私有/保留地址。
   （`augmentMcpServersWithBuiltins`）、`session.ts:1637-1682`（in-process 连接）、
   `desktop/src/main/tools/*`（六个适配器范本）、`main/index.ts:178-307`（boot 接线）、
   `routing/tool-router.ts`（G2 预算路由）、`sandbox/path-boundary.ts` /
-  `sandbox/audit.ts` / `sandbox/backend/interface.ts`、`specs/task-tree/design.md`
+  `sandbox/audit.ts` / `sandbox/backend/interface.ts`、`specs/archive/task-tree/design.md`
   （P3 子代理方向）、`docs/research/2026-08-11-tool-orchestration-design.md`。
 - dembrandt：v0.28.0 `package.json`/`index.ts`/`mcp-server.ts`/`lib/drift.ts`/
   `lib/extractors/index.ts`（guardExtractor :779-799）/`docs/type-model.mermaid.md`；

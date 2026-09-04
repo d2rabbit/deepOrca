@@ -119,6 +119,25 @@ export function persistSurfaces(projectRoot: string, idPrefix?: string, sinceSta
       return knownSurfaceIds.has(fileId(f));
     });
     for (const f of existing) {
+      // TYPED-IR PROTECTION (root-cause fix 2026-08-31): the archify era
+      // writes typed-IR (carries `schema_version`/`diagram_type`) into this
+      // same directory with the WRITE TOOL — a prefix-only sweep deleted
+      // freshly authored, validated architecture maps right after their task
+      // ended, and the deliver gate then saw an empty dir (real machine:
+      // this repo twice + GVGL). Typed-IR is never ours to sweep; everything
+      // else (stale A2UI surfaces, junk placeholders, unparsable leftovers)
+      // keeps the original sweep semantics.
+      let isTypedIr = false;
+      try {
+        const parsed = JSON.parse(fs.readFileSync(nodePath.join(dir, f), "utf8")) as {
+          schema_version?: unknown;
+          diagram_type?: unknown;
+        };
+        isTypedIr = parsed.schema_version !== undefined || parsed.diagram_type !== undefined;
+      } catch {
+        // unparsable junk — sweep it (original behavior)
+      }
+      if (isTypedIr) continue;
       try {
         fs.unlinkSync(nodePath.join(dir, f));
       } catch {
@@ -657,102 +676,6 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
       }
       surfaces.delete(surfaceId);
       return a2uiResult([deleteSurfaceMessage(surfaceId)], `Surface "${surfaceId}" closed.`);
-    }
-  );
-
-  // Tool: save_archmap — persist a Mermaid architecture-map document.
-  // arch-scan's current output format: a markdown file whose ```mermaid fences
-  // render as actual diagrams in the Knowledge panel (the legacy A2UI arch
-  // surface read as a flat document). Persistence stays main-process-owned
-  // (same model as persistSurfaces) so the background build task needs no
-  // write-tool permission; the name is sanitized and pinned into the
-  // prototypes directory.
-  registerTool(
-    "save_archmap",
-    {
-      description:
-        "Save an architecture map under .deeporca/prototypes/. Two formats: " +
-        "(1) format:'md' (default) — a Mermaid document (arch-<name>.md); the Knowledge panel renders " +
-        "each ```mermaid fenced block as an interactive diagram. Document layout: '# <Title>' heading, " +
-        "one-sentence positioning + one architecture-style line, then one '## <Perspective>' section per " +
-        "perspective containing exactly one mermaid fence, closed by '## 架构分析' (evidence-based findings) " +
-        "and '## 优化建议' (problem → advice → priority) review sections. " +
-        "(2) format:'html' — the layered architecture board (arch-<name>.html): a self-contained, " +
-        "JavaScript-free HTML page with horizontal capability layers and kind-colored component chips; " +
-        "the Knowledge panel renders it on a sandboxed canvas. " +
-        "Call ONCE per scan per format with the COMPLETE content (full replacement).",
-      inputSchema: {
-        name: z
-          .string()
-          .describe(
-            "Map slug, kebab-case (e.g. 'root' or 'deeporca'). Stored as arch-<name>.md / arch-<name>.html; an explicit 'arch-' prefix is stripped."
-          ),
-        format: z
-          .enum(["md", "html"])
-          .optional()
-          .describe("Output format: 'md' (Mermaid document, default) or 'html' (layered board)."),
-        markdown: z
-          .string()
-          .optional()
-          .describe(
-            "Complete markdown document with ```mermaid fences (format 'md'). Full replacement of the previous file content."
-          ),
-        html: z
-          .string()
-          .optional()
-          .describe(
-            "Complete self-contained HTML board (format 'html'): no external resources, no JavaScript, light/dark via prefers-color-scheme."
-          ),
-      },
-    },
-    async (args) => {
-      const rawName = String(args.name ?? "").trim();
-      const slug = rawName
-        .toLowerCase()
-        .replace(/^arch-/, "")
-        .replace(/[^a-z0-9-]+/g, "-")
-        .replace(/^-+|-+$/g, "");
-      const format =
-        args.format === "html" || (args.format == null && args.html != null && args.markdown == null) ? "html" : "md";
-      const markdown = String(args.markdown ?? "");
-      const html = String(args.html ?? "");
-      if (!slug) {
-        return {
-          content: [{ type: "text", text: "Error: `name` must contain letters, digits or dashes." }],
-          isError: true,
-        };
-      }
-      if (format === "md" && !markdown.trim()) {
-        return { content: [{ type: "text", text: "Error: `markdown` must be a non-empty document." }], isError: true };
-      }
-      if (format === "html" && !html.trim()) {
-        return { content: [{ type: "text", text: "Error: `html` must be a non-empty document." }], isError: true };
-      }
-      try {
-        const dir = getPrototypesDir(projectRoot ?? process.cwd());
-        fs.mkdirSync(dir, { recursive: true });
-        const file = nodePath.join(dir, format === "html" ? `arch-${slug}.html` : `arch-${slug}.md`);
-        const body = format === "html" ? html : markdown;
-        fs.writeFileSync(file, body.endsWith("\n") ? body : `${body}\n`, "utf-8");
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Architecture ${format === "html" ? "board" : "map"} saved: ${file} (${body.split("\n").length} lines).`,
-            },
-          ],
-        };
-      } catch (err) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Error saving architecture map: ${err instanceof Error ? err.message : String(err)}`,
-            },
-          ],
-          isError: true,
-        };
-      }
     }
   );
 

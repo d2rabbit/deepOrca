@@ -1,26 +1,37 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { accumulateStdout } from "../components/ProcessOutputPanel";
+import { useCallback, useRef, useState } from "react";
 import type { SerializableProcess, SerializableSessionEntry } from "../../shared/ipc";
 
 /**
  * Running bash processes and their buffered stdout.
  *
- * Extracted from App.tsx verbatim. `syncFromEntry` is the block that lived inline
- * in the boot effect's onSessionEntryUpdated handler, including the stdout-buffer
- * GC — without that, the Map retains up to 1MB per dead PID for the app lifetime.
+ * Tracking only — the auto-popping "进程输出" dock panel was removed
+ * (user ask 2026-09-03: 没有要过这个面板; it popped itself open on any
+ * running process and then lingered as an empty "0 运行中" slab after the
+ * process ended). The running-process count still feeds the composer's
+ * loading line; raw stdout stays buffered here in case a future surface
+ * wants it. `syncFromEntry` keeps the stdout-buffer GC — without that, the
+ * Map retains up to 1MB per dead PID for the app lifetime.
  */
+
+/** Per-PID stdout cap — bounded so a chatty process can't balloon memory. */
+const MAX_STDOUT_BUFFER = 1_000_000;
+
 export type ProcessPanelState = {
-  showProcessPanel: boolean;
-  /** Returned raw — toggled by the shortcut effect and the command palette. */
-  setShowProcessPanel: React.Dispatch<React.SetStateAction<boolean>>;
   runningProcesses: SerializableProcess[];
   stdoutRef: React.RefObject<Map<number, string>>;
   syncFromEntry: (entry: SerializableSessionEntry) => void;
   appendStdout: (pid: number, chunk: string) => void;
 };
 
-export function useProcessPanel(busy: boolean): ProcessPanelState {
-  const [showProcessPanel, setShowProcessPanel] = useState(false);
+/** Accumulate process stdout chunks into a ref map (bounded per PID). */
+function accumulateStdout(map: Map<number, string>, pid: number, chunk: string): void {
+  const current = map.get(pid) ?? "";
+  if (current.length >= MAX_STDOUT_BUFFER) return;
+  const available = MAX_STDOUT_BUFFER - current.length;
+  map.set(pid, current + chunk.slice(0, available));
+}
+
+export function useProcessPanel(): ProcessPanelState {
   const [runningProcesses, setRunningProcesses] = useState<SerializableProcess[]>([]);
   const stdoutRef = useRef<Map<number, string>>(new Map());
 
@@ -40,12 +51,5 @@ export function useProcessPanel(busy: boolean): ProcessPanelState {
     accumulateStdout(stdoutRef.current, pid, chunk);
   }, []);
 
-  // Auto-show process panel when processes start running.
-  useEffect(() => {
-    if (runningProcesses.length > 0 && busy) {
-      setShowProcessPanel(true);
-    }
-  }, [runningProcesses, busy]);
-
-  return { showProcessPanel, setShowProcessPanel, runningProcesses, stdoutRef, syncFromEntry, appendStdout };
+  return { runningProcesses, stdoutRef, syncFromEntry, appendStdout };
 }

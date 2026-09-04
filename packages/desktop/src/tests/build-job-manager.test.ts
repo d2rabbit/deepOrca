@@ -70,22 +70,20 @@ async function runToCompletion(
   throw new Error("job did not settle within 250ms");
 }
 
-test("happy path: [n/4] lines fold into stage states, job completes, settled emitted", async () => {
+test("happy path: [n/3] lines fold into stage states, job completes, settled emitted", async () => {
   const emitted: Emitted[] = [];
   const manager = new BuildJobManager(
     () =>
       makeRegistry({
         events: [
-          { message: "[1/4] CodeGraph symbol index", percent: 5 },
-          { message: "[1/4] indexed 42 symbols", percent: 20 },
-          { message: "[1/4] CodeGraph done", percent: 25 },
-          { message: "[2/4] OpenWiki document index", percent: 28 },
-          { message: "[2/4] openwiki --init 运行中 40s", percent: undefined },
-          { message: "[2/4] wiki done", percent: 50 },
-          { message: "[3/4] arch-scan", percent: 52 },
-          { message: "[3/4] arch-scan: 5 steps", percent: undefined },
-          { message: "[4/4] wiki 翻译 · bilingual translation", percent: 80 },
-          { message: "[4/4] wiki 翻译完成 / translation complete — 共 3 页", percent: 99 },
+          { message: "[1/3] CodeGraph symbol index", percent: 5 },
+          { message: "[1/3] indexed 42 symbols", percent: 20 },
+          { message: "[1/3] CodeGraph done", percent: 30 },
+          { message: "[2/3] OpenWiki document index", percent: 32 },
+          { message: "[2/3] openwiki --init 运行中 40s", percent: undefined },
+          { message: "[2/3] wiki done", percent: 60 },
+          { message: "[3/3] arch-scan", percent: 62 },
+          { message: "[3/3] arch-scan: 5 steps", percent: undefined },
           { message: "index.buildAll (init) complete", percent: 100 },
         ],
         result: {
@@ -94,7 +92,6 @@ test("happy path: [n/4] lines fold into stage states, job completes, settled emi
             { stage: "codegraph", ok: true },
             { stage: "wiki", ok: true },
             { stage: "arch-scan", ok: true },
-            { stage: "wiki-translate", ok: true },
           ],
         },
       }),
@@ -107,15 +104,14 @@ test("happy path: [n/4] lines fold into stage states, job completes, settled emi
   assert.equal(job.stage, "done");
   assert.equal(job.percent, 100);
   assert.equal(job.error, null);
-  // Stage state machine: all four done; wiki's LAST detail is the heartbeat,
+  // Stage state machine: all three done; wiki's LAST detail is the heartbeat,
   // then "wiki done" flips it done (detail keeps the last running detail).
   assert.deepEqual(
     job.stages.map((s) => s.status),
-    ["done", "done", "done", "done"]
+    ["done", "done", "done"]
   );
   assert.equal(job.stages[1]?.labelKey, "wiki");
   assert.equal(job.stages[2]?.labelKey, "arch");
-  assert.equal(job.stages[3]?.labelKey, "wiki-translate");
   // Console ring: startup line + every progress line.
   assert.ok(job.logs.length >= 10);
   assert.ok(
@@ -142,8 +138,8 @@ test("stage failure surfaces as job error + settled event (result returns normal
     () =>
       makeRegistry({
         events: [
-          { message: "[1/4] CodeGraph done", percent: 25 },
-          { message: "[2/4] wiki done", percent: 50 },
+          { message: "[1/3] CodeGraph done", percent: 30 },
+          { message: "[2/3] wiki done", percent: 60 },
         ],
         result: {
           mode: "init",
@@ -151,7 +147,6 @@ test("stage failure surfaces as job error + settled event (result returns normal
             { stage: "codegraph", ok: true },
             { stage: "wiki", ok: false, error: "openwiki exited 1: boom" },
             { stage: "arch-scan", ok: true },
-            { stage: "wiki-translate", ok: false, skipped: true, error: "wiki stage did not complete" },
           ],
         },
       }),
@@ -176,7 +171,7 @@ test("registry throw fails the job and marks the running stage failed", async ()
   const manager = new BuildJobManager(
     () =>
       makeRegistry({
-        events: [{ message: "[2/4] OpenWiki document index", percent: 28 }],
+        events: [{ message: "[2/3] OpenWiki document index", percent: 32 }],
         reject: new Error("no project open"),
       }),
     (channel, payload) => emitted.push(payload as Emitted)
@@ -189,7 +184,7 @@ test("registry throw fails the job and marks the running stage failed", async ()
   assert.match(job.error ?? "", /no project open/);
   assert.equal(job.stages[1]?.status, "failed", "wiki was running when the action threw");
   // Stage 1 starts "running" by construction (the action always begins with
-  // the symbol index), so the [2/4] line implicitly completes it — "done" is
+  // the symbol index), so the [2/3] line implicitly completes it — "done" is
   // the honest verdict, not "skipped".
   assert.equal(job.stages[0]?.status, "done");
   assert.equal(emitted.filter((e) => e.actionId === "knowledge.buildComplete").length, 1);
@@ -246,12 +241,13 @@ test("auto mode: init without indexes, update when both exist", async () => {
   const builtRoot = fs.mkdtempSync(path.join(os.tmpdir(), "deepcode-bjm-"));
   fs.mkdirSync(path.join(builtRoot, ".codegraph"), { recursive: true });
   fs.writeFileSync(path.join(builtRoot, ".codegraph", "codegraph.db"), "x");
-  fs.mkdirSync(path.join(builtRoot, "openwiki"), { recursive: true });
+  fs.mkdirSync(path.join(builtRoot, ".deeporca", "deepwiki"), { recursive: true });
   manager.start(builtRoot, "auto");
   await new Promise((r) => setTimeout(r, 10));
   assert.equal(modes[1], "update", "both indexes → update");
-  // update mode tracks three stages (codegraph, wiki, wiki-translate — no arch).
+  // BOTH modes track the same three stages (codegraph, wiki, arch) — an
+  // update build must still show the arch row instead of silently dropping it.
   const job = manager.status().find((j) => j.root === builtRoot);
   assert.equal(job?.stages.length, 3);
-  assert.equal(job?.stages[2]?.labelKey, "wiki-translate");
+  assert.equal(job?.stages[2]?.labelKey, "arch");
 });

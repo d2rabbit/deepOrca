@@ -3,6 +3,7 @@ import type { SessionMessage } from "../../shared/ipc";
 import type { ReasoningMode } from "../lib/appearance";
 import { findExpandedThinkingId } from "../lib/messages";
 import { Message } from "./Message";
+import { TaskTurn, groupTurns, type TurnForkMode } from "./TaskTurn";
 import { useI18n } from "../i18n";
 import {
   IconWelcomePlan,
@@ -60,8 +61,6 @@ type Props = {
   hasActiveSession: boolean;
   /** Whether assistant reasoning/thinking blocks are displayed. */
   reasoningMode: ReasoningMode;
-  /** Modifier glyph for shortcut hints (⌘ on macOS, Ctrl elsewhere). */
-  modKey?: string;
   /** Quick-start actions surfaced on the welcome screen. */
   onQuickAction?: (action: "plan" | "init" | "skills" | "undo" | "knowledge" | "review") => void;
   /** Interactive prompt cards (permission / question / plan) shown after the messages. */
@@ -71,7 +70,23 @@ type Props = {
   /** True while the session is busy (tokens, tools, compaction) — forwarded
    *  to the last message so its markdown can show the streaming caret. */
   streaming?: boolean;
+  /** 回合完成后的 fork 入口（user ask 2026-09-03 十一轮）。 */
+  onTurnFork?: (commandText: string, why: string, mode: TurnForkMode) => Promise<string | null>;
 };
+
+/** 时间问候语（欢迎页标题；参考 ZCode 欢迎式的轻松开场）。 */
+function greetingKey():
+  | "welcome.greetMorning"
+  | "welcome.greetNoon"
+  | "welcome.greetAfternoon"
+  | "welcome.greetEvening" {
+  const h = new Date().getHours();
+  if (h < 5) return "welcome.greetEvening";
+  if (h < 11) return "welcome.greetMorning";
+  if (h < 14) return "welcome.greetNoon";
+  if (h < 18) return "welcome.greetAfternoon";
+  return "welcome.greetEvening";
+}
 
 // Memoized: every prop is a stable reference from App (messages array identity
 // only changes on real updates, callbacks are useCallback'd, footer is a
@@ -80,16 +95,19 @@ export const MessageList = memo(function MessageList({
   messages,
   hasActiveSession,
   reasoningMode,
-  modKey = "Ctrl",
   onQuickAction,
   footer,
   compacting = false,
   streaming = false,
+  onTurnFork,
 }: Props): JSX.Element {
   const { t } = useI18n();
   const scrollerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const expandedThinkingId = useMemo(() => findExpandedThinkingId(messages), [messages]);
+  // Task-style grouping: each user command opens a turn; everything the agent
+  // does in response streams inside the turn's execution block.
+  const { leading, turns } = useMemo(() => groupTurns(messages), [messages]);
   // Stickiness tracks whether the user is parked at the bottom of the
   // conversation. The auto-scroll effect only follows the stream when
   // they are; if they've scrolled up to read something, new content
@@ -195,46 +213,34 @@ export const MessageList = memo(function MessageList({
       action: "plan" | "init" | "skills" | "undo" | "knowledge" | "review";
       icon: JSX.Element;
       title: string;
-      desc: string;
     }[] = [
-      { action: "plan", icon: <IconWelcomePlan />, title: t("welcome.planTitle"), desc: t("welcome.planDesc") },
-      { action: "init", icon: <IconWelcomeInit />, title: t("welcome.initTitle"), desc: t("welcome.initDesc") },
-      {
-        action: "knowledge",
-        icon: <IconWelcomeKnowledge />,
-        title: t("welcome.knowledgeTitle"),
-        desc: t("welcome.knowledgeDesc"),
-      },
-      { action: "review", icon: <IconWelcomeReview />, title: t("welcome.reviewTitle"), desc: t("welcome.reviewDesc") },
-      { action: "skills", icon: <IconWelcomeSkills />, title: t("welcome.skillsTitle"), desc: t("welcome.skillsDesc") },
-      { action: "undo", icon: <IconWelcomeUndo />, title: t("welcome.undoTitle"), desc: t("welcome.undoDesc") },
+      { action: "plan", icon: <IconWelcomePlan />, title: t("welcome.planTitle") },
+      { action: "init", icon: <IconWelcomeInit />, title: t("welcome.initTitle") },
+      { action: "knowledge", icon: <IconWelcomeKnowledge />, title: t("welcome.knowledgeTitle") },
+      { action: "review", icon: <IconWelcomeReview />, title: t("welcome.reviewTitle") },
+      { action: "skills", icon: <IconWelcomeSkills />, title: t("welcome.skillsTitle") },
+      { action: "undo", icon: <IconWelcomeUndo />, title: t("welcome.undoTitle") },
     ];
     return (
       <div className="ui-conversation">
-        <div className="ui-welcome">
-          <h1>{t("app.name")}</h1>
+        {/* 欢迎页（参考 ZCode 式布局）：时间问候语 + 预留输入框位置 + 轻胶囊，
+            整体垂直居中；composer 由 dock 层居中叠放在预留位。 */}
+        <div className="ui-welcome ui-welcome-center">
+          <h1 className="ui-welcome-greeting">{t(greetingKey())}</h1>
           <div className="ui-welcome-subtitle">{t("empty.subtitle")}</div>
-          <div className="ui-welcome-tips">{t("empty.tips")}</div>
-          <div className="ui-welcome-quickstart">
-            <div className="ui-welcome-quickstart-label">{t("welcome.quickStart")}</div>
-            <div className="ui-welcome-cards">
-              {cards.map((card) => (
-                <button
-                  key={card.action}
-                  type="button"
-                  className="ui-welcome-card"
-                  onClick={() => onQuickAction?.(card.action)}
-                >
-                  <span className="ui-welcome-card-icon">{card.icon}</span>
-                  <span className="ui-welcome-card-title">{card.title}</span>
-                  <span className="ui-welcome-card-desc">{card.desc}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="ui-welcome-hints">
-            <kbd>{modKey}N</kbd> {t("welcome.hintNew")} · <kbd>{modKey}K</kbd> {t("welcome.hintPalette")} ·{" "}
-            <kbd>{modKey}?</kbd> {t("welcome.hintShortcuts")}
+          <div className="ui-welcome-composer-slot" aria-hidden="true" />
+          <div className="ui-welcome-chips">
+            {cards.map((card) => (
+              <button
+                key={card.action}
+                type="button"
+                className="ui-welcome-chip"
+                onClick={() => onQuickAction?.(card.action)}
+              >
+                {card.icon}
+                <span>{card.title}</span>
+              </button>
+            ))}
           </div>
         </div>
       </div>
@@ -253,24 +259,35 @@ export const MessageList = memo(function MessageList({
             {messages.length === 1 ? t("msg.countOne") : t("msg.countMany", { count: messages.length })}
           </div>
         ) : null}
-        {messages.map((message, idx) => {
-          // Insert a date separator when the day changes between messages.
-          const prevMsg = idx > 0 ? messages[idx - 1] : null;
-          const showSep = prevMsg && dateKey(prevMsg.createTime) !== dateKey(message.createTime);
+        {leading.map((message) => (
+          <div key={message.id} data-mid={message.id} className="ui-msg-wrap">
+            <Message message={message} reasoningMode={reasoningMode} expandedThinkingId={expandedThinkingId} />
+          </div>
+        ))}
+        {turns.map((turn, ti) => {
+          // Date separator at turn boundaries (command-to-command day change,
+          // or the first turn after standalone preamble messages).
+          const prevBoundary =
+            ti > 0 ? turns[ti - 1]!.command : leading.length > 0 ? leading[leading.length - 1] : null;
+          const showSep = prevBoundary && dateKey(prevBoundary.createTime) !== dateKey(turn.command.createTime);
+          const isLive = streaming && ti === turns.length - 1;
           return (
-            <div key={message.id} className="ui-msg-wrap">
+            <div key={turn.command.id} data-mid={turn.command.id} className="ui-msg-wrap">
               {showSep ? (
                 <div className="ui-date-separator">
                   <span className="ui-date-separator-line" />
-                  <span className="ui-date-separator-label">{formatDateSeparator(message.createTime, t)}</span>
+                  <span className="ui-date-separator-label">{formatDateSeparator(turn.command.createTime, t)}</span>
                   <span className="ui-date-separator-line" />
                 </div>
               ) : null}
-              <Message
-                message={message}
+              <TaskTurn
+                command={turn.command}
+                body={turn.body}
+                isLive={isLive}
+                streaming={streaming}
                 reasoningMode={reasoningMode}
                 expandedThinkingId={expandedThinkingId}
-                streaming={streaming && idx === messages.length - 1}
+                onFork={onTurnFork}
               />
             </div>
           );

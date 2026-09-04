@@ -84,7 +84,11 @@ test("runBackgroundLlmTask leaves zero session residue", async () => {
               ],
             };
           }
-          // Second turn: final report, no tool calls — loop ends.
+          // Later turns: prose-only reports, no tool calls. For an
+          // ARTIFACT task (arch-scan) with nothing on disk, the loop now
+          // nudges twice before accepting prose completion (2026-08-29) —
+          // turn 2 prose → nudge 1, turn 3 prose → nudge 2, turn 4 prose →
+          // accepted.
           return { choices: [{ message: { content: "arch map emitted" } }] };
         },
       },
@@ -109,8 +113,10 @@ test("runBackgroundLlmTask leaves zero session residue", async () => {
 
   const result = await manager.runBackgroundLlmTask({ skill: "arch-scan" });
 
-  // The loop ran: read tool executed, final content returned.
-  assert.equal(llmCalls, 2);
+  // The loop ran: read tool executed, then the artifact-less prose answer
+  // was nudged twice (new contract: text-only ≠ completion for arch-scan
+  // until 2 nudges are spent) before the final content was accepted.
+  assert.equal(llmCalls, 4);
   assert.equal(result.content, "arch map emitted");
   assert.ok(result.iterations >= 1);
 
@@ -124,6 +130,9 @@ test("runBackgroundLlmTask leaves zero session residue", async () => {
   // Nothing persisted on disk: no sessions index and no message JSONL anywhere
   // under the config home's session stores. (An empty project dir may exist —
   // plain SessionManager construction creates it; that is not session residue.)
+  // usage-ledger.jsonl is the ONE deliberate exception (P1, 2026-09): the
+  // per-request usage ledger is how background-task consumption stops being
+  // invisible — it is accounting data, not session state.
   const projectsDir = path.join(process.env.HOME!, ".deeporca", "projects");
   const legacyProjectsDir = path.join(process.env.HOME!, ".deepcode", "projects");
   const residue: string[] = [];
@@ -133,7 +142,7 @@ test("runBackgroundLlmTask leaves zero session residue", async () => {
       const projDir = path.join(dir, proj);
       if (!fs.statSync(projDir).isDirectory()) continue;
       for (const f of fs.readdirSync(projDir)) {
-        if (f === "sessions-index.json" || f.endsWith(".jsonl")) {
+        if (f === "sessions-index.json" || (f.endsWith(".jsonl") && f !== "usage-ledger.jsonl")) {
           residue.push(path.join(projDir, f));
         }
       }

@@ -118,7 +118,7 @@ NameThatUI/styles 是一个**设计风格图谱**——14 个 UI 风格，每个
 ---
 
 > 关联文档：
-> - [DeepDesign 内核设计](../../specs/deep-design/design.md)
+> - [DeepDesign 内核设计](../../specs/archive/deep-design/design.md)
 > - [功能路线图](../features/feature-roadmap.md)
 > - NameThatUI/styles: https://namethatui.com/styles
 > - Tailwind CSS: https://www.tailwindcss.cn/docs/installation

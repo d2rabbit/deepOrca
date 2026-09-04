@@ -48,6 +48,7 @@ function git(projectRoot: string, args: readonly string[]): string {
       cwd: projectRoot,
       encoding: "utf8",
       timeout: 5000,
+      windowsHide: true,
       stdio: ["ignore", "pipe", "ignore"],
     }).trim();
   } catch {

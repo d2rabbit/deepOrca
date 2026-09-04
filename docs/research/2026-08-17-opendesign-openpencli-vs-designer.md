@@ -38,7 +38,7 @@
 
 ### 1.3 与基线（2026-07-21）结论的差异
 
-基线推荐"配置为 MCP Server（P2，按需）"——该结论仍然成立但**已被本次决策升级为参考借鉴**：deepOrca 的 designer 模块（§三）在 7-8 月完成了对 OpenDesign 核心闭环的自有复刻（见 `specs/deep-design/design.md` §1 的解构：**"没有设计引擎，设计稿是 LLM 写的 HTML/CSS，daemon 只是文件服务器 + BYOK 代理 + iframe 预览壳"**——该判断经本次复核依然准确）。0.13→0.15 的变化没有推翻这一解构。
+基线推荐"配置为 MCP Server（P2，按需）"——该结论仍然成立但**已被本次决策升级为参考借鉴**：deepOrca 的 designer 模块（§三）在 7-8 月完成了对 OpenDesign 核心闭环的自有复刻（见 `specs/archive/deep-design/design.md` §1 的解构：**"没有设计引擎，设计稿是 LLM 写的 HTML/CSS，daemon 只是文件服务器 + BYOK 代理 + iframe 预览壳"**——该判断经本次复核依然准确）。0.13→0.15 的变化没有推翻这一解构。
 
 ---
 
@@ -139,7 +139,7 @@
 ### 3.8 规格与决策文档
 
 - `specs/pm-design-v2/design.md`（2026-08-11）+ `tasks.md`（2026-08-15 差距审计：管线集合=2、analysis.json/pm-analyst 缓期、版本切换 UI 与独立导出列为后续）。
-- `specs/deep-design/design.md`（2026-07-29）：**明确"复刻并超越 Claude Design/OpenDesign 核心闭环，不引入外部 daemon（Express+SQLite+Node24）"**；四层文件系统（DESIGN.md 品牌契约 / 模板 seed / SKILL.md 工作流 / 浏览器展示）。
+- `specs/archive/deep-design/design.md`（2026-07-29）：**明确"复刻并超越 Claude Design/OpenDesign 核心闭环，不引入外部 daemon（Express+SQLite+Node24）"**；四层文件系统（DESIGN.md 品牌契约 / 模板 seed / SKILL.md 工作流 / 浏览器展示）。
 - `docs/research/2026-08-14-openui-full-adoption-plan.md`：三层定位、Batch 6-10 全部落地记录、验收口径（无活谎言/单一事实源/数据闭环/流式/纠错自治）、暂缓清单（editMode merge、analysis.json、iframe 沙箱增强、落盘值正名）。
 
 ---
@@ -214,7 +214,7 @@
 
 | 项 | 原因 |
 |---|---|
-| OpenDesign 整体 / 其 daemon | 体量（Next.js 16 + Electron + Express + SQLite + Node 24 + pnpm monorepo）；**双 Electron 桌面进程冲突**；违反 core 无 UI 依赖的分层规则。基线结论在 0.15 依然成立——0.13→0.15 的增量全在产品化/生态，架构未变。`specs/deep-design/design.md` 的"去掉 daemon 复用内核"正是对本项的回答 |
+| OpenDesign 整体 / 其 daemon | 体量（Next.js 16 + Electron + Express + SQLite + Node 24 + pnpm monorepo）；**双 Electron 桌面进程冲突**；违反 core 无 UI 依赖的分层规则。基线结论在 0.15 依然成立——0.13→0.15 的增量全在产品化/生态，架构未变。`specs/archive/deep-design/design.md` 的"去掉 daemon 复用内核"正是对本项的回答 |
 | HyperFrames 视频管线 | headless Chrome + FFmpeg + 外部视频模型 API；重依赖 + 付费 API + 与 harness 定位不符 |
 | OD 插件市场 / 25 CLI runtime 适配 | deepOrca 是 agent harness 本体而非外壳；自有插件/技能体系已在 |
 | 图片/视频生成 provider 接入 | 外部付费 API、隐私面扩大；如个别用户需要属其自行配置范畴 |
@@ -225,7 +225,7 @@
 
 ## 六、结论
 
-1. **deepOrca 的 designer 模块已经是 OpenDesign 核心闭环的自有等价实现**，且在若干点上更贴合自身架构：双管线（OpenUI Lang 交互原型 / .dd 自包含设计稿）+ flash 路由一键具现化 + JSON 落盘版本血缘 + SDK 结构化错误回喂 + schema→prompt 构建期防漂移 + 沙箱消毒，全程零守护进程、零新增重型依赖。OpenDesign 0.13→0.15 一个月连发两版，但增量在云服务/插件市场/打包体验等**产品化与生态方向**，未改变"三层文件系统 + agent loop"的内核判断（该判断由 `specs/deep-design/design.md` 最早解构，本次复核成立）。
+1. **deepOrca 的 designer 模块已经是 OpenDesign 核心闭环的自有等价实现**，且在若干点上更贴合自身架构：双管线（OpenUI Lang 交互原型 / .dd 自包含设计稿）+ flash 路由一键具现化 + JSON 落盘版本血缘 + SDK 结构化错误回喂 + schema→prompt 构建期防漂移 + 沙箱消毒，全程零守护进程、零新增重型依赖。OpenDesign 0.13→0.15 一个月连发两版，但增量在云服务/插件市场/打包体验等**产品化与生态方向**，未改变"三层文件系统 + agent loop"的内核判断（该判断由 `specs/archive/deep-design/design.md` 最早解构，本次复核成立）。
 2. **"OpenPenCLI" 身份待确认**：无字面同名项目；最可能是 OpenPencil（两家同名项目，候选 1 open-pencil/open-pencil 的 `@open-pencil/cli` 与候选 2 ZSeven-W/openpencil 的 `op`）。两者与 designer 模块的能力重叠集中在"设计纪律/风格预设/分层生成/多目标导出"等思想层面，均不构成依赖引入的理由。
 3. **建议动作**仅三项，全部是 prompt/模板层自有演进：内置设计系统 Markdown 预设扩充（P1）、taste 扩充五维自评 + anti-slop 多样性（P2）、大页面两段式生成试验（P3，可选）。tweaks 面板、PPTX、代码库品牌化刷新记观察清单。
 4. **重申口径**：以项目实际实现方案为主，本次调研结论**仅供参考，不列入正式实现**；外部工具（OD MCP / OpenPencil MCP）保持用户级可选配置的定位。

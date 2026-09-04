@@ -2,11 +2,12 @@
  * Phase 3 arch-scan action (spec §四/§五). The architecture-level scanner.
  *
  * Unlike the other index actions, arch-scan is NOT a deterministic spawn — it
- * is an LLM skill that reads code and persists a Mermaid architecture-map
- * document (`.deeporca/prototypes/arch-<name>.md` via the a2ui MCP's
- * save_archmap tool; the earlier A2UI-surface output read as a flat document,
- * not a graph). So its `run` triggers a SUBAGENT (§十 runSubagent, P2) to
- * execute the skill in isolation.
+ * is an LLM skill that reads code and authors archify typed-IR artifacts
+ * (`.deeporca/prototypes/arch-<slug>.<type>.json`), which the host then
+ * renders through archify's validated delivery pipeline (schema + layout +
+ * render gates, atomic self-contained HTML). The hand-rolled Mermaid document
+ * approach was retired 2026-08-29 (user decision: 采用 archify). So its `run`
+ * triggers a SUBAGENT (§十 runSubagent, P2) to execute the skill in isolation.
  *
  * Until §十 Subagent lands, `ctx.runSubagent` is undefined: the action then
  * returns a structured "pending" result (does not throw) so callers can detect
@@ -16,6 +17,7 @@
 
 import type { ActionDefinition, ActionRun } from "./types";
 import type { BackendStatus } from "../common/analysis-status";
+import { getArchRenderer, getArchifyPaths } from "./archify-controller";
 
 export interface ArchScanInput {
   /** Optional focus perspective (e.g. "data-flow", "dependency-map"). Omit = all. */
@@ -24,7 +26,9 @@ export interface ArchScanInput {
 
 export interface ArchScanOutput {
   readonly ok: boolean;
-  /** Per-call degradation state — "unavailable" while the Subagent runtime is missing. */
+  /** Per-call degradation state — "unavailable" while the Subagent runtime is
+   * missing OR the vendored archify toolkit is not installed (distinct
+   * remedies; see reason). */
   readonly status?: BackendStatus;
   readonly pending?: boolean;
   readonly reason?: string;
@@ -34,7 +38,7 @@ export interface ArchScanOutput {
 export const archScanRunDefinition: ActionDefinition<ArchScanInput> = {
   id: "arch-scan.run",
   description:
-    "Scan the codebase architecture and generate an architecture map (perspective-driven: overall/data-flow/dependency/...). Persists a Mermaid diagram document rendered in the Knowledge panel. This is a non-deterministic, agent-driven action (it spawns a subagent that reads code and reasons about structure). Complements CodeGraph (symbol-level) and OpenWiki (document-level) as the architecture-level index.",
+    "Scan the codebase architecture and generate architecture maps (perspective-driven: overall/data-flow/dependency/...). Authors archify typed-IR artifacts (.deeporca/prototypes/arch-*.<type>.json); the host renders them through archify's validated delivery pipeline into self-contained interactive HTML shown in the Knowledge panel. This is a non-deterministic, agent-driven action (it spawns a subagent that reads code and reasons about structure). Complements CodeGraph (symbol-level) and OpenWiki (document-level) as the architecture-level index.",
   category: "index",
   parameters: {
     type: "object",
@@ -62,6 +66,26 @@ export const archScanRunRun: ActionRun<ArchScanInput, ArchScanOutput> = async (i
         "arch-scan.run requires the background-task runtime, which is not available. The skill can still be triggered manually via /arch-scan.",
     };
   }
+  // Fail FAST when the vendored archify toolkit is missing — parity with
+  // index.build-all's arch stage (real-machine 2026-08-31): without the
+  // toolkit the background task burns its full LLM budget, the render gate
+  // is skipped (the renderer seam is null by the same condition), and this
+  // action used to report ok:true over an empty prototypes dir.
+  if (!getArchifyPaths()) {
+    ctx.emit({
+      message:
+        "arch-scan skipped: archify 工具包未安装（vendor 缺失）— 重建桌面端后重试 / " +
+        "archify toolkit not vendored — rebuild the desktop app to install it",
+    });
+    return {
+      ok: false,
+      status: "unavailable",
+      reason:
+        "archify toolkit not vendored — architecture maps unavailable. " +
+        "重建桌面端（npm run desktop:build 会执行 scripts/vendor-archify.js）并重启 / " +
+        "rebuild the desktop app (desktop:build runs scripts/vendor-archify.js) and restart",
+    };
+  }
   ctx.emit({ message: `arch-scan${input?.perspective ? ` (${input.perspective})` : ""} started`, percent: 10 });
   const result = ctx.runBackgroundTask
     ? await ctx.runBackgroundTask({
@@ -72,6 +96,15 @@ export const archScanRunRun: ActionRun<ArchScanInput, ArchScanOutput> = async (i
         skill: "arch-scan",
         input: input?.perspective ? { perspective: input.perspective } : undefined,
       });
+  // Same deterministic deliver gate as index.build-all's arch stage: the
+  // background task only AUTHORS typed-IR files; rendering + validation is
+  // the host's archify pipeline. A standalone arch-scan.run must not leave
+  // unrendered artifacts behind (漏换 audit 2026-08-29).
+  const renderer = getArchRenderer();
+  if (renderer) {
+    const delivered = await renderer(ctx.projectRoot);
+    ctx.emit({ message: `架构图渲染门禁 — ${delivered} 张已渲染 / render gate — ${delivered} artifact(s)` });
+  }
   ctx.emit({ message: "arch-scan complete", percent: 100 });
   return { ok: true, status: "active", result };
 };

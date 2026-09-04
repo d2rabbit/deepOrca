@@ -774,6 +774,39 @@ export class SessionBridge {
     return toSettingsSummary(this.projectRoot);
   }
 
+  // ── Editor digital entity（user ask 2026-09-03 十三轮 B3c S2）───────────────
+  /**
+   * Run the editor-resident digital entity on a selection. Sessionless
+   * background task: zero residue (no index entry, no JSONL, nothing in the
+   * conversation view). The prompt embeds the editor contract — file, line
+   * range, exact selection, and the user's instruction — so the agent never
+   * needs tool access to understand the request.
+   */
+  runEditorAgent(input: {
+    filePath: string;
+    startLine: number;
+    endLine: number;
+    selection: string;
+    instruction: string;
+    lang?: string;
+  }): Promise<{ content: string | null; iterations: number }> {
+    const sel = input.selection.length > 8000 ? `${input.selection.slice(0, 8000)}\n…（截断）` : input.selection;
+    const range = input.startLine === input.endLine ? `L${input.startLine}` : `L${input.startLine}-L${input.endLine}`;
+    const prompt =
+      `File: ${input.filePath} (${range})\n` +
+      (input.lang ? `Language: ${input.lang}\n` : "") +
+      "Selected code:\n```" +
+      `\n${sel}\n` +
+      "```\n" +
+      `Instruction: ${input.instruction}`;
+    return this.manager.runBackgroundLlmTask({
+      skill: "editor-agent",
+      prompt,
+      profile: "editor", // read-only mechanics + human-facing preamble (specs/editor-agent)
+      root: this.projectRoot,
+    });
+  }
+
   // ── MCP ─────────────────────────────────────────────────────────────────────
   mcpStatus() {
     return this.manager.getMcpStatus();
@@ -1130,7 +1163,7 @@ export class SessionBridge {
       execFile(
         cmd.command,
         cmd.args ?? [],
-        { env: { ...process.env, ...cmd.env }, encoding: "utf8", timeout: 120_000 },
+        { env: { ...process.env, ...cmd.env }, encoding: "utf8", timeout: 120_000, windowsHide: true },
         (error, stdout) => {
           const lastLine = stdout.trim().split("\n").pop() ?? "";
           try {

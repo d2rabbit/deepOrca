@@ -121,6 +121,19 @@ test("OpenAIMessageConverter injects reasoning_content in thinking mode", () => 
   assert.equal(Object.prototype.hasOwnProperty.call(nonThinking[0] ?? {}, "reasoning_content"), false);
 });
 
+test("OpenAIMessageConverter omits the reasoning field entirely for the stepfun family", () => {
+  // StepFun (stepfun family) documents no replay requirement and its default
+  // wire format is delta.reasoning — an empty reasoning_content on replay
+  // would be a FOREIGN field. "omit" must send neither key.
+  const c = converter();
+  const messages: SessionMessage[] = [
+    msg({ role: "assistant", content: "Answer", messageParams: null, reasoningContent: "thinking trace" }),
+  ];
+  const replayed = c.buildMessages(messages, true, "step-3.7-flash") as Array<Record<string, unknown>>;
+  assert.equal(Object.prototype.hasOwnProperty.call(replayed[0] ?? {}, "reasoning_content"), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(replayed[0] ?? {}, "reasoning"), false);
+});
+
 test("OpenAIMessageConverter never replays stored reasoning_content back to the API", () => {
   const c = converter();
   const messages: SessionMessage[] = [

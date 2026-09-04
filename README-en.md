@@ -27,7 +27,7 @@ English · [中文](README.md) · [Docs](docs/) · [Changelog](CHANGELOG.md)
 | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
 | **🎯 Prototype** | Describe requirements in natural language; AI generates interactive prototypes (forms/kanban/multi-page) with bidirectional interaction validation | A2UI protocol + OpenUI Lang + 7 templates |
 | **🎨 UI Design** | Generate self-contained HTML designs with 3 design systems, 14 UI styles, Tailwind built-in — deliverable standalone                               | DeepDesign `.dd` format                   |
-| **💻 Code**      | DeepSeek-powered conversational coding: 7 built-in tools, MCP for infinite extensibility, Monaco editor, Git integration                           | Core Engine + MCP + Monaco                |
+| **💻 Code**      | DeepSeek-powered conversational coding: 8 built-in tools, MCP for infinite extensibility, Monaco editor, Git integration                           | Core Engine + MCP + Monaco                |
 
 Each capability works standalone. Use them independently or combine them — from prototype validation to design mockups to code implementation, flow as needed.
 
@@ -35,7 +35,7 @@ The repository contains four npm workspaces:
 
 | Package               | Description                                                                                  |
 | --------------------- | -------------------------------------------------------------------------------------------- |
-| `@deeporca/core`      | Engine: LLM session loop, seven built-in tools, Skills/MCP, Actions, and session persistence |
+| `@deeporca/core`      | Engine: LLM session loop, eight built-in tools, Skills/MCP, Actions, and session persistence |
 | `@deeporca/desktop`   | Electron main/preload/renderer application with Monaco, panels, and themes                   |
 | `@deeporca/embedding` | Local IBM Granite embedding runtime for semantic routing and retrieval                       |
 | `@deeporca/memory`    | In-process L0-L3 memory pipeline and vector retrieval                                        |
@@ -102,7 +102,7 @@ run.onProgress(console.log);
 const output = await run.result;
 ```
 
-> **Current boundaries:** Actions are integrated with LLM tools and desktop IPC/UI. An external MCP Action Server, HTTP/CLI bindings, generated parameter forms, desktop cancellation, and fine-grained Action permissions are still planned. Runtime parameter-schema validation is currently shallow, so Action implementations should validate detailed constraints. See the [defineAction design](specs/define-action/design.md) for architecture and migration notes.
+> **Current boundaries:** Actions are integrated with LLM tools and desktop IPC/UI. An external MCP Action Server, HTTP/CLI bindings, generated parameter forms, desktop cancellation, and fine-grained Action permissions are still planned. Runtime parameter-schema validation is currently shallow, so Action implementations should validate detailed constraints. See the [defineAction design](specs/archive/define-action/design.md) for architecture and migration notes.
 
 ### 🎨 Desktop highlights
 
@@ -112,8 +112,11 @@ const output = await run.result;
 - **Monaco Editor** — professional editing with syntax highlighting and completion
 - **Actions panel** — inspect registered capabilities, run parameterless Actions, and view shared progress and structured results
 - **GitMCP panel** — index GitHub repositories locally and search docs/code semantically
-- **Code review panel** — review uncommitted workspace changes with structured OCR findings and optional CRG structural-risk enrichment
-- **Index panel** — orchestrate CodeGraph, OpenWiki, and arch-scan with per-stage progress
+- **Code review panel** — on-demand review of ANY workspace (independent of the active one): scope per workspace / commit / range / all, each row remembering its own branch and commit, with a determinate progress bar; structured OCR findings with optional CRG structural-risk enrichment
+- **Risk graph** — review findings mapped onto the CRG structural risk board: pane-fitted elastic layout and two-way report ↔ graph locate (nodes ranked outside the board are pulled in on demand)
+- **Task hub** — a workspace-level task tree: sessions, reviews, index builds, and designs merge into a Git-Graph-style history (session trunk + domain-colored companions); session tasks keep an always-open "user prompt → agent behavior" trace, with fork / branch switching and file-history git-binding badges
+- **Global token stats** — workspace-level LLM usage aggregation (silent subagent sessions included), broken down per model into prompt / completion / cache-hit
+- **Knowledge Base panel** — orchestrate CodeGraph, OpenWiki, and arch-scan with per-stage progress
 - **Source control panel** — stage, commit, diff, and branch operations
 - **i18n** — en / zh / ja / ko / zh-HK / zh-TW
 
@@ -152,14 +155,16 @@ An initial build runs all three stages; **Update All** refreshes CodeGraph and O
 
 | Area               | Capability                                                    | Status |
 | ------------------ | ------------------------------------------------------------- | ------ |
-| Core engine        | LLM session loop, seven built-in tools, compaction            | ✅     |
+| Core engine        | LLM session loop, eight built-in tools, compaction            | ✅     |
 | Actions            | ActionRegistry, LLM tools, desktop IPC/UI, composed workflows | 🧪     |
 | Desktop            | Electron GUI, panels, themes                                  | ✅     |
 | Extensions         | Skills, MCP, and bundled extensions                           | ✅     |
 | Local intelligence | Granite embeddings, L0-L3 memory, semantic routing            | ✅     |
 | Editor             | Monaco Editor integration                                     | ✅     |
 | Workspace indexing | CodeGraph, OpenWiki, and arch-scan                            | ✅     |
-| Code review        | Open Code Review with optional CRG enrichment                 | ✅     |
+| Code review        | On-demand review of any workspace + risk graph + history      | ✅     |
+| Task hub           | Four-domain task tree (Git-Graph history, open traces, fork)  | ✅     |
+| Token usage        | Workspace-level LLM aggregation (silent subagents included)   | ✅     |
 | GitMCP             | Local GitMCP service and repository panel                     | ✅     |
 | Browser automation | Bundled browser Skill                                         | ✅     |
 | Source control     | Stage, commit, diff, and branch panel                         | ✅     |
@@ -238,7 +243,7 @@ npm run desktop:start  # build and run
 | [docs/permission_en.md](docs/permission_en.md)                       | Permission model                                          |
 | [docs/session-persistence_en.md](docs/session-persistence_en.md)     | Session persistence                                       |
 | [docs/builtin-inventory.md](docs/builtin-inventory.md)               | Bundled Skills, MCP servers, and tools                    |
-| [specs/define-action/design.md](specs/define-action/design.md)       | Actions/defineAction design and migration notes (Chinese) |
+| [specs/archive/define-action/design.md](specs/archive/define-action/design.md)       | Actions/defineAction design and migration notes (Chinese) |
 | [docs/features/feature-roadmap.md](docs/features/feature-roadmap.md) | Feature roadmap (Chinese)                                 |
 | [docs/research/](docs/research/)                                     | Technical research                                        |
 

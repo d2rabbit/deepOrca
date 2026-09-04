@@ -42,6 +42,14 @@
   --ui-radius-lg: 12px;
   --ui-radius-pill: 999px;
 
+  /* Markdown code wells (fenced blocks) are FIXED light gray in EVERY theme
+     and appearance — hard product rule 2026-08-31: 严禁黑色，必须浅灰色.
+     Unlike the surface tokens above this is deliberately NOT re-bound by any
+     theme; streamdown/shiki is likewise pinned to the github-light palette in
+     both variants (StreamdownView) so token colors stay readable on it. */
+  --ui-code-well: #f1f3f5;
+  --ui-code-well-border: #dde2e9;
+
   --ui-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.16);
   --ui-shadow-card: 0 1px 2px rgba(0, 0, 0, 0.2), 0 6px 20px rgba(20, 50, 100, 0.14);
   --ui-shadow-modal: 0 18px 60px rgba(0, 0, 0, 0.32);
@@ -104,6 +112,50 @@
   --ui-font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
 }
 
+/* ── Task-hub track & domain tokens（user ask 2026-09-03 十一轮）─────────
+   这些 token 此前从未定义：trunk 描边无 fallback 直接不可见；节点/域
+   chips 在暗色主题解析失败沉底。取值来自 screen-task-tree 设计稿明色
+   板；暗色板整体提亮一档，保证在加深的点阵图底上可辨。 */
+:root {
+  --taskhub-trunk: #9fb3cc;
+  --line-trunk: #9fb3cc;
+  --line-fork: #7048e8;
+  --dot-session: #1c6fe0;
+  --dot-review: #2f9e44;
+  --dot-index: #e8590c;
+  --dot-prototype: #be4bdb;
+  --dot-abandon: #adb5bd;
+}
+:root[data-appearance="dark"] {
+  --taskhub-trunk: #64798f;
+  --line-trunk: #64798f;
+  --line-fork: #9775fa;
+  --dot-session: #4d9aff;
+  --dot-review: #51cf66;
+  --dot-index: #ff922b;
+  --dot-prototype: #da77f2;
+  --dot-abandon: #8a94a3;
+}
+
+/* Native form controls (select popups, scrollbars, date pickers) follow the
+   OS rendering mode derived from `color-scheme`. Without these bindings
+   Chromium renders them light-mode in a dark app — select option lists came
+   up white while the app is dark, reading as "the dropdown is broken". */
+:root[data-appearance="light"] {
+  color-scheme: light;
+}
+:root[data-appearance="dark"] {
+  color-scheme: dark;
+}
+
+/* Code wells flip with the app appearance (user rule 2026-08-31): light gray
+   in light, DARK GRAY (never black, and always contrasting with --ui-text) in
+   dark. Fixed pair — themes must not re-bind it. */
+:root[data-appearance="dark"] {
+  --ui-code-well: #2b2e34;
+  --ui-code-well-border: #3e434b;
+}
+
 /* Diagram hues — light appearance: darker strokes so node outlines stay
    legible on pastel color-mix fills over a light surface. */
 :root[data-appearance="light"] {
@@ -115,6 +167,17 @@
   --ui-diagram-hue-5: #0891b2;
   --ui-diagram-hue-6: #4f46e5;
   --ui-diagram-hue-7: #65a30d;
+
+  /* Tool/message accent hues — light appearance: same darker-strokes contract
+     as the diagram hues, so thinking headers, tool names, JSON tints and MCP
+     badges stay legible on light surfaces even when a theme (e.g. Aqua) ships
+     no light hue overrides of its own. */
+  --ui-tool-hue-think: #b45309;
+  --ui-tool-hue-amber: #a16207;
+  --ui-tool-hue-purple: #7c3aed;
+  --ui-tool-hue-indigo: #4f46e5;
+  --ui-tool-hue-sky: #0369a1;
+  --ui-tool-hue-teal: #0f766e;
 }
 
 /* ── Reset ───────────────────────────────────────────────────────────────── */
@@ -157,4 +220,3 @@ select {
   outline: none;
   box-shadow: 0 0 0 3px var(--ui-focus-ring);
 }
-

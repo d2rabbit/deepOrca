@@ -22,8 +22,6 @@ import {
   reviewFullRun,
   crgReindexDefinition,
   crgReindexRun,
-  crgVisualizeDefinition,
-  crgVisualizeRun,
   codegraphReindexDefinition,
   codegraphReindexRun,
   codegraphListDefinition,
@@ -38,8 +36,6 @@ import {
   wikiReadPageRun,
   indexBuildAllDefinition,
   indexBuildAllRun,
-  wikiTranslateDefinition,
-  wikiTranslateRun,
   archScanRunDefinition,
   archScanRunRun,
   browserSessionStartDefinition,
@@ -85,6 +81,14 @@ import { configureCrgGraphQuery, createCrgGraphQuery } from "./actions/crg-query
 import { createSecondaryClient as defaultCreateSecondaryClient, createEndpointClient } from "./common/openai-client";
 import { DEFAULT_STREAM_IDLE_TIMEOUT_MS } from "./settings";
 import { findModelRegistration, resolveBackgroundLlm, resolveModelSpec } from "./common/model-capabilities";
+import {
+  countCompletionTokens,
+  countRequestPayloadTokens,
+  estimateTextTokensHeuristic,
+  warmTokenCounter,
+} from "./common/token-counter";
+import { appendUsageRecord, usageLedgerPath, type UsageRecord, type UsageSource } from "./common/usage-ledger";
+import { getUserConfigRoot } from "./common/app-dirs";
 import { getLlmErrorDetails } from "./common/llm-error";
 import { getSnippet } from "./common/state";
 import { isUsageRecord } from "./session-usage";
@@ -395,7 +399,6 @@ export abstract class SessionManagerBase {
     // crg.reindex/visualize wrap the core crg.ts helpers (uv-resolved spawn);
     // Actions that need MCP tool routing use ctx.executeMcpTool.
     this.actionRegistry.register(crgReindexDefinition, crgReindexRun);
-    this.actionRegistry.register(crgVisualizeDefinition, crgVisualizeRun);
     // ── Phase 2: knowledge index actions ──────────────────────────────────
     this.actionRegistry.register(codegraphReindexDefinition, codegraphReindexRun);
     this.actionRegistry.register(codegraphListDefinition, codegraphListRun);
@@ -406,8 +409,6 @@ export abstract class SessionManagerBase {
     this.actionRegistry.register(wikiReadPageDefinition, wikiReadPageRun);
     // The unified trio orchestrator (replaces the renderer promise chain).
     this.actionRegistry.register(indexBuildAllDefinition, indexBuildAllRun);
-    // Backend wiki translation (bilingual-ize stage of the build pipeline).
-    this.actionRegistry.register(wikiTranslateDefinition, wikiTranslateRun);
     // ── Phase 3: arch-scan (gated on runSubagent — §十 P2) ─────────────────
     this.actionRegistry.register(archScanRunDefinition, archScanRunRun);
     // ── Browser actions (BrowserSkill bsk CLI wrappers) ──────────────────────
@@ -666,7 +667,9 @@ export abstract class SessionManagerBase {
           location: "SessionManager.judgeViaLlm",
           baseURL,
           params: { purpose: "action-judgment", model, temperature: 0 },
-        }
+        },
+        // Auxiliary helper call — never bill it as chat traffic in the ledger.
+        { source: "auxiliary" }
       );
       const rawContent = response.choices?.[0]?.message?.content;
       const parsed = typeof rawContent === "string" ? (JSON.parse(rawContent) as { choice?: unknown }) : null;
@@ -706,37 +709,15 @@ export abstract class SessionManagerBase {
           location: "SessionManager.completeTextViaLlm",
           baseURL,
           params: { purpose: "backend-completion", model },
-        }
+        },
+        // Auxiliary helper call — never bill it as chat traffic in the ledger.
+        { source: "auxiliary" }
       );
       const content = response.choices?.[0]?.message?.content;
       return typeof content === "string" && content.trim() ? content : null;
     } catch {
       return null;
     }
-  }
-
-  protected estimateStreamTokens(text: string): number {
-    // Same projection as before (CJK ≈0.6 tokens/char, else ≈0.3) but via
-    // code-point range comparison: the per-character /u regex ran once per
-    // code point of every streamed delta — hundreds of thousands of regex
-    // calls over a long response. Also fixes the old range's skew by using
-    // the canonical CJK blocks compaction.ts already treats as dense.
-    let cjk = 0;
-    let other = 0;
-    for (const ch of text) {
-      const code = ch.codePointAt(0) ?? 0;
-      const isCjk =
-        (code >= 0x4e00 && code <= 0x9fff) ||
-        (code >= 0x3000 && code <= 0x30ff) ||
-        (code >= 0xff00 && code <= 0xffef) ||
-        (code >= 0xac00 && code <= 0xd7af);
-      if (isCjk) {
-        cjk += 1;
-      } else {
-        other += 1;
-      }
-    }
-    return cjk * 0.6 + other * 0.3;
   }
 
   protected formatEstimatedTokens(tokens: number): string {
@@ -811,10 +792,18 @@ export abstract class SessionManagerBase {
     request: Record<string, unknown>,
     options?: Record<string, unknown>,
     sessionId?: string,
-    debug?: ChatCompletionDebugOptions
+    debug?: ChatCompletionDebugOptions,
+    accounting?: {
+      /** Accounting label for the ledger; inferred when omitted. */
+      source?: UsageSource;
+      /** Pre-counted prompt size (pre-flight budget) — skips recounting here. */
+      promptTokens?: number;
+    }
   ): Promise<{
     choices?: Array<{ message?: Record<string, unknown> }>;
     usage?: ModelUsage | null;
+    /** Locally counted usage for this request (P1: the accounting source). */
+    localUsage?: ModelUsage | null;
   }> {
     const requestId = crypto.randomUUID();
     const startedAt = new Date().toISOString();
@@ -834,6 +823,65 @@ export abstract class SessionManagerBase {
         ...(isUsageRecord(request.stream_options) ? request.stream_options : {}),
         include_usage: true,
       },
+    };
+
+    // P1 local accounting: every LLM request in the engine funnels through
+    // here (chat loop, compaction, background tasks, auxiliary helpers), so
+    // this is the single place consumption is counted and recorded. The
+    // prompt side is the exact payload about to hit the wire; callers that
+    // already pre-counted it (pre-flight budget) pass their number in to
+    // avoid a second pass over the same messages.
+    const requestModel = typeof request.model === "string" ? request.model : "";
+    warmTokenCounter(requestModel);
+    const promptTokens =
+      accounting?.promptTokens ??
+      countRequestPayloadTokens(requestModel, streamRequest as { messages?: unknown; tools?: unknown });
+    const localUsageOf = (completion: number): ModelUsage => ({
+      prompt_tokens: promptTokens,
+      completion_tokens: completion,
+      total_tokens: promptTokens + completion,
+    });
+    // Cache telemetry is provider-side knowledge the local counter cannot
+    // reproduce — merge the API-reported cache fields into the locally
+    // counted usage. Without this, accumulateUsage (which prefers localUsage)
+    // would freeze cumulative cache tallies at their last pre-rework value
+    // and the reported cache-hit rate would decay toward 0% forever.
+    const localUsageWithApiCache = (
+      completion: number,
+      apiUsage: ModelUsage | Record<string, unknown> | null | undefined
+    ): ModelUsage => {
+      const local = localUsageOf(completion);
+      if (!isUsageRecord(apiUsage)) return local;
+      const merged: Record<string, unknown> = { ...local };
+      if (typeof apiUsage.prompt_cache_hit_tokens === "number") {
+        merged.prompt_cache_hit_tokens = apiUsage.prompt_cache_hit_tokens;
+      }
+      if (typeof apiUsage.prompt_cache_miss_tokens === "number") {
+        merged.prompt_cache_miss_tokens = apiUsage.prompt_cache_miss_tokens;
+      }
+      const details = isUsageRecord(apiUsage.prompt_tokens_details) ? apiUsage.prompt_tokens_details : null;
+      if (details && typeof details.cached_tokens === "number") {
+        merged.prompt_tokens_details = { cached_tokens: details.cached_tokens };
+      }
+      return merged as ModelUsage;
+    };
+    const appendAccounting = (
+      completionTokens: number,
+      apiUsage: ModelUsage | Record<string, unknown> | null | undefined
+    ): void => {
+      const source: UsageSource =
+        accounting?.source ?? (sessionId && this.backgroundTaskIds.has(sessionId) ? "background" : "chat");
+      const record: UsageRecord = {
+        ts: startedAt,
+        model: requestModel || "unknown",
+        prompt: promptTokens,
+        completion: completionTokens,
+        source,
+        ...(sessionId ? { sessionId } : {}),
+        estimated: true,
+        apiUsage: (apiUsage as Record<string, unknown> | null) ?? null,
+      };
+      appendUsageRecord(usageLedgerPath(getUserConfigRoot(), this.projectRoot), record);
     };
 
     let response: unknown;
@@ -866,6 +914,11 @@ export abstract class SessionManagerBase {
         error: getLlmErrorDetails(error),
         request: streamRequest,
       });
+      // Count the prompt even though the create phase threw: mid-stream
+      // failures already count it in full ("bytes were sent"), and a timeout
+      // after the send is indistinguishable from a refused connection here —
+      // accounting biases toward what the provider may have billed.
+      appendAccounting(0, null);
       this.emitLlmStreamProgress(requestId, startedAt, estimatedTokens, "end", sessionId);
       throw error;
     }
@@ -884,7 +937,28 @@ export abstract class SessionManagerBase {
         request: streamRequest,
         response,
       });
-      return response as { choices?: Array<{ message?: Record<string, unknown> }>; usage?: ModelUsage | null };
+      // Non-streaming fallback (provider ignored stream:true — also the path
+      // mocked tests exercise): account it like any other request.
+      const fallback = response as {
+        choices?: Array<{ message?: Record<string, unknown> }>;
+        usage?: ModelUsage | null;
+      };
+      const fallbackMessage = fallback.choices?.[0]?.message;
+      const fallbackCompletion = countCompletionTokens(requestModel, {
+        content: typeof fallbackMessage?.content === "string" ? fallbackMessage.content : "",
+        reasoning:
+          typeof fallbackMessage?.reasoning_content === "string"
+            ? fallbackMessage.reasoning_content
+            : typeof fallbackMessage?.reasoning === "string"
+              ? fallbackMessage.reasoning
+              : "",
+        refusal: typeof fallbackMessage?.refusal === "string" ? fallbackMessage.refusal : null,
+        toolCalls: (Array.isArray(fallbackMessage?.tool_calls)
+          ? (fallbackMessage.tool_calls as unknown[])
+          : []) as Array<{ function?: { name?: string; arguments?: string } }>,
+      });
+      appendAccounting(fallbackCompletion, fallback.usage);
+      return { ...fallback, localUsage: localUsageWithApiCache(fallbackCompletion, fallback.usage) };
     }
 
     let content = "";
@@ -905,7 +979,7 @@ export abstract class SessionManagerBase {
       if (typeof value !== "string" || value.length === 0) {
         return;
       }
-      estimatedTokens += this.estimateStreamTokens(value);
+      estimatedTokens += estimateTextTokensHeuristic(value);
       this.emitLlmStreamProgress(requestId, startedAt, estimatedTokens, "update", sessionId);
     };
 
@@ -1008,6 +1082,17 @@ export abstract class SessionManagerBase {
         error: getLlmErrorDetails(error),
         request: streamRequest,
       });
+      // Mid-stream failure: the request bytes were already sent — count the
+      // prompt in full plus whatever completion arrived before the error.
+      appendAccounting(
+        countCompletionTokens(requestModel, {
+          content,
+          reasoning: reasoningContent,
+          refusal,
+          toolCalls: Array.from(toolCallsByIndex.values()),
+        }),
+        usage
+      );
       throw error;
     } finally {
       this.emitLlmStreamProgress(requestId, startedAt, estimatedTokens, "end", sessionId);
@@ -1054,9 +1139,18 @@ export abstract class SessionManagerBase {
       message.refusal = refusal;
     }
 
+    const completionTokens = countCompletionTokens(requestModel, {
+      content,
+      reasoning: reasoningContent,
+      refusal,
+      toolCalls: normalizedToolCalls as Array<{ function?: { name?: string; arguments?: string } }> | null,
+    });
+    appendAccounting(completionTokens, usage);
+
     const finalResponse = {
       choices: [{ message }],
       usage,
+      localUsage: localUsageWithApiCache(completionTokens, usage),
     };
     this.logChatCompletionDebug(debug, {
       timestamp: new Date().toISOString(),

@@ -20,6 +20,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState, type JSX } from "react";
+import { createPortal } from "react-dom";
 import { api } from "../api";
 import { useI18n } from "../i18n";
 import type { KnowledgeSymbolGraph, KnowledgeSymbolGraphNode } from "../../shared/ipc";
@@ -34,9 +35,20 @@ type Props = {
 /** Edge kinds, in legend order. Paint + dash patterns live in ui.css. */
 const EDGE_KINDS = ["calls", "references", "instantiates", "implements"] as const;
 
-function truncate(text: string, max: number): string {
-  return text.length > max ? `${text.slice(0, max - 1)}…` : text;
-}
+/**
+ * Progressive band disclosure (2026-08-28, "性能好 + 方便看"): bands start
+ * small (initial counts — the old hard caps) so a hub symbol still paints
+ * fast, but a "show more" pill at the end of each band expands it by
+ * BAND_STEP. All nodes are already in memory (the fetch is unchanged — no
+ * extra IPC), so expanding is a pure render-count change; the sort stays
+ * connectivity-desc, so later batches are simply less-connected. The footer
+ * note now reports ONLY the backend edge cap (true data incompleteness) —
+ * display truncation is disclosed per band instead.
+ */
+const BAND_INITIAL = { caller: 16, focus: 10, callee: 16 } as const;
+const BAND_STEP = 24;
+const POP_LIMIT = 12;
+type BandRole = keyof typeof BAND_INITIAL;
 
 export function SymbolGraphView({ root, query, onRecenter }: Props): JSX.Element {
   const { t } = useI18n();
@@ -46,24 +58,42 @@ export function SymbolGraphView({ root, query, onRecenter }: Props): JSX.Element
   // One-hop popover: clicking an outer chip no longer navigates — it opens a
   // floating sub-graph preview with a "center here" action (deliberate drill).
   const [pop, setPop] = useState<{ name: string; kind: string; x: number; y: number } | null>(null);
+  const popRef = useRef<HTMLDivElement>(null);
   const [popGraph, setPopGraph] = useState<KnowledgeSymbolGraph | null>(null);
   const [popLoading, setPopLoading] = useState(false);
   const popSeqRef = useRef(0);
+  // Visible chip count per band; reset with every navigation/context change.
+  const [bandCounts, setBandCounts] = useState<Record<BandRole, number>>({ ...BAND_INITIAL });
 
-  // Any navigation/context change invalidates the popover.
+  // Any navigation/context change invalidates the popover AND the expansion.
   useEffect(() => {
     setPop(null);
     setPopGraph(null);
+    setBandCounts({ ...BAND_INITIAL });
   }, [root, query]);
 
-  // Esc closes the popover.
+  // Esc / any scroll / outside press closes the popover — it is viewport-
+  // fixed, so without the scroll hook it detaches from its anchor chip and
+  // floats stranded over the board once the canvas scrolls.
   useEffect(() => {
     if (!pop) return;
     const onKey = (e: KeyboardEvent): void => {
       if (e.key === "Escape") setPop(null);
     };
+    const onScroll = (): void => setPop(null);
+    const onPointerDown = (e: MouseEvent): void => {
+      if (!popRef.current?.contains(e.target as Node)) setPop(null);
+    };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    // Capture phase: the graph canvas is an inner scroller; window-level
+    // capture sees its scroll events without wiring each container.
+    window.addEventListener("scroll", onScroll, true);
+    document.addEventListener("mousedown", onPointerDown);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("scroll", onScroll, true);
+      document.removeEventListener("mousedown", onPointerDown);
+    };
   }, [pop]);
 
   useEffect(() => {
@@ -124,6 +154,9 @@ export function SymbolGraphView({ root, query, onRecenter }: Props): JSX.Element
   // window, content never sprawls), and per-edge curves are replaced by an
   // aggregate flow summary between bands (real per-edge detail lives in the
   // click popover). No absolute positioning, no SVG geometry.
+  //
+  // Full lists are returned (sorted connectivity-desc); the RENDER count is
+  // governed by bandCounts — see BAND_INITIAL.
   const bands = useMemo(() => {
     if (!graph || graph.nodes.length === 0) return null;
     const roleMap = new Map(graph.nodes.map((n) => [n.id, n.role]));
@@ -133,9 +166,6 @@ export function SymbolGraphView({ root, query, onRecenter }: Props): JSX.Element
         .map((n) => ({ ...n, _heaviness: graph.edges.filter((e) => e.source === n.id || e.target === n.id).length }))
         .sort((a, b) => b._heaviness - a._heaviness)
         .map(({ _heaviness, ...n }) => n) as unknown as KnowledgeSymbolGraphNode[];
-    const callers = byRole("caller").slice(0, 16);
-    const focus = byRole("focus").slice(0, 10);
-    const callees = byRole("callee").slice(0, 16);
     const summarize = (fromRole: "caller" | "focus", toRole: "focus" | "callee"): Array<[string, number]> => {
       const counts = new Map<string, number>();
       for (const e of graph.edges) {
@@ -146,20 +176,11 @@ export function SymbolGraphView({ root, query, onRecenter }: Props): JSX.Element
       return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3);
     };
     return {
-      callers,
-      focus,
-      callees,
+      caller: byRole("caller"),
+      focus: byRole("focus"),
+      callee: byRole("callee"),
       up: summarize("caller", "focus"),
       down: summarize("focus", "callee"),
-      hidden:
-        graph.nodes.filter((n) => n.role === "caller").length -
-        callers.length +
-        // Focus is capped at 10 while the query may match up to 12 — without
-        // this term the "已截断" note never appears for 11-12 focus hits.
-        graph.nodes.filter((n) => n.role === "focus").length -
-        focus.length +
-        graph.nodes.filter((n) => n.role === "callee").length -
-        callees.length,
     };
   }, [graph]);
 
@@ -168,6 +189,9 @@ export function SymbolGraphView({ root, query, onRecenter }: Props): JSX.Element
       key={n.id}
       type="button"
       className={`ui-sym-chip role-${flowRole}`}
+      // Names can CSS-ellipsis inside the 260px chip — the full identity
+      // (name + file) stays reachable on hover.
+      title={`${n.name} · ${n.filePath}`}
       onClick={(e) => {
         if (flowRole === "focus") {
           // The current query's own symbol is already the focus hub —
@@ -202,6 +226,34 @@ export function SymbolGraphView({ root, query, onRecenter }: Props): JSX.Element
     </div>
   );
 
+  // One band: header (label · visible count), chips up to bandCounts[role],
+  // and a "show more" pill while anything remains hidden.
+  const bandSection = (role: BandRole, label: string): JSX.Element => {
+    const list = bands![role];
+    const shown = list.slice(0, bandCounts[role]);
+    const rest = list.length - shown.length;
+    return (
+      <section className={`ui-sym-band${role === "focus" ? " focus" : ""}`}>
+        <header className={`ui-sym-band-head ${role}`}>
+          {label} · {shown.length}
+          {rest > 0 ? <span className="ui-sym-band-rest">/{list.length}</span> : null}
+        </header>
+        <div className="ui-sym-chips">
+          {shown.map((n) => chip(n, role))}
+          {rest > 0 ? (
+            <button
+              type="button"
+              className="ui-sym-more"
+              onClick={() => setBandCounts((c) => ({ ...c, [role]: c[role] + BAND_STEP }))}
+            >
+              {t("symbols.showMore", { n: Math.min(BAND_STEP, rest), total: rest })}
+            </button>
+          ) : null}
+        </div>
+      </section>
+    );
+  };
+
   // Empty/loading/error render INSIDE the canvas — the panel toolbar (Back/
   // Home, legend) always stays mounted above (dead-end drill never strands).
   const boardInner =
@@ -215,29 +267,12 @@ export function SymbolGraphView({ root, query, onRecenter }: Props): JSX.Element
       <div className="ui-symbol-graph-boardstate">{t("index.symbolsEmpty")}</div>
     ) : (
       <div className="ui-sym-flow">
-        <section className="ui-sym-band">
-          <header className="ui-sym-band-head caller">
-            {t("symbols.callers")} · {bands.callers.length}
-          </header>
-          <div className="ui-sym-chips">{bands.callers.map((n) => chip(n, "caller"))}</div>
-        </section>
+        {bandSection("caller", t("symbols.callers"))}
         {connector(t("symbols.flowDown"), bands.up, "down")}
-        <section className="ui-sym-band focus">
-          <header className="ui-sym-band-head focus">
-            {query.trim() ? query.trim() : t("symbols.focus")} · {bands.focus.length}
-          </header>
-          <div className="ui-sym-chips">{bands.focus.map((n) => chip(n, "focus"))}</div>
-        </section>
+        {bandSection("focus", query.trim() ? query.trim() : t("symbols.focus"))}
         {connector(t("symbols.flowUp"), bands.down, "down")}
-        <section className="ui-sym-band">
-          <header className="ui-sym-band-head callee">
-            {t("symbols.callees")} · {bands.callees.length}
-          </header>
-          <div className="ui-sym-chips">{bands.callees.map((n) => chip(n, "callee"))}</div>
-        </section>
-        {bands.hidden > 0 || graph?.truncated ? (
-          <div className="ui-symbol-graph-truncated">{t("symbols.truncated")}</div>
-        ) : null}
+        {bandSection("callee", t("symbols.callees"))}
+        {graph?.truncated ? <div className="ui-symbol-graph-truncated">{t("symbols.truncated")}</div> : null}
       </div>
     );
 
@@ -255,67 +290,85 @@ export function SymbolGraphView({ root, query, onRecenter }: Props): JSX.Element
       </div>
       <div className="ui-symbol-graph-scroll">{boardInner}</div>
       <div className="ui-symbol-graph-hint">{t("symbols.clickHint")}</div>
-      {pop ? (
-        <div className="ui-sym-pop" style={{ left: pop.x, top: pop.y }} role="dialog">
-          <div className="ui-sym-pop-head">
-            <span className={`sym-dot kind-${pop.kind} ui-sym-pop-dot`} />
-            <span className="ui-sym-pop-name">{pop.name}</span>
-            <button type="button" className="ui-sym-pop-close" aria-label="close" onClick={() => setPop(null)}>
-              ✕
-            </button>
-          </div>
-          {popLoading ? (
-            <div className="ui-sym-pop-loading">
-              <span className="ui-spinner" />
-            </div>
-          ) : popGraph && popGraph.nodes.length > 0 ? (
-            <>
-              {(["caller", "callee"] as const).map((role) => {
-                const items = popGraph.nodes.filter((n) => n.role === role).slice(0, 12);
-                return (
-                  <div className="ui-sym-pop-sec" key={role}>
-                    <div className="ui-sym-pop-sec-label">
-                      {role === "caller" ? t("symbols.callers") : t("symbols.callees")}
-                    </div>
-                    {items.length === 0 ? (
-                      <span className="ui-sym-pop-none">{t("symbols.noRelations")}</span>
-                    ) : (
-                      <div className="ui-sym-pop-chips">
-                        {items.map((n) => (
-                          <button
-                            key={n.id}
-                            type="button"
-                            className="ui-sym-pop-chip"
-                            onClick={() => {
-                              setPop(null);
-                              onRecenter(n.name);
-                            }}
-                          >
-                            <span className={`sym-dot kind-${n.kind}`} />
-                            {truncate(n.name, 26)}
-                          </button>
-                        ))}
+      {pop
+        ? // Portal to <body> (audit 2026-08-28, real-machine "浮窗离得太远"):
+          // .ui-knowledge-body carries container-type: inline-size (container
+          // queries), whose implied `contain: layout` makes IT the containing
+          // block for fixed descendants — viewport-coords positioning then
+          // landed offset by the pane's origin. At body level, position:fixed
+          // + clientX/Y is viewport-true again (same escape as ui/tooltip).
+          createPortal(
+            <div ref={popRef} className="ui-sym-pop" style={{ left: pop.x, top: pop.y }} role="dialog">
+              <div className="ui-sym-pop-head">
+                <span className={`sym-dot kind-${pop.kind} ui-sym-pop-dot`} />
+                <span className="ui-sym-pop-name">{pop.name}</span>
+                <button type="button" className="ui-sym-pop-close" aria-label="close" onClick={() => setPop(null)}>
+                  ✕
+                </button>
+              </div>
+              {popLoading ? (
+                <div className="ui-sym-pop-loading">
+                  <span className="ui-spinner" />
+                </div>
+              ) : popGraph && popGraph.nodes.length > 0 ? (
+                <>
+                  {(["caller", "callee"] as const).map((role) => {
+                    // POP_LIMIT keeps the popover light; the hidden count is
+                    // DISCLOSED (the board's old sin was cutting silently).
+                    const all = popGraph.nodes.filter((n) => n.role === role);
+                    const items = all.slice(0, POP_LIMIT);
+                    return (
+                      <div className="ui-sym-pop-sec" key={role}>
+                        <div className="ui-sym-pop-sec-label">
+                          {role === "caller" ? t("symbols.callers") : t("symbols.callees")}
+                        </div>
+                        {items.length === 0 ? (
+                          <span className="ui-sym-pop-none">{t("symbols.noRelations")}</span>
+                        ) : (
+                          <div className="ui-sym-pop-chips">
+                            {items.map((n) => (
+                              <button
+                                key={n.id}
+                                type="button"
+                                className="ui-sym-pop-chip"
+                                title={`${n.name} · ${n.filePath}`}
+                                onClick={() => {
+                                  setPop(null);
+                                  onRecenter(n.name);
+                                }}
+                              >
+                                <span className={`sym-dot kind-${n.kind}`} />
+                                <span className="ui-sym-pop-chip-name">{n.name}</span>
+                              </button>
+                            ))}
+                            {all.length > items.length ? (
+                              <span className="ui-sym-pop-more">
+                                {t("symbols.moreHidden", { n: all.length - items.length })}
+                              </span>
+                            ) : null}
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
-                );
-              })}
-              <button
-                type="button"
-                className="ui-sym-pop-center"
-                onClick={() => {
-                  setPop(null);
-                  onRecenter(pop.name);
-                }}
-              >
-                ◈ {t("symbols.recenter")}
-              </button>
-            </>
-          ) : (
-            <div className="ui-sym-pop-none">{t("symbols.noRelations")}</div>
-          )}
-        </div>
-      ) : null}
+                    );
+                  })}
+                  <button
+                    type="button"
+                    className="ui-sym-pop-center"
+                    onClick={() => {
+                      setPop(null);
+                      onRecenter(pop.name);
+                    }}
+                  >
+                    ◈ {t("symbols.recenter")}
+                  </button>
+                </>
+              ) : (
+                <div className="ui-sym-pop-none">{t("symbols.noRelations")}</div>
+              )}
+            </div>,
+            document.body
+          )
+        : null}
     </div>
   );
 }

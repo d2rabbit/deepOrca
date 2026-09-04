@@ -185,6 +185,17 @@ test("merge cherry-picks nodes onto the active branch and reports artifact confl
   assert.equal(svc.merge(treeId!, "main", [mainStep!]), null);
   assert.equal(svc.merge(treeId!, "alt", ["deadbeefdead"]), null);
   void forkId;
+
+  // merge completeness (user ask 2026-09-03 九轮): the source branch is
+  // stamped mergedInto + the reflog carries a merge op — panels render
+  // 已合并 + the merge-back edge from branch-level data.
+  const tree = svc.getTree(treeId!)!;
+  assert.equal(tree.index.branches["alt"]?.mergedInto, "main", "source branch stamped mergedInto");
+  const reflog = svc.readReflog(treeId!);
+  assert.ok(
+    reflog.some((e) => e.op === "merge" && e.detail?.includes("alt")),
+    "reflog records the merge op"
+  );
 });
 
 test("bindSession stamps the branch head once and refuses silent rebinds", () => {

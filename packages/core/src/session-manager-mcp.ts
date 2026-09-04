@@ -1,6 +1,6 @@
 // SessionManager layer — see session-manager-base.ts for the split rationale.
-import type * as NodePath from "node:path";
-import type * as NodeUrl from "node:url";
+import * as NodePath from "node:path";
+import { fileURLToPath } from "node:url";
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
 import {
   buildCodegraphMcpServerConfig,
@@ -104,23 +104,18 @@ export abstract class SessionManagerMcp extends SessionManagerBase {
           // silently fail-opened and never actually ran.)
           (() => {
             try {
-              const { join, dirname } = require("node:path") as typeof NodePath;
-              const { fileURLToPath } = require("node:url") as typeof NodeUrl;
-              const here = typeof __dirname !== "undefined" ? __dirname : dirname(fileURLToPath(import.meta.url));
-              return join(here, "..", "..", "desktop", "vendor", "granite-embedding");
+              // Static node: imports — a bare require() here is a guaranteed
+              // ReferenceError inside this ESM package (the same landmine the
+              // crg-query loader hit; review round 2026-09-01).
+              const here =
+                typeof __dirname !== "undefined" ? __dirname : NodePath.dirname(fileURLToPath(import.meta.url));
+              return NodePath.join(here, "..", "..", "desktop", "vendor", "granite-embedding");
             } catch {
               return "";
             }
           })();
         // Cache dir: project-level .deeporca/cache (best-effort).
-        const cacheDir = (() => {
-          try {
-            const { join } = require("node:path") as typeof NodePath;
-            return join(this.projectRoot, ".deeporca", "cache");
-          } catch {
-            return undefined;
-          }
-        })();
+        const cacheDir = NodePath.join(this.projectRoot, ".deeporca", "cache");
         const bundle = await createRouters(config, { modelDir, cacheDir });
         // Track load failures for the retry backoff above. A null bundle with
         // routing enabled means the embedding service failed to load.
@@ -227,7 +222,8 @@ If the query is simple (single intent), respond with a single-element array.`;
                 },
                 options?.signal ? { signal: options.signal } : undefined,
                 options?.sessionId,
-                { enabled: false, location: "SessionManager.createSkillDecomposer", baseURL }
+                { enabled: false, location: "SessionManager.createSkillDecomposer", baseURL },
+                { source: "auxiliary" }
               );
               return response.choices?.[0]?.message?.content;
             },
@@ -369,10 +365,11 @@ If the query is simple (single intent), respond with a single-element array.`;
   /**
    * Merge built-in MCP servers into the configured set. CodeGraph is registered
    * automatically — but only for projects that already contain a `.codegraph/`
-   * directory, so the index/knowledge base stays project-scoped and nothing is
-   * assumed to exist on the host. A user-provided `codegraph` entry always wins.
-   * Similarly, code-review-graph is auto-registered for projects with a
-   * `.code-review-graph/` directory, exposing only analysis-layer tools.
+   * directory (or its `.deeporca/codegraph/` store behind the symlink), so the
+   * index/knowledge base stays project-scoped and nothing is assumed to exist
+   * on the host. A user-provided `codegraph` entry always wins. (The
+   * code-review-graph MCP server was retired — queries read graph.db directly
+   * from `.deeporca/crg/` via CrgGraphQuery.)
    * GitMCP entries (`gitmcp:` prefix) that still hold the portable placeholder
    * config are rewritten here into a concrete spawn config for this machine.
    */

@@ -118,8 +118,7 @@ export interface ActionContext {
    * Free-form backend LLM text completion on the PRIMARY (settings) model —
    * injected by SessionManager. Returns the completion text, or null when
    * unavailable/failed — callers MUST degrade deterministically on null
-   * (fail-open). Used by content-shaped actions (wiki.translate's per-page
-   * translation); classification stays on judgeViaLlm's flash-class JSON mode.
+   * (fail-open); classification stays on judgeViaLlm's flash-class JSON mode.
    */
   readonly completeViaLlm?: (
     messages: Array<{ role: "system" | "user"; content: string }>,
@@ -170,6 +169,19 @@ export interface BackgroundLlmTaskOptions {
   readonly prompt?: string;
   readonly input?: Record<string, unknown>;
   /**
+   * Task profile. "default" (artifact-producing tasks like arch-scan) creates
+   * the target's prototypes dir, allows the write tool, injects the
+   * artifact-completion system framing and archify tool steering. "review"
+   * (delegated OCR file review) is read-only exploration: no artifact dir,
+   * no write tool, no steering, and a system preamble that enforces the task
+   * prompt's JSON contract. Defaults to "default". "editor" (the editor-
+   * resident digital entity, specs/editor-agent) shares review's read-only
+   * mechanics — no artifact dir, no write tool, no steering — but its system
+   * preamble is human-facing: the final text is shown verbatim in the user's
+   * editor (replacement code in one fence + short rationale).
+   */
+  readonly profile?: "default" | "review" | "editor";
+  /**
    * Workspace root the task's artifacts belong to (defaults to the manager's
    * projectRoot). A2UI surfaces are flushed into this root's
    * `.deeporca/prototypes/` on completion.
@@ -178,7 +190,7 @@ export interface BackgroundLlmTaskOptions {
   /**
    * Cancellation signal (usually the owning action's `ctx.signal`). Aborting
    * stops the loop at the next iteration boundary and rejects the task with
-   * an AbortError; surfaces produced so far are still flushed.
+   * an AbortError; artifacts produced so far remain on disk.
    */
   readonly signal?: AbortSignal;
   /** Progress callback for the owning pipeline (iteration/tool milestones). */
@@ -186,10 +198,19 @@ export interface BackgroundLlmTaskOptions {
 }
 
 export interface BackgroundLlmTaskResult {
-  /** Final assistant text (null when the loop ended on tool calls / cap). */
+  /** Final assistant text (the ceiling path throws, so this is never null on return). */
   readonly content: string | null;
   /** LLM loop iterations consumed. */
   readonly iterations: number;
+  /** Tool calls the path grant / permission gates denied during the loop —
+   *  a non-zero count alongside a hollow result points at an authorization
+   *  misconfiguration rather than a lazy model (diagnostics, audit 2026-08-29). */
+  readonly toolDenials?: number;
+  /** arch-scan only: the LAST validate_archifact call's path + receipt verdict.
+   *  When the deliver gate then finds no artifact, this pair decodes the
+   *  mismatch (validated-where? passed?) from the build log alone
+   *  (real-machine 2026-08-30: a green validate + empty gate was undecodable). */
+  readonly lastValidate?: { readonly path: string; readonly ok: boolean };
 }
 
 /** The `run` function authors implement. */

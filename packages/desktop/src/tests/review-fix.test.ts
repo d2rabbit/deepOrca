@@ -85,3 +85,25 @@ test("extraction reads review.full output shape and tolerates junk", () => {
   assert.deepEqual(extractReviewFindings("nope"), []);
   assert.deepEqual(extractReviewFindings({ review: { comments: "not-an-array" } }), []);
 });
+
+test("extraction strips the delegation [SEVERITY] content prefix", () => {
+  // Review round 2026-09-01: the brief carries the severity through the
+  // [结构风险 …] tag — a verbatim [HIGH] prefix made every item read
+  // "HIGH … [结构风险 HIGH …]".
+  const output = {
+    review: {
+      comments: [
+        { path: "a.ts", startLine: 3, content: "[HIGH] race on shared map" },
+        { path: "b.ts", startLine: 4, content: "[CRITICAL]\nmulti-line finding" },
+        { path: "c.ts", startLine: 5, content: "no prefix at all" },
+      ],
+    },
+  };
+  const got = extractReviewFindings(output);
+  assert.equal(got[0].content, "race on shared map");
+  assert.equal(got[1].content, "multi-line finding");
+  assert.equal(got[2].content, "no prefix at all");
+
+  const brief = buildReviewFixPrompt(got);
+  assert.ok(!/\[HIGH\] race/.test(brief), "brief must not repeat the raw severity prefix");
+});

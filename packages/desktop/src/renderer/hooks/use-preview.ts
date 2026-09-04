@@ -26,8 +26,8 @@ export type PreviewState = {
   /** Returned raw — passed straight to CodeReviewPanel's onShowGraph. */
   setGraphHtml: React.Dispatch<React.SetStateAction<string | null>>;
   previewOpen: boolean;
-  previewTab: "prototype" | "design";
-  setPreviewTab: React.Dispatch<React.SetStateAction<"prototype" | "design">>;
+  previewTab: "prototype" | "design" | "prd";
+  setPreviewTab: React.Dispatch<React.SetStateAction<"prototype" | "design" | "prd">>;
   /** Auto-open the matching preview when a render/update tool result arrives. */
   applyToolMessage: (message: SessionMessage) => void;
   /** Open a stored design artifact in the preview (from DesignPanel). */
@@ -44,7 +44,7 @@ export function usePreview(): PreviewState {
   const [designContent, setDesignContent] = useState<string | null>(null);
   const [graphHtml, setGraphHtml] = useState<string | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
-  const [previewTab, setPreviewTab] = useState<"prototype" | "design">("prototype");
+  const [previewTab, setPreviewTab] = useState<"prototype" | "design" | "prd">("prototype");
 
   // Auto-switch the matching preview panel when a render/update tool result arrives.
   const applyToolMessage = useCallback((message: SessionMessage) => {
@@ -55,12 +55,13 @@ export function usePreview(): PreviewState {
     // Single right-slot rule: opening the preview panel evicts the graph panel.
     setGraphHtml(null);
     if (artifact.mode === "design" || artifact.mode === "spec") {
-      // Spec documents (requirements) share the design slot — a reading view
-      // next to the list, same as .dd documents.
+      // Spec documents (PRDs) get their OWN tab — the Design tab is for UI
+      // visual drafts (.dd) only (user report 2026-09-02: a PRD opened under
+      // the "Design" marker read as a UI design).
       setPrototypeMode(artifact.mode);
       setDesignContent(artifact.payload);
       setPreviewOpen(true);
-      setPreviewTab("design");
+      setPreviewTab(artifact.mode === "spec" ? "prd" : "design");
     } else if (artifact.mode === "openui") {
       setPrototypeMode("openui");
       setPrototypeOpenuiCode(artifact.payload);
@@ -96,15 +97,19 @@ export function usePreview(): PreviewState {
     setDesignContent(null);
   }, []);
 
-  /** Open a stored design artifact in the preview panel (from DesignPanel). */
+  /** Open a stored design artifact in the preview panel (from DesignPanel / task hub). */
   const openDesignArtifact = useCallback((pipeline: "openui" | "design" | "spec", content: string) => {
     setGraphHtml(null);
     if (pipeline === "openui") {
       setPrototypeMode("openui");
       setPrototypeOpenuiCode(content);
       setPreviewTab("prototype");
+    } else if (pipeline === "spec") {
+      // PRD → its own tab; the Design tab stays UI-visual-draft only.
+      setPrototypeMode("spec");
+      setDesignContent(content);
+      setPreviewTab("prd");
     } else {
-      // .dd documents AND spec markdown share the design/reading slot.
       setPrototypeMode(pipeline);
       setDesignContent(content);
       setPreviewTab("design");

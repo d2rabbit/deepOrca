@@ -1,0 +1,518 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "DeepOrca CLI 整体架构",
+    "quality_profile": "showcase",
+    "viewBox": [1700, 700],
+    "repository": {
+      "url": "https://github.com/d2rabbit/deepOrca.git",
+      "revision": "ec9060f2134aa5a48c460fc41a684baa09f29ae0"
+    },
+    "views": [
+      {
+        "id": "request-path",
+        "label": "请求主路径",
+        "focus": ["renderer", "main", "ipcSecurity", "coreSession", "toolExecutor", "llmProvider"],
+        "note": "从渲染器发送 prompt 到主进程校验、会话调度、工具执行，再到 LLM 提供商返回。"
+      },
+      {
+        "id": "knowledge-path",
+        "label": "知识增强路径",
+        "focus": [
+          "coreSession",
+          "mcpManager",
+          "gitmcp",
+          "codegraph",
+          "wiki",
+          "memoryManager",
+          "tdaiCore",
+          "sqliteStore"
+        ],
+        "note": "会话在工具与知识模块间扩展：MCP、GitMCP、CodeGraph、Wiki、Memory 流水线。"
+      },
+      {
+        "id": "memory-pipeline",
+        "label": "记忆流水线",
+        "focus": ["memoryManager", "tdaiCore", "sqliteStore", "llmProvider"],
+        "note": "L0-L3 记忆抽取、场景/角色生成、SQLite/BM25 存储与本地向量召回。"
+      }
+    ]
+  },
+  "layout": {
+    "mode": "grid",
+    "origin": [40, 80],
+    "cols": 9,
+    "gapX": 28,
+    "gapY": 36,
+    "cellW": 152,
+    "cellH": 72
+  },
+  "components": [
+    {
+      "id": "renderer",
+      "type": "frontend",
+      "label": "Electron Renderer",
+      "sublabel": "React 桌面界面",
+      "tag": "React 19",
+      "row": 0,
+      "col": 2,
+      "sources": [
+        {
+          "path": "packages/desktop/src/renderer/App.tsx",
+          "line": 1
+        },
+        {
+          "path": "packages/desktop/src/renderer/api.ts",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "main",
+      "type": "backend",
+      "label": "Electron Main",
+      "sublabel": "主进程 + IPC 组合根",
+      "tag": "Electron 43",
+      "row": 1,
+      "col": 2,
+      "sources": [
+        {
+          "path": "packages/desktop/src/main/index.ts",
+          "line": 1,
+          "end_line": 120
+        }
+      ]
+    },
+    {
+      "id": "ipcSecurity",
+      "type": "security",
+      "label": "IPC 安全策略",
+      "sublabel": "渲染器来源校验与权限守卫",
+      "row": 1,
+      "col": 4,
+      "sources": [
+        {
+          "path": "packages/desktop/src/main/ipc-security.ts",
+          "line": 1,
+          "end_line": 120
+        }
+      ]
+    },
+    {
+      "id": "pluginManager",
+      "type": "backend",
+      "label": "Plugin Manager",
+      "sublabel": "MCP/Skill 生命周期",
+      "row": 1,
+      "col": 6,
+      "sources": [
+        {
+          "path": "packages/desktop/src/main/plugin-manager.ts",
+          "line": 1,
+          "end_line": 120
+        }
+      ]
+    },
+    {
+      "id": "coreSession",
+      "type": "backend",
+      "label": "SessionManager",
+      "sublabel": "会话、流式与生命周期",
+      "tag": "@deeporca/core",
+      "row": 2,
+      "col": 2,
+      "sources": [
+        {
+          "path": "packages/core/src/session.ts",
+          "line": 1
+        },
+        {
+          "path": "packages/core/src/session-stream.ts",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "toolExecutor",
+      "type": "backend",
+      "label": "ToolExecutor",
+      "sublabel": "工具调度与执行器",
+      "tag": "@deeporca/core",
+      "row": 2,
+      "col": 4,
+      "sources": [
+        {
+          "path": "packages/core/src/tools/executor.ts",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "mcpManager",
+      "type": "messagebus",
+      "label": "McpManager",
+      "sublabel": "MCP 服务器连接与工具命名空间",
+      "tag": "MCP SDK 1.22",
+      "row": 2,
+      "col": 6,
+      "sources": [
+        {
+          "path": "packages/core/src/mcp/mcp-manager.ts",
+          "line": 1,
+          "end_line": 160
+        }
+      ]
+    },
+    {
+      "id": "llmProvider",
+      "type": "external",
+      "label": "LLM Provider",
+      "sublabel": "OpenAI 兼容端点",
+      "tag": "HTTPS/OpenAI",
+      "brand": "openai",
+      "row": 2,
+      "col": 0,
+      "sources": [
+        {
+          "path": "packages/core/src/common/openai-client.ts",
+          "line": 1
+        },
+        {
+          "path": "packages/memory/src/adapter.ts",
+          "line": 137,
+          "end_line": 170
+        }
+      ]
+    },
+    {
+      "id": "gitmcp",
+      "type": "backend",
+      "label": "GitMCP",
+      "sublabel": "远程仓库文档索引",
+      "row": 3,
+      "col": 1,
+      "sources": [
+        {
+          "path": "packages/core/src/gitmcp/resolve.ts",
+          "line": 1
+        },
+        {
+          "path": "packages/desktop/src/main/tools/gitmcp/tools.ts",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "codegraph",
+      "type": "backend",
+      "label": "CodeGraph",
+      "sublabel": "本地代码索引与符号图谱",
+      "row": 3,
+      "col": 3,
+      "sources": [
+        {
+          "path": "packages/core/src/actions/codegraph.ts",
+          "line": 1
+        },
+        {
+          "path": "packages/core/src/actions/index-build.ts",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "wiki",
+      "type": "backend",
+      "label": "OpenWiki",
+      "sublabel": "项目知识图谱生成",
+      "row": 3,
+      "col": 5,
+      "sources": [
+        {
+          "path": "packages/core/src/actions/wiki.ts",
+          "line": 1
+        },
+        {
+          "path": "packages/desktop/src/main/tools/wiki-cli.ts",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "memoryManager",
+      "type": "backend",
+      "label": "MemoryManager",
+      "sublabel": "L0-L3 记忆管道入口",
+      "tag": "@deeporca/memory",
+      "row": 4,
+      "col": 3,
+      "sources": [
+        {
+          "path": "packages/memory/src/memory-manager.ts",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "tdaiCore",
+      "type": "backend",
+      "label": "TdaiCore",
+      "sublabel": "抽取/场景/角色生成",
+      "tag": "@deeporca/memory",
+      "row": 4,
+      "col": 5,
+      "sources": [
+        {
+          "path": "packages/memory/src/tdai/core/tdai-core.ts",
+          "line": 60,
+          "end_line": 160
+        }
+      ]
+    },
+    {
+      "id": "sqliteStore",
+      "type": "database",
+      "label": "SQLite Store",
+      "sublabel": "L0/L1/BM25/向量存储",
+      "tag": "SQLite + sqlite-vec",
+      "brand": "sqlite",
+      "row": 5,
+      "col": 4,
+      "sources": [
+        {
+          "path": "packages/memory/src/tdai/core/store/sqlite.ts",
+          "line": 1
+        },
+        {
+          "path": "packages/memory/src/tdai/core/store/bm25-local.ts",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "localEmbedding",
+      "type": "backend",
+      "label": "Local Embedding",
+      "sublabel": "Granite ONNX 本地向量",
+      "tag": "@deeporca/embedding",
+      "row": 5,
+      "col": 6,
+      "sources": [
+        {
+          "path": "packages/embedding/src/transformers-embedding.ts",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "gitRepos",
+      "type": "external",
+      "label": "Remote Git Repos",
+      "sublabel": "GitMCP 拉取的远端仓库",
+      "row": 3,
+      "col": 0,
+      "sources": [
+        {
+          "path": "packages/core/src/gitmcp/resolve.ts",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "mcpServers",
+      "type": "external",
+      "label": "MCP Servers",
+      "sublabel": "stdio 外部工具服务器",
+      "tag": "MCP stdio",
+      "row": 2,
+      "col": 8,
+      "sources": [
+        {
+          "path": "packages/core/src/mcp/mcp-manager.ts",
+          "line": 120,
+          "end_line": 180
+        }
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "security-group",
+      "label": "渲染器特权边界",
+      "wraps": ["renderer", "main", "ipcSecurity", "pluginManager"],
+      "pad": 18
+    },
+    {
+      "kind": "region",
+      "label": "本地数据层",
+      "wraps": ["sqliteStore", "memoryManager", "tdaiCore", "localEmbedding"],
+      "pad": 18
+    },
+    {
+      "kind": "region",
+      "label": "外部服务层",
+      "wraps": ["llmProvider", "gitRepos", "mcpServers"],
+      "pad": 18
+    }
+  ],
+  "connections": [
+    {
+      "id": "c-renderer-main",
+      "from": "renderer",
+      "to": "main",
+      "label": "IPC",
+      "variant": "emphasis"
+    },
+    {
+      "id": "c-renderer-core",
+      "from": "renderer",
+      "to": "coreSession",
+      "label": "preload API",
+      "route": "orthogonal-h",
+      "fromSide": "left",
+      "toSide": "left",
+      "via": [
+        [296, 116],
+        [296, 332]
+      ]
+    },
+    {
+      "id": "c-main-ipcsec",
+      "from": "main",
+      "to": "ipcSecurity",
+      "label": "来源校验"
+    },
+    {
+      "id": "c-main-plugin",
+      "from": "main",
+      "to": "pluginManager",
+      "label": "生命周期"
+    },
+    {
+      "id": "c-core-tools",
+      "from": "coreSession",
+      "to": "toolExecutor",
+      "label": "工具执行"
+    },
+    {
+      "id": "c-tools-mcp",
+      "from": "toolExecutor",
+      "to": "mcpManager",
+      "label": "MCP 工具调用"
+    },
+    {
+      "id": "c-core-mcp",
+      "from": "coreSession",
+      "to": "mcpManager",
+      "label": "MCP 连接",
+      "fromSide": "left",
+      "toSide": "right"
+    },
+    {
+      "id": "c-main-llm",
+      "from": "main",
+      "to": "llmProvider",
+      "label": "HTTPS",
+      "variant": "emphasis",
+      "fromSide": "left",
+      "toSide": "right"
+    },
+    {
+      "id": "c-core-gitmcp",
+      "from": "coreSession",
+      "to": "gitmcp",
+      "label": "仓库索引"
+    },
+    {
+      "id": "c-gitmcp-repos",
+      "from": "gitmcp",
+      "to": "gitRepos",
+      "label": "Git HTTP"
+    },
+    {
+      "id": "c-core-codegraph",
+      "from": "coreSession",
+      "to": "codegraph",
+      "label": "符号索引"
+    },
+    {
+      "id": "c-core-wiki",
+      "from": "coreSession",
+      "to": "wiki",
+      "label": "Wiki 生成"
+    },
+    {
+      "id": "c-mem-tdai",
+      "from": "memoryManager",
+      "to": "tdaiCore",
+      "label": "流水线调用",
+      "variant": "emphasis"
+    },
+    {
+      "id": "c-tdai-sqlite",
+      "from": "tdaiCore",
+      "to": "sqliteStore",
+      "label": "SQL"
+    },
+    {
+      "id": "c-tdai-embed",
+      "from": "tdaiCore",
+      "to": "localEmbedding",
+      "label": "向量化",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "c-mem-sqlite",
+      "from": "memoryManager",
+      "to": "sqliteStore",
+      "label": "读写数据目录"
+    },
+    {
+      "id": "c-tdai-llm",
+      "from": "tdaiCore",
+      "to": "llmProvider",
+      "label": "LLM",
+      "fromSide": "right",
+      "toSide": "top",
+      "via": [
+        [1700, 548],
+        [1700, 64],
+        [116, 64]
+      ]
+    },
+    {
+      "id": "c-plugin-mcp",
+      "from": "pluginManager",
+      "to": "mcpManager",
+      "label": "MCP 状态/重连"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "三层 Electron 边界清晰",
+      "items": [
+        "Renderer 只通过 preload IPC 访问核心能力，不能直接触碰文件/Git/MCP。",
+        "IPC 安全策略按主窗口 webContents id + 精确文件 URL 校验来源。"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "可扩展工具总线",
+      "items": [
+        "核心 MCP 管理器以 stdio/inMemory 接入外部服务器，并按需注入工具列表。",
+        "工具执行器同时内置 Bash/Read/Write/Edit/WebSearch/WebFetch，并支持记忆检索工具桥接。"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "本地记忆优先",
+      "items": [
+        "MemoryManager 将 TDAI 流水线进程内化，替代旧版 HTTP sidecar。",
+        "L0-L3 结果落盘到 SQLite/BM25，并支持本地 ONNX embedding 向量召回。"
+      ]
+    }
+  ]
+}

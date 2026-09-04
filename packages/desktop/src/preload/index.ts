@@ -89,11 +89,11 @@ const api: DesktopApi = {
   gitDiscard: (file) => ipcRenderer.invoke(IpcRequest.GitDiscard, file),
   gitCommit: (message) => ipcRenderer.invoke(IpcRequest.GitCommit, message),
   gitCurrentBranch: () => ipcRenderer.invoke(IpcRequest.GitCurrentBranch),
-  gitListBranches: () => ipcRenderer.invoke(IpcRequest.GitListBranches),
+  gitListBranches: (root) => ipcRenderer.invoke(IpcRequest.GitListBranches, root),
   gitCheckout: (branch) => ipcRenderer.invoke(IpcRequest.GitCheckout, branch),
   gitStashCheckout: (branch) => ipcRenderer.invoke(IpcRequest.GitStashCheckout, branch),
   gitDiff: (file, staged) => ipcRenderer.invoke(IpcRequest.GitDiff, file, staged),
-  gitLog: (limit) => ipcRenderer.invoke(IpcRequest.GitLog, limit),
+  gitLog: (limit, root) => ipcRenderer.invoke(IpcRequest.GitLog, limit, root),
   gitCommitDiff: (hash, file) => ipcRenderer.invoke(IpcRequest.GitCommitDiff, hash, file),
   gitCommitFiles: (hash) => ipcRenderer.invoke(IpcRequest.GitCommitFiles, hash),
 
@@ -104,7 +104,15 @@ const api: DesktopApi = {
   crgCheckAvailable: () => ipcRenderer.invoke(IpcRequest.CrgCheckAvailable),
   crgList: () => ipcRenderer.invoke(IpcRequest.CrgList),
   crgReindex: (root) => ipcRenderer.invoke(IpcRequest.CrgReindex, root),
-  crgVisualize: () => ipcRenderer.invoke(IpcRequest.CrgVisualize),
+  reviewListReports: (root) => ipcRenderer.invoke(IpcRequest.ReviewListReports, root),
+  reviewReadReport: (root, id) => ipcRenderer.invoke(IpcRequest.ReviewReadReport, root, id),
+  reviewRiskGraph: (root, focusQns) => ipcRenderer.invoke(IpcRequest.ReviewRiskGraph, root, focusQns),
+  taskHubList: (root) => ipcRenderer.invoke(IpcRequest.TaskHubList, root),
+  taskHubTrace: (root, treeId) => ipcRenderer.invoke(IpcRequest.TaskHubTrace, root, treeId),
+  taskHubChatTrace: (root, sessionId) => ipcRenderer.invoke(IpcRequest.TaskHubChatTrace, root, sessionId),
+  taskTreeForkWorkspace: (treeId, why, opts, root) =>
+    ipcRenderer.invoke(IpcRequest.TaskTreeForkWorkspace, treeId, why, opts, root),
+  tokensSummary: (root) => ipcRenderer.invoke(IpcRequest.TokensSummary, root),
   onCrgProgress: (cb) => subscribe(IpcEvent.CrgProgress, cb as (p: never) => void),
 
   // ── Wiki knowledge graph (openwiki) ─────────────────────────────
@@ -139,10 +147,16 @@ const api: DesktopApi = {
 
   // ── Knowledge dashboard ──────────────────────────────────────────
   knowledgeStatus: (root) => ipcRenderer.invoke(IpcRequest.KnowledgeStatus, root),
+  endpointQuota: (endpointId) => ipcRenderer.invoke(IpcRequest.EndpointQuota, endpointId),
+  endpointTest: (baseURL, apiKey) => ipcRenderer.invoke(IpcRequest.EndpointTest, baseURL, apiKey),
   memoryRoutingStatus: () => ipcRenderer.invoke(IpcRequest.MemoryRoutingStatus),
-  knowledgeReadArchmap: (path) => ipcRenderer.invoke(IpcRequest.KnowledgeReadArchmap, path),
+  knowledgeArchRender: (jsonPath) => ipcRenderer.invoke(IpcRequest.KnowledgeArchRender, jsonPath),
+  knowledgeArchReadJson: (jsonPath) => ipcRenderer.invoke(IpcRequest.KnowledgeArchReadJson, jsonPath),
+  knowledgeOpenArchHtml: (htmlPath, theme) => ipcRenderer.invoke(IpcRequest.KnowledgeOpenArchHtml, htmlPath, theme),
   knowledgeBuild: (root) => ipcRenderer.invoke(IpcRequest.KnowledgeBuild, root),
   knowledgeBuildStatus: () => ipcRenderer.invoke(IpcRequest.KnowledgeBuildStatus),
+  knowledgeGitPreflight: (root) => ipcRenderer.invoke(IpcRequest.KnowledgeGitPreflight, root),
+  knowledgeGitBootstrap: (root) => ipcRenderer.invoke(IpcRequest.KnowledgeGitBootstrap, root),
   knowledgeReadAgents: (root) => ipcRenderer.invoke(IpcRequest.KnowledgeReadAgents, root),
   knowledgeListSymbols: (root, query) => ipcRenderer.invoke(IpcRequest.KnowledgeListSymbols, root, query),
   knowledgeSymbolGraph: (root, query) => ipcRenderer.invoke(IpcRequest.KnowledgeSymbolGraph, root, query),
@@ -173,6 +187,7 @@ const api: DesktopApi = {
   taskTreeAbandon: (treeId, branch, workspaceRoot) =>
     ipcRenderer.invoke(IpcRequest.TaskTreeAbandon, treeId, branch, workspaceRoot),
   taskTreeMerge: (treeId, srcBranch) => ipcRenderer.invoke(IpcRequest.TaskTreeMerge, treeId, srcBranch),
+  editorAgentRun: (input) => ipcRenderer.invoke(IpcRequest.EditorAgentRun, input),
 
   // ── A2UI (Surface interaction → agent) ──────────────────────────
   a2uiAction: (surfaceId, actionName, context) =>

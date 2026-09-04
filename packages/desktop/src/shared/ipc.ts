@@ -116,7 +116,11 @@ export const IpcRequest = {
   CrgCheckAvailable: "crg:checkAvailable",
   CrgList: "crg:list",
   CrgReindex: "crg:reindex",
-  CrgVisualize: "crg:visualize",
+
+  // Code review — report history + simplified in-app risk map
+  ReviewListReports: "review:listReports",
+  ReviewReadReport: "review:readReport",
+  ReviewRiskGraph: "review:riskGraph",
 
   // Wiki knowledge graph (openwiki CLI)
   WikiCheckAvailable: "wiki:checkAvailable",
@@ -149,10 +153,16 @@ export const IpcRequest = {
 
   // Knowledge dashboard — aggregated status of all knowledge sources
   KnowledgeStatus: "knowledge:status",
+  EndpointQuota: "endpoint:quota",
+  EndpointTest: "endpoint:test",
   MemoryRoutingStatus: "memoryRouting:status",
-  KnowledgeReadArchmap: "knowledge:readArchmap",
+  KnowledgeArchRender: "knowledge:archRender",
+  KnowledgeArchReadJson: "knowledge:archReadJson",
+  KnowledgeOpenArchHtml: "knowledge:archOpenHtml",
   KnowledgeBuild: "knowledge:build",
   KnowledgeBuildStatus: "knowledge:buildStatus",
+  KnowledgeGitPreflight: "knowledge:gitPreflight",
+  KnowledgeGitBootstrap: "knowledge:gitBootstrap",
   KnowledgeReadAgents: "knowledge:readAgents",
   KnowledgeListSymbols: "knowledge:listSymbols",
   KnowledgeSymbolGraph: "knowledge:symbolGraph",
@@ -168,6 +178,15 @@ export const IpcRequest = {
   // Task trajectory (specs/task-tree) — panel surface (workspace-scoped)
   TaskTreeList: "tasktree:list",
   TaskTreeGet: "tasktree:get",
+  TaskHubList: "taskhub:list",
+  TaskHubTrace: "taskhub:trace",
+  /** Plain-session behavior trace (user ask 2026-09-03 八轮: chat 节点也要
+   *  内部行为轨迹 —— 复用 session-trace 的读取与归一化)。 */
+  TaskHubChatTrace: "taskhub:chatTrace",
+  /** Two-mode fork (user ask 2026-09-03 九轮): worktree sandbox under
+   *  .deeporca, or a git-linked independent branch + temp worktree. */
+  TaskTreeForkWorkspace: "tasktree:forkWorkspace",
+  TokensSummary: "tokens:summary",
   TaskTreeReflog: "tasktree:reflog",
   TaskTreeTrajectory: "tasktree:trajectory",
   TaskTreeArchive: "tasktree:archive",
@@ -178,6 +197,9 @@ export const IpcRequest = {
   TaskTreeSwitch: "tasktree:switch",
   TaskTreeAbandon: "tasktree:abandon",
   TaskTreeMerge: "tasktree:merge",
+  /** Editor digital entity (specs/editor-agent S2): run the editor-agent
+   *  background entity on a selection — sessionless, zero residue. */
+  EditorAgentRun: "editor:agentRun",
 
   // A2UI (Surface user interaction → agent)
   A2uiAction: "a2ui:action",
@@ -253,26 +275,14 @@ export type WikiProgressEvent = {
   exitCode?: number;
 };
 
-/** A single wiki page entry from the openwiki/ directory. */
+/** A single wiki page entry from the deepwiki/ store. */
 export type WikiPageEntry = {
-  /** Relative path within the openwiki/ directory. */
+  /** Relative path within the deepwiki/ store. */
   path: string;
   /** Display title derived from filename or first heading. */
   title: string;
   /** Last modified time (ISO) — freshness label. */
   mtime?: string;
-  /**
-   * Backend bilingual translation sibling (`<page>.<lang>.md`), present when
-   * the wiki.translate build stage produced one. The reader offers a
-   * 原文/译文 toggle when this exists.
-   */
-  translation?: {
-    /** Language of the TRANSLATION (the other of zh/en). */
-    lang: "zh" | "en";
-    /** Relative path of the variant file within openwiki/. */
-    path: string;
-    mtime?: string;
-  };
 };
 
 /** Payload for the CrgProgress event (streamed CRG build/analysis output). */
@@ -290,6 +300,176 @@ export type CrgProgressEvent = {
 };
 
 /** A workspace entry for the CRG index library panel. */
+export type ReviewReportMeta = {
+  id: string;
+  generatedAt: string;
+  status: string;
+  filesReviewed: number;
+  comments: number;
+  statusNote: string;
+  scopeLabel?: string;
+  excludedByPolicy?: number;
+  unsupportedFiles?: number;
+  /** Full findings — the native report view renders these directly. */
+  findings?: Array<Record<string, unknown>>;
+};
+
+/** The minimal finding shape the risk map consumes (path + line + snippet
+ *  for the opinions side card). `crgQn` is the enrichment-time EXACT node —
+ *  mergeReviewWithCrgRisk resolved file+line against the graph already, so
+ *  the binder pins to it instead of re-deriving (which drifts after rebuilds). */
+export type ReviewGraphFinding = {
+  path: string;
+  startLine: number;
+  content?: string;
+  crgQn?: string;
+};
+
+/** One finding→node link for the bidirectional locate (design §4.3).
+ *  `index` is the finding's position in the report's `findings` array. */
+export type FindingBinding = {
+  index: number;
+  qn: string;
+  name: string;
+  filePath: string;
+  lineStart: number;
+  lineEnd: number;
+};
+
+// ── Risk board (native flat view, 2026-09-01 redesign) ─────────────────────
+/** One risk-ranked node of the board (see main `buildRiskGraphData`). */
+export type RiskGraphNode = {
+  /** Graph identity (`<abs posix path>#<name>`) — the binding key. */
+  qn: string;
+  name: string;
+  filePath: string;
+  lineStart: number;
+  /** Six-factor risk score, 0..1 — drives tier color + sort. */
+  risk: number;
+  callers: number;
+  security: boolean;
+  /** Leiden community id, null when the graph has no community data. */
+  community: number | null;
+  coverage: string;
+};
+
+/** A directed CALLS edge between two board nodes (source calls target). */
+export type RiskGraphEdge = { source: string; target: string };
+
+/** Community metadata for the 按社区 grouping's labels. */
+export type RiskCommunity = { id: number; name: string };
+
+export type RiskGraphData = {
+  nodes: RiskGraphNode[];
+  edges: RiskGraphEdge[];
+  communities: RiskCommunity[];
+};
+
+// ── Workspace task hub (task-tree-hub design, 2026-09-01) ──────────────────
+/** The four record domains aggregated into one workspace task tree. */
+export type TaskHubDomain = "session" | "index" | "review" | "prototype";
+
+/** One unified task node of the workspace task tree (meta-level only — the
+ *  payloads stay in their home stores; `source` locates them). */
+export type TaskHubNode = {
+  /** Domain-unique id; the global key is `${domain}:${id}`. */
+  id: string;
+  domain: TaskHubDomain;
+  title: string;
+  status: "running" | "done" | "warning" | "error" | "archived";
+  startedAt: string;
+  endedAt?: string;
+  /** Where the detail lives — drives the detail card's action buttons. */
+  source:
+    | { kind: "session-tree"; treeId: string; branchCount: number }
+    /** Plain conversation without an explicit task tree (user ask 2026-09-03:
+     *  历史任务树也收录普通会话任务) — click switches to that session. */
+    | { kind: "session-chat"; sessionId: string }
+    | { kind: "review-report"; reportId: string }
+    | { kind: "design-artifact"; artifactId: string; pipeline: string }
+    | { kind: "index-job"; jobId: string };
+  /** Domain extras (findings count, scope label, build stages…). */
+  meta?: Record<string, unknown>;
+};
+
+export type TaskHubGroup = { domain: TaskHubDomain; nodes: TaskHubNode[] };
+
+/** Aggregated task tree of ONE workspace (meta JSON only — KBs). */
+export type WorkspaceTaskHub = {
+  root: string;
+  generatedAt: string;
+  groups: TaskHubGroup[];
+};
+
+/** One normalized step of a session trace (DeepSeek-harness event-log shape). */
+export type TaskTraceStep = {
+  cls: string;
+  ic: string;
+  tool: string;
+  arg: string;
+  ok?: boolean;
+  fail?: boolean;
+  ms?: string;
+  mcp?: string;
+  nested?: TaskTraceStep[];
+};
+
+export type TaskTraceTurn = { user: string; at: string; steps: TaskTraceStep[] };
+
+/** One bound session's trace (recent turns kept; oldest dropped when long). */
+export type TaskSessionTrace = {
+  sessionId: string;
+  title: string;
+  turns: TaskTraceTurn[];
+  truncated?: boolean;
+};
+
+/** Trace payload for one session task (task tree) — recent turns per bound session. */
+export type TaskTreeTrace = {
+  treeId: string;
+  sessions: TaskSessionTrace[];
+};
+
+/** One time-window bucket (P2: exact, from the per-request usage ledger). */
+export type WorkspaceUsageWindow = {
+  prompt: number;
+  completion: number;
+  total: number;
+  reqs: number;
+};
+
+/** Whole-workspace LLM token accounting (silent subagents included). */
+export type WorkspaceTokenSummary = {
+  root: string;
+  sessions: number;
+  silentSessions: number;
+  totalTokens: number;
+  promptTokens: number;
+  completionTokens: number;
+  cacheReadTokens: number;
+  requests: number;
+  perModel: Record<string, { prompt: number; completion: number; total: number; cacheRead: number; reqs: number }>;
+  lastAt: string | null;
+  /** Exact time windows from the per-request ledger (P2). */
+  windows: { last5h: WorkspaceUsageWindow; today: WorkspaceUsageWindow; thisWeek: WorkspaceUsageWindow };
+  /** True when windows fell back to the legacy per-session approximation. */
+  windowsApproximate: boolean;
+  /** Estimated USD spend (built-in price table); null when nothing priced. */
+  costUsd: number | null;
+};
+
+/** Settled index/knowledge build job (`.deeporca/jobs/<id>.json`). */
+export type IndexJobRecord = {
+  id: string;
+  root: string;
+  mode: "init" | "update";
+  status: "done" | "error";
+  startedAt: string;
+  endedAt: string;
+  stages: Array<{ id: string; status: string; error?: string }>;
+  error?: string;
+};
+
 export type CrgIndexEntry = {
   /** Workspace root path. */
   root: string;
@@ -524,12 +704,12 @@ export type TaskTrajectory = {
   sessionCount: number;
 };
 
-/** One pipeline stage inside a build job (symbol → wiki → arch map → translate). */
+/** One pipeline stage inside a build job (symbol → wiki → arch map). */
 export type KnowledgeBuildStageState = {
-  /** Stable id: "codegraph" | "wiki" | "arch-scan" | "wiki-translate" (echoed by the action). */
+  /** Stable id: "codegraph" | "wiki" | "arch-scan" (echoed by the action). */
   id: string;
-  /** i18n label key index ("codegraph" | "wiki" | "arch" | "wiki-translate"). */
-  labelKey: "codegraph" | "wiki" | "arch" | "wiki-translate";
+  /** i18n label key index ("codegraph" | "wiki" | "arch"). */
+  labelKey: "codegraph" | "wiki" | "arch";
   status: "pending" | "running" | "done" | "failed" | "skipped";
   /** Last progress detail for this stage (live console line). */
   detail?: string;
@@ -563,31 +743,78 @@ export type KnowledgeBuildJobSnapshot = {
  * - Mermaid diagram documents (`arch-*.md`) — the current arch-scan output
  *   format (diagram-first; the A2UI variant rendered as a flat document).
  */
-export type KnowledgeArchmapSurface = {
-  surfaceId: string;
-  title: string;
-  dataModel?: Record<string, unknown>;
-  components?: unknown[];
-  messages?: unknown[];
-};
 
-/** KnowledgeReadArchmap response: exactly one of surface (JSON) / markdown (md) / html (board). */
-export type KnowledgeArchmapContent =
-  | { ok: true; surface: KnowledgeArchmapSurface; markdown?: undefined; html?: undefined }
-  | { ok: true; surface?: undefined; markdown: string; html?: undefined }
-  | { ok: true; surface?: undefined; markdown?: undefined; html: string }
-  | { ok: false; error: string };
+/** Git state of a workspace root, checked before a build: the wiki generator
+ *  leans on commit history (its update pass diffs gitHead..HEAD), so a
+ *  non-repo or an unborn HEAD needs the user's decision first — in practice
+ *  the generator writes only a bare skeleton there (real-machine 2026-08-28). */
+export type KnowledgeGitPreflight = { isRepo: boolean; hasCommits: boolean };
+
+/** knowledgeGitBootstrap result — `commit` is the created HEAD (short hash). */
+export type KnowledgeGitBootstrapResult = { ok: true; commit: string } | { ok: false; error: string };
 
 /**
  * Per-workspace knowledge assets (specs/index-knowledge-rework): UI-facing
  * keys are neutral (openwiki → "Wiki"); memory/routing moved out of this
  * module. archmaps counts architecture-map artifacts.
  */
+/** Per-endpoint quota surface (subscription/prepaid providers).
+ *  kind=stepfun-account: live balance (GET /v1/accounts, cached 60s).
+ *  kind=opencode-subscription: plan rolling limits (no balance API exists —
+ *  anomalyco/opencode#10448 is still open; only the web dashboard shows it). */
+export type EndpointQuotaResponse = {
+  ok: boolean;
+  error?: string;
+  kind?: "stepfun-account" | "opencode-subscription";
+  /** stepfun: prepaid | postpaid. */
+  type?: "prepaid" | "postpaid";
+  /** stepfun: 可用余额（元）— cash + voucher. */
+  balance?: number;
+  /** stepfun: 累计充值（元）. */
+  totalCashBalance?: number;
+  /** stepfun: 累计赠送（元）. */
+  totalVoucherBalance?: number;
+  /** stepfun: ISO timestamp of the probe. */
+  fetchedAt?: string;
+  /** opencode: rolling usage limits (USD). */
+  limits?: { fiveHourUsd: number; weeklyUsd: number; monthlyUsd: number };
+};
+
+/** Endpoint connectivity probe (settings → model pool): reachability = the
+ *  server answered at all; API usability = GET {baseURL}/models accepted the
+ *  key (OpenAI-compatible surface). status=no-models-route means the host is
+ *  reachable but exposes no /models, so API usability stays unverified. */
+export type EndpointTestResponse = {
+  /** Any HTTP response proves the transport path works. */
+  reachable: boolean;
+  /** 200 from /models — the key works and the API surface responds. */
+  apiOk: boolean;
+  status: "ok" | "auth-failed" | "http-error" | "no-models-route" | "network-error";
+  /** HTTP status when the server answered. */
+  httpStatus?: number;
+  /** Round-trip milliseconds. */
+  latencyMs: number;
+  /** Models advertised by /models (OpenAI shape {data:[…]}), when parseable. */
+  modelsCount?: number;
+  /** Raw transport error for network-error (timeout / DNS / refused). */
+  error?: string;
+};
+
 export type KnowledgeStatusResponse = {
   codegraph: KnowledgeSourceStatus;
   openwiki: KnowledgeSourceStatus;
   agents: KnowledgeSourceStatus;
-  archmaps: KnowledgeSourceStatus & { files?: Array<{ name: string; path: string; mtime: string }> };
+  archmaps: KnowledgeSourceStatus & {
+    files?: Array<{
+      name: string;
+      path: string;
+      mtime: string;
+      /** archify diagram type parsed from the `.<type>.json` suffix. */
+      type?: string;
+      /** Sibling delivered HTML (archify's validated render), when present. */
+      htmlPath?: string;
+    }>;
+  };
 };
 
 /** Legacy shape kept for the memory/routing observability surfaces. */
@@ -748,6 +975,11 @@ export type ActionProgressEvent = {
   message: string;
   percent?: number;
   data?: unknown;
+  /** The project root the action ran against — lets panels multiplex
+   *  concurrent per-workspace runs (two reviews must not cross-write each
+   *  other's progress). Absent on legacy emitters; consumers fall back to
+   *  the active root. */
+  root?: string;
 };
 
 /** The typed surface exposed on `window.deeporca` from the preload script. */
@@ -847,7 +1079,8 @@ export type DesktopApi = {
   gitDiscard(file: string): Promise<{ ok: boolean; error?: string }>;
   gitCommit(message: string): Promise<{ ok: boolean; error?: string }>;
   gitCurrentBranch(): Promise<string>;
-  gitListBranches(): Promise<string[]>;
+  /** Branch names of `root` (on-demand review refs) — defaults to the active workspace. */
+  gitListBranches(root?: string): Promise<string[]>;
   /** Switch branch. `conflict: true` means local changes block the checkout (commit/stash first). */
   gitCheckout(branch: string): Promise<{ ok: boolean; error?: string; conflict?: boolean }>;
   /**
@@ -858,7 +1091,8 @@ export type DesktopApi = {
   gitStashCheckout(branch: string): Promise<{ ok: boolean; error?: string; stashWarning?: string }>;
   gitDiff(file: string, staged: boolean): Promise<DiffPayload>;
   /** Recent commits (newest first), capped by `limit` (default 50). */
-  gitLog(limit?: number): Promise<GitLogEntry[]>;
+  /** Recent commits of `root` (on-demand review refs) — defaults to the active workspace. */
+  gitLog(limit?: number, root?: string): Promise<GitLogEntry[]>;
   /** Diff for a single commit (`git show`), optionally narrowed to one file. */
   gitCommitDiff(hash: string, file?: string): Promise<DiffPayload>;
   /** Files touched by a commit (second-level history expansion). */
@@ -883,8 +1117,44 @@ export type DesktopApi = {
   crgList(): Promise<CrgIndexEntry[]>;
   /** Build (or rebuild) the CRG graph for a workspace, streaming via onCrgProgress. */
   crgReindex(root: string): Promise<{ ok: boolean; action: "reset"; error?: string }>;
-  /** Generate a D3.js interactive graph HTML via CRG visualize. Returns HTML or null. */
-  crgVisualize(): Promise<{ html: string | null; error?: string }>;
+  /** List a workspace's persisted review reports (newest first). */
+  reviewListReports(root: string): Promise<ReviewReportMeta[]>;
+  /** Read one persisted report: structured meta (with findings) + export HTML
+   *  + finding→graph-node bindings (bidirectional locate, design §4.3). */
+  reviewReadReport(
+    root: string,
+    id: string
+  ): Promise<{ ok: boolean; meta?: ReviewReportMeta; html?: string; bindings?: FindingBinding[]; error?: string }>;
+  /** Fetch the risk board's STRUCTURED dataset (nodes/edges/communities).
+   *  The native renderer view (RiskGraphView) owns layout + theme + i18n —
+   *  finding bindings are NOT included: they arrive per-report through
+   *  reviewReadReport, so the board never refetches on report switches. */
+  reviewRiskGraph(root: string, focusQns?: string[]): Promise<{ data: RiskGraphData | null; error?: string }>;
+  /** Aggregated task tree of ONE workspace (sessions/index/review/prototype
+   *  domains — task-tree-hub design). Read-only, meta JSON only. */
+  taskHubList(root: string): Promise<WorkspaceTaskHub>;
+  /** Recent-turn traces of a session task's bound sessions (inline drawer). */
+  taskHubTrace(root: string, treeId: string): Promise<TaskTreeTrace>;
+  /** Behavior trace of ONE plain conversation (chat hub nodes) — same
+   *  normalized shape as a tree trace's per-session entry. */
+  taskHubChatTrace(root: string, sessionId: string): Promise<TaskSessionTrace | null>;
+  /** Two-mode fork (user ask 2026-09-03 九轮). "worktree" = branch + sandbox
+   *  dir under <root>/.deeporca/task-trees/<id>/worktrees/<branch> (isolation
+   *  inside the workspace store). "branch" = git-linked independent branch +
+   *  `git worktree add` temp checkout OUTSIDE the repo — file edits there can
+   *  never touch the upstream workspace; returns the worktree root so the
+   *  renderer can switch into it. */
+  taskTreeForkWorkspace(
+    treeId: string,
+    why: string,
+    opts: { name?: string; fromBranch?: string; mode: "worktree" | "branch" },
+    workspaceRoot?: string
+  ): Promise<
+    | { ok: true; branch: string; mode: "worktree" | "branch"; sandboxDir?: string; workspaceRoot?: string }
+    | { ok: false; error: string }
+  >;
+  /** Whole-workspace LLM token accounting (silent subagents included). */
+  tokensSummary(root: string): Promise<WorkspaceTokenSummary>;
   /** Subscribe to streaming CRG build output. Returns unsubscribe fn. */
   onCrgProgress(cb: (event: CrgProgressEvent) => void): () => void;
 
@@ -941,13 +1211,29 @@ export type DesktopApi = {
   // ── Knowledge dashboard ────────────────────────────────────────────────
   /** Aggregated status of every knowledge source (codegraph/wiki/serena/agents/memory). */
   knowledgeStatus(root?: string): Promise<KnowledgeStatusResponse>;
+  /** 端点额度查询（额度跟随端点；无额度面的端点返回 ok:false）. */
+  endpointQuota(endpointId: string): Promise<EndpointQuotaResponse>;
+  /** 端点连通性探测：可达性（任何 HTTP 应答）+ API 可用性（/models 鉴权）。 */
+  endpointTest(baseURL: string, apiKey?: string): Promise<EndpointTestResponse>;
   /** Enumerate a workspace's wiki pages (name/path/mtime). */
-  /** Read an architecture-map artifact: legacy A2UI surface JSON (`.json`), Mermaid document (`.md`), or HTML board (`.html`). */
-  knowledgeReadArchmap(path: string): Promise<KnowledgeArchmapContent>;
+  /** Deterministic archify render gate for one typed-IR artifact. */
+  knowledgeArchRender(jsonPath: string): Promise<{ ok: boolean; htmlPath?: string; error?: string }>;
+  /** Read a typed-IR artifact's JSON (for the in-pane dynamic map), under the
+   *  same registered-root + prototypes containment as the render/open channels. */
+  knowledgeArchReadJson(jsonPath: string): Promise<{ ok: boolean; json?: string; error?: string }>;
+  /** Open a delivered archify HTML in the sandboxed preview window. `theme`
+   *  syncs the viewer's color mode to the app appearance (2026-08-30). */
+  knowledgeOpenArchHtml(htmlPath: string, theme?: "light" | "dark"): Promise<{ ok: boolean; error?: string }>;
   /** Start (or return the in-flight) background build for a root — idempotent. */
   knowledgeBuild(root: string): Promise<KnowledgeBuildJobSnapshot>;
   /** Live snapshots of all build jobs (rows render from this). */
   knowledgeBuildStatus(): Promise<KnowledgeBuildJobSnapshot[]>;
+  /** Git preflight before a build: the wiki generator leans on commit history,
+   *  so the panel asks before building in a repo that can't supply it. */
+  knowledgeGitPreflight(root: string): Promise<KnowledgeGitPreflight>;
+  /** Make the root buildable: `git init` (when absent) + stage everything +
+   *  first commit. Runs ONLY on the user's explicit confirmation. */
+  knowledgeGitBootstrap(root: string): Promise<KnowledgeGitBootstrapResult>;
   /** Read a workspace's AGENTS.md (root-scoped) for in-place rendering. */
   knowledgeReadAgents(root: string): Promise<{ ok: true; content: string } | { ok: false; error: string }>;
   /** Search a workspace's symbol index (kind/name/file/line), query optional. */
@@ -1025,6 +1311,17 @@ export type DesktopApi = {
     | { ok: true; mergeNodeId: string; conflicts: Array<{ artifactRef: string; targetTitle: string }> }
     | { ok: false; error: string }
   >;
+  /** Editor digital entity run (specs/editor-agent S2): sessionless
+   *  background entity over a selection; final text comes back for the
+   *  editor panel to render (replacement-code fence + short rationale). */
+  editorAgentRun(input: {
+    filePath: string;
+    startLine: number;
+    endLine: number;
+    selection: string;
+    instruction: string;
+    lang?: string;
+  }): Promise<{ ok: true; content: string; iterations: number } | { ok: false; error: string }>;
 
   // ── A2UI (Surface interaction) ─────────────────────────────────────────
   /** Send a user interaction from an AUI Surface back to the agent.

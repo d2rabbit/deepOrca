@@ -47,7 +47,15 @@ function addUsage(into: UsageTotals, usage: ModelUsage | null | undefined): void
   into.cacheMiss += num(usage.prompt_cache_miss_tokens);
 }
 
-/** Roll every session's usage up into workspace totals + a per-model table. */
+/**
+ * Roll every session's usage up into workspace totals + a per-model table.
+ *
+ * Scope note (deliberate asymmetry, see review 2026-09): this aggregates the
+ * RENDERER's in-memory session list — cheap and always fresh for the top
+ * bar/sidebar — but it EXCLUDES silent-subagent sessions. The token stats
+ * panel instead consumes the main-process full-index summary (tokens:summary
+ * IPC), which includes them; the two surfaces can legitimately differ.
+ */
 export function aggregateUsage(sessions: SerializableSessionEntry[]): UsageAggregate {
   const totals = emptyTotals();
   const perModel = new Map<string, ModelUsageRow>();
@@ -88,6 +96,13 @@ export function formatExact(value: number): string {
   return num(value).toLocaleString();
 }
 
+/** USD for the cost estimate line: 0.0042 → "$0.004", 12.5 → "$12.50". */
+export function formatUsd(value: number): string {
+  const n = num(value);
+  if (n < 0.01) return `$${n.toFixed(3)}`;
+  return `$${n.toFixed(2)}`;
+}
+
 // Compaction threshold now comes from the model family registry via the
 // dependency-free `@deeporca/core/capabilities` subpath — the active-context
 // size at which the engine summarizes the middle of the conversation.
@@ -122,37 +137,4 @@ export function aggregateByWorkspace(tree: WorkspaceSessions): WorkspaceUsageRow
     rows.push({ root: ws.root, label: ws.label, sessionCount, ...totals });
   }
   return rows.sort((a, b) => b.total - a.total);
-}
-
-/** Approximate time-window usage buckets. */
-export type TimeWindowUsage = { last5h: UsageTotals; today: UsageTotals; thisWeek: UsageTotals };
-
-/**
- * Approximate consumption by time window. The core engine records only a
- * per-session grand total (no per-request timestamps), so each session's whole
- * usage is attributed to its last-activity time (`updateTime`). This is an
- * intentional approximation, surfaced with a note in the UI.
- */
-export function aggregateByTimeWindow(sessions: SerializableSessionEntry[], now: number = Date.now()): TimeWindowUsage {
-  const last5h = emptyTotals();
-  const today = emptyTotals();
-  const thisWeek = emptyTotals();
-
-  const fiveHoursAgo = now - 5 * 60 * 60 * 1000;
-  const startOfToday = new Date(now);
-  startOfToday.setHours(0, 0, 0, 0);
-  const startOfTodayMs = startOfToday.getTime();
-  // Week starts on Monday (ISO): shift Sunday(0) to 6.
-  const weekday = (startOfToday.getDay() + 6) % 7;
-  const startOfWeekMs = startOfTodayMs - weekday * 24 * 60 * 60 * 1000;
-
-  for (const session of sessions) {
-    if (!session.usage) continue;
-    const ts = session.updateTime ? Date.parse(session.updateTime) : NaN;
-    if (!Number.isFinite(ts)) continue;
-    if (ts >= fiveHoursAgo) addUsage(last5h, session.usage);
-    if (ts >= startOfTodayMs) addUsage(today, session.usage);
-    if (ts >= startOfWeekMs) addUsage(thisWeek, session.usage);
-  }
-  return { last5h, today, thisWeek };
 }

@@ -244,7 +244,13 @@ export function createNotifyingSessionManager(
   });
 }
 
-export function createMockedClientSessionManager(projectRoot: string, responses: unknown[]): SessionManager {
+export function createMockedClientSessionManager(
+  projectRoot: string,
+  responses: unknown[],
+  /** Optional resolved-settings overrides (e.g. compactTokenThreshold) — the
+   *  default keeps the bare test-model shape used by most fixtures. */
+  resolvedSettingsOverride?: Record<string, unknown>
+): SessionManager {
   const client = {
     chat: {
       completions: {
@@ -268,7 +274,7 @@ export function createMockedClientSessionManager(projectRoot: string, responses:
       baseURL: "https://api.deepseek.com",
       thinkingEnabled: false,
     }),
-    getResolvedSettings: () => ({ model: "test-model" }),
+    getResolvedSettings: () => ({ model: "test-model", ...resolvedSettingsOverride }),
     renderMarkdown: (text) => text,
     onAssistantMessage: () => {},
   });

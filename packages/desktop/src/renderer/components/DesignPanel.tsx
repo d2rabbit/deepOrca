@@ -344,7 +344,21 @@ export function DesignPanel({ onOpenArtifact }: Props): JSX.Element {
         ) : (
           <div className="ui-proto-list">
             {designs.map((a) => (
-              <div key={a.id} className="ui-proto-artifact" onClick={() => onOpenArtifact(a)}>
+              <div
+                key={a.id}
+                className="ui-proto-artifact"
+                role="button"
+                tabIndex={0}
+                onClick={() => onOpenArtifact(a)}
+                onKeyDown={(e) => {
+                  // Inner action buttons still bubble key events; row only.
+                  if (e.target !== e.currentTarget) return;
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    onOpenArtifact(a);
+                  }
+                }}
+              >
                 <span className="ui-proto-artifact-icon" aria-hidden>
                   <IconDesign />
                 </span>

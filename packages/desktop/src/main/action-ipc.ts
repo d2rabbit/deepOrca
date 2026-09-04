@@ -37,8 +37,14 @@ export interface ActionIpcDeps {
   /** Send a typed event to the renderer (wraps webContents.send in main). */
   emit: (channel: string, payload: unknown) => void;
   /** The project's ActionRegistry (owned by SessionManager), or null if no
-   * engine/project is active. IPC and LLM surfaces share this one instance. */
+   *  engine/project is active. IPC and LLM surfaces share this one instance. */
   getRegistry: () => ActionRegistry | null;
+  /** The root to stamp on progress events for a run of `id` against `input` —
+   *  the action's TARGET root when it takes one (review.full's on-demand
+   *  `root`), else the active workspace's. The renderer multiplexes concurrent
+   *  per-workspace runs by this stamp; stamping the ACTIVE root here once made
+   *  a non-active row's review invisible AND cross-wrote two concurrent runs. */
+  getRoot: (id: string, input: unknown) => string;
 }
 
 /** Result of an ActionRun IPC call — success or structured failure. */
@@ -126,9 +132,10 @@ export function registerActionIpc(helpers: ActionIpcHelpers, deps: ActionIpcDeps
     if (!registry) {
       return { ok: false, error: "no project open", code: "NO_PROJECT" };
     }
+    const root = deps.getRoot(id, input);
     const runHandle = registry.execute(id, input);
     runHandle.onProgress((e: ActionProgress) => {
-      emit(IpcActionEvent.Progress, { actionId: id, ...e });
+      emit(IpcActionEvent.Progress, { actionId: id, root, ...e });
     });
     try {
       const output = await runHandle.result;
@@ -145,6 +152,7 @@ export function registerActionIpc(helpers: ActionIpcHelpers, deps: ActionIpcDeps
       // forever — the same stuck-state class as the index-module incident.
       emit(IpcActionEvent.Progress, {
         actionId: id,
+        root,
         message: "done",
         percent: 100,
         data: { done: true },

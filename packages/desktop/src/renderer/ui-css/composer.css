@@ -23,7 +23,7 @@
    ========================================================================= */
 .ui-composer {
   position: relative;
-  max-width: clamp(320px, 88%, 900px);
+  max-width: clamp(320px, 82%, 760px);
   margin: 0 auto;
 }
 /* ── Chat suggestion bar (flow closure: knowledge build → conversation) ────
@@ -325,7 +325,7 @@
      own boxed input (line/fusion) re-add background/border/padding here. */
   padding: 6px 2px;
   border-radius: var(--ui-radius-md);
-  transition: background 0.15s ease;
+  transition: background 0.15s var(--ui-ease);
   /* Thin overlay-style scrollbar — the native track strip read as a bright
      seam on the card's right edge, especially in dark themes. */
   scrollbar-width: thin;
@@ -391,7 +391,7 @@
   font-size: 10.5px;
   color: var(--ui-text-faint);
   opacity: 0.7;
-  transition: color 0.2s ease;
+  transition: color 0.2s var(--ui-ease);
 }
 .ui-composer-charcount.warn {
   color: var(--ui-warning);
@@ -542,4 +542,96 @@
   text-transform: uppercase;
   letter-spacing: 0.03em;
   flex: none;
+}
+
+/* ── Store-reference highlighting in the composer (2026-09-02) ──────────────
+   A plain textarea cannot draw inline chips, so a transparent MIRROR layer
+   stacks above it with identical text metrics (copied at runtime in
+   Composer.tsx) and paints pill markers over @…/.deeporca/… tokens. The
+   pills are semi-transparent: the textarea text below stays readable and
+   fully editable — IME, undo and the send path are untouched. */
+.ui-prompt-wrap {
+  position: relative;
+}
+.ui-composer-card .ui-prompt {
+  position: relative;
+}
+.ui-prompt-mirror {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  color: transparent;
+  pointer-events: none;
+  z-index: 1;
+}
+/* ── Store-reference cover + condensed chip ──────────────────────────────
+   The cover span repeats the RAW token (transparent ink) so the mirror's
+   metrics match the textarea character-for-character, and its opaque
+   card-colored fill hides the raw path the textarea paints underneath.
+   The condensed chip label floats over the token start. The chip is an
+   ATOMIC unit (user report 2026-09-02: 点击后要还是一个整体): a caret
+   inside the token only lights an accent ring on the chip — the raw path
+   never shows; breaking or deleting the token text drops the chip back to
+   plain text naturally (the regex stops matching). */
+.ui-prompt-mirror .ui-prompt-ref-cover {
+  position: relative;
+  color: transparent;
+  border-radius: 6px;
+  background: var(--ui-surface-raised, #fff);
+  box-shadow: 0 0 0 3px var(--ui-surface-raised, #fff);
+}
+.ui-prompt-mirror .ui-prompt-ref-chip {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  max-width: 100%;
+  padding: 0 6px;
+  border-radius: 6px;
+  color: var(--ui-text);
+  background: color-mix(in srgb, var(--dot-review, #2f9e44) 10%, var(--ui-surface-raised, #fff));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--dot-review, #2f9e44) 35%, transparent);
+  transition:
+    box-shadow 0.12s var(--ui-ease),
+    background 0.12s var(--ui-ease);
+}
+.ui-prompt-mirror .ui-prompt-ref-chip svg {
+  width: 13px;
+  height: 13px;
+}
+/* 五类独立标识：wiki 蓝 · 审查 绿 · 文件 石墨 · 命令 橙 · 技能 紫 */
+.ui-prompt-mirror .ui-prompt-ref-chip.file {
+  background: color-mix(in srgb, #5f6b7a 10%, var(--ui-surface-raised, #fff));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #5f6b7a 35%, transparent);
+}
+.ui-prompt-mirror .ui-prompt-ref-chip.cmd {
+  background: color-mix(in srgb, #e8590c 10%, var(--ui-surface-raised, #fff));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #e8590c 35%, transparent);
+}
+.ui-prompt-mirror .ui-prompt-ref-chip.skill {
+  background: color-mix(in srgb, #9a36b8 10%, var(--ui-surface-raised, #fff));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #9a36b8 35%, transparent);
+}
+.ui-prompt-mirror .ui-prompt-ref-chip.wiki {
+  background: color-mix(in srgb, var(--ui-accent, #3b82f6) 10%, var(--ui-surface-raised, #fff));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-accent, #3b82f6) 35%, transparent);
+}
+/* Caret inside the token: keep the chip whole, light it up instead. */
+.ui-prompt-mirror .ui-prompt-ref-chip.editing {
+  background: color-mix(in srgb, var(--dot-review, #2f9e44) 16%, var(--ui-surface-raised, #fff));
+  box-shadow:
+    inset 0 0 0 1.5px color-mix(in srgb, var(--dot-review, #2f9e44) 60%, transparent),
+    0 0 0 3px color-mix(in srgb, var(--dot-review, #2f9e44) 14%, transparent);
+}
+.ui-prompt-mirror .ui-prompt-ref-chip.wiki.editing {
+  background: color-mix(in srgb, var(--ui-accent, #3b82f6) 16%, var(--ui-surface-raised, #fff));
+  box-shadow:
+    inset 0 0 0 1.5px color-mix(in srgb, var(--ui-accent, #3b82f6) 60%, transparent),
+    0 0 0 3px color-mix(in srgb, var(--ui-accent, #3b82f6) 14%, transparent);
 }

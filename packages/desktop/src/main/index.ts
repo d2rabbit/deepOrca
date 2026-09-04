@@ -2,12 +2,13 @@
 // Boots a BrowserWindow, wires the SessionBridge to IPC, and forwards engine
 // events to the renderer.
 
-import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, session as electronSession, shell } from "electron";
 import { dirname, join, delimiter, resolve as pathResolve, sep as pathSep } from "node:path";
 import { createRequire as nodeCreateRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { open, readdir, readFile, writeFile, stat } from "node:fs/promises";
 import { statSync, existsSync, readdirSync, readFileSync, appendFileSync, mkdirSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { homedir } from "node:os";
 import { execFile, spawn, type ChildProcess } from "node:child_process";
 import {
@@ -24,7 +25,6 @@ import {
   configureDembrandtVendorRoot,
   configureDembrandtCdpEndpointGetter,
   runCrgResetWithOutput,
-  runCrgVisualize,
   configureSerenaController,
   configureSkillSpectorController,
   configureCrgController,
@@ -43,27 +43,36 @@ import {
   configureGitmcpConfigBuilder,
   buildGitmcpMcpServerConfig,
   TaskTreeService,
-  detectWikiLanguage,
-  wikiVariantPath,
+  createCrgGraphQuery,
   isWikiVariantFile,
+  endpointQuotaKind,
 } from "@deeporca/core";
 import { extractTaskTrajectory } from "./task-trajectory";
+import { withReviewReportSurface } from "./review-report-surface.js";
 import { buildSymbolGraph } from "./symbol-graph-query";
+import { gitPreflight, gitBootstrap } from "./git-preflight";
 import type { ModelConfigSelection, UserPromptContent } from "@deeporca/core";
 import { IpcEvent, IpcRequest } from "../shared/ipc.js";
 import { ensureDembrandtBrowserProvider, getDembrandtCdpEndpoint } from "./tools/dembrandt-browser";
+import { fetchEndpointQuota } from "./endpoint-quota.js";
+import { testEndpoint } from "./endpoint-test.js";
 import type {
   CodegraphIndexEntry,
   CrgIndexEntry,
   EditableSettings,
-  KnowledgeArchmapContent,
-  KnowledgeArchmapSurface,
   KnowledgeSourceStatus,
-  KnowledgeStatusResponse,
+  KnowledgeGitPreflight,
+  KnowledgeGitBootstrapResult,
+  EndpointQuotaResponse,
+  EndpointTestResponse,
   MemoryRoutingStatus,
   KnowledgeSymbol,
   KnowledgeSymbolGraph,
   MemoryPipelineStats,
+  FindingBinding,
+  ReviewReportMeta,
+  RiskGraphData,
+  TaskTreeTrace,
   ThinkingModeSelection,
   UndoRestoreMode,
   WikiPageEntry,
@@ -77,8 +86,22 @@ import { listWorkspaceSessions, readSessionsIndex } from "./workspace-registry.j
 import { archiveSession, unarchiveSession, readArchivedIds } from "./archive-store.js";
 import { ElectronNodeSpawner, registerActionIpc } from "./action-ipc.js";
 import { SdkCodegraphController } from "./tools/codegraph-sdk.js";
-import { OcrCliController } from "./tools/ocr-cli.js";
+import { OcrCliController, buildOcrDelegateReviewPrompt, parseHostReviewComments } from "./tools/ocr-cli.js";
+import { listReviewReports, readReviewReport, resolveReportFile } from "./tools/review-store.js";
+import { BINDING_LIMIT, buildRiskGraphData, getRiskOverviewCached } from "./tools/crg-risk-graph.js";
+import { buildTaskHub } from "./tools/task-hub.js";
+import { normalizeSessionTrace, readSessionTraceSource } from "./tools/session-trace.js";
+import {
+  buildTokenSummary,
+  emptyTokenSummary,
+  migrateLegacyUsageIntoLedger,
+  projectSessionsIndexPath,
+} from "./tools/tokens-summary.js";
+import { listIndexJobs } from "./tools/jobs-store.js";
+import { bindFindingsToNodes, type BindableNode } from "./tools/review-bind.js";
 import { WikiCliController } from "./tools/wiki-cli.js";
+import { WIKI_STORE_DIR } from "./tools/wiki-staging.js";
+import { ensureGeneratedLayout } from "./tools/generated-layout.js";
 import { buildVisionServer } from "./tools/vision-mcp.js";
 import { SerenaCliController } from "./tools/serena-cli.js";
 import { cleanupLeakedSubagentSessions } from "./subagent-cleanup.js";
@@ -105,7 +128,11 @@ import { a2uiServerBuilder } from "./tools/a2ui/index.js";
 import { buildActivityFramesServer } from "./tools/activity-frames/index.js";
 import { handleEditorReadFile, handleEditorWriteFile, handleEditorListFiles } from "./editor-handlers.js";
 import { createRendererPolicy, createElectronEventAdapter, type RendererPolicy } from "./ipc-security.js";
-import { safeArchmapPath, safeWikiPath } from "./safe-path.js";
+import { registerKnowledgeIpc, resolveRegisteredRoot, closeAllArchPreviewWindows } from "./knowledge-ipc.js";
+import { configureArchifyLanguage } from "@deeporca/core";
+import { safeWikiPath } from "./safe-path.js";
+import { orderWikiPagesIndexFirst } from "./wiki-page-order.js";
+import * as gitService from "./git-service.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 // ESM-safe require (bare `require` breaks in the bundled ESM main).
@@ -136,12 +163,6 @@ process.on("unhandledRejection", (reason) => appendCrashLog("unhandledRejection"
 // of the renderer. Tracked so they are terminated when the app shuts down
 // instead of lingering after the window closes.
 const activeHelperProcesses = new Set<ChildProcess>();
-
-function trackHelperProcess(cp: ChildProcess): void {
-  activeHelperProcesses.add(cp);
-  cp.once("close", () => activeHelperProcesses.delete(cp));
-  cp.once("error", () => activeHelperProcesses.delete(cp));
-}
 
 function killHelperProcesses(): void {
   for (const cp of activeHelperProcesses) {
@@ -243,9 +264,39 @@ configureActionSpawner(new ElectronNodeSpawner());
 // resolution). The controller manages per-project CodeGraph instances and
 // exposes an in-process MCPServer for connectInProcessServer.
 configureCodegraphController(new SdkCodegraphController());
-// OCR: CLI adapter (replaces configureOcrResolver + collectOcrReview spawn).
-// Uses correct flags (--audience agent --format json) + correct JSON schema.
-configureReviewController(new OcrCliController());
+// OCR: DELEGATE MODE adapter (open-codereview.ai/docs/delegate). OCR only
+// does the deterministic engineering — `delegate preview` (file selection) +
+// `delegate rule` (rules) — and the REVIEW itself runs on the app's own model
+// through the sessionless background LLM channel (the same driver arch-scan
+// uses), with the app locale for reader-facing findings. No OCR-side LLM
+// configuration or API key exists or is needed; nothing extra is installed.
+configureReviewController(
+  new OcrCliController({
+    language: () => APP_LOCALE_TO_BCP47[currentAppLocale ?? ""] ?? "en",
+    runHostReview: async (req) => {
+      const task = await getBridge()
+        .getSessionManager()
+        .runBackgroundLlmTask({
+          // "deepCodeReview" deliberately does NOT match "code-review" (the
+          // canonical example skill name in docs/agent-skills.md) so a user
+          // skill can never be force-loaded into review runs. No bundled
+          // skill ships under this name either — the delegate prompt below is
+          // the full instruction set. The review profile makes the channel
+          // read-only (no prototypes dir, no write tool, no arch steering).
+          skill: "deepCodeReview",
+          profile: "review",
+          prompt: buildOcrDelegateReviewPrompt(req),
+          root: req.root,
+          // Run-level deadline: aborting it interrupts the in-flight review
+          // task (the old single-spawn hard-cap guarantee, restored).
+          signal: req.signal,
+          onProgress: (message) => req.onProgress?.(message),
+        });
+      return parseHostReviewComments(task.content ?? "", req.path);
+    },
+  })
+);
+
 // App UI locale as reported by the renderer (SessionLocaleSet) — drives the
 // wiki generation language. The renderer syncs it at boot and on change.
 let currentAppLocale: string | undefined;
@@ -260,37 +311,61 @@ const APP_LOCALE_TO_BCP47: Record<string, string> = {
 };
 // Wiki: CLI controller (replaces configureWikiResolver — vendored openwiki CLI).
 const wikiNode = resolveModernNode(22) ?? process.execPath;
-configureWikiController(
-  new WikiCliController({
-    vendorEntry: OPENWIKI_VENDOR_ENTRY,
-    nodeRunner: wikiNode,
-    electronRunAsNode: wikiNode === process.execPath,
-    getProjectRoot: () => getBridge().projectRoot,
-    getLlmCreds: () => {
-      const root = getBridge().projectRoot;
-      if (!root) return {};
-      try {
-        const s = resolveCurrentSettings(root);
-        // Audit 2026-08-26 ("openwiki exited 1: terminated"): the CLI used to
-        // get a HARDCODED model while chat used the configured one, so a
-        // custom endpoint that only accepts its own model name aborted the
-        // wiki's LLM request at the network layer. Feed the active settings
-        // model through (chat-verified), keeping a sane fallback.
-        return { apiKey: s.apiKey, baseURL: s.baseURL, model: s.model ?? "deepseek-v4-flash" };
-      } catch {
-        return {};
-      }
-    },
-    getLanguage: () => {
-      // The app's UI locale (synced from the renderer via SessionLocaleSet),
-      // NOT the OS locale — wiki pages must come out in the language the user
-      // actually reads the app in, or the wiki tab ends up mixed-language.
-      // Falls back to undefined (OpenWiki defaults to English).
-      if (!currentAppLocale) return undefined;
-      return APP_LOCALE_TO_BCP47[currentAppLocale];
-    },
-  })
-);
+const wikiController = new WikiCliController({
+  vendorEntry: OPENWIKI_VENDOR_ENTRY,
+  nodeRunner: wikiNode,
+  electronRunAsNode: wikiNode === process.execPath,
+  getProjectRoot: () => getBridge().projectRoot,
+  getLlmCreds: () => {
+    const root = getBridge().projectRoot;
+    if (!root) return {};
+    try {
+      const s = resolveCurrentSettings(root);
+      // Model-pool era: credentials live on the ENDPOINT, not on the legacy
+      // top-level apiKey/baseURL — pool-era settings files carry empty
+      // strings there, and feeding them to the CLI made the OpenAI client
+      // fall back to api.openai.com (unreachable → "Request timed out.",
+      // real-machine 2026-08-28) while chat used the endpoint pool fine.
+      // Resolve the primary endpoint the same way the panel mirrors it for
+      // chat, keeping the bare s.model (already endpoint-consistent).
+      const primary = s.endpoints.find((ep) => ep.id === s.primaryEndpointId) ?? s.endpoints[0];
+      return {
+        apiKey: primary?.apiKey ?? s.apiKey,
+        baseURL: primary?.baseURL ?? s.baseURL,
+        // 继承语义 (2026-08-30): s.model always resolves (DEFAULT_MODEL) — no
+        // hardcoded model fallback here either.
+        model: s.model || primary?.models?.[0]?.id || "",
+      };
+    } catch {
+      return {};
+    }
+  },
+  getAuxLlmCreds: () => {
+    const root = getBridge().projectRoot;
+    if (!root) return null;
+    try {
+      const s = resolveCurrentSettings(root);
+      // The 辅助模型 select stores a bare model id + its endpoint; empty
+      // model = no auxiliary configured → wiki retries on the primary.
+      const modelId = s.secondaryModel?.trim();
+      if (!modelId) return null;
+      const endpoint = s.endpoints.find((ep) => ep.id === (s.secondaryEndpointId || s.primaryEndpointId));
+      if (!endpoint) return null;
+      return { apiKey: endpoint.apiKey, baseURL: endpoint.baseURL, model: modelId };
+    } catch {
+      return null;
+    }
+  },
+  getLanguage: () => {
+    // The app's UI locale (synced from the renderer via SessionLocaleSet),
+    // NOT the OS locale — wiki pages must come out in the language the user
+    // actually reads the app in, or the wiki tab ends up mixed-language.
+    // Falls back to undefined (OpenWiki defaults to English).
+    if (!currentAppLocale) return undefined;
+    return APP_LOCALE_TO_BCP47[currentAppLocale];
+  },
+});
+configureWikiController(wikiController);
 
 // Vision MCP: built-in in-process MCP server that gives text-only LLMs (like
 // DeepSeek) the ability to understand images via a vision-capable proxy model.
@@ -410,6 +485,12 @@ configureSerenaController(
     vendorRoot: join(__dirname, "..", "vendor", "serena"),
   })
 );
+
+/**
+ * Aggregate the status of every knowledge source for the dashboard. Each probe
+ * is best-effort and independent — a failing source degrades to "empty" rather
+ * than failing the whole response.
+ */
 
 // SkillSpector (AI skill/MCP security scanner) shares the same vendored uv and reads
 // its pinned version from the vendored skillspector dir (written by
@@ -632,6 +713,9 @@ function createWindow(): void {
 
   mainWindow.on("closed", () => {
     mainWindow = null;
+    // Arch preview windows track the main window's lifecycle (user ask
+    // 2026-08-30) — no orphan artifact windows after the app window goes.
+    closeAllArchPreviewWindows();
   });
 }
 
@@ -662,7 +746,9 @@ async function startMemory(): Promise<{ ok: boolean; error?: string }> {
     const mgr = new MemoryManager({
       baseUrl: settings.baseURL,
       apiKey: settings.apiKey,
-      model: settings.secondaryModel || "deepseek-v4-flash",
+      // 继承主模型 (2026-08-30): empty secondary = the primary model, never a
+      // hardcoded fallback.
+      model: settings.secondaryModel || settings.model,
       dataDir,
       workspaceDir: getBridge().projectRoot,
       // Embedding provider: "local-onnx" enables Granite vector recall (hybrid
@@ -851,6 +937,8 @@ function registerCoreIpc({ handle, handlePrivileged, handleShared }: IpcHelpers)
     // project when memory is enabled.
     await stopMemory();
     getBridge().setProjectRoot(root);
+    // New root → sweep its legacy layout before anything reads or generates.
+    ensureGeneratedLayout(root);
     emit(IpcEvent.ProjectRootChanged, getBridge().projectRoot);
     void reconcileMemory();
     return { projectRoot: getBridge().projectRoot };
@@ -924,6 +1012,9 @@ function registerCoreIpc({ handle, handlePrivileged, handleShared }: IpcHelpers)
   handlePrivileged(IpcRequest.SessionLocaleSet, (locale: string) => {
     currentAppLocale = locale;
     configureSessionLocale(locale);
+    // Arch maps follow the SAME locale as wiki pages (user ask 2026-08-29:
+    // 架构图采用项目启动语言 — no post-generation translation).
+    configureArchifyLanguage(APP_LOCALE_TO_BCP47[locale]);
   });
   handlePrivileged(IpcRequest.ThinkingModeSet, (selection: ThinkingModeSelection) =>
     getBridge().setThinkingMode(selection)
@@ -1057,11 +1148,21 @@ function registerGitIpc({ handle, handlePrivileged }: IpcHelpers): void {
   handlePrivileged(IpcRequest.GitDiscard, (file: string) => getBridge().gitDiscard(file));
   handlePrivileged(IpcRequest.GitCommit, (message: string) => getBridge().gitCommit(message));
   handle(IpcRequest.GitCurrentBranch, () => getBridge().gitCurrentBranch());
-  handle(IpcRequest.GitListBranches, () => getBridge().gitListBranches());
+  handle(IpcRequest.GitListBranches, (root?: string) => {
+    // Registered-workspace pinning (see resolveRegisteredRoot): an unregistered
+    // root degrades to an empty list — never run git against an arbitrary
+    // renderer-supplied path.
+    const pinned = root ? resolveRegisteredRoot(root) : null;
+    return pinned ? gitService.listBranches(pinned) : root ? [] : getBridge().gitListBranches();
+  });
   handlePrivileged(IpcRequest.GitCheckout, (branch: string) => getBridge().gitCheckout(branch));
   handlePrivileged(IpcRequest.GitStashCheckout, (branch: string) => getBridge().gitStashCheckout(branch));
   handle(IpcRequest.GitDiff, (file: string, staged: boolean) => getBridge().gitDiff(file, staged));
-  handle(IpcRequest.GitLog, (limit?: number) => getBridge().gitLog(limit));
+  handle(IpcRequest.GitLog, (limit?: number, root?: string) => {
+    // Same pinning as GitListBranches above.
+    const pinned = root ? resolveRegisteredRoot(root) : null;
+    return pinned ? gitService.log(pinned, limit) : getBridge().gitLog(limit);
+  });
   handle(IpcRequest.GitCommitDiff, (hash: string, file?: string) => getBridge().gitCommitDiff(hash, file));
   handle(IpcRequest.GitCommitFiles, (hash: string) => getBridge().gitCommitFiles(hash));
 }
@@ -1108,7 +1209,7 @@ function registerCrgIpc({ handle, handlePrivileged }: IpcHelpers): void {
         return;
       }
       // Probe uv version first — if uv works, uvx can run CRG.
-      execFile(uvBin, ["--version"], { timeout: 10000 }, (err, stdout) => {
+      execFile(uvBin, ["--version"], { timeout: 10000, windowsHide: true }, (err, stdout) => {
         if (err) {
           resolve({ available: false });
           return;
@@ -1157,12 +1258,106 @@ function registerCrgIpc({ handle, handlePrivileged }: IpcHelpers): void {
     };
   });
 
-  handle(IpcRequest.CrgVisualize, async (): Promise<{ html: string | null; error?: string }> => {
-    const root = getBridge().projectRoot;
-    if (!root) return { html: null, error: "No project open" };
-    const html = await runCrgVisualize(root);
-    return { html, error: html ? undefined : "Visualization failed — is the graph built?" };
+  // ── code review — report history + simplified risk map ────────────────────
+  // Known-root guard: reads/writes are per-root, and a renderer-supplied root
+  // must never probe outside the registered workspace set (same rule as the
+  // knowledge channel's resolveRegisteredRoot).
+  const isKnownRoot = (root: string): boolean => {
+    if (root && root === getBridge().projectRoot) return true;
+    try {
+      return listWorkspaceSessions(getBridge().projectRoot).workspaces.some((w) => w.root === root);
+    } catch {
+      return false;
+    }
+  };
+
+  handle(IpcRequest.ReviewListReports, (root: string): ReviewReportMeta[] => {
+    if (!isKnownRoot(root)) return [];
+    // Strip findings: KB-scale suggestion code per report made every history
+    // refresh ship the whole corpus over IPC (review round 2026-09-01). The
+    // native view reads the selected report through ReviewReadReport instead.
+    return listReviewReports(root).map(({ findings: _findings, ...meta }) => meta);
   });
+
+  handle(
+    IpcRequest.ReviewReadReport,
+    (
+      root: string,
+      id: string
+    ): { ok: boolean; meta?: ReviewReportMeta; html?: string; bindings?: FindingBinding[]; error?: string } => {
+      if (!isKnownRoot(root)) return { ok: false, error: "Unknown workspace" };
+      const meta = readReviewReport(root, id);
+      const htmlPath = resolveReportFile(root, id);
+      if (!meta || !htmlPath) return { ok: false, error: "No such report" };
+      // Bidirectional locate (design §4.3): bind the report's findings to
+      // the risk graph's top-N nodes. One overview read — the same CACHED
+      // rows the map itself renders — so both surfaces agree on the same
+      // node set.
+      // The FULL findings array goes to the binder (review round
+      // 2026-09-01): the binding contract is `index` == position in this
+      // array, and the renderer's report DOM / graph context use different
+      // filters — pre-filtering here renumbered every later binding. The
+      // binder skips malformed entries internally, keeping indices stable.
+      const rawFindings = meta.findings ?? [];
+      let bindings: FindingBinding[] | undefined;
+      if (rawFindings.length > 0) {
+        // Deep binding set (BINDING_LIMIT, not the displayed top-60): a
+        // finding whose CRG node ranks 61..200 was enriched (its qn IS in the
+        // risk data) yet silently unbindable before.
+        const overview = getRiskOverviewCached(root, BINDING_LIMIT);
+        // Enrichment-time exact nodes: a finding carrying crgQn pins to THAT
+        // node even when it ranks outside the 200-set — pull it in by name.
+        const enrichedQns = [
+          ...new Set(
+            rawFindings
+              .map((f) =>
+                f && typeof f === "object" && typeof (f as { crgQn?: unknown }).crgQn === "string"
+                  ? (f as { crgQn: string }).crgQn
+                  : ""
+              )
+              .filter((qn) => qn.length > 0)
+          ),
+        ];
+        const extraNodes = enrichedQns.length > 0 ? createCrgGraphQuery().getRiskNodesByNames(root, enrichedQns) : [];
+        const known = new Set(overview.nodes.map((n) => n.qualifiedName));
+        const candidates: BindableNode[] = [
+          ...overview.nodes,
+          ...extraNodes.filter((n) => !known.has(n.qualifiedName)),
+        ];
+        bindings = bindFindingsToNodes(
+          rawFindings.map((f) => ({
+            path: typeof f?.path === "string" ? f.path : "",
+            startLine: Number(f?.startLine ?? f?.start_line ?? Number.NaN),
+            crgQn: typeof f?.crgQn === "string" ? f.crgQn : undefined,
+          })),
+          candidates,
+          root
+        );
+      }
+      let html: string;
+      try {
+        html = readFileSync(htmlPath, "utf-8");
+      } catch {
+        // Deleted/locked between listing and read — don't leak the fs error
+        // (absolute paths) into the renderer.
+        return { ok: false, error: "report file unreadable" };
+      }
+      return { ok: true, meta, html, bindings };
+    }
+  );
+
+  handle(
+    IpcRequest.ReviewRiskGraph,
+    (root: string, focusQns?: string[]): { data: RiskGraphData | null; error?: string } => {
+      if (!isKnownRoot(root)) return { data: null, error: "Unknown workspace" };
+      if (!hasCrgProject(root)) return { data: null, error: "no CRG graph — run a review or crg.reindex first" };
+      const data = buildRiskGraphData(
+        root,
+        Array.isArray(focusQns) ? focusQns.filter((q): q is string => typeof q === "string").slice(0, 20) : undefined
+      );
+      return data ? { data } : { data: null, error: "risk graph unavailable — no risk data in the graph" };
+    }
+  );
 }
 
 function registerMemoryIpc({ handle, handlePrivileged }: IpcHelpers): void {
@@ -1171,198 +1366,6 @@ function registerMemoryIpc({ handle, handlePrivileged }: IpcHelpers): void {
   // The MemoryManager is initialized from settings when memory is enabled.
   // (startMemory/stopMemory/reconcileMemory are module-scoped so the startup,
   // settings-save, project-switch, and shutdown paths can reach them.)
-
-  handle(IpcRequest.MemoryCheckAvailable, async (): Promise<{ available: boolean; healthy: boolean }> => {
-    return { available: !!memoryManager, healthy: memoryManager?.isAvailable() ?? false };
-  });
-
-  handlePrivileged(IpcRequest.MemorySetEnabled, async (enabled: boolean): Promise<{ ok: boolean; error?: string }> => {
-    if (enabled) {
-      return startMemory();
-    }
-    await stopMemory();
-    return { ok: true };
-  });
-
-  handle(IpcRequest.MemorySearch, async (query: string, limit?: number): Promise<{ text: string; total: number }> => {
-    if (!memoryManager) return { text: "", total: 0 };
-    return (await memoryManager.searchMemories(query, limit ?? 5)) ?? { text: "", total: 0 };
-  });
-
-  handle(IpcRequest.MemoryStats, async (): Promise<MemoryPipelineStats | null> => {
-    if (!memoryManager) return null;
-    return memoryManager.getStats();
-  });
-
-  handlePrivileged(IpcRequest.MemoryClear, async (): Promise<{ ok: boolean; error?: string }> => {
-    if (!memoryManager) return { ok: false, error: "Memory pipeline not running" };
-    try {
-      await memoryManager.clearProjectMemory();
-      return { ok: true };
-    } catch (err) {
-      return { ok: false, error: err instanceof Error ? err.message : String(err) };
-    }
-  });
-}
-
-/**
- * Aggregate the status of every knowledge source for the dashboard. Each probe
- * is best-effort and independent — a failing source degrades to "empty" rather
- * than failing the whole response.
- */
-/**
- * Pin renderer-supplied workspace roots to registered workspaces (P2
- * hardening, 2026-08-27): the renderer is semi-trusted, and a compromised one
- * previously could pass ANY absolute root to knowledge/taskTree channels —
- * directory enumeration, symbol-graph reads from arbitrary projects,
- * task-tree writes under ~/.ssh/<root>/. Same threat model as the archmap
- * pin; an omitted root always means the ACTIVE workspace. Returns null when
- * the supplied root is not a registered workspace.
- */
-function resolveRegisteredRoot(rootArg?: string): string | null {
-  const root = typeof rootArg === "string" && rootArg ? rootArg : getBridge().projectRoot;
-  const known = new Set<string>([getBridge().projectRoot]);
-  try {
-    for (const w of listWorkspaceSessions(getBridge().projectRoot).workspaces) known.add(w.root);
-  } catch {
-    // Registry unreadable: fall back to current-root-only pinning.
-  }
-  return known.has(root) ? root : null;
-}
-
-function registerKnowledgeIpc({ handle }: IpcHelpers): void {
-  handle(IpcRequest.KnowledgeStatus, async (rootArg?: string): Promise<KnowledgeStatusResponse> => {
-    const pinned = resolveRegisteredRoot(rootArg);
-    // Unregistered root → degrade to disabled statuses (never enumerate it).
-    const emptySource = () => ({ state: "disabled" as const, detail: "unregistered workspace" });
-    if (!pinned) {
-      return { codegraph: emptySource(), openwiki: emptySource(), agents: emptySource(), archmaps: emptySource() };
-    }
-    const root = pinned;
-    const freshness = getBridge().getKnowledgeFreshness?.() ?? {};
-    const isStale = (syncTime?: string): boolean =>
-      !!(freshness.lastMutation && (!syncTime || freshness.lastMutation > syncTime));
-
-    const countDirFiles = (dir: string, filter?: (name: string) => boolean): number => {
-      try {
-        const entries = readdirSync(dir, { withFileTypes: true });
-        return entries.filter((e) => e.isFile() && (!filter || filter(e.name))).length;
-      } catch {
-        return 0;
-      }
-    };
-
-    // Newest mtime under a directory (recursive walk of all subdirs) — ISO string.
-    const newestMtime = (dir: string, filter?: (name: string) => boolean): string | undefined => {
-      let best = 0;
-      const scan = (d: string): void => {
-        try {
-          for (const e of readdirSync(d, { withFileTypes: true })) {
-            const full = join(d, e.name);
-            if (e.isDirectory()) {
-              scan(full);
-            } else if (e.isFile() && (!filter || filter(e.name))) {
-              const m = statSync(full).mtimeMs;
-              if (m > best) best = m;
-            }
-          }
-        } catch {
-          // unreadable dir — skip
-        }
-      };
-      scan(dir);
-      return best > 0 ? new Date(best).toISOString() : undefined;
-    };
-
-    // CodeGraph — .codegraph/ presence + staleness. lastSync falls back to the
-    // database file's mtime: the in-memory freshness stamps only exist for the
-    // ACTIVE workspace's manager and vanish on restart, so without this every
-    // non-active (or freshly-relaunched) row read 未同步 forever even right
-    // after a successful build.
-    const cgDir = join(root, ".codegraph");
-    const cgDbMtime = (() => {
-      try {
-        return statSync(join(cgDir, "codegraph.db")).mtime.toISOString();
-      } catch {
-        return undefined;
-      }
-    })();
-    const cgSync = freshness.codegraphSync ?? cgDbMtime;
-    const codegraph: KnowledgeSourceStatus = existsSync(cgDir)
-      ? {
-          state: isStale(cgSync) ? "stale" : "indexed",
-          lastSync: cgSync,
-          detail: ".codegraph/",
-        }
-      : { state: "empty", detail: "未构建" };
-
-    // OpenWiki — page count under openwiki/ (recursive for modules/ + workflows/).
-    const wikiDir = join(root, "openwiki");
-    let wikiPages = 0;
-    if (existsSync(wikiDir)) {
-      wikiPages = countDirFiles(wikiDir, (n) => n.endsWith(".md"));
-      for (const sub of ["modules", "workflows"]) {
-        wikiPages += countDirFiles(join(wikiDir, sub), (n) => n.endsWith(".md"));
-      }
-    }
-    const wikiSync =
-      freshness.wikiSync ?? (existsSync(wikiDir) ? newestMtime(wikiDir, (n) => n.endsWith(".md")) : undefined);
-    const openwiki: KnowledgeSourceStatus = existsSync(wikiDir)
-      ? {
-          state: wikiPages === 0 ? "empty" : isStale(wikiSync) ? "stale" : "indexed",
-          count: wikiPages,
-          unit: "页",
-          lastSync: wikiSync,
-        }
-      : { state: "empty", detail: "未构建" };
-
-    // AGENTS.md — presence + line count.
-    const agentsPath = join(root, "AGENTS.md");
-    let agentLines = 0;
-    if (existsSync(agentsPath)) {
-      try {
-        agentLines = readFileSync(agentsPath, "utf8").split("\n").length;
-      } catch {
-        agentLines = 0;
-      }
-    }
-    const agents: KnowledgeSourceStatus = existsSync(agentsPath)
-      ? { state: "indexed", count: agentLines, unit: "行" }
-      : { state: "empty", detail: "无 AGENTS.md" };
-
-    // Architecture maps (T4) — artifacts persisted under
-    // .deeporca/prototypes/: current arch-scan writes Mermaid documents
-    // (`arch-*.md`, diagram-first) via the write tool; legacy A2UI surface
-    // JSON (`arch-*.json`) from the pre-Mermaid skill revision stays listed
-    // and renders through the A2UI preview path.
-    const protoDir = join(root, ".deeporca", "prototypes");
-    const archFiles: Array<{ name: string; path: string; mtime: string }> = [];
-    if (existsSync(protoDir)) {
-      try {
-        for (const f of readdirSync(protoDir)) {
-          if (!f.startsWith("arch-") || (!f.endsWith(".json") && !f.endsWith(".md") && !f.endsWith(".html"))) continue;
-          const full = join(protoDir, f);
-          try {
-            archFiles.push({
-              name: f.replace(/\.(json|md|html)$/, ""),
-              path: full,
-              mtime: statSync(full).mtime.toISOString(),
-            });
-          } catch {
-            // unreadable entry — skip
-          }
-        }
-      } catch {
-        // unreadable dir — leave empty
-      }
-    }
-    const archmaps: KnowledgeStatusResponse["archmaps"] =
-      archFiles.length > 0
-        ? { state: "indexed", count: archFiles.length, unit: "张", files: archFiles }
-        : { state: "empty", detail: "未生成", files: [] };
-
-    return { codegraph, openwiki, agents, archmaps };
-  });
 
   handle(IpcRequest.MemoryRoutingStatus, async (): Promise<MemoryRoutingStatus> => {
     const root = getBridge().projectRoot;
@@ -1399,42 +1402,82 @@ function registerKnowledgeIpc({ handle }: IpcHelpers): void {
           : { state: "empty", detail: "未激活（首次会话时加载）" };
     return { memory, routing, serena };
   });
+  handle(IpcRequest.MemoryCheckAvailable, async (): Promise<{ available: boolean; healthy: boolean }> => {
+    return { available: !!memoryManager, healthy: memoryManager?.isAvailable() ?? false };
+  });
 
-  // Architecture-map preview: `.md` artifacts are Mermaid documents handed to
-  // the renderer as markdown (diagrams hydrate in the preview); legacy `.json`
-  // artifacts are the persisted A2UI surface drawn by the real A2UI renderer.
-  handle(IpcRequest.KnowledgeReadArchmap, (artPath: string): KnowledgeArchmapContent => {
+  handlePrivileged(IpcRequest.MemorySetEnabled, async (enabled: boolean): Promise<{ ok: boolean; error?: string }> => {
+    if (enabled) {
+      return startMemory();
+    }
+    await stopMemory();
+    return { ok: true };
+  });
+
+  handle(IpcRequest.MemorySearch, async (query: string, limit?: number): Promise<{ text: string; total: number }> => {
+    if (!memoryManager) return { text: "", total: 0 };
+    return (await memoryManager.searchMemories(query, limit ?? 5)) ?? { text: "", total: 0 };
+  });
+
+  handle(IpcRequest.MemoryStats, async (): Promise<MemoryPipelineStats | null> => {
+    if (!memoryManager) return null;
+    return memoryManager.getStats();
+  });
+
+  handlePrivileged(IpcRequest.MemoryClear, async (): Promise<{ ok: boolean; error?: string }> => {
+    if (!memoryManager) return { ok: false, error: "Memory pipeline not running" };
     try {
-      // Containment (audit 2026-08-25): this handler used to read whatever
-      // path the renderer passed — an arbitrary-file-read primitive for a
-      // compromised renderer. The knowledge panel serves MULTIPLE workspaces
-      // (knowledge tabs carry their own root), so the pin is: the target must
-      // sit under `<registeredWorkspace>/.deeporca/prototypes/` for a root the
-      // workspace registry knows (or the current project root), with an
-      // arch-*.{md,json,html} basename — then lexical+realpath containment.
-      const knownRoots = new Set<string>([getBridge().projectRoot]);
-      for (const w of listWorkspaceSessions(getBridge().projectRoot).workspaces) knownRoots.add(w.root);
-      const marker = join(".deeporca", "prototypes");
-      const idx = artPath.lastIndexOf(marker);
-      const candidateRoot = idx > 0 ? artPath.slice(0, idx - 1) : "";
-      if (!candidateRoot || !knownRoots.has(candidateRoot)) {
-        return { ok: false, error: "Invalid architecture-map path (unregistered workspace)." };
-      }
-      const check = safeArchmapPath(join(candidateRoot, marker), artPath);
-      if (!check.ok) {
-        return { ok: false, error: `Invalid architecture-map path (${check.reason}).` };
-      }
-      const raw = readFileSync(check.absPath, "utf-8");
-      if (check.absPath.endsWith(".md")) {
-        return { ok: true, markdown: raw };
-      }
-      if (check.absPath.endsWith(".html")) {
-        return { ok: true, html: raw };
-      }
-      return { ok: true, surface: JSON.parse(raw) as KnowledgeArchmapSurface };
+      await memoryManager.clearProjectMemory();
+      return { ok: true };
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : String(err) };
     }
+  });
+}
+
+function registerEndpointQuotaIpc({ handle }: IpcHelpers): void {
+  // Quota follows the ENDPOINT (subscription/prepaid providers): the probe is
+  // selected by the endpoint's own baseURL and keyed by its apiKey. Hosts
+  // without a quota surface short-circuit ok:false — a key must never travel
+  // to a host the platform doesn't own.
+  handle(IpcRequest.EndpointQuota, async (endpointId?: string): Promise<EndpointQuotaResponse> => {
+    if (!endpointId) return { ok: false, error: "missing endpoint id" };
+    try {
+      const settings = resolveCurrentSettings(getBridge().projectRoot);
+      const endpoint = settings.endpoints.find((ep) => ep.id === endpointId);
+      if (!endpoint) return { ok: false, error: "unknown endpoint" };
+      const kind = endpointQuotaKind(endpoint.baseURL);
+      if (!kind) return { ok: false, error: "endpoint has no quota probe" };
+      const result = await fetchEndpointQuota(kind, endpoint.apiKey);
+      if (!result.ok) return { ok: false, error: result.error };
+      if (result.kind === "opencode-subscription") {
+        return { ok: true, kind: result.kind, limits: result.limits };
+      }
+      return {
+        ok: true,
+        kind: result.kind,
+        type: result.account.type,
+        balance: result.account.balance,
+        totalCashBalance: result.account.totalCashBalance,
+        totalVoucherBalance: result.account.totalVoucherBalance,
+        fetchedAt: result.fetchedAt,
+      };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  });
+}
+
+function registerEndpointTestIpc({ handle }: IpcHelpers): void {
+  // Reachability + API probe for the model-pool settings surface. Takes raw
+  // baseURL/key rather than an endpoint id so UNSAVED drafts can be tested
+  // before committing; the values only travel renderer→main, exactly like
+  // the save payload, and the probe module never throws.
+  handle(IpcRequest.EndpointTest, async (baseURL?: string, apiKey?: string): Promise<EndpointTestResponse> => {
+    if (!baseURL || !baseURL.trim()) {
+      return { reachable: false, apiOk: false, status: "network-error", latencyMs: 0, error: "missing baseURL" };
+    }
+    return testEndpoint(baseURL, apiKey ?? "");
   });
 }
 
@@ -1476,6 +1519,21 @@ function registerDesignIpc({ handle, handlePrivileged }: IpcHelpers): void {
     return buildJobs.start(pinned, mode);
   });
   handlePrivileged(IpcRequest.KnowledgeBuildStatus, () => buildJobs.status());
+
+  // Git preflight & bootstrap (2026-08-28): the wiki generator leans on
+  // commit history — the panel checks BEFORE building and asks the user's
+  // decision; bootstrap (git init + first commit) runs only on that explicit
+  // confirmation, with an invocation-scoped commit identity.
+  handlePrivileged(IpcRequest.KnowledgeGitPreflight, async (root: string): Promise<KnowledgeGitPreflight> => {
+    const pinned = resolveRegisteredRoot(root);
+    if (!pinned) return { isRepo: false, hasCommits: false };
+    return gitPreflight(pinned);
+  });
+  handlePrivileged(IpcRequest.KnowledgeGitBootstrap, async (root: string): Promise<KnowledgeGitBootstrapResult> => {
+    const pinned = resolveRegisteredRoot(root);
+    if (!pinned) return { ok: false, error: "unregistered workspace" };
+    return gitBootstrap(pinned);
+  });
 
   handle(IpcRequest.KnowledgeListSymbols, (root: string, query?: string): Array<KnowledgeSymbol> => {
     const pinnedRoot = resolveRegisteredRoot(root);
@@ -1654,6 +1712,133 @@ function registerTaskTreeIpc({ handle, handlePrivileged }: IpcHelpers): void {
   handle(IpcRequest.TaskTreeList, async (workspaceRoot?: string) => {
     return rootService(workspaceRoot)?.listTrees() ?? [];
   });
+
+  // Workspace task hub (task-tree-hub design): one aggregated task tree per
+  // workspace across the four record domains. Session trees resolve through
+  // the same pinned-root seam as TaskTreeList; reviews/designs/jobs read
+  // their canonical stores directly.
+  handle(IpcRequest.TaskHubList, async (workspaceRoot?: string) => {
+    const active = getBridge()?.projectRoot ?? "";
+    // Registered-workspace pinning — the session domain below already degrades
+    // via rootService, but reviews/designs/jobs read their stores DIRECTLY, so
+    // an unregistered root must degrade to the EMPTY hub instead of falling
+    // back to the raw path (never enumerate `.deeporca` stores outside the
+    // registered set; see the rootService invariant below).
+    const pinned = workspaceRoot ? resolveRegisteredRoot(workspaceRoot) : active;
+    if (!pinned) return { root: workspaceRoot ?? "", generatedAt: new Date().toISOString(), groups: [] };
+    return buildTaskHub({
+      root: pinned,
+      listTrees: () => rootService(pinned)?.listTrees() ?? [],
+      // 普通会话收录（user ask 2026-09-03，GVGL 案例）：读该 root 的
+      // sessions-index，剔除静默子代理与已绑任务树的会话（后者由树节点
+      // 呈现），按最近活动倒序、截 60 条防止超长工作区拖垮列表。
+      listChats: () => {
+        try {
+          const indexPath = join(getUserConfigRoot(), "projects", getProjectCode(pinned), "sessions-index.json");
+          const index = readSessionsIndex(indexPath);
+          if (!index) return [];
+          return index.entries
+            .filter((e) => !e.isSilentSubagent && !e.taskRef)
+            .sort((a, b) => b.updateTime.localeCompare(a.updateTime))
+            .slice(0, 60)
+            .map((e) => ({
+              id: e.id,
+              title: e.summary || e.createTime || e.id.slice(0, 8),
+              status: e.status,
+              updatedAt: e.updateTime,
+            }));
+        } catch {
+          return [];
+        }
+      },
+      listReviews: () => listReviewReports(pinned),
+      listDesigns: () => listDesignArtifacts(pinned),
+      listJobs: () => listIndexJobs(pinned),
+      // git binding badge: the tree's file-history repo HEAD (a git record
+      // exists only if the tree ever checkpointed artifacts).
+      treeGitHash: (treeId) => {
+        const svc = rootService(pinned);
+        if (!svc) return null;
+        try {
+          const dir = join(
+            getUserConfigRoot(),
+            "projects",
+            getProjectCode(pinned),
+            "task-trees",
+            treeId,
+            "file-history"
+          );
+          if (!existsSync(join(dir, ".git"))) return null;
+          const r = spawnSync("git", ["-C", dir, "rev-parse", "--short=7", "HEAD"], {
+            encoding: "utf-8",
+            timeout: 3000,
+          });
+          const hash = r.status === 0 ? r.stdout.trim() : "";
+          return hash || null;
+        } catch {
+          return null;
+        }
+      },
+    });
+  });
+
+  // Session trace (task-tree-hub §trace): the session task's bound sessions,
+  // each normalized into recent turns of user 指令 → agent behavior.
+  handle(IpcRequest.TaskHubTrace, async (workspaceRoot?: string, treeId?: string): Promise<TaskTreeTrace> => {
+    const out: TaskTreeTrace = { treeId: treeId ?? "", sessions: [] };
+    if (!treeId) return out;
+    // Cross-workspace safe (same seam as TaskTreeTrajectory): the session
+    // JSONLs are read from the RESOLVED project dir — the SessionBridge only
+    // knows the ACTIVE project's session store, so routing through it would
+    // render every non-active workspace's trace permanently empty.
+    const pinnedRoot =
+      typeof workspaceRoot === "string" && workspaceRoot ? resolveRegisteredRoot(workspaceRoot) : serviceRoot();
+    const full = pinnedRoot ? new TaskTreeService(pinnedRoot).getTree(treeId) : null;
+    if (!pinnedRoot || !full) return out;
+    const tree = full.index;
+    const projectDir = join(getUserConfigRoot(), "projects", getProjectCode(pinnedRoot));
+    const ids = [...new Set(tree.sessionIds ?? [])];
+    for (const sessionId of ids.slice(0, 4)) {
+      try {
+        const { messages, summary } = readSessionTraceSource(projectDir, sessionId);
+        out.sessions.push(normalizeSessionTrace(sessionId, summary || sessionId.slice(0, 8), messages));
+      } catch {
+        // per-session fail-open
+      }
+    }
+    return out;
+  });
+
+  // Plain-conversation behavior trace (user ask 2026-09-03 八轮: chat 节点
+  // 也要内部行为轨迹 —— 同一读取/归一化管线，单会话直出)。
+  handle(IpcRequest.TaskHubChatTrace, async (workspaceRoot?: string, sessionId?: string) => {
+    if (!sessionId) return null;
+    const pinnedRoot =
+      typeof workspaceRoot === "string" && workspaceRoot ? resolveRegisteredRoot(workspaceRoot) : serviceRoot();
+    if (!pinnedRoot) return null;
+    const projectDir = join(getUserConfigRoot(), "projects", getProjectCode(pinnedRoot));
+    try {
+      const { messages, summary } = readSessionTraceSource(projectDir, sessionId);
+      return normalizeSessionTrace(sessionId, summary || sessionId.slice(0, 8), messages);
+    } catch {
+      return null;
+    }
+  });
+
+  // Whole-workspace LLM token accounting (silent subagents included).
+  handle(IpcRequest.TokensSummary, (workspaceRoot?: string) => {
+    const active = getBridge()?.projectRoot ?? "";
+    // Registered-workspace pinning (see resolveRegisteredRoot): an unregistered
+    // root degrades to a zero summary — never read an arbitrary path's session
+    // store.
+    const pinned = workspaceRoot ? resolveRegisteredRoot(workspaceRoot) : active;
+    if (!pinned) return emptyTokenSummary(workspaceRoot ?? "");
+    const indexPath = projectSessionsIndexPath(getUserConfigRoot(), pinned);
+    // One-time backfill of pre-ledger session totals (idempotent — see
+    // migrateLegacyUsageIntoLedger) so exact time windows cover old data too.
+    migrateLegacyUsageIntoLedger(indexPath);
+    return buildTokenSummary(pinned, indexPath);
+  });
   handle(IpcRequest.TaskTreeGet, async (treeId: string, workspaceRoot?: string) => {
     if (!validTreeId(treeId)) return null;
     return rootService(workspaceRoot)?.getTree(treeId) ?? null;
@@ -1741,6 +1926,81 @@ function registerTaskTreeIpc({ handle, handlePrivileged }: IpcHelpers): void {
     }
   );
 
+  // Two-mode fork (user ask 2026-09-03 九轮).
+  // ① worktree 沙盒：树分支 + <root>/.deeporca/task-trees/<id>/worktrees/<branch>
+  //    独立沙盒目录 —— 隔离落在工作区存储内，与上游共用 git。
+  // ② 分支独立：git 真分支 + `git worktree add` 临时检出（仓库外、config
+  //    root 下）—— fork 的文件工作发生在独立工作区，结构性隔离，不可能
+  //    影响上游工作区；渲染端拿到 worktree root 后切换进去干活。
+  handlePrivileged(
+    IpcRequest.TaskTreeForkWorkspace,
+    async (
+      treeId: string,
+      why: string,
+      opts?: { name?: string; fromBranch?: string; mode?: "worktree" | "branch" },
+      workspaceRoot?: string
+    ) => {
+      const svc = workspaceRoot ? rootService(workspaceRoot) : service();
+      if (!svc) return { ok: false, error: "task tree service unavailable" };
+      if (!validTreeId(treeId)) return { ok: false, error: "invalid treeId" };
+      const w = typeof why === "string" ? why.trim() : "";
+      if (!w) return { ok: false, error: "why is required (the branch's story)" };
+      const mode = opts?.mode === "branch" ? "branch" : "worktree";
+      const root = workspaceRoot ? (resolveRegisteredRoot(workspaceRoot) ?? "") : serviceRoot();
+
+      const nodeId = svc.fork(treeId, {
+        why: w,
+        ...(opts?.name ? { name: opts.name } : {}),
+        ...(opts?.fromBranch ? { fromBranch: opts.fromBranch } : {}),
+      });
+      if (!nodeId) return { ok: false, error: "fork rejected (duplicate name or empty why)" };
+      const tree = svc.getTree(treeId);
+      const branch = tree?.index.activeBranch ?? "";
+      if (!branch) return { ok: false, error: "fork succeeded but branch missing" };
+
+      if (mode === "worktree") {
+        if (!root) return { ok: false, error: "workspace root unresolved" };
+        const sandboxDir = join(root, ".deeporca", "task-trees", treeId, "worktrees", branch);
+        try {
+          mkdirSync(sandboxDir, { recursive: true });
+        } catch {
+          return { ok: false, error: `sandbox dir unavailable: ${sandboxDir}` };
+        }
+        return { ok: true, mode, branch, sandboxDir };
+      }
+
+      if (!root) return { ok: false, error: "workspace root unresolved" };
+      const insideRepo = spawnSync("git", ["-C", root, "rev-parse", "--is-inside-work-tree"], {
+        encoding: "utf8",
+        timeout: 5000,
+      });
+      if (insideRepo.status !== 0) {
+        return { ok: false, error: "not a git repository（分支独立模式需要 git 联动）" };
+      }
+      const nameHint = (opts?.name?.trim() || w).toLowerCase();
+      const slug =
+        nameHint
+          .replace(/[^a-z0-9._-]+/g, "-")
+          .replace(/^-+|-+$/g, "")
+          .slice(0, 32) || "fork";
+      const gitBranch = `deeporca/${slug}/${branch}`.slice(0, 60);
+      const worktreeRoot = join(getUserConfigRoot(), "worktrees", `${slug}-${branch}`.slice(0, 48));
+      const branchR = spawnSync("git", ["-C", root, "branch", gitBranch], { encoding: "utf8", timeout: 15000 });
+      if (branchR.status !== 0) {
+        return { ok: false, error: `git branch failed: ${(branchR.stderr || "").trim().slice(0, 200)}` };
+      }
+      const addR = spawnSync("git", ["-C", root, "worktree", "add", worktreeRoot, gitBranch], {
+        encoding: "utf8",
+        timeout: 60000,
+      });
+      if (addR.status !== 0) {
+        // 分支已建但 worktree 失败：保留树分支（行仍有用），报告 git 错误。
+        return { ok: false, error: `git worktree add failed: ${(addR.stderr || "").trim().slice(0, 200)}` };
+      }
+      return { ok: true, mode, branch, workspaceRoot: worktreeRoot };
+    }
+  );
+
   handlePrivileged(IpcRequest.TaskTreeSwitch, async (treeId: string, branch: string, workspaceRoot?: string) => {
     const svc = workspaceRoot ? rootService(workspaceRoot) : service();
     if (!svc || !validTreeId(treeId) || !validBranch(branch)) return { ok: false, error: "invalid arguments" };
@@ -1787,6 +2047,38 @@ function registerTaskTreeIpc({ handle, handlePrivileged }: IpcHelpers): void {
       ? { ok: true, mergeNodeId: result.mergeNodeId, conflicts: result.conflicts }
       : { ok: false, error: "merge rejected" };
   });
+
+  // Editor digital entity (specs/editor-agent S2): run the editor-agent
+  // background entity on the ACTIVE workspace's manager — sessionless, zero
+  // residue; the final text returns for the editor panel to render.
+  handlePrivileged(
+    IpcRequest.EditorAgentRun,
+    async (input?: {
+      filePath?: string;
+      startLine?: number;
+      endLine?: number;
+      selection?: string;
+      instruction?: string;
+      lang?: string;
+    }) => {
+      if (!input?.filePath || !input.instruction?.trim() || !input.selection?.trim()) {
+        return { ok: false as const, error: "filePath, selection and instruction are required" };
+      }
+      try {
+        const result = await getBridge().runEditorAgent({
+          filePath: input.filePath,
+          startLine: Number(input.startLine) || 1,
+          endLine: Number(input.endLine) || Number(input.startLine) || 1,
+          selection: input.selection,
+          instruction: input.instruction.trim(),
+          lang: typeof input.lang === "string" ? input.lang : undefined,
+        });
+        return { ok: true as const, content: result.content ?? "", iterations: result.iterations };
+      } catch (error) {
+        return { ok: false as const, error: error instanceof Error ? error.message : String(error) };
+      }
+    }
+  );
 }
 
 function registerA2uiIpc({ handleShared }: IpcHelpers): void {
@@ -1917,8 +2209,6 @@ function registerWikiIpc({ handle, handlePrivileged }: IpcHelpers): void {
   // reported unavailable when the vendored build is missing — never reaching for
   // an external runtime.
   // Dedicated wiki agent model strategy: flash-first, pro-fallback.
-  const WIKI_MODEL_FLASH = "deepseek-v4-flash";
-  const WIKI_MODEL_PRO = "deepseek-v4-pro";
 
   /**
    * Resolve how to invoke openwiki. Internal plugins must stay self-contained:
@@ -1957,14 +2247,19 @@ function registerWikiIpc({ handle, handlePrivileged }: IpcHelpers): void {
       }
       const { command, prefixArgs, env } = resolved;
       const execEnv = env ? { ...(process.env as Record<string, string>), ...env } : undefined;
-      execFile(command, [...prefixArgs, "--version"], { timeout: 10000, env: execEnv }, (err, stdout) => {
-        if (!err) {
-          resolve({ available: true, version: stdout.trim().split("\n")[0] });
-        } else {
-          // A vendored build counts as available even when --version probing fails.
-          resolve({ available: true });
+      execFile(
+        command,
+        [...prefixArgs, "--version"],
+        { timeout: 10000, env: execEnv, windowsHide: true },
+        (err, stdout) => {
+          if (!err) {
+            resolve({ available: true, version: stdout.trim().split("\n")[0] });
+          } else {
+            // A vendored build counts as available even when --version probing fails.
+            resolve({ available: true });
+          }
         }
-      });
+      );
     });
   });
 
@@ -1974,77 +2269,56 @@ function registerWikiIpc({ handle, handlePrivileged }: IpcHelpers): void {
    * 2. If flash fails (model unavailable), fall back to pro
    * Passes the user's LLM credentials so openwiki uses the same endpoint.
    */
-  const runWikiAgent = (args: string[]): Promise<{ ok: boolean; error?: string }> => {
-    const settings = resolveCurrentSettings(getBridge().projectRoot);
-    // Capture the workspace root once so every progress event carries it —
-    // lets the panel filter out stale events from a previous workspace.
-    const root = getBridge().projectRoot;
-    const env: Record<string, string> = { ...(process.env as Record<string, string>) };
-    if (settings.apiKey) env.OPENAI_API_KEY = settings.apiKey;
-    if (settings.baseURL) env.OPENAI_BASE_URL = settings.baseURL;
-
-    const spawnWith = (model: string): Promise<{ ok: boolean; error?: string }> => {
-      return new Promise((resolve) => {
-        const resolved = resolveOpenwikiCommand();
-        if (!resolved) {
-          resolve({ ok: false, error: "OpenWiki is not bundled with this build." });
-          return;
-        }
-        try {
-          const { command, prefixArgs, env: exeEnv } = resolved;
-          const cp = spawn(command, [...prefixArgs, ...args, "--model", model], {
-            cwd: root,
-            env: { ...env, ...exeEnv, OPENWIKI_MODEL: model },
-          });
-          trackHelperProcess(cp);
-          cp.stdout?.on("data", (d: Buffer) => {
-            emit(IpcEvent.WikiProgress, { root, chunk: d.toString(), stream: "stdout", done: false });
-          });
-          cp.stderr?.on("data", (d: Buffer) => {
-            emit(IpcEvent.WikiProgress, { root, chunk: d.toString(), stream: "stderr", done: false });
-          });
-          cp.on("error", (err) => {
-            resolve({ ok: false, error: `Failed to start openwiki: ${err.message}` });
-          });
-          cp.on("close", (code) => {
-            resolve({ ok: code === 0, error: code !== 0 ? `exit code ${code}` : undefined });
-          });
-        } catch (err) {
-          resolve({ ok: false, error: err instanceof Error ? err.message : String(err) });
-        }
-      });
-    };
-
-    return (async () => {
-      // Phase 1: try flash model
+  // WikiInit/Update now route through the WikiCliController (review round 5):
+  // the old inline spawn wrote the raw openwiki/ stage with OPENAI_API_KEY/
+  // OPENWIKI_MODEL — the exact env route documented as the hollow-run bug —
+  // and bypassed the staging lifecycle every read surface now expects. The
+  // controller owns: openai-compatible provider routing, staging
+  // copy/promote, guards, retries, and language.
+  handlePrivileged(IpcRequest.WikiInit, async (): Promise<{ ok: boolean; error?: string }> => {
+    try {
+      const res = await wikiController.init(getBridge().projectRoot, (p) =>
+        emit(IpcEvent.WikiProgress, {
+          root: getBridge().projectRoot,
+          chunk: `${p.message}\n`,
+          stream: "stdout",
+          done: false,
+        })
+      );
       emit(IpcEvent.WikiProgress, {
-        root,
-        chunk: `[wiki-agent] model: ${WIKI_MODEL_FLASH}\n`,
+        root: getBridge().projectRoot,
+        chunk: "",
         stream: "stdout",
-        done: false,
+        done: true,
+        exitCode: 0,
       });
-      const flashResult = await spawnWith(WIKI_MODEL_FLASH);
-      if (flashResult.ok) {
-        emit(IpcEvent.WikiProgress, { root, chunk: "", stream: "stdout", done: true, exitCode: 0 });
-        return flashResult;
-      }
-      // Phase 2: flash failed, fall back to pro
+      return { ok: res.ok, error: res.ok ? undefined : res.warning };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  });
+  handlePrivileged(IpcRequest.WikiUpdate, async (): Promise<{ ok: boolean; error?: string }> => {
+    try {
+      const res = await wikiController.update(getBridge().projectRoot, (p) =>
+        emit(IpcEvent.WikiProgress, {
+          root: getBridge().projectRoot,
+          chunk: `${p.message}\n`,
+          stream: "stdout",
+          done: false,
+        })
+      );
       emit(IpcEvent.WikiProgress, {
-        root,
-        chunk: `[wiki-agent] flash unavailable, falling back to ${WIKI_MODEL_PRO}\n`,
-        stream: "stderr",
-        done: false,
+        root: getBridge().projectRoot,
+        chunk: "",
+        stream: "stdout",
+        done: true,
+        exitCode: 0,
       });
-      const proResult = await spawnWith(WIKI_MODEL_PRO);
-      emit(IpcEvent.WikiProgress, { root, chunk: "", stream: "stdout", done: true, exitCode: proResult.ok ? 0 : 1 });
-      return proResult;
-    })();
-  };
-
-  // WikiInit/Update spawn the openwiki agent against the current project and
-  // write to <project>/openwiki/.
-  handlePrivileged(IpcRequest.WikiInit, () => runWikiAgent(["--init"]));
-  handlePrivileged(IpcRequest.WikiUpdate, () => runWikiAgent(["--update"]));
+      return { ok: res.ok, error: res.ok ? undefined : res.warning };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  });
 
   /**
    * Tree label for a wiki page: the frontmatter `title` (localized at
@@ -2079,7 +2353,13 @@ function registerWikiIpc({ handle, handlePrivileged }: IpcHelpers): void {
   }
 
   handle(IpcRequest.WikiListPages, async (rootArg?: string): Promise<WikiPageEntry[]> => {
-    const wikiDir = join(rootArg || getBridge().projectRoot, "openwiki");
+    // Root PINNED like every other knowledge channel (review round 6): the
+    // raw join let a semi-trusted renderer enumerate any path's deepwiki/
+    // tree. Unregistered root → [] (fail closed).
+    const pinned = resolveRegisteredRoot(rootArg);
+    if (!pinned) return [];
+    ensureGeneratedLayout(pinned);
+    const wikiDir = join(pinned, WIKI_STORE_DIR);
     try {
       const entries: WikiPageEntry[] = [];
       const walk = async (dir: string, prefix: string): Promise<void> => {
@@ -2096,35 +2376,21 @@ function registerWikiIpc({ handle, handlePrivileged }: IpcHelpers): void {
             } catch {
               // unreadable — leave undated
             }
-            // Bilingual translation sibling (wiki.translate build stage):
-            // detect the base page's language with the SAME heuristic core
-            // uses, then probe the other-language variant. Cheap existence
-            // check on a path we derived ourselves — no renderer input.
-            let translation: WikiPageEntry["translation"];
-            try {
-              const head = await readFile(absPath, "utf8");
-              const lang = detectWikiLanguage(head);
-              if (lang) {
-                const vLang: "zh" | "en" = lang === "zh" ? "en" : "zh";
-                const vRel = wikiVariantPath(rel, vLang);
-                const vStat = await stat(join(wikiDir, vRel));
-                translation = { lang: vLang, path: vRel, mtime: vStat.mtime.toISOString() };
-              }
-            } catch {
-              // No variant (or unreadable base) — no toggle.
-            }
             entries.push({
               path: rel,
               title: await wikiPageTitle(absPath, item.name),
               mtime,
-              ...(translation ? { translation } : {}),
             });
           }
         }
       };
       await walk(wikiDir, "");
       entries.sort((a, b) => a.path.localeCompare(b.path));
-      return entries;
+      // Index-first per section (user ask 2026-08-30): path slugs sort
+      // alphabetically, so a section's index.md lands mid-list. Pure rule in
+      // wiki-page-order.ts — the sidebar tree, reading order, and pager all
+      // derive from this ONE list.
+      return orderWikiPagesIndexFirst(entries);
     } catch {
       return [];
     }
@@ -2132,12 +2398,13 @@ function registerWikiIpc({ handle, handlePrivileged }: IpcHelpers): void {
 
   handle(IpcRequest.WikiReadPage, async (pagePath: string): Promise<string> => {
     // Containment: page must be a strictly-relative .md file under
-    // <project>/openwiki, with no symlink/junction escape. The previous
+    // <project>/deepwiki, with no symlink/junction escape. The previous
     // string-only `normalize + regex strip ../` guard was defeated by absolute
-    // paths, drive letters, UNC paths, and symlinks inside openwiki/. The
+    // paths, drive letters, UNC paths, and symlinks inside deepwiki/. The
     // shared safeWikiPath uses the same lexical + realpath containment that
     // editor-handlers uses, and additionally restricts to .md files.
-    const wikiRoot = join(getBridge().projectRoot, "openwiki");
+    ensureGeneratedLayout(getBridge().projectRoot);
+    const wikiRoot = join(getBridge().projectRoot, WIKI_STORE_DIR);
     const check = safeWikiPath(wikiRoot, pagePath);
     if (!check.ok) {
       // Surface the rejection in the main log so an attack or a bug is
@@ -2244,7 +2511,9 @@ function registerIpc(): void {
   // registerCodeReviewIpc removed — actions replace legacy review IPC.
   registerCrgIpc(helpers);
   registerMemoryIpc(helpers);
-  registerKnowledgeIpc(helpers);
+  registerKnowledgeIpc(helpers, getBridge, () => mainWindow);
+  registerEndpointQuotaIpc(helpers);
+  registerEndpointTestIpc(helpers);
   registerTaskTreeIpc(helpers);
   registerDesignIpc(helpers);
   registerA2uiIpc(helpers);
@@ -2260,9 +2529,23 @@ function registerIpc(): void {
   // electron-free by receiving emit + getRegistry via deps.
   registerActionIpc(helpers, {
     emit,
+    // Stamp the action's TARGET root (review.full's on-demand `root`), falling
+    // back to the active workspace — the renderer multiplexes concurrent
+    // per-workspace runs by this stamp.
+    getRoot: (_id, input) => {
+      const inputRoot = (input as { root?: unknown } | undefined)?.root;
+      return typeof inputRoot === "string" && inputRoot ? inputRoot : (getBridge()?.projectRoot ?? "");
+    },
+    // Wrapped so every review.full completion also produces the dedicated HTML
+    // report (see review-report-surface.ts), after registered-workspace
+    // validation of the on-demand input.root.
     getRegistry: () => {
       const bridge = getBridge();
-      return bridge?.getSessionManager().getActionRegistry() ?? null;
+      return withReviewReportSurface(bridge?.getSessionManager().getActionRegistry() ?? null, {
+        getActiveRoot: () => getBridge()?.projectRoot ?? "",
+        isKnownRoot: (root) => !!resolveRegisteredRoot(root),
+        getLocale: () => APP_LOCALE_TO_BCP47[currentAppLocale ?? ""] ?? "en",
+      });
     },
   });
 }
@@ -2272,6 +2555,15 @@ app.whenReady().then(() => {
     // Duplicate launch: quit is already in flight — boot nothing.
     return;
   }
+  // Deny-all permission requests on the DEFAULT session (review round 7 —
+  // MUST run after app ready: session access at module load throws
+  // "Session can only be received when app is ready"): the app's own
+  // renderer needs none of camera/mic/notifications/clipboard, and the arch
+  // board's embedded model-authored artifact must never obtain them.
+  electronSession.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => {
+    callback(false);
+    console.log(`[security] denied default-session permission request: ${permission}`);
+  });
   // One-time purge of leaked subagent sessions (marker-gated, idempotent) —
   // before the renderer loads so the first session list is already clean.
   setImmediate(cleanupLeakedSubagentSessions);
@@ -2279,6 +2571,10 @@ app.whenReady().then(() => {
   // window loads. createWindow follows immediately — the window appears
   // fast because the renderer HTML + JS start loading right away.
   registerIpc();
+  // Generated-content sweep (user rule 2026-08-31): adopt any pre-
+  // centralization layout for the active project BEFORE anything generates
+  // or reads, so every path in play is the canonical .deeporca/ one.
+  ensureGeneratedLayout(getBridge().projectRoot);
   createWindow();
   // Dembrandt CDP provider creates a hidden BrowserWindow — only legal after
   // app ready (boot-order fix, see startDembrandtProvider definition).

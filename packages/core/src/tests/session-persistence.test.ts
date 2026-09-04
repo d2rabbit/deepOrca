@@ -1424,3 +1424,36 @@ test("replySession preserves raw session messages when a previous tool call is p
     false
   );
 });
+
+test("workspaceDir survives the sessions-index round trip after a reload", async () => {
+  const workspace = createTempDir("deepcode-workspacedir-roundtrip-workspace-");
+  const home = createTempDir("deepcode-workspacedir-roundtrip-home-");
+  setHomeDir(home);
+  globalThis.fetch = (async () => ({ ok: true, text: async () => "" }) as Response) as typeof fetch;
+
+  const manager = createSessionManager(workspace);
+  (manager as any).activateSession = async () => {};
+
+  const sessionId = await manager.createSession({ text: "first prompt" });
+  const expected = manager.getSession(sessionId)?.workspaceDir;
+  assert.ok(expected, "createSession did not set workspaceDir");
+
+  // A fresh manager over the same workspace reloads the index from disk —
+  // normalizeSessionEntry must whitelist workspaceDir or the first debounced
+  // updateSessionEntry after a restart permanently erases it.
+  const reloaded = createSessionManager(workspace);
+  assert.equal(reloaded.getSession(sessionId)?.workspaceDir, expected);
+});
+
+test("normalizeSessionEntry tolerates a missing or non-string workspaceDir", () => {
+  const workspace = createTempDir("deepcode-workspacedir-normalize-workspace-");
+  const home = createTempDir("deepcode-workspacedir-normalize-home-");
+  setHomeDir(home);
+
+  const manager = createSessionManager(workspace);
+  const normalize = (manager as any).normalizeSessionEntry.bind(manager);
+
+  assert.equal(normalize({ id: "s1" }).workspaceDir, undefined);
+  assert.equal(normalize({ id: "s2", workspaceDir: 42 }).workspaceDir, undefined);
+  assert.equal(normalize({ id: "s3", workspaceDir: ".deeporca/sessions/s3" }).workspaceDir, ".deeporca/sessions/s3");
+});

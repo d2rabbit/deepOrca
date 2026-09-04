@@ -13,7 +13,7 @@
  * behavior of another family or of the UNKNOWN fallback.
  */
 
-export type ModelFamilyId = "deepseek" | "glm" | "kimi" | "minimax" | "qwen" | "unknown";
+export type ModelFamilyId = "deepseek" | "stepfun" | "glm" | "kimi" | "minimax" | "qwen" | "unknown";
 
 // Unified thinking-effort scale + per-family native mappings (think-level.ts).
 // Only the symbols the renderer consumes are re-exported here — the
@@ -60,19 +60,21 @@ export type ModelCapabilityRegistration = {
 };
 
 /**
- * DeepSeek family. Registered values reproduce the pre-registry behavior
- * exactly: the family defaults describe an *unlisted* `deepseek-*` model
- * (128K window, thinking off, multimodal allowed), and the four known models
- * override via MODEL_OVERRIDES — matching the old DEEPSEEK_V4_MODELS /
- * NON_MULTIMODAL_MODELS sets key-for-key. `deepseek-chat` / `deepseek-reasoner`
- * stay registered even though DeepSeek discontinued them (2026-07-24) so
+ * DeepSeek family. The family default is the product's DeepSeek compaction
+ * trigger: 512K across the series (2026-08-28 product decision — the V4
+ * models' established trigger; discontinued deepseek-chat/reasoner keep
+ * resolving with the same value so existing settings stay consistent).
+ * The known V4 models still override via MODEL_OVERRIDES key-for-key
+ * (thinking defaults, multimodal) — matching the old DEEPSEEK_V4_MODELS /
+ * NON_MULTIMODAL_MODELS sets. `deepseek-chat` / `deepseek-reasoner` stay
+ * registered even though DeepSeek discontinued them (2026-07-24) so
  * existing settings keep resolving with their historical capabilities.
  */
 const DEEPSEEK_FAMILY: ModelFamilySpec = {
   id: "deepseek",
   modelPatterns: [/^deepseek-/i],
   baseURLHostHints: [/^(.+\.)?api\.deepseek\.com$/i],
-  contextWindowTokens: 128 * 1024,
+  contextWindowTokens: 512 * 1024,
   defaultsToThinking: false,
   multimodal: true,
   lightweightModel: "deepseek-v4-flash",
@@ -88,6 +90,11 @@ const DEEPSEEK_FAMILY: ModelFamilySpec = {
  * differences like thinking defaults or context windows.
  */
 const MODEL_OVERRIDES: Record<string, Partial<ModelFamilySpec>> = {
+  // Step Plan channel router (deepseek-v4-pro ↔ step-3.7-flash): images are
+  // REJECTED server-side (unsupported_content_type) even though one route is
+  // a vision model — the router itself never accepts multimodal input
+  // (Chat Completions API doc, Step Plan channel field table).
+  "step-router-v1": { multimodal: false },
   "deepseek-v4-flash": { defaultsToThinking: true, multimodal: false, contextWindowTokens: 512 * 1024 },
   "deepseek-v4-pro": { defaultsToThinking: true, multimodal: false, contextWindowTokens: 512 * 1024 },
   // Image-understanding experimental variant (2026-08-21 pricing page): thinking
@@ -104,16 +111,54 @@ const MODEL_OVERRIDES: Record<string, Partial<ModelFamilySpec>> = {
 };
 
 /**
- * First-class fallback for models that resolve to no family. Every value equals
- * the pre-registry behavior for unknown models: 128K threshold, thinking off by
- * default, multimodal permitted, today's thinking-request shape, dual reasoning
- * read fields. Being a registry entry (not an implicit else) keeps those
+ * StepFun family (step-3.7-flash, 2026-08-27 adaptation). First-party vision
+ * model: natively multimodal (image AND video input), sparse-MoE 198B/11B,
+ * 256K context. OpenAI-compatible `/v1/chat/completions` with streaming and
+ * tool calls, plus an Anthropic-compatible `/v1/messages` we don't use (the
+ * engine speaks the OpenAI protocol). Reasoning is ALWAYS on — the API's only
+ * effort control is `reasoning_effort` low/medium/high (see the step thinking
+ * builder) — so the family defaults to thinking mode and off projects to low.
+ * Reasoning output streams in `delta.reasoning` (OpenAI-style — StepFun's
+ * DEFAULT wire format per their reasoning best-practices page; the
+ * `reasoning_content` DeepSeek-style field only appears behind an explicit
+ * format param), which the read-fields chain covers while our canonical
+ * persisted/UI field stays `reasoning_content` (the renderer's thinking
+ * timeline and persistence read that key). Replay is "omit": unlike DeepSeek,
+ * Step documents no requirement to resend the reasoning field on replayed
+ * assistant messages, and an empty `reasoning_content` would be a FOREIGN
+ * field a strict compatibility layer could reject — replaying nothing is the
+ * universally accepted shape. No lightweight tier is registered: the
+ * text-only sibling step-3.5-flash is NOT assumed to be served by the
+ * endpoint, and a wrong-id background call would fail closed — backgrounds
+ * run on secondary/primary instead. The pattern ^step- also covers the Step
+ * Plan channel's step-router-v1 (routes deepseek-v4-pro ↔ step-3.7-flash)
+ * and the text-only step-3.5-flash(-2603) — all served under the same family.
+ */
+const STEPFUN_FAMILY: ModelFamilySpec = {
+  id: "stepfun",
+  modelPatterns: [/^step-/i],
+  baseURLHostHints: [/^(.+\.)?api\.stepfun\.com$/i],
+  contextWindowTokens: 256 * 1024,
+  defaultsToThinking: true,
+  multimodal: true,
+  thinkingProtocol: "stepfun",
+  reasoningField: "reasoning_content",
+  reasoningReadFields: ["reasoning_content", "reasoning"],
+  reasoningReplay: "omit",
+};
+
+/**
+ * First-class fallback for models that resolve to no family. Product default
+ * compaction trigger is 200K (2026-08-28; was 128K). Every other value equals
+ * the pre-registry behavior for unknown models: thinking off by default,
+ * multimodal permitted, today's thinking-request shape, dual reasoning read
+ * fields. Being a registry entry (not an implicit else) keeps those
  * semantics documented and test-locked.
  */
 const UNKNOWN_FAMILY: ModelFamilySpec = {
   id: "unknown",
   modelPatterns: [],
-  contextWindowTokens: 128 * 1024,
+  contextWindowTokens: 200 * 1024,
   defaultsToThinking: false,
   multimodal: true,
   thinkingProtocol: "unknown",
@@ -123,7 +168,7 @@ const UNKNOWN_FAMILY: ModelFamilySpec = {
 };
 
 /** Registered families. New vendors land here as one entry (plus overrides). */
-const FAMILIES: readonly ModelFamilySpec[] = [DEEPSEEK_FAMILY];
+const FAMILIES: readonly ModelFamilySpec[] = [DEEPSEEK_FAMILY, STEPFUN_FAMILY];
 
 function hostnameOf(baseURL: string | undefined): string {
   if (!baseURL) return "";
@@ -132,6 +177,72 @@ function hostnameOf(baseURL: string | undefined): string {
   } catch {
     return "";
   }
+}
+
+/**
+ * True when a baseURL points at StepFun's API host. Both channels — the
+ * pay-as-you-go `…/v1` and the Step Plan subscription `…/step_plan/v1` —
+ * share api.stepfun.com, so one hostname check gates the account-balance
+ * probe for every StepFun endpoint shape (preset or custom).
+ */
+export function isStepfunBaseUrl(baseURL: string | undefined): boolean {
+  return /^(.+\.)?api\.stepfun\.com$/i.test(hostnameOf(baseURL));
+}
+
+/**
+ * Which quota probe an endpoint's baseURL selects (null = no quota surface).
+ * Quota follows the ENDPOINT: StepFun's two channels (pay-as-you-go /v1 and
+ * Step Plan /step_plan/v1) share api.stepfun.com and answer a live account
+ * balance; OpenCode's zen gateways share opencode.ai and expose only static
+ * plan limits (no balance API — anomalyco/opencode#10448). Shared by the
+ * renderer (settings card gating) and desktop main (IPC probe dispatch).
+ */
+export type EndpointQuotaKind = "stepfun-account" | "opencode-subscription";
+
+export function endpointQuotaKind(baseURL: string | undefined): EndpointQuotaKind | null {
+  if (isStepfunBaseUrl(baseURL)) return "stepfun-account";
+  return hostnameOf(baseURL) === "opencode.ai" ? "opencode-subscription" : null;
+}
+
+/**
+ * Curated known model ids per family — the desktop settings pool binds each
+ * endpoint's add-model suggestion list to the endpoint's family through this
+ * table (family ↔ model-list binding). Curated rather than derived from
+ * MODEL_OVERRIDES so legacy/discontinued ids (deepseek-chat / deepseek-reasoner)
+ * stay resolvable without being suggested; not-yet-registered families serve an
+ * empty list. An endpoint whose family can't be determined falls back to the
+ * union of every family's list (see endpointModelFamily).
+ */
+export const FAMILY_MODEL_SUGGESTIONS: Readonly<Record<ModelFamilyId, readonly string[]>> = {
+  deepseek: ["deepseek-v4-pro", "deepseek-v4-flash", "deepseek-v4-flash-vision-exp"],
+  stepfun: ["step-3.7-flash", "step-router-v1"],
+  glm: [],
+  kimi: [],
+  minimax: [],
+  qwen: [],
+  unknown: [],
+};
+
+/**
+ * Which family an ENDPOINT's model suggestions should come from. Resolution
+ * mirrors resolveModelSpec, endpoint-flavored: the first registered model whose
+ * family resolves wins (aggregator gateways — e.g. OpenCode's zen gateways —
+ * serve one family's models in practice), then the baseURL host hints, then the
+ * caller's fallback (the renderer passes a preset-id hint for gateways whose
+ * host is not in the registry), else "unknown".
+ */
+export function endpointModelFamily(input: {
+  baseURL?: string;
+  registeredModelIds?: ReadonlyArray<string>;
+  fallback?: ModelFamilyId;
+}): ModelFamilyId {
+  for (const id of input.registeredModelIds ?? []) {
+    const spec = resolveModelSpec({ model: id });
+    if (spec.familyResolved) return spec.id;
+  }
+  const byHost = resolveModelSpec({ model: "", baseURL: input.baseURL });
+  if (byHost.familyResolved) return byHost.id;
+  return input.fallback ?? "unknown";
 }
 
 /**

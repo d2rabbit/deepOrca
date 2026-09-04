@@ -1,0 +1,276 @@
+# 主会话对话渲染重设计（chat-redesign）— 设计与实施方案
+
+> **日期**：2026-09-02 视觉稿与动态演示定稿 · **2026-09-03 标准化入 specs**（原 `designs/chat-redesign/落地实施方案.md`，视觉稿资产随迁至 [designs/](./designs/)，原目录撤销）
+> **状态**：**实施中（feat/modern-ui-redesign 分支）**——P1/P3/P4 主体已落地（三栏骨架 / InstructionToc / ActivityRail / 浮动 Tab 联动 / PinnedPlan / 引用芯片 / 会话流对齐 demo-flow），余项见 [tasks.md](./tasks.md)
+> **视觉基线**：[designs/screen-chat.html](./designs/screen-chat.html)（静态定稿稿，与动态演示同一组件语言）
+> **动态基线**：[designs/demo-flow.html](./designs/demo-flow.html)（完整数据流可播放演示，即本方案的交互即视版）
+> **关联**：[task-tree-hub](../review-ing/task-tree-hub/design.md) §6.5（滚动契约）·
+> [prototype-companion](../design-systems-advance/prototype-companion/design.md) §6.3（产物分轨打开规则）
+> **受众**：desktop 前端实现者
+
+---
+
+## 〇、术语表（全文统一，下文一律使用左列称谓）
+
+| 术语 | 含义 | 对应实现物 |
+| --- | --- | --- |
+| 指令目录 | 会话区左列，以每条用户指令为题的导航，点击定位对应回合 | `InstructionToc` |
+| 会话列 | 中列，唯一滚动层所在；输入框泊定其底部且与列同宽 | `.chatcol` |
+| 活动区 | 右列，常驻；容纳思考瞬态卡、实时活动流、子代理组 | `ActivityRail` |
+| 活动小窗 | 活动区内的一扇画中画窗体（240×292），对应一个实时活动 | `PipWindow` |
+| 行为流缩略行 | 会话流内一行式活动摘要（图标 + 动宾 + 状态 + 耗时） | `FlowEventRow` |
+| 思考瞬态卡 | 思考进行时出现在活动区顶部的动态卡（实时字数/计时），完成即散，不进堆叠 | `ThinkCard` |
+| 子代理组 | 活动区底部的子代理独立分组，含子代理小窗与下拉清单 | `SubagentGroup` |
+| 计划卡 | 分段式计划的结构化卡片，双态：提案态 / 执行态 | `PlanCard` |
+| 引用芯片 | 输入框与正文中对引用目标的行内原子标记（五类独立标识） | `RefChip` |
+| 浮动 Tab | 项目内既有的右侧快速视图浮层（`ui-preview-panel` 形态，如审查报告快速视图） | 既有 |
+
+> 交互提示语一律不进入会话流正文；操作规则收敛到对应胶囊的 tooltip 与清单页脚。
+
+---
+
+## 一、范围一句话
+
+把主会话区固化为**三栏布局**——左侧指令目录、中间会话列（输入框泊定其底部）、右侧常驻
+活动区——并对会话流做结构化重构：AI 回复去气泡、行为收敛为缩略行、计划以双态计划卡呈现、
+引用以五类原子芯片行内渲染；工具/脚本/MCP 的完整内部内容只出现在活动小窗内。
+
+不在范围内：core 引擎与 IPC 契约改动、`statusNote` 的生成侧改动（仅在 UI 侧本地化）、
+`deeporca-native` / `deeporca-win` 两个平行工程目录。
+
+---
+
+## 二、现状与差距
+
+| 模块 | 现状 | 差距 |
+| --- | --- | --- |
+| 消息渲染 | `Message.tsx` 单文件承载全部消息类型；AI 回复套气泡；工具卡整卡展开 | 无结构化行为流；纵向密度低 |
+| 实时活动 | `ToolActivityPanel` 已有实时工具事件玻璃小窗（A2UI 形态，12 条封顶），但独立于会话主流程 | 需并入常驻活动区，与行为流同源同步 |
+| 计划展示 | `<proposed_plan>` 以纯文本渲染 + 独立审批选择器；`UpdatePlan` 仅产出平面清单 | 缺分段结构、缺执行态进度、缺钉住入口 |
+| 引用渲染 | 输入框镜像层只覆盖缩略标签，完整路径从胶囊右侧漏出 | 需遮盖层 + 浮动标签的原子芯片方案 |
+| 图标 | emoji/文字符号与 SVG 混用 | 全量 SVG（已落地：ui/icons.tsx 61 枚） |
+
+---
+
+## 三、目标布局与布局不变量
+
+```
+┌────────┬──────────────────────────────┬──────────────────┐
+│ 指令目录│ 会话列（.chatcol）            │ 活动区（.actcol）  │
+│ 208px  │ ┌──────────────────────────┐ │ 316px · 常驻      │
+│ 常驻   │ │ .scroll（唯一滚动层）      │ │ ├ 思考瞬态卡（动态）│
+│ 无框   │ │  系统行 / 用户卡 / AI 名牌 │ │ ├ 实时活动流       │
+│        │ │  行为流缩略行 / 计划卡     │ │ │ （活动小窗堆叠） │
+│        │ │  权限卡                   │ │ └ 子代理组（靠底）  │
+│        │ └──────────────────────────┘ │  浮动Tab→收缩细条  │
+│        │ .composer（泊定，与中列同宽）  │                  │
+└────────┴──────────────────────────────┴──────────────────┘
+```
+
+### 布局不变量（滚动契约，沿用 task-tree-hub §6.5）
+
+1. 三栏均为 flex 列，逐级 `min-height: 0`；**唯一滚动层**为会话列 `.scroll`。
+2. 指令目录与活动区为**隐形容器**：无边框、无底色，仅内部元素拥有表面；列间以 `gap: 12px`
+   分隔，不使用分割线。
+3. 输入框为会话列内 `flex: none` 元素，与中列同宽对齐，不随内容滚动。
+4. 浮动 Tab 出现（`body.tab-open`）→ 活动区收缩为 40px 细条（仅竖排「实时活动」标签与
+   计数），Tab 关闭后恢复 316px；收缩/恢复过程不中断执行态显示。
+5. 窄窗（< 900px）：指令目录隐藏、活动区收缩为细条、画中画堆叠隐藏、浮动 Tab 宽度
+   `min(440px, 62%)`。
+6. **无感滚动**：所有滚动层不渲染滚动条（`scrollbar-width: none` +
+   `::-webkit-scrollbar { display: none }`），滚轮/触控板/键盘照常滚动；规则沉淀为
+   全局工具类（`.scroll / .pipwin .pb / .toc-list / 清单面板` 统一套用）。
+
+---
+
+## 四、组件与文件落点
+
+| # | 模块 | 新建 / 改造 | 落点（`packages/desktop/src/renderer/`） | 数据源 |
+| --- | --- | --- | --- | --- |
+| 1 | 三栏骨架 | 改造 | `App.tsx`（会话舞台段）+ `ui-css/shell.css`（新增 `.toc/.chatcol/.actcol` 布局类） | — |
+| 2 | 指令目录 | 新建（已落地） | `components/InstructionToc.tsx` + `ui-css/shell.css` | 会话消息流中 `role === "user"` 的消息 |
+| 3 | 会话流重构 | 改造 | `components/MessageList.tsx` + `components/Message.tsx`（拆分见 §八）+ `ui-css/chat.css` | 既有消息流 |
+| 4 | 行为流缩略行 | 新建 | `components/FlowEventRow.tsx` + `ui-css/chat.css` | `role === "tool"` 消息 + `buildToolSummary`（lib/messages.ts，既有） |
+| 5 | 常驻活动区 | 新建（已落地） | `components/ActivityRail.tsx` + `ui-css/shell.css`（活动列样式段） | 复用 `ToolActivityPanel` 的实时工具事件通路（§六） |
+| 6 | 思考瞬态卡 | 改造 | `ActivityRail.tsx` 内 `ThinkCard` | 既有 thinking 消息流（与 `Message.tsx` thinking 分支同源） |
+| 7 | 子代理组 | 新建 | `ActivityRail.tsx` 内 `SubagentGroup` | 既有 agent 嵌套事件（`TaskRecordPanel` trace 同源） |
+| 8 | 计划卡（双态） | 新建 | `components/PlanCard.tsx` + `lib/plan.ts`（扩展分段解析）+ `ui-css/chat.css` | `<proposed_plan>`（`extractProposedPlan`，既有）+ UpdatePlan（`getPlanLines`，既有） |
+| 9 | 引用芯片 | 改造 | `components/Composer.tsx`（镜像层）+ `lib/store-refs.ts`（扩展五类解析）+ `ui-css/composer.css` | 既有 |
+| 10 | 浮动 Tab 联动 | 改造 | `App.tsx`（右侧浮层单槽仲裁扩展：打开快速视图时广播活动区收缩）+ `ActivityRail.tsx` | 既有 reviewTabs / knowledgeTabs / TaskQuickSheet 通路 |
+| 11 | i18n | 追加 | `i18n/locales/{en,zh,zh-tw,zh-hk,ja,ko}.ts`（六目录按类型强制补齐） | — |
+
+**明确不改**：`packages/core`（`analysis-status` / `describeBackendStatus` 维持模型可读形态，
+UI 侧仅按结构化 `status` 本地化）、`shared/ipc.ts` 契约（`ReviewReportMeta.status` 已存在）、
+electron-builder 打包配置。
+
+---
+
+## 五、关键设计决策
+
+### 5.1 三栏均为隐形容器
+
+指令目录与活动区**不带边框与底色**，只有内部元素（目录项、胶囊、活动小窗、清单）拥有表面；
+列间以 `gap: 12px` 分隔，不使用分割线。活动区收缩态仅保留右缘 1px hairline 作边界提示。
+
+### 5.2 引用芯片（行内原子芯片）
+
+- 尺寸公式：`height: 1.28em; vertical-align: -0.17em; font-size: 0.9em` —— 锁定行高比例，
+  与文字光学居中，随文字换行不错位。
+- 五类独立标识（全方案同一色表）：文件 `#5f6b7a`（i-doc）/ wiki `--ui-accent`（i-book）/
+  技能 `#9a36b8`（i-spark）/ 命令 `#e8590c`（i-terminal）/ 审查报告 `#2f9e44`（i-shield）。
+- Composer 侧实现为**遮盖层 + 浮动标签**：镜像层携带与 textarea 逐字符相同的原始 token
+  （墨水透明），以不透明卡色填充遮盖真实路径；缩略芯片绝对定位于 token 起点。芯片为原子
+  整体——光标进入仅亮 accent 描边，原始路径不出露；增删 token 文本即自然退化为普通文本。
+
+### 5.3 活动区与活动小窗
+
+- **小窗规格**：240×292；顶缘 3px 类型色条 + 标题栏同色 8% 淡染 + 图标同色；内容区完整
+  呈现内部操作（终端输出 / 文件轨迹 / 完整 diff / JSON 报文原文），超长在窗内滚动，
+  不裁剪不省略。
+- **堆叠规则**：最新活动恒在最前最上（`z-index` 与位置双重保证）；同屏 4 扇，旧窗向右下
+  退让（步进 top +34 / left +20，透明度递减 1 → 0.5）；点击任意窗提到最前；「+N」展开
+  全部清单（最多保留 15 个，超出挤出最旧）；点清单行同样置前。
+- **类型色表**：bash `#e8590c` · read `#1c6fe0` · edit `#d6386c` · grep `#0ca678` ·
+  mcp `#1098ad` · skill `#9a36b8` · doc `#5f6b7a`。
+- **实时内容**：运行态小窗逐行流出内部内容（终端输出逐行、文件读取轨迹、diff 行、
+  MCP 请求/响应报文、技能载入条目），`+`/`-` 行着色；完成后追加绿色完成行收尾。
+
+### 5.4 子代理组
+
+- 活动区底部独立分组（子代理紫 `#7048e8`，与工具窗明确区隔）。
+- 子代理运行时生成自己的迷你窗（名称 + 实时步骤滚动，步骤即其内部工具调用）；
+  点窗体下拉展开完整活动清单。
+- 窄屏 / 活动区收缩态：折叠为「子代理 · N」胶囊，点按下拉展示清单。
+
+### 5.5 思考瞬态卡
+
+- 思考进行时出现于活动区顶部（虚线边框，与实体小窗区隔），实时字数/计时；
+- 完成即散，不进堆叠；会话流内留一行思考缩略（摘要 + 时长 + 字数）。
+
+### 5.6 计划卡双态
+
+- **提案态**：`<proposed_plan>` 按标题/编号解析为段（解析失败整计划落单段）；头部 =
+  📋 图标 + 琥珀「待审批」徽章 + 「N 段 · M 步」；段可折叠（远端段默认收起）；底部
+  「继续打磨」（留在计划模式）/「开始实施」（进入执行态）。
+- **执行态**：批准后原地转执行态——蓝色「执行中 · 段 N」徽章 + accent 描边 + 头部进度条；
+  段三态（已完成打勾划线 / 进行中蓝左缘 + 当前步骤高亮 / 待开始折叠）；**同时钉住会话顶**
+  紧凑进度条（段点 + 进度 + N/M 步），点击展开回完整卡；进度由 UpdatePlan 工具驱动（既有通路）。
+
+### 5.7 状态语义
+
+- `statusNote`（模型可读英文诊断）**永不直接渲染**；按结构化 `meta.status` 本地化：
+  `active` 静默 / `degraded` 琥珀提示条 / `unavailable` 灰提示条（已落地，保留）。
+- 关闭、箭头、对勾等排版字符保留为文本；彩色 emoji 图标一律 SVG（ui/icons.tsx 61 枚）。
+
+---
+
+## 六、数据流通路（复用既有，不改 core）
+
+| 数据 | 通路 | 消费方 |
+| --- | --- | --- |
+| 工具活动实时事件 | `ToolActivityPanel` 已订阅的实时 tool-activity 流（`buildToolSummary` 同源） | 活动小窗 + 行为流缩略行 |
+| 会话消息（含历史） | `SessionMessage[]`（持久化转写） | 会话流全部渲染 |
+| 计划 | `<proposed_plan>` 提取（既有）+ UpdatePlan 工具事件（既有） | 计划卡双态 |
+| 子代理 | agent 嵌套事件（trace 同源） | 子代理组 |
+| 审查报告 | `ReviewReportMeta`（含结构化 `status`） | 快速视图 / 状态条 |
+
+设计原则：活动区只消费**实时事件**；会话流缩略行是同一事件的持久化投影。历史消息无运行态，
+天然兼容。
+
+---
+
+## 七、i18n 新增键（六目录按类型强制补齐）
+
+| 键 | zh |
+| --- | --- |
+| `activity.title` | 实时活动 |
+| `activity.subagents` | 子代理 |
+| `activity.empty` | 暂无实时活动 |
+| `activity.cap` | 最多保留 15 个，更早的挤出 |
+| `plan.badge.review` | 待审批 |
+| `plan.badge.running` | 执行中 · 段 {n} |
+| `plan.badge.done` | 全部完成 |
+| `plan.segPending` | 待开始 |
+| `plan.segRunning` | 进行中 |
+| `plan.segDone` | 已完成 |
+| `plan.startImpl` | 开始实施 |
+| `plan.keepPolish` | 继续打磨 |
+
+---
+
+## 八、Message.tsx 拆分方案
+
+现状单文件 900+ 行承载全部消息类型，拆为类型分发壳（≤200 行）+ 六个职责文件：
+
+| 新文件 | 职责 | 迁出内容 |
+| --- | --- | --- |
+| `components/message/UserMessage.tsx` | 用户卡（技能附件 + 引用芯片 + 图片） | user 分支 |
+| `components/message/AssistantMessage.tsx` | 名牌 + markdown + 流式状态行 | assistant 分支 |
+| `components/message/ThinkingRow.tsx` | 思考缩略行 | thinking 块 |
+| `components/message/FlowEventRow.tsx` | 工具/MCP/bash 缩略行 | tool 分支的 ui-tool-card |
+| `components/message/SystemNote.tsx` | 技能载入/系统提示 | system 分支 |
+| `components/message/ReferenceSegments.tsx` | 正文引用芯片 | 既有 ReferenceSegments |
+
+`chat.css` 对应段落随迁；`statusNote` 直出等历史渲染路径在迁移中移除。
+
+---
+
+## 九、测试与真机走查
+
+### DOM 断言（沿用 `run-tests.mjs` + dom-harness 模式）
+
+- composer：镜像层遮盖层携带原始 token、芯片不含路径、编辑态类翻转（既有 6 例扩展）。
+- 计划卡：提案态段/步数量、执行态徽章与打勾推进、批准按钮触发的通路。
+- 活动区：15 封顶 FIFO、最新置前、`tab-open` 收缩类切换、子代理组开合。
+
+### 真机走查清单
+
+明暗两态 × ① CJK 输入法下引用芯片编辑 ② 15 活动连发 ③ 窄窗折叠 ④ 权限拒绝路径
+⑤ 旧会话回放（历史 thinking/tool 缩略行渲染）⑥ 主题逐套截图。
+
+---
+
+## 十、分期落地
+
+| 期 | 内容 | 依赖 |
+| --- | --- | --- |
+| P1 | 三栏骨架 + 指令目录 + 输入框对齐（纯布局，无数据流变化） | — |
+| P2 | 会话流重构（去气泡 + 行为流缩略行 + 思考瞬态卡）+ Message.tsx 拆分 | P1 |
+| P3 | 活动区（activity-store + 画中画堆叠 + 子代理组 + 浮动 Tab 联动） | P1 |
+| P4 | 计划卡双态（提案/执行 + 钉住进度）+ 引用芯片行内方案收尾 | P2 |
+| P5 | i18n 六目录补齐 + 测试补全 + 真机走查 | 全部 |
+
+每期独立可发布、可回滚；P2 起每期附带对应 DOM 断言测试。
+
+---
+
+## 十一、风险与对策
+
+| 风险 | 对策 |
+| --- | --- |
+| 主题（12+ 套）下类型色对比不足 | 类型色走 `--kc` token + `color-mix` 淡染；上线前逐主题截图走查 |
+| CJK IME 与芯片编辑冲突 | 芯片为纯表现层（textarea 值不变），IME/undo/发送通路零改动；沿用既有 IME 守卫 |
+| 长会话性能（画中画窗常驻 DOM） | 非前窗惰性渲染（仅标题 + 摘要）；store 层对事件节流合帧 |
+| 旧会话回放含历史 thinking/tool | 缩略行组件与实时事件同一套，历史无运行态即静态展示，天然兼容 |
+| 旧报告缺结构化 `status` | 兜底按 active 处理（不显示状态条），不做字符串解析 |
+
+---
+
+## 十一·补、实施进度（滚动更新）
+
+| 项 | 状态 |
+| --- | --- |
+| 指令目录（InstructionToc）| ✅ 已落地 |
+| 常驻活动区（ActivityRail：思考瞬态卡 + 活动小窗堆叠 + 子代理组）| ✅ 已落地 |
+| 浮动 Tab 联动收缩（companionOpen → 活动列细条）| ✅ 已落地 |
+| 钉住计划条（PinnedPlan，UpdatePlan 驱动）| ✅ 已落地 |
+| 引用芯片五类标识（消息侧 + 输入框侧）| ✅ 已落地 |
+| Message.tsx 六文件拆分 | ⏳ P2 待做（当前仅完成引用芯片渲染迁出计划）|
+| 滚动条无感化（全局滚动层）| ✅ 已落地 |
+
+## 十二、交付物与归档说明
+
+- [x] 视觉稿：[designs/screen-chat.html](./designs/screen-chat.html)（静态定稿语言）
+- [x] 动态稿：[designs/demo-flow.html](./designs/demo-flow.html)（完整数据流可播放，即本方案的交互即视版）
+- [x] 设计与实施方案（本文档，2026-09-03 自 `designs/chat-redesign/` 标准化入 specs）
+- [x] 项目编码 —— 2026-09-03 起按 §十 分期在 `feat/modern-ui-redesign` 分支实施（进度见 [tasks.md](./tasks.md)）

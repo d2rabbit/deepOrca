@@ -123,7 +123,8 @@ export function createSecondaryClient(projectRoot: string = process.cwd()): {
   const settings = resolveCurrentSettings(projectRoot);
   const apiKey = settings.secondaryApiKey;
   const baseURL = settings.secondaryBaseURL;
-  const model = settings.secondaryModel;
+  // 继承主模型 (2026-08-30): empty secondary = the primary model.
+  const model = settings.secondaryModel || settings.model;
 
   if (!apiKey) {
     return { client: null, model, baseURL };

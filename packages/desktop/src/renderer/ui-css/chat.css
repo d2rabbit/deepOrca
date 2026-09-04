@@ -57,6 +57,10 @@
   box-shadow: none;
   user-select: none;
 }
+.ui-avatar svg {
+  width: 11px;
+  height: 11px;
+}
 
 .ui-bubble-row > .ui-bubble,
 .ui-bubble-row > .ui-tool-card {
@@ -184,7 +188,7 @@
   color: var(--ui-text-dim);
   font-size: 12.5px;
   text-align: left;
-  transition: background 0.12s ease;
+  transition: background 0.12s var(--ui-ease);
 }
 .ui-thinking-toggle:hover {
   background: var(--ui-surface-hover);
@@ -262,8 +266,8 @@
   background: var(--ui-surface-raised);
   padding: var(--ui-space-2) var(--ui-space-3);
   transition:
-    border-color 0.15s ease,
-    box-shadow 0.15s ease;
+    border-color 0.15s var(--ui-ease),
+    box-shadow 0.15s var(--ui-ease);
 }
 .ui-tool-card:hover {
   box-shadow: var(--ui-shadow-sm);
@@ -296,7 +300,7 @@
 button.ui-tool-head {
   cursor: pointer;
   border-radius: var(--ui-radius-sm);
-  transition: background 0.12s ease;
+  transition: background 0.12s var(--ui-ease);
 }
 button.ui-tool-head:hover {
   background: var(--ui-surface-hover);
@@ -355,7 +359,7 @@ button.ui-tool-head:hover {
   text-align: center;
   transition:
     transform 0.15s var(--ui-ease),
-    color 0.12s ease;
+    color 0.12s var(--ui-ease);
 }
 .ui-tool-card.open .ui-tool-chevron {
   color: var(--ui-accent);
@@ -380,9 +384,9 @@ button.ui-tool-head:hover {
   white-space: nowrap;
 }
 .ui-tool-badge.mcp {
-  background: color-mix(in srgb, #a855f7 12%, transparent);
-  color: #d8b4fe;
-  border: 1px solid color-mix(in srgb, #a855f7 25%, transparent);
+  background: color-mix(in srgb, var(--ui-tool-hue-purple) 12%, transparent);
+  color: var(--ui-tool-hue-purple);
+  border: 1px solid color-mix(in srgb, var(--ui-tool-hue-purple) 25%, transparent);
   font-size: 10px;
   white-space: nowrap;
 }
@@ -631,8 +635,8 @@ button.ui-tool-head:hover {
   text-align: left;
   border-radius: var(--ui-radius-sm);
   transition:
-    color 0.12s ease,
-    background 0.12s ease;
+    color 0.12s var(--ui-ease),
+    background 0.12s var(--ui-ease);
 }
 .ui-tool-result-toggle:hover {
   color: var(--ui-text);
@@ -696,7 +700,7 @@ button.ui-tool-head:hover {
 .ui-diff > div {
   padding: 1px var(--ui-space-2);
   white-space: pre-wrap;
-  transition: background 0.1s ease;
+  transition: background 0.1s var(--ui-ease);
 }
 .ui-diff .add {
   background: color-mix(in srgb, var(--ui-success) 14%, transparent);
@@ -765,8 +769,8 @@ button.ui-tool-head:hover {
   font-size: 12px;
   color: #94a3b8; /* slate-400 */
   transition:
-    color 0.12s ease,
-    background 0.12s ease;
+    color 0.12s var(--ui-ease),
+    background 0.12s var(--ui-ease);
 }
 .ui-term-copy:hover {
   color: #fff;
@@ -862,8 +866,8 @@ button.ui-tool-head:hover {
   font-size: 10.5px;
   color: var(--ui-text-faint);
   transition:
-    background 0.12s ease,
-    color 0.12s ease;
+    background 0.12s var(--ui-ease),
+    color 0.12s var(--ui-ease);
 }
 .ui-json-view-switch button:hover {
   color: var(--ui-text);
@@ -883,8 +887,8 @@ button.ui-tool-head:hover {
   font-size: 12px;
   color: var(--ui-text-faint);
   transition:
-    color 0.12s ease,
-    background 0.12s ease;
+    color 0.12s var(--ui-ease),
+    background 0.12s var(--ui-ease);
 }
 .ui-json-copy:hover {
   color: var(--ui-text);
@@ -920,6 +924,10 @@ button.ui-tool-head:hover {
   background: none;
   border: 0;
   font: inherit;
+  transition: color 0.15s var(--ui-ease);
+}
+.ui-json-toggle:hover {
+  color: var(--ui-text);
 }
 .ui-json-caret {
   display: inline-block;
@@ -938,16 +946,16 @@ button.ui-tool-head:hover {
   padding-left: 12px;
 }
 .ui-json-key {
-  color: #7dd3fc; /* sky-300 */
+  color: var(--ui-tool-hue-sky);
 }
 .ui-json-str {
-  color: #6ee7b7; /* emerald-300 */
+  color: var(--ui-success);
 }
 .ui-json-num {
-  color: #fb923c; /* orange-400 */
+  color: var(--ui-warning);
 }
 .ui-json-bool {
-  color: #c084fc; /* purple-400 */
+  color: var(--ui-tool-hue-purple);
   font-weight: 600;
 }
 .ui-json-null {
@@ -982,8 +990,8 @@ button.ui-tool-head:hover {
   border-radius: var(--ui-radius-pill);
   display: inline-block;
   transition:
-    background 0.12s ease,
-    color 0.12s ease;
+    background 0.12s var(--ui-ease),
+    color 0.12s var(--ui-ease);
 }
 .ui-system-note:hover {
   background: var(--ui-surface-hover);
@@ -1103,16 +1111,30 @@ button.ui-tool-head:hover {
 /* Base code-block style — NOT a legacy fallback. The streamdown wrappers
    above are deliberately transparent, so these rules supply the visible
    chrome (background, border, radius, padding, mono font) for every fenced
-   block. Deleting them unstyles all code blocks. */
+   block. Deleting them unstyles all code blocks.
+   Background is a hard product rule (2026-08-31: 严禁黑色，必须浅灰色):
+   `!important` + the code-block-body selector below are load-bearing — they
+   must outrank streamdown's own `bg-[var(--sdm-bg,…)]` utilities AND the
+   `dark:bg-[var(--shiki-dark-bg,…)]` variant (github-dark ≈ #24292e), which
+   keys off Tailwind's dark strategy and is decoupled from the app's own
+   appearance system. Token colors follow via the github-light pin in
+   StreamdownView, so text stays readable on the gray well in both
+   appearances. */
 .ui-md pre {
-  background: var(--ui-surface-sunken);
-  border: 1px solid var(--ui-border-soft);
+  background: var(--ui-code-well, #f1f3f5) !important;
+  /* Text follows the appearance (--ui-text), always contrasting with the
+     well: dark-on-light-gray in light, light-on-dark-gray in dark. */
+  color: var(--ui-text);
+  border: 1px solid var(--ui-code-well-border, #dde2e9);
   border-radius: var(--ui-radius-md);
   padding: var(--ui-space-3);
   overflow-x: auto;
   font-family: var(--ui-font-mono);
   font-size: 12.5px;
   position: relative;
+}
+.ui-md [data-streamdown="code-block-body"] pre {
+  background: var(--ui-code-well, #f1f3f5) !important;
 }
 .ui-md code {
   font-family: var(--ui-font-mono);
@@ -1121,15 +1143,47 @@ button.ui-tool-head:hover {
   padding: 1px 5px;
   border-radius: 4px;
 }
+/* Streamdown emits inline code as `rounded bg-muted …` — a shadcn token our
+   Tailwind config doesn't define, so the utility may compile to nothing (or
+   an off-theme value) and the pill rendered wrong on light reading faces.
+   This attribute selector outranks single-class utilities and pins the
+   token-driven paint in both appearances. */
+.ui-md code[data-streamdown="inline-code"] {
+  background: var(--ui-surface-sunken);
+  color: var(--ui-text);
+  border: 1px solid var(--ui-border-soft);
+  padding: 0 5px;
+}
 .ui-md pre code {
   background: none;
   padding: 0;
 }
-/* Code block language accent — the left border colour is the primary
-   visual cue since we don't ship a full syntax highlighter (bundle
-   weight). The colour for each language matches the tool-card family
-   that most often produces it (bash → green, json → amber, etc.) so the
-   eye builds a consistent mental model. */
+/* Syntax token colors — @streamdown/code (shiki) writes each token's colours
+   into the DOM as inline custom properties (`--sdm-c` = github-light color,
+   `--shiki-dark` = github-dark color; same pair for token backgrounds via
+   `--sdm-tbg` / `--shiki-dark-bg`). Streamdown's own `text-[…]` /
+   `dark:text-[…]` utilities never compile in this bundle, so these rules
+   consume the properties directly. Scoped WITHOUT `.ui-md` so every
+   Streamdown surface (chat, knowledge, tasks, plugins) gets colour. The well
+   background is deliberately NOT taken from shiki — chat.css keeps it
+   app-owned (hard rule 2026-08-31: 严禁黑色), so `--sdm-bg` and
+   `--shiki-dark-bg` at the <pre> level stay unconsumed. */
+[data-streamdown="code-block-body"] span[style*="--sdm-c"] {
+  color: var(--sdm-c, inherit);
+}
+[data-streamdown="code-block-body"] span[style*="--sdm-tbg"] {
+  background-color: var(--sdm-tbg, transparent);
+}
+:root[data-appearance="dark"] [data-streamdown="code-block-body"] span[style*="--sdm-c"] {
+  color: var(--shiki-dark, var(--sdm-c, inherit));
+}
+:root[data-appearance="dark"] [data-streamdown="code-block-body"] span[style*="--sdm-tbg"] {
+  background-color: var(--shiki-dark-bg, var(--sdm-tbg, transparent));
+}
+/* Code block language accent — the left border colour groups each fence with
+   the tool-card family that most often produces it (bash → green, json →
+   amber, etc.) so the eye builds a consistent mental model. Token colours on
+   top now come from the shiki plugin (rules above). */
 .ui-md [data-streamdown="code-block"][data-language="json"] pre,
 .ui-md [data-streamdown="code-block"][data-language="jsonc"] pre {
   border-left: 3px solid #f59e0b;
@@ -1231,6 +1285,44 @@ button.ui-tool-head:hover {
 .ui-md th {
   background: var(--ui-surface-sunken);
   font-weight: 600;
+}
+/* Long-form gaps the chat-bubble layer never needed (plugin docs, wiki):
+   lists, deep headings, rules, images, zebra rows. Additive — chat keeps its
+   compact look, document surfaces gain the missing pieces. */
+.ui-md ul,
+.ui-md ol {
+  margin: var(--ui-space-2) 0;
+  padding-left: 1.5em;
+}
+.ui-md li {
+  margin: 0.25em 0;
+}
+.ui-md li::marker {
+  color: var(--ui-text-faint);
+}
+.ui-md li > ul,
+.ui-md li > ol {
+  margin: 0.25em 0;
+}
+.ui-md h4,
+.ui-md h5,
+.ui-md h6 {
+  margin: var(--ui-space-3) 0 var(--ui-space-2);
+  font-size: 1em;
+  font-weight: 700;
+  color: var(--ui-text);
+}
+.ui-md hr {
+  border: 0;
+  border-top: 1px solid var(--ui-border-soft);
+  margin: var(--ui-space-3) 0;
+}
+.ui-md img {
+  max-width: 100%;
+  border-radius: 8px;
+}
+.ui-md tbody tr:nth-child(even) td {
+  background: color-mix(in srgb, var(--ui-surface-sunken, #eef1f6) 45%, transparent);
 }
 
 /* =========================================================================
@@ -1630,7 +1722,6 @@ button.ui-tool-head:hover {
   }
 }
 
-
 /* Failed-turn action banner (closure gap #7): retry + settings shortcut. */
 .ui-fault-banner {
   display: flex;
@@ -1678,4 +1769,808 @@ button.ui-tool-head:hover {
   border: none;
   background: transparent;
   color: var(--ui-text-dim);
+  transition: color 0.15s var(--ui-ease);
+}
+.ui-fault-banner-dismiss:hover {
+  color: var(--ui-text);
+}
+
+/* ── Task-style conversation (2026-08-28 redesign) ─────────────────────────
+   Each user submission is a COMMAND (right-aligned directive row). The
+   agent's whole response streams full-width beneath it as one execution
+   block; when the turn finishes the block auto-collapses into a one-line
+   result report. Thinking / text / tool sections stay distinct but flat —
+   the avatar rail and bubble chrome are removed inside the task body. */
+.ui-task-turn {
+  margin: 6px 0;
+}
+.ui-task-cmd-row {
+  display: flex;
+  justify-content: flex-end;
+  margin: 14px 0 10px;
+}
+.ui-task-cmd {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  max-width: 85%;
+  padding: 7px 14px;
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-accent-soft);
+  border: 1px solid color-mix(in srgb, var(--ui-accent) 22%, transparent);
+  color: var(--ui-text);
+}
+.ui-task-cmd-icon {
+  color: var(--ui-accent);
+  font-size: 10px;
+  align-self: center;
+}
+.ui-task-cmd-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-weight: 500;
+  font-size: 13px;
+}
+.ui-task-cmd-time {
+  flex: none;
+  font-size: 10.5px;
+  color: var(--ui-text-faint);
+  align-self: center;
+}
+.ui-task-waiting {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  color: var(--ui-text-dim);
+  font-size: 12.5px;
+}
+/* The execution block: full-width under the command, held together by a
+   quiet left rule instead of nested bubbles. */
+.ui-task-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 4px 0 12px;
+  padding-left: 14px;
+  border-left: 2px solid color-mix(in srgb, var(--ui-border-soft) 75%, transparent);
+}
+/* 回合底部 fork 操作行（user ask 2026-09-03 十一轮）：安静的图标级行，
+   只在回合完成后出现；点开变紧凑表单（why + 双模式 + 执行）。 */
+.ui-turn-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+  padding-left: 0;
+  min-height: 24px;
+}
+.ui-turn-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--ui-text-faint);
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    color 0.13s var(--ui-ease),
+    background 0.13s var(--ui-ease),
+    border-color 0.13s var(--ui-ease);
+}
+.ui-turn-action-btn:hover {
+  color: var(--ui-accent);
+  background: var(--ui-surface-hover);
+  border-color: color-mix(in srgb, var(--ui-accent) 25%, transparent);
+}
+.ui-turn-action-btn.go {
+  color: var(--ui-accent);
+  border-color: color-mix(in srgb, var(--ui-accent) 35%, transparent);
+  background: color-mix(in srgb, var(--ui-accent) 8%, transparent);
+}
+.ui-turn-action-btn.go:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+/* 收缩态图标按钮（user ask 2026-09-03 十二轮）：更小更安静。 */
+.ui-turn-action-btn.icon {
+  padding: 2px 7px;
+  font-size: 12px;
+}
+.ui-turn-fork-why {
+  min-width: 180px;
+  max-width: 320px;
+  padding: 3px 10px;
+  font-size: 12px;
+  color: var(--ui-text-primary);
+  background: var(--ui-input-bg, var(--ui-surface));
+  border: 1px solid var(--ui-border);
+  border-radius: 7px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.ui-turn-fork-why:focus {
+  border-color: var(--ui-accent);
+}
+.ui-turn-mode-pill {
+  padding: 2px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--ui-border-soft);
+  background: transparent;
+  color: var(--ui-text-dim);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    color 0.13s var(--ui-ease),
+    background 0.13s var(--ui-ease),
+    border-color 0.13s var(--ui-ease);
+}
+.ui-turn-mode-pill.on {
+  color: var(--ui-accent);
+  border-color: color-mix(in srgb, var(--ui-accent) 40%, transparent);
+  background: color-mix(in srgb, var(--ui-accent) 9%, transparent);
+}
+.ui-turn-fork-error {
+  flex-basis: 100%;
+  font-size: 11.5px;
+  color: var(--ui-danger);
+}
+/* Flatten the per-message chrome inside the execution block: no avatar rail,
+   transparent bubbles, tighter rhythm. Tool/thinking cards keep their
+   function but lose the card-on-card nesting. */
+.ui-task-body .ui-bubble-row {
+  gap: 0;
+}
+.ui-task-body .ui-avatar {
+  display: none;
+}
+.ui-task-body .ui-bubble.assistant,
+.ui-task-body .ui-bubble.thinking {
+  background: transparent;
+  padding: var(--ui-space-1) 0;
+}
+.ui-task-body .ui-tool-card {
+  background: color-mix(in srgb, var(--ui-surface-sunken) 40%, transparent);
+  border-color: color-mix(in srgb, var(--ui-border-soft) 60%, transparent);
+}
+.ui-task-body .ui-tool-card .ui-tool-card {
+  background: transparent;
+}
+.ui-task-collapse {
+  align-self: flex-start;
+  padding: 3px 10px;
+  border: none;
+  border-radius: var(--ui-radius-sm);
+  background: transparent;
+  color: var(--ui-text-faint);
+  font-size: 11px;
+  cursor: pointer;
+  transition:
+    color 0.14s var(--ui-ease),
+    background 0.14s var(--ui-ease);
+}
+.ui-task-collapse:hover {
+  color: var(--ui-text);
+  background: var(--ui-surface-hover);
+}
+/* The result report — one line that replaces the whole collapsed block. */
+.ui-task-report {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 12px;
+  margin: 6px 0 4px;
+  border: 1px solid var(--ui-border-soft);
+  border-left: 3px solid var(--ui-accent);
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-surface);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.14s var(--ui-ease);
+}
+.ui-task-report:hover {
+  border-color: color-mix(in srgb, var(--ui-accent) 45%, var(--ui-border-soft));
+}
+.ui-task-report-status {
+  flex: none;
+  color: var(--ui-success);
+  font-weight: 700;
+  font-size: 12px;
+}
+.ui-task-report-duration {
+  flex: none;
+  font-family: var(--ui-font-mono);
+  font-size: 11px;
+  color: var(--ui-text-faint);
+}
+.ui-task-report-tools {
+  flex: none;
+  font-size: 11px;
+  color: var(--ui-text-faint);
+}
+.ui-task-report-snippet {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12.5px;
+  color: var(--ui-text-dim);
+}
+.ui-task-report-chevron {
+  flex: none;
+  color: var(--ui-text-faint);
+  font-size: 11px;
+}
+
+/* ── Store reference chips (@…/.deeporca/deepwiki|reviews/… in user prompts) ──
+   单行水平芯片（user ask 2026-09-03 五轮）：kind + 标签同行，整枚高度
+   ≈20px，落在正文行高（14px×1.65≈23px）之内——旧的双行堆叠比行高还高，
+   会垂直压到相邻行文字；旧背景还是 72% 半透明（输入框镜像层的取值），
+   重叠时后面的文字会透出来。 */
+.ui-ref-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px 3px 7px;
+  margin: 2px 2px;
+  border-radius: 9px;
+  border: 1px solid color-mix(in srgb, var(--ui-accent, #3b82f6) 32%, transparent);
+  background: var(--ui-surface-raised, #fff); /* 实心——不透底 */
+  vertical-align: middle;
+  max-width: 100%;
+}
+.ui-ref-chip .ui-ref-chip-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+}
+.ui-ref-chip .ui-ref-chip-icon svg {
+  width: 14px;
+  height: 14px;
+}
+.ui-ref-chip .ui-ref-chip-body {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 5px;
+  line-height: 1.25;
+  min-width: 0;
+}
+.ui-ref-chip .ui-ref-chip-kind {
+  flex: none;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ui-accent, #3b82f6);
+  opacity: 0.85;
+}
+/* kind 与名称之间的轻分隔点（“审查报告 · 2026/09/02 01:03”） */
+.ui-ref-chip .ui-ref-chip-kind::after {
+  content: "·";
+  margin-left: 5px;
+  font-weight: 400;
+  color: var(--ui-text-faint);
+}
+.ui-ref-chip .ui-ref-chip-label {
+  font-size: 11.5px;
+  font-weight: 650;
+  color: var(--ui-text, inherit);
+  max-width: 340px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-ref-chip.review {
+  border-color: color-mix(in srgb, var(--dot-review, #2f9e44) 35%, transparent);
+}
+.ui-ref-chip.review .ui-ref-chip-kind {
+  color: var(--dot-review, #2f9e44);
+}
+/* 五类独立标识（designs/chat-redesign V4）：wiki 蓝 · 审查 绿 · 文件 石墨 · 命令 橙 · 技能 紫 */
+.ui-ref-chip.file {
+  border-color: color-mix(in srgb, #5f6b7a 35%, transparent);
+}
+.ui-ref-chip.file .ui-ref-chip-kind {
+  color: #5f6b7a;
+}
+.ui-ref-chip.cmd {
+  border-color: color-mix(in srgb, #e8590c 35%, transparent);
+}
+.ui-ref-chip.cmd .ui-ref-chip-kind {
+  color: #e8590c;
+}
+.ui-ref-chip.skill {
+  border-color: color-mix(in srgb, #9a36b8 35%, transparent);
+}
+.ui-ref-chip.skill .ui-ref-chip-kind {
+  color: #9a36b8;
+}
+
+/* ── ① AI 去气泡：回复即页面（designs/chat-redesign V4）──
+     assistant 的 markdown 直接铺在会话底上，仅保留留白节奏；
+     用户消息保持唯一气泡。 */
+.ui-bubble-row.assistant .ui-bubble {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding-left: 0;
+  padding-right: 0;
+}
+/* 行为流缩略行：动词 + 目标，类型色图标（与活动区同一色表） */
+.ui-tool-card .ui-tool-icon {
+  border-radius: 6px;
+}
+.ui-tool-card.bash .ui-tool-icon {
+  color: #e8590c;
+}
+.ui-tool-card.read .ui-tool-icon {
+  color: #1c6fe0;
+}
+.ui-tool-card.write .ui-tool-icon {
+  color: #d6386c;
+}
+.ui-tool-card.edit .ui-tool-icon {
+  color: #d6386c;
+}
+.ui-tool-card.grep,
+.ui-tool-card.search {
+  --kc: #0ca678;
+}
+.ui-tool-card.search .ui-tool-icon,
+.ui-tool-card.grep .ui-tool-icon {
+  color: #0ca678;
+}
+.ui-tool-card.mcp .ui-tool-icon {
+  color: #1098ad;
+}
+.ui-tool-card.plan .ui-tool-icon,
+.ui-tool-card.ask .ui-tool-icon {
+  color: #9a36b8;
+}
+.ui-tool-verb {
+  font-weight: 650;
+  flex: none;
+  color: var(--ui-text);
+}
+
+/* ===========================================================================
+   会话流（designs/chat-redesign demo-flow）：人类指令条 / AI 名牌行 /
+   行为流时间线（.ui-flow + .ui-ev）/ 思考缩略行 / 系统行
+   =========================================================================== */
+/* 人类指令条（user ask 2026-09-03 七轮：弱化聊天感）—— 不再是右侧气泡，
+   整幅左起的指令头：accent 竖条 + 指令名（mono）/ 正文 + 右端时间。
+   它开启一个回合，读起来像指令而不是聊天消息。 */
+.ui-directive {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  margin: 14px 0 4px;
+  scroll-margin-top: 60px;
+}
+.ui-directive .ui-msg-skills {
+  justify-content: flex-start;
+}
+.ui-directive-main {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  min-width: 0;
+  padding: 6px 14px 6px 12px;
+  border-left: 3px solid var(--ui-accent);
+  /* 指令行为区块（user ask 2026-09-03 十轮）：accent 淡染的独立底色 ——
+     与 AI 正文（裸舞台）明确分层，读作"指令块"而不是聊天气泡；
+     主题自适应（--ui-accent 随主题走）。 */
+  background: color-mix(in srgb, var(--ui-accent) 6%, transparent);
+  border-radius: 0 9px 9px 0;
+}
+.ui-directive-cmd {
+  flex: none;
+  font-family: var(--ui-font-mono, ui-monospace, Menlo, monospace);
+  font-size: 14.5px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: var(--ui-accent);
+}
+.ui-directive-args {
+  flex: 0 1 auto;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--ui-text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-directive-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--ui-text);
+}
+.ui-directive-time {
+  flex: none;
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--ui-text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.ui-ai-row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  animation: rise 0.3s ease both;
+  scroll-margin-top: 60px;
+}
+.ui-ai-id {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--ui-text-faint);
+  min-height: 20px;
+}
+/* AI 名牌头像（.ui-ai-mark）已随去拟人化移除（user ask 2026-09-03 十轮）——
+   名牌行只留名字/时间/状态。 */
+.ui-ai-id .who {
+  font-weight: 700;
+  color: var(--ui-text-secondary);
+}
+.ui-ai-id .tm {
+  font-variant-numeric: tabular-nums;
+}
+.ui-ai-id .st {
+  display: inline-flex;
+  align-items: center;
+  color: var(--ui-accent);
+}
+.ui-ai-id .ui-msg-copy {
+  margin-left: auto;
+}
+.ui-ai-row .ui-md {
+  font-size: 15px;
+  line-height: 1.75;
+}
+
+/* 行为流时间线：连续工具调用各自一行，左缘连接线 */
+.ui-flow {
+  display: flex;
+  flex-direction: column;
+}
+.ui-ev {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 5px 8px;
+  border-radius: 9px;
+  font-size: 12.5px;
+  position: relative;
+  color: var(--ui-text);
+  animation: rise 0.25s ease both;
+}
+.ui-ev::before {
+  content: "";
+  position: absolute;
+  left: 17px;
+  top: 0;
+  bottom: -2px;
+  width: 1.5px;
+  background: var(--ui-border-soft);
+}
+.ui-ev:first-child::before {
+  top: 50%;
+}
+.ui-ev:last-child::before {
+  display: none;
+}
+.ui-ev .ic {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  flex: none;
+  background: var(--ui-surface-raised);
+  border: 1px solid var(--ui-border-soft);
+}
+.ui-ev .ic svg {
+  width: 11px;
+  height: 11px;
+  color: var(--kc, var(--ui-text-dim));
+}
+.ui-ev.k-bash {
+  --kc: #e8590c;
+}
+.ui-ev.k-read {
+  --kc: #1c6fe0;
+}
+.ui-ev.k-edit {
+  --kc: #d6386c;
+}
+.ui-ev.k-grep {
+  --kc: #0ca678;
+}
+.ui-ev.k-mcp {
+  --kc: #1098ad;
+}
+.ui-ev.k-doc {
+  --kc: #5f6b7a;
+}
+.ui-ev.k-think {
+  --kc: #7048e8;
+}
+.ui-ev .verb {
+  font-weight: 650;
+  flex: none;
+}
+.ui-ev .badge {
+  flex: none;
+  padding: 0 5px;
+  border-radius: 4px;
+  font-size: 9.5px;
+  font-weight: 700;
+  background: color-mix(in srgb, var(--mcp, #1098ad) 14%, transparent);
+  color: var(--mcp, #1098ad);
+}
+.ui-ev .arg {
+  color: var(--ui-text-dim);
+  font-family: var(--ui-font-mono, ui-monospace, Menlo, monospace);
+  font-size: 11.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-ev .ms {
+  margin-left: auto;
+  flex: none;
+  font-size: 10.5px;
+  color: var(--ui-text-faint);
+  font-variant-numeric: tabular-nums;
+}
+.ui-ev .ok {
+  flex: none;
+  display: inline-flex;
+}
+.ui-ev .ok svg {
+  width: 12px;
+  height: 12px;
+  color: var(--ok, #2f9e44);
+}
+.ui-ev.err {
+  background: color-mix(in srgb, var(--err, #e03131) 7%, transparent);
+}
+.ui-ev.err .ok svg {
+  color: var(--err, #e03131);
+}
+
+/* 思考缩略行：一行摘要 + 可展开完整内容 */
+.ui-ev.k-think {
+  flex-wrap: wrap;
+  padding: 5px 8px;
+}
+.ui-ev .ui-ev-think-toggle {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+}
+.ui-ev .think-chars {
+  margin-left: auto;
+  flex: none;
+  font-size: 10.5px;
+  color: var(--ui-text-faint);
+  font-variant-numeric: tabular-nums;
+}
+.ui-ev .think-chev {
+  flex: none;
+  color: var(--ui-text-faint);
+  font-size: 10px;
+}
+.ui-ev .think-body {
+  flex-basis: 100%;
+  min-width: 0;
+  margin-top: 6px;
+  padding: 8px 12px;
+  border-top: 1px dashed var(--ui-border-soft);
+  font-size: 12.5px;
+  color: var(--ui-text-dim);
+}
+
+/* 行为行点开（user ask 2026-09-03）：整行可点，展开完整参数与结果 */
+.ui-ev.ev-open {
+  flex-wrap: wrap;
+}
+.ui-ev .ui-ev-toggle {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+}
+.ui-ev .ui-ev-toggle:hover {
+  background: var(--ui-surface-hover);
+}
+.ui-ev .ev-chev {
+  flex: none;
+  color: var(--ui-text-faint);
+  font-size: 10px;
+}
+.ui-ev .ev-body {
+  flex-basis: 100%;
+  min-width: 0;
+  margin-top: 6px;
+  padding: 8px 12px;
+  border-top: 1px dashed var(--ui-border-soft);
+  font-size: 12.5px;
+  color: var(--ui-text-dim);
+  max-height: 46vh;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.ui-ev .ev-body .ev-params {
+  margin: 0 0 6px;
+  padding: 6px 9px;
+  border-radius: 6px;
+  background: var(--ui-surface-sunken);
+  border: 1px solid var(--ui-border-soft);
+  font-family: var(--ui-font-mono, ui-monospace, Menlo, monospace);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--ui-text-dim);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+/* write/edit 展开体里 diff 之上的结果短注（"Updated file." 等） */
+.ui-ev .ev-body .ev-result-note,
+.pipwin .pb .ev-result-note {
+  margin: 0 0 6px;
+  font-size: 11px;
+  color: var(--ui-text-faint);
+}
+/* 行为行内的文件芯片（user ask 2026-09-03 五轮）：紧凑一档，
+   不带外边距——行距由 .ui-ev 自身控制。 */
+.ui-ev .ui-ref-chip.ev-file {
+  margin: 0;
+  padding: 1px 8px 1px 6px;
+  gap: 5px;
+  min-width: 0;
+}
+.ui-ev .ui-ref-chip.ev-file .ui-ref-chip-icon svg {
+  width: 12px;
+  height: 12px;
+}
+.ui-ev .ui-ref-chip.ev-file .ui-ref-chip-label {
+  font-size: 11px;
+  max-width: 280px;
+}
+/* 思考行可点性强化：hover 底色 + 箭头放大着色（user ask 2026-09-03 五轮） */
+.ui-ev .ui-ev-think-toggle {
+  border-radius: 9px;
+  transition: background 0.12s ease;
+}
+.ui-ev .ui-ev-think-toggle:hover {
+  background: var(--ui-surface-hover);
+}
+.ui-ev .ui-ev-think-toggle:hover .think-chev,
+.ui-ev.k-think.think-open .think-chev {
+  color: var(--ui-accent);
+}
+.ui-ev .think-chev {
+  font-size: 11px;
+}
+
+/* 系统行：两侧发丝线（demo .sysnote） */
+.ui-bubble-row.system {
+  display: flex;
+}
+.ui-bubble-row.system .ui-system-note {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ui-text-faint);
+  font-size: 11.5px;
+}
+.ui-system-note::before,
+.ui-system-note::after {
+  content: "";
+  flex: 1;
+  height: 0;
+  border-top: 1px solid var(--ui-border-soft);
+}
+/* 指令回显便签中的命令词徽章（/model 等 system 回显，CommandEchoNote） */
+.ui-system-note .ui-note-cmd {
+  flex: none;
+  font-family: var(--ui-font-mono);
+  font-size: 10.5px;
+  font-weight: 650;
+  color: var(--ui-accent);
+  background: color-mix(in srgb, var(--ui-accent) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ui-accent) 30%, transparent);
+  border-radius: var(--ui-radius-pill, 999px);
+  padding: 0 7px;
+  line-height: 16px;
+}
+
+/* ── 欢迎页（参考 ZCode 式布局）：居中、轻松、不表格化 ── */
+.ui-welcome.ui-welcome-center {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 0 24px;
+}
+.ui-welcome-center .ui-welcome-greeting {
+  margin: 0;
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: var(--ui-text);
+}
+.ui-welcome-center .ui-welcome-subtitle {
+  margin-top: 10px;
+  font-size: 13px;
+}
+.ui-welcome-composer-slot {
+  height: 172px;
+}
+.ui-welcome-chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+.ui-welcome-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--ui-border-soft);
+  background: var(--ui-surface-raised);
+  color: var(--ui-text-dim);
+  font-size: 12.5px;
+  cursor: pointer;
+  transition:
+    color 0.18s,
+    border-color 0.18s;
+}
+.ui-welcome-chip:hover {
+  color: var(--ui-accent);
+  border-color: var(--ui-accent);
+}
+.ui-welcome-chip svg {
+  width: 14px;
+  height: 14px;
 }
