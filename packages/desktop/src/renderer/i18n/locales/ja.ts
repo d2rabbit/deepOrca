@@ -1349,6 +1349,8 @@ export const ja: Record<MessageKey, string> = {
   "editor.closeDirtyBody": "このファイルには未保存の変更があります。閉じますか？",
   "editor.workspace.closeDirtyTitle": "エディターに未保存の変更があります",
   "editor.workspace.closeDirtyBody": "開いているファイルに未保存の変更があります。エディターを閉じると破棄されます。",
+  "editor.diagnostics.title": "問題",
+  "editor.diagnostics.empty": "このファイルに問題は検出されていません。",
   "editor.discardAndClose": "破棄して閉じる",
   "editor.saveAndClose": "保存して閉じる",
 

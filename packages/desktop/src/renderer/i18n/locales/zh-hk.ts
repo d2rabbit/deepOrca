@@ -1311,6 +1311,8 @@ export const zhHK: Record<MessageKey, string> = {
   "editor.closeDirtyBody": "該檔案有未儲存的修改，確定關閉嗎？",
   "editor.workspace.closeDirtyTitle": "編輯器有未儲存的修改",
   "editor.workspace.closeDirtyBody": "一或多個開啟的檔案有未儲存的修改，關閉編輯器將捨棄這些修改。",
+  "editor.diagnostics.title": "問題",
+  "editor.diagnostics.empty": "該檔案未偵測到問題。",
   "editor.discardAndClose": "放棄並關閉",
   "editor.saveAndClose": "儲存並關閉",
 

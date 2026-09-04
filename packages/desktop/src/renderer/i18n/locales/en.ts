@@ -1335,6 +1335,8 @@ export const en = {
   "editor.workspace.closeDirtyTitle": "Unsaved changes in editor",
   "editor.workspace.closeDirtyBody":
     "One or more open files have unsaved modifications. Close the editor and discard them?",
+  "editor.diagnostics.title": "Problems",
+  "editor.diagnostics.empty": "No problems detected in this file.",
   "editor.discardAndClose": "Discard & close",
   "editor.saveAndClose": "Save & close",
 

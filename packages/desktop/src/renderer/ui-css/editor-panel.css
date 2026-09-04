@@ -2193,3 +2193,100 @@
   background: color-mix(in srgb, var(--ui-danger) 16%, transparent);
   color: var(--ui-danger);
 }
+
+/* ── 编辑器诊断抽屉（B-line E4）：Monaco markers 的底部折叠条 ── */
+.ui-diag {
+  flex: none;
+  border-top: 1px solid var(--ui-border-soft);
+  background: var(--ui-bg-soft);
+}
+.ui-diag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 4px 12px;
+  border: none;
+  background: transparent;
+  color: var(--ui-text-dim);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.ui-diag-chip:hover {
+  color: var(--ui-text);
+  background: var(--ui-surface-hover);
+}
+.ui-diag-chip .chev {
+  margin-left: auto;
+  color: var(--ui-text-faint);
+}
+.ui-diag-count {
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 10px;
+  line-height: 15px;
+  color: #fff;
+}
+.ui-diag-count.err {
+  background: var(--ui-danger, #e03131);
+}
+.ui-diag-count.warn {
+  background: var(--ui-warning, #f59e0b);
+}
+.ui-diag-drawer {
+  max-height: 180px;
+  overflow-y: auto;
+  border-top: 1px solid var(--ui-border-soft);
+  background: var(--ui-bg);
+}
+.ui-diag-empty {
+  padding: 10px 12px;
+  font-size: 11.5px;
+  color: var(--ui-text-faint);
+}
+.ui-diag-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  padding: 5px 12px;
+  border: none;
+  background: transparent;
+  color: var(--ui-text-secondary);
+  font-size: 11.5px;
+  text-align: left;
+  cursor: pointer;
+}
+.ui-diag-row:hover {
+  background: var(--ui-surface-hover);
+  color: var(--ui-text);
+}
+.ui-diag-row .sev {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  align-self: center;
+}
+.ui-diag-row .sev.s8 {
+  background: var(--ui-danger, #e03131);
+}
+.ui-diag-row .sev.s4 {
+  background: var(--ui-warning, #f59e0b);
+}
+.ui-diag-row .sev.s2 {
+  background: var(--ui-accent);
+}
+.ui-diag-row .msg {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-diag-row .pos {
+  flex: none;
+  color: var(--ui-text-faint);
+  font-variant-numeric: tabular-nums;
+}

@@ -7,6 +7,7 @@ import type { EditorWorkspaceStore } from "../../hooks/use-editor-workspace";
 import { ensureMonacoLoaded, languageForFile } from "./monaco-loader";
 import { EditorTabBar } from "./EditorTabBar";
 import { EditorAgentFloat, type Selection } from "./EditorAgentFloat";
+import { EditorDiagnosticsDrawer } from "./EditorDiagnosticsDrawer";
 
 type Props = {
   store: EditorWorkspaceStore;
@@ -224,6 +225,7 @@ export function EditorWorkspace({
         )}
       </div>
       {saveError ? <div className="ui-error ui-editor-save-error">{saveError}</div> : null}
+      <EditorDiagnosticsDrawer filePath={activeFile} editorRef={editorRef} />
       {activeFile && state?.loaded ? (
         <EditorAgentFloat filePath={activeFile} selection={selection} editorRef={editorRef} onAskAgent={onAskAgent} />
       ) : null}
