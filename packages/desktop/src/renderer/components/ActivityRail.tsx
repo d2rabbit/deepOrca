@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type JSX } from "react";
 import type { SessionMessage } from "../../shared/ipc";
-import { buildToolSummary, getResultMd } from "../lib/messages";
+import { buildToolSummary, firstNonEmptyLine, getResultMd, toolThumbTarget } from "../lib/messages";
 import { useI18n } from "../i18n";
 import { toolCls, toolIcon } from "./message/shared";
 import { ToolResultView } from "./message/ToolResultView";
@@ -41,6 +41,8 @@ type ActivityWindow = {
   id: string;
   kind: ActivityKind;
   name: string;
+  /** 短目标缩略：文件操作=文件名，bash=命令首行，其余=参数首行（可空）。 */
+  thumb: string;
   /** Full tool summary — feeds ToolResultView (diff metadata, params). */
   summary: ReturnType<typeof buildToolSummary>;
   resultMd: string;
@@ -79,6 +81,7 @@ export function ActivityRail({ messages, busy, collapsed }: Props): JSX.Element 
         id: m.id,
         kind: kindOf(summary.name),
         name: summary.name,
+        thumb: toolThumbTarget(summary),
         summary,
         resultMd: getResultMd(m),
         ok: summary.ok,
@@ -202,6 +205,7 @@ export function ActivityRail({ messages, busy, collapsed }: Props): JSX.Element 
                     key={w.id}
                     type="button"
                     className={`lr${w.ok ? "" : " err"}`}
+                    title={firstNonEmptyLine(w.summary.params) || w.name}
                     onClick={() => {
                       setFrontId(w.id);
                       setDismissedId(null);
@@ -211,7 +215,10 @@ export function ActivityRail({ messages, busy, collapsed }: Props): JSX.Element 
                     <span className={`ic k-${w.kind}`} aria-hidden>
                       {toolIcon(w.name)}
                     </span>
-                    <span className="tt">{w.name}</span>
+                    <span className="tt">
+                      {w.name}
+                      {w.thumb ? <span className="th"> · {w.thumb}</span> : null}
+                    </span>
                     <span className={`dot ${w.ok ? "ok" : "err"}`} aria-hidden />
                   </button>
                 ))}
@@ -225,7 +232,10 @@ export function ActivityRail({ messages, busy, collapsed }: Props): JSX.Element 
                 <article key={w.id} className={`pipwin p${i} k-${w.kind}${w.ok ? "" : " err"}`}>
                   <div className="ph">
                     <span className="ic">{toolIcon(w.name)}</span>
-                    <span className="tt">{w.name}</span>
+                    <span className="tt" title={firstNonEmptyLine(w.summary.params) || w.name}>
+                      {w.name}
+                      {w.thumb ? <span className="th"> · {w.thumb}</span> : null}
+                    </span>
                     <span className="done-dot" aria-hidden />
                     <button
                       type="button"

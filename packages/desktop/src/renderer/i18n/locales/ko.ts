@@ -1339,6 +1339,9 @@ export const ko: Record<MessageKey, string> = {
   "editor.tooLarge": "파일이 너무 커서 편집할 수 없습니다.",
   "editor.closeDirtyTitle": "저장되지 않은 변경 사항",
   "editor.closeDirtyBody": "이 파일에 저장되지 않은 변경 사항이 있습니다. 그래도 닫으시겠습니까?",
+  "editor.workspace.closeDirtyTitle": "편집기에 저장되지 않은 변경 사항이 있습니다",
+  "editor.workspace.closeDirtyBody":
+    "열린 파일 중 저장되지 않은 변경 사항이 있습니다. 편집기를 닫으면 변경 사항이 삭제됩니다.",
   "editor.discardAndClose": "버리고 닫기",
   "editor.saveAndClose": "저장하고 닫기",
 

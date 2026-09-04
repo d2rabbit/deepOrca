@@ -1332,6 +1332,9 @@ export const en = {
   "editor.tooLarge": "File too large to edit.",
   "editor.closeDirtyTitle": "Unsaved changes",
   "editor.closeDirtyBody": "This file has unsaved modifications. Close it anyway?",
+  "editor.workspace.closeDirtyTitle": "Unsaved changes in editor",
+  "editor.workspace.closeDirtyBody":
+    "One or more open files have unsaved modifications. Close the editor and discard them?",
   "editor.discardAndClose": "Discard & close",
   "editor.saveAndClose": "Save & close",
 

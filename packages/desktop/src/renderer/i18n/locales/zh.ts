@@ -1293,6 +1293,8 @@ export const zh: Record<MessageKey, string> = {
   "editor.tooLarge": "文件过大，无法编辑。",
   "editor.closeDirtyTitle": "有未保存的修改",
   "editor.closeDirtyBody": "该文件有未保存的修改，确定关闭吗？",
+  "editor.workspace.closeDirtyTitle": "编辑器有未保存的修改",
+  "editor.workspace.closeDirtyBody": "一个或多个打开的文件有未保存的修改，关闭编辑器将丢弃这些修改。",
   "editor.discardAndClose": "放弃并关闭",
   "editor.saveAndClose": "保存并关闭",
 

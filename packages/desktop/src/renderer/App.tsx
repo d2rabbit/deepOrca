@@ -1,8 +1,18 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type JSX } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type JSX,
+} from "react";
 import { api } from "./api";
 import { useTreeRefresh } from "./hooks/use-tree-refresh";
 import { useDocumentTitle } from "./hooks/use-document-title";
 import { useComposerDockHeight } from "./hooks/use-composer-dock-height";
+import { useEditorWorkspace } from "./hooks/use-editor-workspace";
 import type { SidebarView } from "./hooks/use-panel-layout";
 import { usePanelLayout } from "./hooks/use-panel-layout";
 import { useCompanionWidth } from "./hooks/use-companion-width";
@@ -103,6 +113,7 @@ import {
   GlobalTooltip,
   IconChat,
   IconCommand,
+  IconEditor,
   IconFile,
   IconIndex,
   IconReview,
@@ -169,7 +180,7 @@ export type MainTab =
   | { kind: "chat" }
   | { kind: "settings" }
   | { kind: "plugins" }
-  | { kind: "editor"; file: string }
+  | { kind: "editor" }
   | { kind: "knowledge"; root: string }
   | { kind: "review"; root: string }
   | { kind: "task"; treeId: string }
@@ -230,7 +241,7 @@ export function App(): JSX.Element {
   const [pendingPlan, setPendingPlan] = useState<string | null>(null);
   const [dismissedQuestionIds, setDismissedQuestionIds] = useState<Set<string>>(() => new Set());
 
-  const [modal, setModal] = useState<"undo" | "shortcuts" | "discard-settings" | null>(null);
+  const [modal, setModal] = useState<"undo" | "shortcuts" | "discard-settings" | "discard-editor" | null>(null);
   /** Settings tab has unsaved edits — every settings close path asks first. */
   const [settingsDirty, setSettingsDirty] = useState(false);
   // Branch the user tried to switch to while the working tree had blocking local changes.
@@ -244,10 +255,16 @@ export function App(): JSX.Element {
   // settings/plugins filled the main area, opening another panel added a tab
   // underneath that could never be reached.
   const [activeTab, setActiveTab] = useState<MainTab>({ kind: "chat" });
-  /** Bar entries beyond task/knowledge: one settings tab, one plugins tab, one per editor file. */
+  /** Bar entries beyond task/knowledge: one settings tab, one plugins tab, ONE editor workspace tab. */
   const [auxTabs, setAuxTabs] = useState<
     Array<{ key: string; kind: "settings" | "plugins" | "editor"; file?: string }>
   >([]);
+  // Editor workspace (B-line E1): one top chip, many files as sub-tabs inside
+  // the editor sheet — multi-file state lives in the hook, not in the tab model.
+  const editorWorkspace = useEditorWorkspace();
+  // Stable members pulled out so callbacks can depend on identifiers, not
+  // property paths (the hook's methods are useCallback-stable).
+  const { openFile: workspaceOpenFile, closeWorkspace: workspaceCloseAll, anyDirty: editorDirty } = editorWorkspace;
   // Back-compat view for consumers keyed on the old tri-state (composer dock,
   // rail active state) and the settings hook's dispatcher.
   const mainView: "chat" | "settings" | "plugins" =
@@ -260,11 +277,16 @@ export function App(): JSX.Element {
       setActiveTab({ kind: "chat" });
     }
   }, []);
-  const openEditorTab = useCallback((file: string) => {
-    const key = `editor:${file}`;
-    setAuxTabs((tabs) => (tabs.some((tab) => tab.key === key) ? tabs : [...tabs, { key, kind: "editor", file }]));
-    setActiveTab({ kind: "editor", file });
-  }, []);
+  const openEditorTab = useCallback(
+    (file: string) => {
+      workspaceOpenFile(file);
+      setAuxTabs((tabs) =>
+        tabs.some((tab) => tab.key === "editor") ? tabs : [...tabs, { key: "editor", kind: "editor" }]
+      );
+      setActiveTab({ kind: "editor" });
+    },
+    [workspaceOpenFile]
+  );
   const handleCloseAuxTab = useCallback((key: string) => {
     setAuxTabs((tabs) => tabs.filter((tab) => tab.key !== key));
     setActiveTab((current) => {
@@ -272,7 +294,7 @@ export function App(): JSX.Element {
         current.kind === "chat"
           ? null
           : current.kind === "editor"
-            ? `editor:${current.file}`
+            ? "editor"
             : current.kind === "knowledge"
               ? `knowledge:${current.root}`
               : current.kind === "task"
@@ -281,6 +303,19 @@ export function App(): JSX.Element {
       return currentKey === key ? { kind: "chat" } : current;
     });
   }, []);
+  /** Workspace-level close: dirty drafts raise the confirm; clean closes drop
+   *  the chip AND the workspace state (drafts would otherwise zombie on). */
+  const closeEditorWorkspace = useCallback(() => {
+    workspaceCloseAll();
+    handleCloseAuxTab("editor");
+  }, [workspaceCloseAll, handleCloseAuxTab]);
+  const requestCloseEditor = useCallback(() => {
+    if (editorDirty) {
+      setModal("discard-editor");
+      return;
+    }
+    closeEditorWorkspace();
+  }, [editorDirty, closeEditorWorkspace]);
   /** The ONE guarded close for the settings tab: dirty edits raise the
    *  discard-confirm no matter which path fired (panel button, tab-strip ✕,
    *  Esc, scrim click) — previously only the button asked. */
@@ -1727,25 +1762,40 @@ export function App(): JSX.Element {
   const chipItems = useMemo<SurfaceChipItem[]>(() => {
     const items: SurfaceChipItem[] = [];
     for (const tab of auxTabs) {
-      const active =
-        tab.kind === "editor"
-          ? activeTab.kind === "editor" && activeTab.file === tab.file
-          : activeTab.kind === tab.kind;
+      const active = tab.kind === "editor" ? activeTab.kind === "editor" : activeTab.kind === tab.kind;
       const title =
         tab.kind === "settings"
           ? t("settings.title")
           : tab.kind === "plugins"
             ? t("plugins.title")
-            : ((tab.file ?? "").split(/[\\/]/).pop() ?? "");
+            : tab.kind === "editor"
+              ? t("rail.editor")
+              : "";
       items.push({
         key: tab.key,
-        icon: tab.kind === "settings" ? <IconSettings /> : tab.kind === "plugins" ? <IconPlugins /> : <IconFile />,
+        icon:
+          tab.kind === "settings" ? (
+            <IconSettings />
+          ) : tab.kind === "plugins" ? (
+            <IconPlugins />
+          ) : tab.kind === "editor" ? (
+            <IconEditor />
+          ) : (
+            <IconFile />
+          ),
         title,
-        tip: tab.kind === "editor" ? tab.file : title,
+        tip:
+          tab.kind === "editor"
+            ? editorWorkspace.openFiles.map((f) => f.split(/[\\/]/).pop()).join(" · ") || title
+            : title,
         active,
-        onSelect: () =>
-          setActiveTab(tab.kind === "editor" ? { kind: "editor", file: tab.file ?? "" } : { kind: tab.kind }),
-        onClose: tab.kind === "settings" ? requestCloseSettings : () => handleCloseAuxTab(tab.key),
+        onSelect: () => setActiveTab({ kind: tab.kind }),
+        onClose:
+          tab.kind === "settings"
+            ? requestCloseSettings
+            : tab.kind === "editor"
+              ? requestCloseEditor
+              : () => handleCloseAuxTab(tab.key),
       });
     }
     for (const tab of taskTabs) {
@@ -1797,12 +1847,14 @@ export function App(): JSX.Element {
     activeTab,
     auxTabs,
     t,
+    editorWorkspace.openFiles,
     handleCloseAuxTab,
     handleCloseKnowledgeTab,
     handleCloseReviewTab,
     handleCloseTaskTab,
     handleCloseTaskHubTab,
     knowledgeTabs,
+    requestCloseEditor,
     requestCloseSettings,
     reviewTabs,
     taskTabs,
@@ -1810,18 +1862,37 @@ export function App(): JSX.Element {
   ]);
 
   // 溢出收敛：隐藏测量行取真实 chip 宽度，贪心装填可见区（预留 +N 位）。
+  // 基准宽度绝不能取条自身：.ui-surface-chips 是 shrink-to-fit，渲染结果会
+  // 改变它自己的 clientWidth——拿它当可用空间就形成 RO→setState→重渲染→
+  // 宽度再变→RO 的自激振荡（最后一个标签在「显示↔+N」间无限横跳的闪烁根因）。
+  // 这里量的是外层 spacer 的稳定车道宽：spacer 减去同级元素（流式指示/
+  // 会话标题），再与 56vw 上限取小。
   const chipStripRef = useRef<HTMLDivElement | null>(null);
   const chipMeasureRef = useRef<HTMLDivElement | null>(null);
   const [chipVisible, setChipVisible] = useState(999);
   const [chipMenu, setChipMenu] = useState<{ x: number; y: number } | null>(null);
-  const chipItemsKey = `${chipItems.length}:${activeTab.kind}`;
-  useEffect(() => {
+  const chipItemsKey = `${chipItems.length}:${activeTab.kind}:${chipItems.map((i) => `${i.key}=${i.title}`).join("|")}`;
+  useLayoutEffect(() => {
     const strip = chipStripRef.current;
     const measurer = chipMeasureRef.current;
     if (!strip || !measurer) return;
     const OVERFLOW_W = 56;
+    const STRIP_PAD = 6; // .ui-surface-chips 自身 padding 3px × 2
+    const spacer = strip.parentElement;
     const compute = () => {
-      const avail = strip.clientWidth - OVERFLOW_W;
+      let lane = window.innerWidth * 0.56;
+      if (spacer) {
+        let others = 0;
+        let count = 0;
+        for (const el of Array.from(spacer.children)) {
+          if (el === strip || el.classList.contains("ui-surface-chips-measure")) continue;
+          others += (el as HTMLElement).offsetWidth;
+          count += 1;
+        }
+        const gap = Number.parseFloat(getComputedStyle(spacer).columnGap) || 0;
+        lane = Math.min(lane, spacer.clientWidth - others - gap * Math.max(0, count - 1));
+      }
+      const avail = lane - STRIP_PAD - OVERFLOW_W;
       let w = 0;
       let n = 0;
       const kids = Array.from(measurer.children).slice(1); // [0] = 主会话，恒显示
@@ -1835,7 +1906,17 @@ export function App(): JSX.Element {
     };
     compute();
     const ro = new ResizeObserver(compute);
-    ro.observe(strip);
+    if (spacer) {
+      ro.observe(spacer);
+      // 流式指示/会话标题的挂载与卸载会改变车道占用，childList 变化即重算
+      //（MO 只看 spacer 直接子级，条内 chip 增删不会触发，回路无从建立）。
+      const mo = new MutationObserver(compute);
+      mo.observe(spacer, { childList: true });
+      return () => {
+        ro.disconnect();
+        mo.disconnect();
+      };
+    }
     return () => ro.disconnect();
   }, [chipItemsKey]);
   useEffect(() => {
@@ -2201,7 +2282,7 @@ export function App(): JSX.Element {
               onBack={() => handleCloseAuxTab("plugins")}
             />
           </div>
-        ) : activeTab.kind === "editor" && activeTab.file ? (
+        ) : activeTab.kind === "editor" && editorWorkspace.activeFile ? (
           <div className="ui-sheet">
             <Suspense
               fallback={
@@ -2211,8 +2292,14 @@ export function App(): JSX.Element {
               }
             >
               <EditorOverlay
-                filePath={activeTab.file}
-                onClose={() => handleCloseAuxTab(`editor:${activeTab.file}`)}
+                filePath={editorWorkspace.activeFile}
+                onClose={() => {
+                  // Interim (E1): single-file overlay over the multi-file
+                  // workspace store. Closing the last file drops the chip.
+                  const file = editorWorkspace.activeFile;
+                  if (file) editorWorkspace.closeFile(file);
+                  if (editorWorkspace.openFiles.length <= 1) handleCloseAuxTab("editor");
+                }}
                 appearance={appearance}
                 inline
                 onAskAgent={(prompt) => {
@@ -2579,6 +2666,31 @@ export function App(): JSX.Element {
                 }}
               >
                 {t("settings.unsavedDiscard")}
+              </Button>
+            </>
+          }
+        />
+      ) : null}
+
+      {/* Editor workspace close while any sub-tab has unsaved edits — the
+          workspace-level guard (chip ✕ / Esc); per-file close guards live in
+          the workspace itself. */}
+      {modal === "discard-editor" ? (
+        <Modal
+          title={t("editor.workspace.closeDirtyTitle")}
+          subtitle={t("editor.workspace.closeDirtyBody")}
+          onClose={() => setModal(null)}
+          actions={
+            <>
+              <Button onClick={() => setModal(null)}>{t("common.cancel")}</Button>
+              <Button
+                variant="primary"
+                onClick={() => {
+                  setModal(null);
+                  closeEditorWorkspace();
+                }}
+              >
+                {t("editor.discardAndClose")}
               </Button>
             </>
           }
