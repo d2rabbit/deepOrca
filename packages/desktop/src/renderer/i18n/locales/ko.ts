@@ -42,6 +42,14 @@ export const ko: Record<MessageKey, string> = {
   "sidebar.untitled": "제목 없는 세션",
   "sidebar.search": "세션 검색…",
   "sidebar.noResults": "일치하는 세션이 없습니다.",
+  "sidebar.laneExpress": "익스프레스",
+
+  "sidebar.laneDeep": "딥",
+
+  "sidebar.laneExpressTip": "익스프레스 레인: 직접 응답 경로",
+
+  "sidebar.laneDeepTip": "딥 레인: 다중 경로 검토 리포트",
+
   "sidebar.rename": "이름 바꾸기",
   "sidebar.export": "내보내기",
   "sidebar.delete": "삭제",

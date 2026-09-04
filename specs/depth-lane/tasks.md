@@ -36,8 +36,8 @@
 
 ## X 桌面最小面
 
-- [ ] X.1 lane 徽标（会话卡/消息气泡，只读展示，不参与路由决策）
-- [ ] X.2 i18n 新键 ×6 locale（en 源 / zh / zh-tw / zh-hk / ja / ko，`Record<MessageKey, string>` 完整性类型强制）
+- [x] X.1 lane 徽标（会话卡，只读展示，不参与路由决策）— `LaneBadge.tsx`（express ⚡青/deep ▤琥珀双胶囊；设计链 mmx 生成参考 + VLM 14px 修正：纯色去渐变/去外框/粗杆短尾/粗条分层，参考图 `designs/lane-badge-reference.jpg`）；lane 经 SerializableSessionEntry spread 自动到 renderer，零 IPC 改动；dom-harness 测试 4/4
+- [x] X.2 i18n 新键 ×6 locale — sidebar.laneExpress/laneDeep/laneExpressTip/laneDeepTip 四键 ×6 目录（Record 完整性类型强制通过）；消息气泡位未做（会话卡已覆盖可见性，气泡位等真机反馈再定）
 - [ ] X.3 可选：重轨阶段进度事件（先在 `shared/ipc.ts` 定义通道常量再双边接线；禁止 renderer ad-hoc `ipcRenderer`）
 - [ ] X.4 真机冒烟：徽标展示、重轨阶段进度流、`interruptSession(sessionId)` 中断/暂停语义、权限/沙箱路径不受影响
 

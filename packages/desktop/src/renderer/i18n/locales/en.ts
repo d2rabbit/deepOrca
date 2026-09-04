@@ -41,6 +41,14 @@ export const en = {
   "sidebar.untitled": "Untitled session",
   "sidebar.search": "Search sessions…",
   "sidebar.noResults": "No matching sessions.",
+  "sidebar.laneExpress": "Express",
+
+  "sidebar.laneDeep": "Deep",
+
+  "sidebar.laneExpressTip": "Express lane — direct answer path",
+
+  "sidebar.laneDeepTip": "Depth lane — multi-path deliberation report",
+
   "sidebar.rename": "Rename",
   "sidebar.export": "Export",
   "sidebar.delete": "Delete",

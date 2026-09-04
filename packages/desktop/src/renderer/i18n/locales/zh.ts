@@ -43,6 +43,14 @@ export const zh: Record<MessageKey, string> = {
   "sidebar.untitled": "未命名会话",
   "sidebar.search": "搜索会话…",
   "sidebar.noResults": "无匹配会话。",
+  "sidebar.laneExpress": "轻轨",
+
+  "sidebar.laneDeep": "重轨",
+
+  "sidebar.laneExpressTip": "轻轨：直接作答路径",
+
+  "sidebar.laneDeepTip": "重轨：多路径推演决策报告",
+
   "sidebar.rename": "重命名",
   "sidebar.export": "导出",
   "sidebar.delete": "删除",

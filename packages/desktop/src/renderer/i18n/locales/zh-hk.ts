@@ -43,6 +43,14 @@ export const zhHK: Record<MessageKey, string> = {
   "sidebar.untitled": "未命名工作階段",
   "sidebar.search": "搜尋工作階段…",
   "sidebar.noResults": "無相符的工作階段。",
+  "sidebar.laneExpress": "輕軌",
+
+  "sidebar.laneDeep": "重軌",
+
+  "sidebar.laneExpressTip": "輕軌：直接作答路徑",
+
+  "sidebar.laneDeepTip": "重軌：多路徑推演決策報告",
+
   "sidebar.rename": "重新命名",
   "sidebar.export": "匯出",
   "sidebar.delete": "刪除",

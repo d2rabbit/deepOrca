@@ -42,6 +42,14 @@ export const ja: Record<MessageKey, string> = {
   "sidebar.untitled": "無題のセッション",
   "sidebar.search": "セッションを検索…",
   "sidebar.noResults": "一致するセッションがありません。",
+  "sidebar.laneExpress": "高速",
+
+  "sidebar.laneDeep": "深度",
+
+  "sidebar.laneExpressTip": "高速レーン：直接回答パス",
+
+  "sidebar.laneDeepTip": "深度レーン：複数経路の検討レポート",
+
   "sidebar.rename": "名前を変更",
   "sidebar.export": "エクスポート",
   "sidebar.delete": "削除",

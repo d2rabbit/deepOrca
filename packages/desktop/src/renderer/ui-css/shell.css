@@ -1059,6 +1059,27 @@ button.ui-surface-chip {
   color: var(--ui-accent);
 }
 
+/* Lane badge (specs/depth-lane X.1) — cool cyan express / warm amber deep;
+   solid tints, no frames (mmx design round 2026-09-04). */
+.ui-lane-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  line-height: 16px;
+  padding: 0 5px;
+  border-radius: var(--ui-radius-pill);
+  white-space: nowrap;
+}
+.ui-lane-badge--express {
+  background: color-mix(in srgb, #4dd8c0 16%, transparent);
+  color: #4dd8c0;
+}
+.ui-lane-badge--deep {
+  background: color-mix(in srgb, #e8a848 18%, transparent);
+  color: #e8a848;
+}
+
 .ui-session-time {
   margin-left: auto;
   font-size: 10.5px;

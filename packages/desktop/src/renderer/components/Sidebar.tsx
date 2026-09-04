@@ -3,6 +3,7 @@ import type { SerializableSessionEntry, WorkspaceSessions } from "../../shared/i
 import { api } from "../api";
 import { useI18n, type MessageKey, type Translate } from "../i18n";
 import { IconButton, Input, StatusDot, IconChat, IconPencil, IconTaskTree } from "../ui/index";
+import { LaneBadge } from "./LaneBadge";
 import { aggregateByWorkspace, aggregateUsage, formatTokens } from "../lib/token-usage";
 
 type Props = {
@@ -247,6 +248,7 @@ export const Sidebar = memo(function Sidebar({
         <div className="ui-session-meta">
           <StatusDot status={entry.status} />
           <span>{statusLabel(entry.status, t)}</span>
+          <LaneBadge lane={entry.lane} />
           {renderTaskBadge(entry, root)}
           {entry.activeTokens > 0 ? (
             <span className="ui-session-tokens-badge">{formatTokens(entry.activeTokens)}</span>
