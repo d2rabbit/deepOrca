@@ -67,7 +67,7 @@ export function DepthLaneProgressStrip({ sessionId }: { sessionId: string | null
     <div className="ui-depth-progress" role="status">
       <span className="ui-lane-badge ui-lane-badge--deep">
         <IconLaneDeep />
-        {t("depth.stripTitle")}
+        {t("sidebar.laneDeep")}
       </span>
       <span className="ui-depth-progress-stage">
         {label}

@@ -45,33 +45,6 @@ export const en = {
 
   "sidebar.laneDeep": "Deep",
 
-  "depth.report.title": "Depth decision report",
-
-  "depth.report.confidence": "Confidence",
-
-  "depth.report.unconverged":
-    "Unconverged — conclusions are the best judgment on the given evidence; keep human review on high-impact items.",
-
-  "depth.report.irreversible": "Irreversible risks — user decision required",
-
-  "depth.report.divergences": "Divergences",
-
-  "depth.report.assumptions": "Key assumptions",
-
-  "depth.report.risks": "Risks & red lines",
-
-  "depth.report.nextSteps": "Executable next steps",
-
-  "depth.report.toTaskTree": "Seed task trajectory",
-
-  "depth.report.taskBusy": "Creating…",
-
-  "depth.report.taskDone": "Task tree created ✓",
-
-  "depth.report.taskError": "task creation failed",
-
-  "depth.stripTitle": "Deep mode",
-
   "depth.stageS1": "S1 context compile",
 
   "depth.stageS15": "S1.5 evidence gate",

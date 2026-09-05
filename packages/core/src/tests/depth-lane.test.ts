@@ -201,7 +201,7 @@ describe("depth lane staged flow", () => {
     assert.ok(!lastAssistantContent(h.manager, sessionId).includes("深度决策报告"));
   });
 
-  test("S1→S5 happy path: converged first round produces the five-section report", async () => {
+  test("S1→S5 happy path: converged first round produces a normal answer with visible deliberation", async () => {
     const h = createDepthHarness({ enabled: true, depthLaneEnabled: true });
     // Main path confidence 80; conservative subagent 85 → spread 5 < 15 → converged.
     h.subagentOutputs.push(
@@ -235,15 +235,12 @@ describe("depth lane staged flow", () => {
     assert.equal(redTeamCalls.length, 1);
 
     const report = lastAssistantContent(h.manager, sessionId);
-    assert.ok(report.includes("<proposed_plan>"), "reuses the proposed_plan block contract");
-    assert.ok(report.includes("深度决策报告"), "report title");
-    assert.ok(report.includes("结论（先读这里）"), "conclusion-first section on top");
-    assert.ok(report.indexOf("结论（先读这里）") < report.indexOf("置信度"), "conclusion precedes confidence");
-    assert.ok(report.includes("置信度"));
-    assert.ok(report.includes("分歧点"));
-    assert.ok(report.includes("关键假设"));
-    assert.ok(report.includes("风险与红线"));
-    assert.ok(report.includes("可执行下一步"));
+    assert.ok(!report.includes("<proposed_plan>"), "normal answer — no proposed_plan wrapper (2026-09-05 redesign)");
+    assert.ok(report.length > 50, "answer has substance (normal reply, not a formal report)");
+    assert.ok(
+      report.includes("推演路径对比") || report.includes("置信度"),
+      "deliberation results visible (paths / confidence)"
+    );
     assert.ok(report.includes("Adopt the incremental refactor"), "fused judgment surfaced");
     assert.ok(!report.includes("未收敛"), "converged round reports no warning");
     assert.equal(h.manager.getSession(sessionId)?.status, "completed");
@@ -279,8 +276,11 @@ describe("depth lane staged flow", () => {
     assert.equal(fusionCalls.length, 3);
 
     const report = lastAssistantContent(h.manager, sessionId);
-    assert.ok(report.includes("未收敛"), "non-convergence is stated");
-    assert.ok(report.includes("已给证据"), "evidence-given caveat is stated");
+    assert.ok(report.includes("未完全收敛") || report.includes("未收敛"), "non-convergence is stated");
+    assert.ok(
+      report.includes("未完全收敛") || report.includes("供你综合判断"),
+      "unconverged fallback communicates uncertainty"
+    );
     assert.equal(h.manager.getSession(sessionId)?.status, "completed", "loop terminated, not hung");
   });
 
@@ -341,7 +341,7 @@ describe("depth lane staged flow", () => {
     assert.equal(h.subagentCalls.length, 0, "K=1 → zero subagents");
     assert.equal(h.depthLlmCalls.filter((c) => /independent reasoning path/i.test(c.user)).length, 1);
     assert.equal(h.depthLlmCalls.filter((c) => /orchestrator fusing/i.test(c.user)).length, 1);
-    assert.ok(lastAssistantContent(h.manager, sessionId).includes("深度决策报告"));
+    assert.ok(lastAssistantContent(h.manager, sessionId).length > 50, "answer emitted");
   });
 
   test("S1.5 evidence gate: insufficient evidence triggers one bounded top-up", async () => {
@@ -359,7 +359,7 @@ describe("depth lane staged flow", () => {
     assert.equal(h.backgroundCalls[0]?.profile, "review", "read-only profile");
     const divergence = h.subagentCalls.find((c) => /independent reasoning path/i.test(c.prompt));
     assert.ok(divergence?.prompt.includes("consumed by two plugins"), "top-up findings feed the divergence prompts");
-    assert.ok(lastAssistantContent(h.manager, sessionId).includes("深度决策报告"));
+    assert.ok(lastAssistantContent(h.manager, sessionId).length > 50, "answer emitted");
   });
 
   test("abort mid-lane stops cleanly: no report, no fusion, createSession resolves", async () => {

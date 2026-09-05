@@ -292,7 +292,7 @@ export abstract class SessionManagerDepth extends SessionManagerTasks {
         totalRounds: maxRounds,
         detail: state.converged ? "converged" : "round-cap",
       });
-      this.emitDepthReport(sessionId, userTask, state);
+      this.emitDepthAnswer(sessionId, userTask, state);
       this.emitStage(sessionId, "done", { done: true });
     } catch (error) {
       if (this.isAbortLikeError(error) || stageController.signal.aborted) {
@@ -588,72 +588,65 @@ export abstract class SessionManagerDepth extends SessionManagerTasks {
    * only PRODUCES a report, so flagging there is the honest v1 arbitration
    * (nothing irreversible executes inside the lane itself).
    */
-  private emitDepthReport(sessionId: string, userTask: string, state: DepthRunState): void {
+  /**
+   * S5 output (2026-09-05 redesign, user ask): the deep lane is an INTERNAL
+   * execution strategy — routing adjudicates quick vs deep, multi-path
+   * deliberation runs backstage — but the DELIBERATION RESULTS are part of
+   * the answer the user reads. No <proposed_plan> wrapper, no formal
+   * "decision report" artifact: the fusion judgment leads as the answer,
+   * followed by the multi-path comparison, key risks and next steps as
+   * well-structured markdown. Renders through the normal markdown pipeline.
+   */
+  private emitDepthAnswer(sessionId: string, userTask: string, state: DepthRunState): void {
     const fusion = state.fusion;
-    const converged = state.converged;
     const now = new Date().toISOString();
 
-    const confidence = fusion
-      ? `${fusion.confidence}%`
-      : `未定（融合调用失败；各路置信度：${state.paths.map((p) => `${p.stance.split("（")[0]} ${p.confidence}%`).join(" / ") || "无"}）`;
-    const disagreements = fusion?.disagreements.length
-      ? fusion.disagreements.map((d) => `- ${d}`).join("\n")
-      : state.paths.length > 1
-        ? state.paths.map((p) => `- ${p.stance.split("（")[0]}：${p.path.slice(0, 120)}`).join("\n")
-        : "- 无（单路退化）";
-    const assumptions =
-      (fusion?.keyAssumptions ?? state.paths[0]?.keyAssumptions ?? []).map((a) => `- ${a}`).join("\n") || "- 无";
-    const riskLines = [...(state.redTeam?.irreversibleRisks ?? []), ...(fusion?.risks ?? state.paths[0]?.risks ?? [])];
-    const risks =
-      (state.redTeam?.irreversibleRisks.length ?? 0) > 0
-        ? `**需要用户拍板的不可逆风险：**\n${state.redTeam!.irreversibleRisks.map((r) => `- ${r}`).join("\n")}\n\n其余风险：\n${(fusion?.risks ?? []).map((r) => `- ${r}`).join("\n") || "- 无"}`
-        : riskLines.map((r) => `- ${r}`).join("\n") || "- 无";
-    const nextSteps = (fusion?.nextSteps ?? []).map((s) => `- ${s}`).join("\n") || "- 待用户指示";
-    const conclusion = fusion?.judgment
-      ? fusion.judgment
-      : `未收敛：经过 ${state.round} 轮推演仍无一致结论，以下为已给证据与各路判断（${state.paths
-          .map((p) => `${p.stance.split("（")[0]} ${p.confidence}%`)
-          .join(" / ")}）。`;
+    let answer: string;
+    if (fusion?.judgment) {
+      answer = fusion.judgment;
+    } else if (state.paths.length > 1) {
+      const pathSummary = state.paths
+        .map((p) => `- **${p.stance.split("（")[0]}**：${p.path.slice(0, 200)}（置信度 ${p.confidence}%）`)
+        .join("\n");
+      answer = `经过多路推演，各方尚未完全收敛，以下是各条路线的结论与依据，供你综合判断：\n\n${pathSummary}`;
+    } else {
+      answer = state.paths[0]?.path ?? "深度推演未能产出结论，请重试或补充信息。";
+    }
 
-    const report = this.renderLaneFragment(
-      {
-        kind: "report",
-        conclusion,
-        confidence,
-        disagreements,
-        assumptions,
-        risks,
-        nextSteps,
-        converged,
-      },
-      // Inline fail-open: same structure, plainer formatting.
-      [
-        "<proposed_plan>",
-        "# 深度决策报告（deep-lane）",
-        "",
-        "## 结论（先读这里）",
-        conclusion,
-        ...(converged ? [] : ["", "> ⚠️ 未收敛：以下结论基于已给证据的最好判断，建议对高影响项保留人工复核。"]),
-        "",
-        `## 置信度`,
-        confidence,
-        "",
-        "## 分歧点",
-        disagreements,
-        "",
-        "## 关键假设",
-        assumptions,
-        "",
-        "## 风险与红线",
-        risks,
-        "",
-        "## 可执行下一步",
-        nextSteps,
-        "</proposed_plan>",
-      ].join("\n")
-    );
+    if (state.paths.length > 1) {
+      answer += `\n\n**推演路径对比：**\n${state.paths
+        .map((p) => {
+          const stance = p.stance.split("（")[0];
+          const assumptions = p.keyAssumptions
+            .slice(0, 2)
+            .map((a) => a.slice(0, 80))
+            .join("；");
+          return `- **${stance}**（置信度 ${p.confidence}%）— ${p.path.slice(0, 160)}${assumptions ? `\n  前提：${assumptions}` : ""}`;
+        })
+        .join("\n")}`;
+      if (fusion?.disagreements.length) {
+        answer += `\n\n**分歧点：**\n${fusion.disagreements.map((d) => `- ${d}`).join("\n")}`;
+      }
+    }
 
-    const message = this.buildAssistantMessage(sessionId, report, null);
+    const irreversible = state.redTeam?.irreversibleRisks ?? [];
+    const otherRisks = fusion?.risks ?? state.paths[0]?.risks ?? [];
+    if (irreversible.length > 0) {
+      answer += `\n\n⚠️ **不可逆操作 — 需要你确认后再执行：**\n${irreversible.map((r) => `- ${r}`).join("\n")}`;
+    }
+    if (otherRisks.length > 0) {
+      answer += `\n\n**风险提示：**\n${otherRisks.map((r) => `- ${r}`).join("\n")}`;
+    }
+
+    if (fusion?.nextSteps.length) {
+      answer += `\n\n**建议的下一步：**\n${fusion.nextSteps.map((st, i) => `${i + 1}. ${st}`).join("\n")}`;
+    }
+
+    if (!state.converged && fusion?.judgment) {
+      answer += "\n\n（注：多路推演未完全收敛，以上为基于现有证据的最佳判断，关键决策建议保留人工复核。）";
+    }
+
+    const message = this.buildAssistantMessage(sessionId, answer, null);
     this.appendSessionMessage(sessionId, message);
     this.onAssistantMessage(message, true);
     this.updateSessionEntry(sessionId, (entry) => ({
@@ -662,6 +655,42 @@ export abstract class SessionManagerDepth extends SessionManagerTasks {
       failReason: null,
       updateTime: now,
     }));
+
+    // Auto-register to the task trajectory (user ask 2026-09-05): every deep
+    // run IS a task — the multi-path deliberation record belongs in the task
+    // tree automatically, not behind a manual button. Best-effort: a broken
+    // tree store must never fail the answer itself.
+    try {
+      const svc = this.getTaskTreeService();
+      if (svc) {
+        const userTaskShort = userTask.slice(0, 120) || "Deep run";
+        const treeId = svc.createTree(userTaskShort, {
+          why: "Deep run auto-registration (multi-path deliberation)",
+          branchName: "deep",
+        });
+        if (treeId) {
+          svc.bindSession(treeId, "deep", sessionId);
+          // Append the deliberation outcome as a step node so the trajectory
+          // carries the paths/confidence/risks without the user doing anything.
+          svc.appendStep(treeId, {
+            title: answer.slice(0, 120) || "Deliberation result",
+            why: state.converged
+              ? `Converged after ${state.round} round(s); ${state.paths.length} path(s).`
+              : `Unconverged after ${state.round} round(s); see answer for per-path views.`,
+            artifactRefs: [],
+          });
+          // Stamp the session entry so the session tree / history view can
+          // find the trajectory (same taskRef contract as manual task flows).
+          this.updateSessionEntry(sessionId, (entry) => ({
+            ...entry,
+            taskRef: { treeId, branch: "deep", nodeId: treeId },
+            updateTime: now,
+          }));
+        }
+      }
+    } catch {
+      // fail-open — the answer is already delivered; trajectory is best-effort
+    }
   }
 }
 
