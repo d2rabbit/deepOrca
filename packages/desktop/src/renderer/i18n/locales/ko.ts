@@ -1095,6 +1095,10 @@ export const ko: Record<MessageKey, string> = {
 
   "taskrec.detailFiles": "관련 파일",
 
+  "taskrec.statusDone": "완료",
+
+  "taskrec.statusFail": "실패",
+
   "taskrec.noOps": "이 작업에 연결된 세션에 아직 작업 기록이 없습니다",
   "taskrec.noTrajectory": "궤적 데이터가 없습니다",
   "taskrec.reflog": "작업 작업 로그(reflog)",

@@ -1063,6 +1063,10 @@ export const zh: Record<MessageKey, string> = {
 
   "taskrec.detailFiles": "涉及文件",
 
+  "taskrec.statusDone": "已完成",
+
+  "taskrec.statusFail": "失败",
+
   "taskrec.noOps": "该任务绑定的会话暂无操作记录",
   "taskrec.noTrajectory": "暂无轨迹数据",
   "taskrec.reflog": "任务操作日志(reflog)",

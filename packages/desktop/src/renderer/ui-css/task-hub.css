@@ -385,6 +385,13 @@
   font-size: 12px;
   line-height: 1.4;
 }
+.ui-taskhub-trace .step.clickable {
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.ui-taskhub-trace .step.clickable:hover {
+  background: color-mix(in srgb, var(--ui-accent, #6c8cff) 10%, transparent);
+}
 .ui-taskhub-trace .step::before {
   content: "";
   position: absolute;
@@ -1029,4 +1036,71 @@
 }
 .ui-taskrec-detail-close:hover {
   color: var(--ui-accent);
+}
+
+/* ── Trajectory behavior report detail (dsh-style structured layout) ────── */
+.ui-traj-detail {
+  border: 1px solid color-mix(in srgb, var(--ui-accent, #6c8cff) 25%, transparent);
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin-top: 10px;
+  background: color-mix(in srgb, var(--ui-bg, #1a1a1e) 50%, transparent);
+}
+.ui-traj-detail-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.ui-traj-detail-badge {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: var(--ui-radius-pill, 999px);
+  font-weight: 500;
+}
+.ui-traj-detail-badge.ok {
+  background: color-mix(in srgb, #4ade80 15%, transparent);
+  color: #4ade80;
+}
+.ui-traj-detail-badge.fail {
+  background: color-mix(in srgb, #e05a4e 15%, transparent);
+  color: #e05a4e;
+}
+.ui-traj-detail-tool {
+  font-family: var(--ui-font-mono);
+  font-size: 13px;
+  font-weight: 600;
+}
+.ui-traj-detail-time {
+  font-size: 11px;
+  color: var(--ui-text-dim, #888);
+  margin-left: auto;
+}
+.ui-traj-detail-section {
+  margin-bottom: 10px;
+}
+.ui-traj-detail-label {
+  font-size: 10px;
+  color: var(--ui-text-dim, #888);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 4px;
+}
+.ui-traj-detail-pre {
+  font-family: var(--ui-font-mono);
+  font-size: 11px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  margin: 0;
+  padding: 8px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--ui-border-soft, #333) 30%, transparent);
+  max-height: 200px;
+  overflow-y: auto;
+}
+.ui-traj-detail-file {
+  font-family: var(--ui-font-mono);
+  font-size: 11px;
+  padding: 2px 0;
+  color: var(--ui-text-dim, #999);
 }

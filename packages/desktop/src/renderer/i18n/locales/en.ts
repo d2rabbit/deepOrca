@@ -1094,6 +1094,10 @@ export const en = {
 
   "taskrec.detailFiles": "Files touched",
 
+  "taskrec.statusDone": "Completed",
+
+  "taskrec.statusFail": "Failed",
+
   "taskrec.noOps": "No operations recorded for this task's sessions yet.",
   "taskrec.noTrajectory": "No trajectory data.",
   "taskrec.reflog": "Task reflog",

@@ -1102,6 +1102,10 @@ export const ja: Record<MessageKey, string> = {
 
   "taskrec.detailFiles": "対象ファイル",
 
+  "taskrec.statusDone": "完了",
+
+  "taskrec.statusFail": "失敗",
+
   "taskrec.noOps": "このタスクに紐づくセッションにはまだ操作記録がありません",
   "taskrec.noTrajectory": "履歴データはありません",
   "taskrec.reflog": "タスク操作ログ(reflog)",

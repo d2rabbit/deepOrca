@@ -136,6 +136,50 @@ function NodeTree({
   );
 }
 
+/** Behavior report for one trajectory operation — structured layout with
+ *  labeled sections matching the dsh reference (操作/状态/参数/结果/时间). */
+function TrajectoryOpDetail({ op }: { op: NonNullable<ReturnType<typeof useOps>[number]> }): JSX.Element {
+  const { t } = useI18n();
+  const statusLabel = op.ok ? t("taskrec.statusDone") : t("taskrec.statusFail");
+  const statusCls = op.ok ? "ok" : "fail";
+  let prettyArgs = "";
+  try {
+    prettyArgs = JSON.stringify(JSON.parse(op.summary ?? "{}"), null, 2);
+  } catch {
+    prettyArgs = op.summary ?? "";
+  }
+  return (
+    <div className="ui-traj-detail">
+      <div className="ui-traj-detail-head">
+        <span className={`ui-traj-detail-badge ${statusCls}`}>{statusLabel}</span>
+        <span className="ui-traj-detail-tool">{op.tool}</span>
+        <span className="ui-traj-detail-time">{formatTime(op.at)}</span>
+      </div>
+      {op.summary ? (
+        <div className="ui-traj-detail-section">
+          <div className="ui-traj-detail-label">{t("taskrec.detailSummary")}</div>
+          <pre className="ui-traj-detail-pre">{op.summary}</pre>
+        </div>
+      ) : null}
+      {op.files && op.files.length > 0 ? (
+        <div className="ui-traj-detail-section">
+          <div className="ui-traj-detail-label">{t("taskrec.detailFiles")}</div>
+          {op.files.map((f, i) => (
+            <div key={i} className="ui-traj-detail-file">
+              {f}
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+// Inline helper so TrajectoryOpDetail's type doesn't leak (defined below TaskRecordPanel).
+function useOps(): Array<{ at: string; tool: string; ok: boolean; summary?: string; files?: string[] }> {
+  return [];
+}
+
 export function TaskRecordPanel({ treeId, workspaceRoot, onOpenDetail }: Props): JSX.Element {
   const { t } = useI18n();
   const [summary, setSummary] = useState<TaskTreeSummary | null>(null);
@@ -508,6 +552,9 @@ export function TaskRecordPanel({ treeId, workspaceRoot, onOpenDetail }: Props):
                     <div className="ui-side-panel-empty">{t("taskrec.noOps")}</div>
                   ) : null}
                 </div>
+                {selectedOp !== null && trajectory.operations[selectedOp] ? (
+                  <TrajectoryOpDetail op={trajectory.operations[selectedOp]} />
+                ) : null}
               </div>
             </>
           ) : (
