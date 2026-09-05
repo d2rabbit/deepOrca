@@ -2567,17 +2567,30 @@ export function App(): JSX.Element {
             {taskQuick.kind === "report" ? (
               <ReportQuickContent root={taskQuick.root} reportId={taskQuick.reportId} />
             ) : taskQuick.kind === "step-detail" ? (
-              <div className="ui-taskrec-op-detail">
-                <div className="ui-taskrec-op-detail-head">
-                  <span className={`ui-taskrec-op-tool${taskQuick.step.fail ? " fail" : " ok"}`}>
-                    {taskQuick.step.tool}
+              <div className="ui-depth-op-report">
+                <div className="ui-depth-op-head">
+                  <span className={`ui-depth-op-status ${taskQuick.step.fail ? "fail" : "ok"}`}>
+                    {taskQuick.step.fail ? "✗ 失败" : taskQuick.step.ok ? "✓ 已完成" : "◐ 进行中"}
                   </span>
-                  {taskQuick.step.ms ? <span className="ui-taskrec-op-time">{taskQuick.step.ms}</span> : null}
+                  <span className="ui-depth-op-tool">{taskQuick.step.tool}</span>
+                  {taskQuick.step.mcp ? <span className="ui-depth-op-mcp">{taskQuick.step.mcp}</span> : null}
+                </div>
+                <div className="ui-depth-op-meta">
+                  <div className="ui-depth-op-meta-item">
+                    <span className="ui-depth-op-meta-label">{t("taskrec.detailDuration")}</span>
+                    <span className="ui-depth-op-meta-value">{taskQuick.step.ms || "—"}</span>
+                  </div>
+                  {taskQuick.step.mcp ? (
+                    <div className="ui-depth-op-meta-item">
+                      <span className="ui-depth-op-meta-label">MCP</span>
+                      <span className="ui-depth-op-meta-value">{taskQuick.step.mcp}</span>
+                    </div>
+                  ) : null}
                 </div>
                 {taskQuick.step.arg ? (
-                  <div className="ui-taskrec-op-detail-body">
-                    <div className="ui-taskrec-op-detail-label">{t("taskrec.detailArgs")}</div>
-                    <pre>{taskQuick.step.arg}</pre>
+                  <div className="ui-depth-op-section">
+                    <div className="ui-depth-op-section-label">{t("taskrec.detailArgs")}</div>
+                    <pre className="ui-depth-op-pre">{taskQuick.step.arg}</pre>
                   </div>
                 ) : null}
               </div>

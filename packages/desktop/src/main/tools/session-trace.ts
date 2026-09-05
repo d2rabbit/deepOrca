@@ -26,6 +26,11 @@ export interface TraceStep {
   fail?: boolean;
   ms?: string;
   mcp?: string;
+  /** Truncated result markdown (meta.resultMd, ≤2000 chars) — used by the
+   *  trajectory detail panel for the 结果 section (specs/depth-lane 追加). */
+  resultMd?: string;
+  /** Start time (assistant message createTime) for the 开始时间 field. */
+  at?: string;
   /** Subagent steps carry their own nested steps. */
   nested?: TraceStep[];
 }
@@ -187,7 +192,7 @@ export function normalizeSessionTrace(sessionId: string, title: string, messages
         const call = readCall(raw);
         if (!call) continue;
         const { cls, ic } = classifyTool(call.name);
-        const step: TraceStep = { cls, ic, tool: call.name, arg: call.arg };
+        const step: TraceStep = { cls, ic, tool: call.name, arg: call.arg, at: msg.createTime };
         if (call.name.startsWith("mcp__")) {
           const parts = call.name.split("__");
           step.mcp = parts[1] || "mcp";
@@ -221,6 +226,9 @@ export function normalizeSessionTrace(sessionId: string, title: string, messages
         const v = verdictOf(msg.content);
         target.ok = v.ok;
         target.fail = v.fail;
+        // Carry the truncated result markdown for the detail panel (P0.3).
+        const rm = msg.meta?.resultMd;
+        if (typeof rm === "string" && rm) target.resultMd = rm;
         if (hit) {
           const dt = new Date(msg.createTime).getTime() - hit.at;
           if (Number.isFinite(dt) && dt >= 0)

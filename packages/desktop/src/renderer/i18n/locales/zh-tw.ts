@@ -1068,6 +1068,8 @@ export const zhTW: Record<MessageKey, string> = {
   "taskrec.statFiles": "觸碰檔案",
   "taskrec.detailClose": "關閉",
 
+  "taskrec.detailDuration": "執行時長",
+
   "taskrec.detailArgs": "參數",
 
   "taskrec.detailSummary": "摘要",

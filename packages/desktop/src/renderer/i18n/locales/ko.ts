@@ -1089,6 +1089,8 @@ export const ko: Record<MessageKey, string> = {
   "taskrec.statFiles": "변경된 파일",
   "taskrec.detailClose": "닫기",
 
+  "taskrec.detailDuration": "실행 시간",
+
   "taskrec.detailArgs": "인수",
 
   "taskrec.detailSummary": "요약",

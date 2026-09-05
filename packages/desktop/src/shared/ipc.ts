@@ -415,6 +415,10 @@ export type TaskTraceStep = {
   fail?: boolean;
   ms?: string;
   mcp?: string;
+  /** Truncated result markdown for the detail panel. */
+  resultMd?: string;
+  /** Assistant call start time (ISO). */
+  at?: string;
   nested?: TaskTraceStep[];
 };
 
