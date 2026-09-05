@@ -216,6 +216,22 @@ export function IconUndo(): JSX.Element {
   );
 }
 
+/** Redo arrow — mirror of undo */
+export function IconRedo(): JSX.Element {
+  return (
+    <svg {...S}>
+      <path
+        d="M16 8H7a4 4 0 0 0 0 8h4"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path d="M13 5l3 3-3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 /** Tuning sliders — settings (three rails with knobs; deliberately not a
     radial gear — that reads as a second sun next to the appearance toggle) */
 export function IconSettings(): JSX.Element {

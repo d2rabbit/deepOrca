@@ -37,6 +37,7 @@ export {
   IconSun,
   IconUndo,
   IconSettings,
+  IconRedo,
 } from "./rail";
 
 // Welcome-screen quick-start chips.

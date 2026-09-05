@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState, type ComponentType, type JSX 
 import type { editor } from "monaco-editor";
 import { api } from "../../api";
 import { useI18n } from "../../i18n";
-import { Button, FileIcon, IconButton } from "../../ui/index";
+import { FileIcon, IconButton } from "../../ui/index";
+import { IconUndo, IconRedo } from "../../ui/icons";
 import type { EditorWorkspaceStore } from "../../hooks/use-editor-workspace";
 import { ensureMonacoLoaded, languageForFile } from "./monaco-loader";
 import { EditorTabBar } from "./EditorTabBar";
@@ -44,6 +45,8 @@ export function EditorWorkspace({
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [undoStack, setUndoStack] = useState(0);
+  const [redoStack, setRedoStack] = useState(0);
   const [selection, setSelection] = useState<Selection | null>(null);
 
   // Monaco dynamic load — defers ~5MB of code until the editor is opened.
@@ -132,12 +135,46 @@ export function EditorWorkspace({
     return () => window.removeEventListener("keydown", onKey);
   }, [handleSave, activeFile, onRequestCloseFile]);
 
+  // Undo/redo stack depth tracking (for the icon bar's disabled state).
+  useEffect(() => {
+    const ed = editorRef.current;
+    if (!ed || !monacoReady) return;
+    const update = (): void => {
+      setUndoStack(ed.getModel()?.getAlternativeVersionId() ?? 0);
+    };
+    const d1 = ed.onDidChangeModelContent(update);
+    return () => d1.dispose();
+  }, [monacoReady, activeFile]);
+
+  // Auto-save (user ask 2026-09-05): debounce 800ms after the last edit.
+  // The explicit save button is gone — undo/redo icons replace it in the
+  // header. ⌘S still force-flushes immediately for muscle memory.
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dirtyRef = useRef(dirty);
+  dirtyRef.current = dirty;
+  useEffect(() => {
+    if (!dirty) return;
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    autoSaveTimerRef.current = setTimeout(() => void handleSave(), 800);
+    return () => {
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft, activeFile]);
+
   const handleChange = useCallback(
     (value: string | undefined) => {
       if (activeFile) onContentChange(activeFile, value ?? "");
     },
     [activeFile, onContentChange]
   );
+
+  const handleUndo = useCallback((): void => {
+    editorRef.current?.trigger("keyboard", "undo", null);
+  }, []);
+  const handleRedo = useCallback((): void => {
+    editorRef.current?.trigger("keyboard", "redo", null);
+  }, []);
 
   return (
     <div className="ui-editor-workspace">
@@ -155,9 +192,23 @@ export function EditorWorkspace({
           {dirty ? <span className="ui-editor-dirty-badge">{t("editor.dirty")}</span> : null}
         </span>
         <div className="ui-editor-overlay-actions">
-          <Button size="sm" variant="primary" disabled={!dirty || saving} onClick={() => void handleSave()}>
-            {saving ? t("editor.saving") : t("editor.save")}
-          </Button>
+          <IconButton
+            onClick={handleUndo}
+            disabled={undoStack <= 1}
+            aria-label={t("editor.undo")}
+            title={t("editor.undo")}
+          >
+            <IconUndo />
+          </IconButton>
+          <IconButton
+            onClick={handleRedo}
+            disabled={redoStack === 0}
+            aria-label={t("editor.redo")}
+            title={t("editor.redo")}
+          >
+            <IconRedo />
+          </IconButton>
+          {saving ? <span className="ui-editor-autosave-hint">{t("editor.autoSaving")}</span> : null}
           {activeFile ? (
             <IconButton
               onClick={() => onRequestCloseFile(activeFile)}

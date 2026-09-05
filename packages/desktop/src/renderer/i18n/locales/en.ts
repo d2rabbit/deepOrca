@@ -1363,6 +1363,12 @@ export const en = {
   "editor.empty": "Select a file to edit.",
   "editor.loading": "Loading file…",
   "editor.binary": "Binary file — cannot edit.",
+  "editor.undo": "Undo",
+
+  "editor.redo": "Redo",
+
+  "editor.autoSaving": "Saving…",
+
   "editor.save": "Save",
   "editor.saved": "Saved",
   "editor.saving": "Saving…",

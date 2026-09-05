@@ -1322,6 +1322,12 @@ export const zh: Record<MessageKey, string> = {
   "editor.empty": "选择一个文件进行编辑。",
   "editor.loading": "加载文件中…",
   "editor.binary": "二进制文件 — 无法编辑。",
+  "editor.undo": "撤销",
+
+  "editor.redo": "重做",
+
+  "editor.autoSaving": "保存中…",
+
   "editor.save": "保存",
   "editor.saved": "已保存",
   "editor.saving": "保存中…",

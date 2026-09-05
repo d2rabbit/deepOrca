@@ -2303,3 +2303,11 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* Auto-save indicator + undo/redo icon bar (user ask 2026-09-05) */
+.ui-editor-autosave-hint {
+  font-size: 10px;
+  color: var(--ui-text-dim, #888);
+  margin-left: 4px;
+  white-space: nowrap;
+}
