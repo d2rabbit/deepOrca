@@ -1328,6 +1328,10 @@ export const zh: Record<MessageKey, string> = {
 
   "editor.autoSaving": "保存中…",
 
+  "editor.agentTrigger": "问智能体",
+
+  "editor.agentTriggerLabel": "智能体",
+
   "editor.save": "保存",
   "editor.saved": "已保存",
   "editor.saving": "保存中…",

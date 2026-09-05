@@ -1384,6 +1384,10 @@ export const ja: Record<MessageKey, string> = {
 
   "editor.autoSaving": "保存中…",
 
+  "editor.agentTrigger": "エージェントに聞く",
+
+  "editor.agentTriggerLabel": "エージェント",
+
   "editor.save": "保存",
   "editor.saved": "保存しました",
   "editor.saving": "保存中…",

@@ -1375,6 +1375,10 @@ export const ko: Record<MessageKey, string> = {
 
   "editor.autoSaving": "저장 중…",
 
+  "editor.agentTrigger": "에이전트에게 질문",
+
+  "editor.agentTriggerLabel": "에이전트",
+
   "editor.save": "저장",
   "editor.saved": "저장됨",
   "editor.saving": "저장 중…",

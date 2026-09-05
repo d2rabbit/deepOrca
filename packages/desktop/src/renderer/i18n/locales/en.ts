@@ -1369,6 +1369,10 @@ export const en = {
 
   "editor.autoSaving": "Saving…",
 
+  "editor.agentTrigger": "Ask agent",
+
+  "editor.agentTriggerLabel": "Agent",
+
   "editor.save": "Save",
   "editor.saved": "Saved",
   "editor.saving": "Saving…",

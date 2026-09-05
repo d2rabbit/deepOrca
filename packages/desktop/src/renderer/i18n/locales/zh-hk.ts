@@ -1344,6 +1344,10 @@ export const zhHK: Record<MessageKey, string> = {
 
   "editor.autoSaving": "儲存中…",
 
+  "editor.agentTrigger": "問智能體",
+
+  "editor.agentTriggerLabel": "智能體",
+
   "editor.save": "儲存",
   "editor.saved": "已儲存",
   "editor.saving": "儲存中…",

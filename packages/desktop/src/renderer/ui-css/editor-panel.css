@@ -2311,3 +2311,27 @@
   margin-left: 4px;
   white-space: nowrap;
 }
+
+/* Compact agent trigger button — visible when no selection (agent is
+   discoverable without needing to select text first). */
+.ui-editor-agent-trigger {
+  position: absolute;
+  bottom: 40px;
+  right: 16px;
+  z-index: 20;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: var(--ui-radius-pill, 999px);
+  border: 1px solid color-mix(in srgb, #4dd8c0 40%, transparent);
+  background: color-mix(in srgb, #4dd8c0 10%, var(--ui-bg, #1e1e22));
+  color: #4dd8c0;
+  cursor: pointer;
+  opacity: 0.75;
+  transition: opacity 0.15s;
+}
+.ui-editor-agent-trigger:hover {
+  opacity: 1;
+}

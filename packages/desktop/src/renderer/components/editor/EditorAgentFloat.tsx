@@ -6,6 +6,7 @@ import { useI18n } from "../../i18n";
 import { A2uiSurface } from "../../a2ui/A2uiSurface";
 import { extractSurfaceId, getSurfaceModel } from "../../a2ui/processor";
 import { languageForFile } from "./monaco-loader";
+import { IconSparkle } from "../../ui/icons";
 import { computeFloatPlacement, type FloatPlacement } from "../../lib/selection-anchor";
 
 /** 浮窗尺寸（估）：边缘翻转与 clamp 用——与图上浮窗的固定常数同风格。 */
@@ -357,7 +358,23 @@ export function EditorAgentFloat({ filePath, selection, editorRef, onAskAgent }:
     };
   }, [editorRef, recompute]);
 
-  if (!selection && !thread.open && !thread.busy && !thread.result) return null;
+  // No selection + no active thread → compact trigger button (bottom-right
+  // corner of the editor area) so the agent is discoverable without needing
+  // to select text first. The full anchored float only appears with a
+  // selection (or when a thread is already open/busy/result).
+  if (!selection && !thread.open && !thread.busy && !thread.result) {
+    return (
+      <button
+        type="button"
+        className="ui-editor-agent-trigger"
+        onClick={() => patchThread(filePath, { open: true })}
+        title={t("editor.agentTrigger")}
+      >
+        <IconSparkle />
+        <span>{t("editor.agentTriggerLabel")}</span>
+      </button>
+    );
+  }
 
   const submitToChat = (): void => {
     const instruction = thread.input.trim();
