@@ -1068,6 +1068,8 @@ export const zhHK: Record<MessageKey, string> = {
   "taskrec.statFiles": "觸碰檔案",
   "taskrec.detailClose": "關閉",
 
+  "taskrec.detailArgs": "參數",
+
   "taskrec.detailSummary": "摘要",
 
   "taskrec.detailFiles": "涉及檔案",

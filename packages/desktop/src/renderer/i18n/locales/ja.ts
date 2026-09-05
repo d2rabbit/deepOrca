@@ -1096,6 +1096,8 @@ export const ja: Record<MessageKey, string> = {
   "taskrec.statFiles": "触れたファイル",
   "taskrec.detailClose": "閉じる",
 
+  "taskrec.detailArgs": "引数",
+
   "taskrec.detailSummary": "概要",
 
   "taskrec.detailFiles": "対象ファイル",

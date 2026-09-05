@@ -1088,6 +1088,8 @@ export const en = {
   "taskrec.statFiles": "files touched",
   "taskrec.detailClose": "close",
 
+  "taskrec.detailArgs": "Arguments",
+
   "taskrec.detailSummary": "Summary",
 
   "taskrec.detailFiles": "Files touched",

@@ -48,6 +48,12 @@ export type TaskHubQuickView =
   | { kind: "report"; root: string; reportId: string; title: string }
   | { kind: "timeline"; root: string; treeId: string; title: string }
   | {
+      kind: "step-detail";
+      root: string;
+      title: string;
+      step: { tool: string; arg: string; ok?: boolean; fail?: boolean; ms?: string; mcp?: string; cls: string };
+    }
+  | {
       kind: "build";
       root: string;
       jobId: string;
@@ -800,7 +806,26 @@ export function TaskHubWorkspace({
                                       </div>
                                       <div className="steps">
                                         {turn.steps.map((st, j) => (
-                                          <TraceStepRow key={j} step={st as TaskTraceStep} />
+                                          <TraceStepRow
+                                            key={j}
+                                            step={st as TaskTraceStep}
+                                            onSelect={(step) => {
+                                              onOpenQuick({
+                                                kind: "step-detail",
+                                                root,
+                                                title: step.tool + (step.arg ? ` · ${step.arg.slice(0, 60)}` : ""),
+                                                step: {
+                                                  tool: step.tool,
+                                                  arg: step.arg,
+                                                  ok: step.ok,
+                                                  fail: step.fail,
+                                                  ms: step.ms,
+                                                  mcp: step.mcp,
+                                                  cls: step.cls,
+                                                },
+                                              });
+                                            }}
+                                          />
                                         ))}
                                       </div>
                                     </div>
@@ -839,11 +864,25 @@ const TRACE_ICONS: Record<string, JSX.Element> = {
   "t-assistant": <IconChatBubble />,
 };
 
-function TraceStepRow({ step }: { step: TaskTraceStep }): JSX.Element {
+function TraceStepRow({
+  step,
+  onSelect,
+}: {
+  step: TaskTraceStep;
+  onSelect?: (step: TaskTraceStep) => void;
+}): JSX.Element {
   const mcp = step.mcp ? <span className="mcp-badge">MCP · {step.mcp}</span> : null;
   return (
     <>
-      <div className="step">
+      <div
+        className="step clickable"
+        onClick={() => onSelect?.(step)}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && onSelect) onSelect(step);
+        }}
+      >
         <span className={`ic ${step.cls}`}>{TRACE_ICONS[step.cls] ?? <IconToolGeneric />}</span>
         <div className="body">
           <div className="l1">
@@ -862,7 +901,7 @@ function TraceStepRow({ step }: { step: TaskTraceStep }): JSX.Element {
           </div>
           <div className="steps">
             {step.nested.map((n, i) => (
-              <TraceStepRow key={i} step={n} />
+              <TraceStepRow key={i} step={n} onSelect={onSelect} />
             ))}
           </div>
         </div>

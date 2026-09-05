@@ -1057,6 +1057,8 @@ export const zh: Record<MessageKey, string> = {
   "taskrec.statFiles": "触碰文件",
   "taskrec.detailClose": "关闭",
 
+  "taskrec.detailArgs": "参数",
+
   "taskrec.detailSummary": "摘要",
 
   "taskrec.detailFiles": "涉及文件",

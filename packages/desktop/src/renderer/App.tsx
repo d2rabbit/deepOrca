@@ -2566,6 +2566,21 @@ export function App(): JSX.Element {
           <TaskQuickSheet title={taskQuick.title} onClose={handleCloseTaskQuick}>
             {taskQuick.kind === "report" ? (
               <ReportQuickContent root={taskQuick.root} reportId={taskQuick.reportId} />
+            ) : taskQuick.kind === "step-detail" ? (
+              <div className="ui-taskrec-op-detail">
+                <div className="ui-taskrec-op-detail-head">
+                  <span className={`ui-taskrec-op-tool${taskQuick.step.fail ? " fail" : " ok"}`}>
+                    {taskQuick.step.tool}
+                  </span>
+                  {taskQuick.step.ms ? <span className="ui-taskrec-op-time">{taskQuick.step.ms}</span> : null}
+                </div>
+                {taskQuick.step.arg ? (
+                  <div className="ui-taskrec-op-detail-body">
+                    <div className="ui-taskrec-op-detail-label">{t("taskrec.detailArgs")}</div>
+                    <pre>{taskQuick.step.arg}</pre>
+                  </div>
+                ) : null}
+              </div>
             ) : taskQuick.kind === "timeline" ? (
               <TaskRecordPanel treeId={taskQuick.treeId} workspaceRoot={taskQuick.root} />
             ) : (
