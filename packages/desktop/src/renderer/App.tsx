@@ -50,6 +50,7 @@ import { PluginMcpPanel } from "./components/PluginMcpPanel";
 import { PluginDetail, type PluginSelection } from "./components/PluginDetail";
 import { ContextProgress } from "./components/ContextProgress";
 import { TokenStatsPanel } from "./components/TokenStatsPanel";
+import { TokenHeatmapModal } from "./components/TokenHeatmapModal";
 import { IndexLibraryPanel } from "./components/IndexLibraryPanel";
 import { BuildQuickContent, ReportQuickContent, TaskQuickSheet } from "./components/TaskQuickSheet";
 import { InstructionToc } from "./components/InstructionToc";
@@ -331,6 +332,8 @@ export function App(): JSX.Element {
   // ONE right slot shared with the design preview: opening either closes the
   // other. Content is read-only; full workbenches stay in the main area.
   const [taskQuick, setTaskQuick] = useState<TaskHubQuickView | null>(null);
+  /** Global heatmap modal (specs/token-model-charts) — hosted at shell level. */
+  const [heatMapOpen, setHeatMapOpen] = useState(false);
   const handleCloseTaskQuick = useCallback(() => setTaskQuick(null), []);
   useEffect(() => {
     if (previewOpen) setTaskQuick(null);
@@ -2171,6 +2174,7 @@ export function App(): JSX.Element {
           ) : sidebarView === "tokens" ? (
             <TokenStatsPanel
               root={projectRoot}
+              onOpenHeatmap={() => setHeatMapOpen(true)}
               // Count alone freezes while the ACTIVE session grows — folding
               // usage totals into the key makes the panel refetch as the
               // numbers it displays actually move.
@@ -2743,6 +2747,8 @@ export function App(): JSX.Element {
         onClose={() => setPaletteOpen(false)}
       />
 
+      {/* Global heatmap modal (specs/token-model-charts) — shell level overlay. */}
+      {heatMapOpen ? <TokenHeatmapModal root={projectRoot} onClose={() => setHeatMapOpen(false)} /> : null}
       <ToastContainer toasts={toasts} onDismiss={dismissToast} onPause={pauseToast} onResume={resumeToast} />
     </div>
   );
