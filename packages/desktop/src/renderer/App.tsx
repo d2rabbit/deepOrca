@@ -2425,6 +2425,15 @@ export function App(): JSX.Element {
                 <TaskRecordPanel
                   treeId={activeTab.treeId}
                   workspaceRoot={taskTabs.find((tab) => tab.treeId === activeTab.treeId)?.root ?? undefined}
+                  onOpenDetail={(op) => {
+                    closePreview();
+                    setTaskQuick({
+                      kind: "timeline",
+                      root: taskTabs.find((tab) => tab.treeId === activeTab.treeId)?.root ?? projectRoot,
+                      treeId: activeTab.treeId,
+                      title: `${op.tool} · ${op.at.slice(11, 19)}`,
+                    });
+                  }}
                 />
               </Suspense>
             </m.div>

@@ -47,6 +47,7 @@ export function EditorWorkspace({
   const [saveError, setSaveError] = useState<string | null>(null);
   const [undoStack, setUndoStack] = useState(0);
   const [redoStack, setRedoStack] = useState(0);
+  const [agentOpen, setAgentOpen] = useState(false);
   const [selection, setSelection] = useState<Selection | null>(null);
 
   // Monaco dynamic load — defers ~5MB of code until the editor is opened.
@@ -193,6 +194,14 @@ export function EditorWorkspace({
         </span>
         <div className="ui-editor-overlay-actions">
           <IconButton
+            onClick={() => setAgentOpen((v) => !v)}
+            aria-label={t("editor.agentToggle")}
+            title={t("editor.agentToggle")}
+            className={agentOpen ? "ui-editor-agent-active" : ""}
+          >
+            ✦
+          </IconButton>
+          <IconButton
             onClick={handleUndo}
             disabled={undoStack <= 1}
             aria-label={t("editor.undo")}
@@ -278,7 +287,14 @@ export function EditorWorkspace({
       {saveError ? <div className="ui-error ui-editor-save-error">{saveError}</div> : null}
       <EditorDiagnosticsDrawer filePath={activeFile} editorRef={editorRef} />
       {activeFile && state?.loaded ? (
-        <EditorAgentFloat filePath={activeFile} selection={selection} editorRef={editorRef} onAskAgent={onAskAgent} />
+        <EditorAgentFloat
+          filePath={activeFile}
+          selection={selection}
+          editorRef={editorRef}
+          onAskAgent={onAskAgent}
+          agentOpen={agentOpen}
+          onClose={() => setAgentOpen(false)}
+        />
       ) : null}
     </div>
   );

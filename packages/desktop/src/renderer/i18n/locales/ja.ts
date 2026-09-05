@@ -1384,6 +1384,8 @@ export const ja: Record<MessageKey, string> = {
   "editor.empty": "編集するファイルを選択してください。",
   "editor.loading": "ファイルを読み込み中…",
   "editor.binary": "バイナリファイル — 編集できません。",
+  "editor.agentToggle": "エージェント",
+
   "editor.undo": "元に戻す",
 
   "editor.redo": "やり直す",

@@ -1344,6 +1344,8 @@ export const zhHK: Record<MessageKey, string> = {
   "editor.empty": "選擇要編輯的檔案。",
   "editor.loading": "載入檔案中…",
   "editor.binary": "二進位檔案 — 無法編輯。",
+  "editor.agentToggle": "智能體",
+
   "editor.undo": "復原",
 
   "editor.redo": "重做",

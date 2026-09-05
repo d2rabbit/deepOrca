@@ -52,6 +52,9 @@ type Props = {
   editorRef: RefObject<editor.IStandaloneCodeEditor | null>;
   /** 「到会话」旁路：选区指令注入主会话流式执行（交互保持不变）。 */
   onAskAgent?: (prompt: string) => void;
+  /** Header ✦ button toggle — true = float open even without selection. */
+  agentOpen: boolean;
+  onClose: () => void;
 };
 
 /**
@@ -61,7 +64,14 @@ type Props = {
  * （⌘S 才写盘）；含 ```a2ui 围栏时渲染 A2UI 反问 Surface，submit 读回
  * data model 作 follow-up 续跑。
  */
-export function EditorAgentFloat({ filePath, selection, editorRef, onAskAgent }: Props): JSX.Element | null {
+export function EditorAgentFloat({
+  filePath,
+  selection,
+  editorRef,
+  onAskAgent,
+  agentOpen,
+  onClose,
+}: Props): JSX.Element | null {
   const { t } = useI18n();
   const [threads, setThreads] = useState<Map<string, AgentThread>>(() => new Map());
   const thread = threads.get(filePath) ?? EMPTY_THREAD;
@@ -358,32 +368,22 @@ export function EditorAgentFloat({ filePath, selection, editorRef, onAskAgent }:
     };
   }, [editorRef, recompute]);
 
-  // No selection + no active thread → compact trigger button (bottom-right
-  // corner of the editor area) so the agent is discoverable without needing
-  // to select text first. The full anchored float only appears with a
-  // selection (or when a thread is already open/busy/result).
-  if (!selection && !thread.open && !thread.busy && !thread.result) {
-    return (
-      <button
-        type="button"
-        className="ui-editor-agent-trigger"
-        onClick={() => patchThread(filePath, { open: true })}
-        title={t("editor.agentTrigger")}
-      >
-        <IconSparkle />
-        <span>{t("editor.agentTriggerLabel")}</span>
-      </button>
-    );
-  }
+  // Visible when: selection exists (auto-open), header toggle is on, or
+  // a thread is active. Hidden when explicitly closed and none of the above.
+  if (!agentOpen && !selection && !thread.open && !thread.busy && !thread.result) return null;
 
   const submitToChat = (): void => {
     const instruction = thread.input.trim();
-    if (!instruction || !selection || !onAskAgent) return;
-    onAskAgent(
-      `【编辑器选区指令】${filePath} L${selection.startLine}${
-        selection.endLine !== selection.startLine ? `-L${selection.endLine}` : ""
-      }\n\`\`\`\n${selection.text.slice(0, 4000)}\n\`\`\`\n${instruction}`
-    );
+    if (!instruction || !onAskAgent) return;
+    if (selection) {
+      onAskAgent(
+        `【编辑器选区指令】${filePath} L${selection.startLine}${
+          selection.endLine !== selection.startLine ? `-L${selection.endLine}` : ""
+        }\n\`\`\`\n${selection.text.slice(0, 4000)}\n\`\`\`\n${instruction}`
+      );
+    } else {
+      onAskAgent(`【编辑器指令】${filePath}\n${instruction}`);
+    }
     patchThread(filePath, { open: false });
   };
 

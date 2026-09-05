@@ -1369,6 +1369,8 @@ export const en = {
   "editor.empty": "Select a file to edit.",
   "editor.loading": "Loading file…",
   "editor.binary": "Binary file — cannot edit.",
+  "editor.agentToggle": "Agent",
+
   "editor.undo": "Undo",
 
   "editor.redo": "Redo",

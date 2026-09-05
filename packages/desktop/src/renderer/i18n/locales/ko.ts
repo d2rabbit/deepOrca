@@ -1375,6 +1375,8 @@ export const ko: Record<MessageKey, string> = {
   "editor.empty": "편집할 파일을 선택하세요.",
   "editor.loading": "파일 로드 중…",
   "editor.binary": "바이너리 파일 — 편집할 수 없습니다.",
+  "editor.agentToggle": "에이전트",
+
   "editor.undo": "실행 취소",
 
   "editor.redo": "다시 실행",
