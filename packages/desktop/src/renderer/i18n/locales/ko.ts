@@ -353,6 +353,10 @@ export const ko: Record<MessageKey, string> = {
   "builtin-plugin.design.desc": "DeepDesign + PM-Designer + taste 디자인 원칙.",
   "builtin-plugin.browser.name": "브라우저 및 웹 액세스",
   "builtin-plugin.browser.desc": "Chrome 제어 + 웹 검색 + 액세스 전략.",
+  "builtin-plugin.agents.name": "디지털 엔티티",
+
+  "builtin-plugin.agents.desc": "에디터 에이전트 및 전용 실행체 (DeepOrca 번들).",
+
   "builtin-plugin.other.name": "기타",
   "builtin-plugin.other.desc": "플러그인 그룹에 할당되지 않은 내장 항목.",
   "builtin-plugin.vision.name": "비전",

@@ -355,6 +355,10 @@ export const ja: Record<MessageKey, string> = {
   "builtin-plugin.design.desc": "DeepDesign + PM-Designer + taste デザイン原則。",
   "builtin-plugin.browser.name": "ブラウザとネットアクセス",
   "builtin-plugin.browser.desc": "Chrome 操作 + Web 検索 + アクセス戦略。",
+  "builtin-plugin.agents.name": "デジタルエンティティ",
+
+  "builtin-plugin.agents.desc": "エディタエージェントと専用実行体（DeepOrca に同梱）。",
+
   "builtin-plugin.other.name": "その他",
   "builtin-plugin.other.desc": "プラグインタグループに割り当てられていない組み込み項目。",
   "builtin-plugin.vision.name": "ビジョン",

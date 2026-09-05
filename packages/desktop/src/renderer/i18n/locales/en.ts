@@ -355,6 +355,10 @@ export const en = {
   "builtin-plugin.memory.desc": "Cross-session long-term memory (TencentDB) + behavioral memory (activity-frames).",
   "builtin-plugin.work.name": "Work",
   "builtin-plugin.work.desc": "Single-file HTML slides generation (Bento).",
+  "builtin-plugin.agents.name": "Digital Entities",
+
+  "builtin-plugin.agents.desc": "Editor agent and specialized executors (bundled with DeepOrca).",
+
   "builtin-plugin.other.name": "Other",
   "builtin-plugin.other.desc": "Built-in items not assigned to a plugin package.",
   "builtin-plugin.vision.name": "Vision",
