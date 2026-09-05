@@ -1090,6 +1090,12 @@ export const ja: Record<MessageKey, string> = {
   "taskrec.statOps": "操作",
   "taskrec.statSessions": "セッション",
   "taskrec.statFiles": "触れたファイル",
+  "taskrec.detailClose": "閉じる",
+
+  "taskrec.detailSummary": "概要",
+
+  "taskrec.detailFiles": "対象ファイル",
+
   "taskrec.noOps": "このタスクに紐づくセッションにはまだ操作記録がありません",
   "taskrec.noTrajectory": "履歴データはありません",
   "taskrec.reflog": "タスク操作ログ(reflog)",

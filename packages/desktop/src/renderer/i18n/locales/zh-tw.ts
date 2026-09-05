@@ -1062,6 +1062,12 @@ export const zhTW: Record<MessageKey, string> = {
   "taskrec.statOps": "操作",
   "taskrec.statSessions": "會話",
   "taskrec.statFiles": "觸碰檔案",
+  "taskrec.detailClose": "關閉",
+
+  "taskrec.detailSummary": "摘要",
+
+  "taskrec.detailFiles": "涉及檔案",
+
   "taskrec.noOps": "該任務綁定的會話暫無操作記錄",
   "taskrec.noTrajectory": "暫無軌跡資料",
   "taskrec.reflog": "任務操作日誌(reflog)",

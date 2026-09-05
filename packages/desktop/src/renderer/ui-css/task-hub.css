@@ -946,3 +946,87 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* ── Task trajectory detail pane (specs/depth-lane 追加, user ask 2026-09-05)
+   Click a trajectory op row → right pane shows the full operation detail. ── */
+.ui-taskrec-traj-split {
+  display: flex;
+  gap: 0;
+  min-height: 0;
+}
+.ui-taskrec-traj-split.has-detail {
+  border: 1px solid color-mix(in srgb, var(--ui-accent) 20%, transparent);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.ui-taskrec-traj-split .ui-taskrec-ops-timeline {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  max-height: 420px;
+}
+.ui-taskrec-traj-split.has-detail .ui-taskrec-ops-timeline {
+  border-right: 1px solid color-mix(in srgb, var(--ui-border-soft, #444) 60%, transparent);
+}
+.ui-taskrec-op.clickable {
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.ui-taskrec-op.clickable:hover {
+  background: color-mix(in srgb, var(--ui-accent) 8%, transparent);
+}
+.ui-taskrec-op.selected {
+  background: color-mix(in srgb, var(--ui-accent) 14%, transparent);
+}
+.ui-taskrec-op-detail {
+  width: 260px;
+  min-width: 200px;
+  padding: 10px 12px;
+  overflow-y: auto;
+  max-height: 420px;
+  background: color-mix(in srgb, var(--ui-bg, #1a1a1e) 60%, transparent);
+}
+.ui-taskrec-op-detail-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.ui-taskrec-op-detail-label {
+  font-size: 10px;
+  color: var(--ui-text-dim, #888);
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.ui-taskrec-op-detail-body {
+  margin-bottom: 10px;
+}
+.ui-taskrec-op-detail-body pre {
+  font-family: var(--ui-font-mono);
+  font-size: 11px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  margin: 0;
+  padding: 6px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--ui-border-soft, #333) 30%, transparent);
+}
+.ui-taskrec-op-detail-file {
+  font-family: var(--ui-font-mono);
+  font-size: 11px;
+  padding: 2px 0;
+  color: var(--ui-text-dim, #999);
+}
+.ui-taskrec-detail-close {
+  float: right;
+  font-size: 10px;
+  background: none;
+  border: none;
+  color: var(--ui-text-dim, #888);
+  cursor: pointer;
+  padding: 0;
+}
+.ui-taskrec-detail-close:hover {
+  color: var(--ui-accent);
+}

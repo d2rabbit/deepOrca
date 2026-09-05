@@ -1083,6 +1083,12 @@ export const ko: Record<MessageKey, string> = {
   "taskrec.statOps": "작업",
   "taskrec.statSessions": "세션",
   "taskrec.statFiles": "변경된 파일",
+  "taskrec.detailClose": "닫기",
+
+  "taskrec.detailSummary": "요약",
+
+  "taskrec.detailFiles": "관련 파일",
+
   "taskrec.noOps": "이 작업에 연결된 세션에 아직 작업 기록이 없습니다",
   "taskrec.noTrajectory": "궤적 데이터가 없습니다",
   "taskrec.reflog": "작업 작업 로그(reflog)",

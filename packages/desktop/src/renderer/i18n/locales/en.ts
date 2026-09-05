@@ -1082,6 +1082,12 @@ export const en = {
   "taskrec.statOps": "operations",
   "taskrec.statSessions": "sessions",
   "taskrec.statFiles": "files touched",
+  "taskrec.detailClose": "close",
+
+  "taskrec.detailSummary": "Summary",
+
+  "taskrec.detailFiles": "Files touched",
+
   "taskrec.noOps": "No operations recorded for this task's sessions yet.",
   "taskrec.noTrajectory": "No trajectory data.",
   "taskrec.reflog": "Task reflog",

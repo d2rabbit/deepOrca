@@ -136,6 +136,8 @@ export function TaskRecordPanel({ treeId, workspaceRoot }: Props): JSX.Element {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [section, setSection] = useState<"record" | "trajectory">("record");
+  /** Index into trajectory.operations — non-null = right detail pane is open. */
+  const [selectedOp, setSelectedOp] = useState<number | null>(null);
   const [forkWhy, setForkWhy] = useState("");
   // In-flight guard: without it a double-click fired the merge/switch twice.
   const [acting, setActing] = useState<string | null>(null);
@@ -166,6 +168,7 @@ export function TaskRecordPanel({ treeId, workspaceRoot }: Props): JSX.Element {
       setDetail(tree);
       setReflog(rl);
       setTrajectory(tj);
+      setSelectedOp(null);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -476,17 +479,57 @@ export function TaskRecordPanel({ treeId, workspaceRoot }: Props): JSX.Element {
               ) : null}
 
               <div className="ui-taskrec-section">
-                <div className="ui-taskrec-section-label">{t("taskrec.section.trajectory")}</div>
-                <div className="ui-taskrec-ops-timeline">
-                  {trajectory.operations.map((op, i) => (
-                    <div key={i} className="ui-taskrec-op">
-                      <span className="ui-taskrec-op-time">{formatTime(op.at)}</span>
-                      <span className={`ui-taskrec-op-tool${op.ok ? "" : " fail"}`}>{op.tool}</span>
-                      {op.summary ? <span className="ui-taskrec-op-summary">{op.summary}</span> : null}
+                <div className="ui-taskrec-section-label">
+                  {t("taskrec.section.trajectory")}
+                  {selectedOp !== null ? (
+                    <button type="button" className="ui-taskrec-detail-close" onClick={() => setSelectedOp(null)}>
+                      ✕ {t("taskrec.detailClose")}
+                    </button>
+                  ) : null}
+                </div>
+                <div className={`ui-taskrec-traj-split${selectedOp !== null ? " has-detail" : ""}`}>
+                  <div className="ui-taskrec-ops-timeline">
+                    {trajectory.operations.map((op, i) => (
+                      <div
+                        key={i}
+                        className={`ui-taskrec-op clickable${selectedOp === i ? " selected" : ""}`}
+                        onClick={() => setSelectedOp(selectedOp === i ? null : i)}
+                      >
+                        <span className="ui-taskrec-op-time">{formatTime(op.at)}</span>
+                        <span className={`ui-taskrec-op-tool${op.ok ? "" : " fail"}`}>{op.tool}</span>
+                        {op.summary ? <span className="ui-taskrec-op-summary">{op.summary}</span> : null}
+                      </div>
+                    ))}
+                    {trajectory.operations.length === 0 ? (
+                      <div className="ui-side-panel-empty">{t("taskrec.noOps")}</div>
+                    ) : null}
+                  </div>
+                  {selectedOp !== null && trajectory.operations[selectedOp] ? (
+                    <div className="ui-taskrec-op-detail">
+                      <div className="ui-taskrec-op-detail-head">
+                        <span className={`ui-taskrec-op-tool${trajectory.operations[selectedOp]!.ok ? "" : " fail"}`}>
+                          {trajectory.operations[selectedOp]!.tool}
+                        </span>
+                        <span className="ui-taskrec-op-time">{formatTime(trajectory.operations[selectedOp]!.at)}</span>
+                      </div>
+                      {trajectory.operations[selectedOp]!.summary ? (
+                        <div className="ui-taskrec-op-detail-body">
+                          <div className="ui-taskrec-op-detail-label">{t("taskrec.detailSummary")}</div>
+                          <pre>{trajectory.operations[selectedOp]!.summary}</pre>
+                        </div>
+                      ) : null}
+                      {trajectory.operations[selectedOp]!.files &&
+                      trajectory.operations[selectedOp]!.files!.length > 0 ? (
+                        <div className="ui-taskrec-op-detail-body">
+                          <div className="ui-taskrec-op-detail-label">{t("taskrec.detailFiles")}</div>
+                          {trajectory.operations[selectedOp]!.files!.map((f, fi) => (
+                            <div key={fi} className="ui-taskrec-op-detail-file">
+                              {f}
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
                     </div>
-                  ))}
-                  {trajectory.operations.length === 0 ? (
-                    <div className="ui-side-panel-empty">{t("taskrec.noOps")}</div>
                   ) : null}
                 </div>
               </div>

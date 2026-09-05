@@ -1051,6 +1051,12 @@ export const zh: Record<MessageKey, string> = {
   "taskrec.statOps": "操作",
   "taskrec.statSessions": "会话",
   "taskrec.statFiles": "触碰文件",
+  "taskrec.detailClose": "关闭",
+
+  "taskrec.detailSummary": "摘要",
+
+  "taskrec.detailFiles": "涉及文件",
+
   "taskrec.noOps": "该任务绑定的会话暂无操作记录",
   "taskrec.noTrajectory": "暂无轨迹数据",
   "taskrec.reflog": "任务操作日志(reflog)",
