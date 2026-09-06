@@ -8,6 +8,8 @@ import {
 import {
   DEFAULT_LSP_DIAGNOSTICS_SETTINGS,
   resolveLspDiagnosticsSettings,
+  resolveSettings,
+  resolveSettingsSources,
   type LspDiagnosticsSettings,
 } from "../settings";
 
@@ -47,4 +49,37 @@ test("lsp-bridge settings: partial node merges onto defaults; garbage falls back
   assert.equal(merged.idleTimeoutMs, DEFAULT_LSP_DIAGNOSTICS_SETTINGS.idleTimeoutMs);
   assert.equal(merged.trigger, "manual");
   assert.equal(merged.perTurnMaxRequests, DEFAULT_LSP_DIAGNOSTICS_SETTINGS.perTurnMaxRequests);
+});
+
+test("lsp-bridge settings: resolved settings carry lspDiagnostics (regression: field was silently dropped by resolveSettingsSources, making the whole bridge unreachable)", () => {
+  const defaults = { model: "deepseek-v4", baseURL: "https://example.com" };
+  // User settings flow through the real resolution chain, not just the helper.
+  const resolved = resolveSettings(
+    { model: "deepseek-v4", lspDiagnostics: { enabled: true, trigger: "auto", maxDiagnostics: 5 } },
+    defaults
+  );
+  assert.equal(resolved.lspDiagnostics.enabled, true);
+  assert.equal(resolved.lspDiagnostics.trigger, "auto");
+  assert.equal(resolved.lspDiagnostics.maxDiagnostics, 5);
+
+  // A committable project file must NOT enable the bridge behind the user's
+  // back — the quarantine clamp (untrusted workspace) strips its voice.
+  const quarantined = resolveSettingsSources(
+    { lspDiagnostics: { enabled: false } },
+    { lspDiagnostics: { enabled: true, trigger: "auto" } },
+    defaults,
+    {},
+    "quarantine"
+  );
+  assert.equal(quarantined.lspDiagnostics.enabled, false);
+  assert.equal(quarantined.lspDiagnostics.trigger, "manual");
+
+  // Explicitly trusted project settings override user settings.
+  const trusted = resolveSettingsSources(
+    { lspDiagnostics: { enabled: false } },
+    { lspDiagnostics: { enabled: true, trigger: "auto" } },
+    defaults
+  );
+  assert.equal(trusted.lspDiagnostics.enabled, true);
+  assert.equal(trusted.lspDiagnostics.trigger, "auto");
 });

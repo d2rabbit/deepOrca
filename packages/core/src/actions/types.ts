@@ -195,6 +195,12 @@ export interface BackgroundLlmTaskOptions {
   readonly signal?: AbortSignal;
   /** Progress callback for the owning pipeline (iteration/tool milestones). */
   readonly onProgress?: (message: string) => void;
+  /**
+   * Optional streamed-text tap (specs/editor-copilot C1): fires per content
+   * chunk of every LLM turn. Pure observer; used by the editor agent run
+   * to bridge chunk-level streaming to the renderer.
+   */
+  readonly onDelta?: (text: string) => void;
 }
 
 export interface BackgroundLlmTaskResult {

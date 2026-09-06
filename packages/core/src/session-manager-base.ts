@@ -884,7 +884,13 @@ export abstract class SessionManagerBase {
       source?: UsageSource;
       /** Pre-counted prompt size (pre-flight budget) — skips recounting here. */
       promptTokens?: number;
-    }
+    },
+    /**
+     * Optional text-delta tap (specs/editor-copilot C1): fires per streamed
+     * content chunk as it accumulates. Pure observer — no behavior change
+     * when omitted; used by the editor agent stream bridge to the renderer.
+     */
+    onDelta?: (text: string) => void
   ): Promise<{
     choices?: Array<{ message?: Record<string, unknown> }>;
     usage?: ModelUsage | null;
@@ -1095,6 +1101,7 @@ export abstract class SessionManagerBase {
           if (typeof contentDelta === "string") {
             content += contentDelta;
             trackText(contentDelta);
+            if (onDelta) onDelta(contentDelta);
           }
 
           // Nullish-coalescing chain over the family's reasoning read fields

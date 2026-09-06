@@ -639,7 +639,8 @@ export abstract class SessionManagerTasks extends SessionManagerLifecycle {
                 baseURL,
                 params: { iteration: i, task: opts.skill },
               },
-              { source: "background" }
+              { source: "background" },
+              opts.onDelta
             );
             break;
           } catch (err) {

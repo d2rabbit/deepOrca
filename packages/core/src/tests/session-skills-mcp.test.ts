@@ -295,6 +295,9 @@ test("SessionManager excludes disabled skills by resolved skill name", async () 
         "deeporca-self-refer": false,
         "skill-digester": false,
         plan: false,
+        // editor-agent shipped as a new bundled skill (2026-09-04) — an
+        // explicitly disabled built-in must be excluded just like the rest.
+        "editor-agent": false,
         "enabled-skill": true,
       },
     }),

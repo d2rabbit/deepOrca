@@ -496,6 +496,26 @@ export abstract class SessionManagerPersistence extends SessionManagerSkills {
   }
 
   /**
+   * External (non-agent) file mutation (specs/editor-copilot 链路 D): the
+   * editor's own write path stamps freshness + fires the same incremental
+   * CodeGraph sync the agent loop uses. No session key — this is the
+   * sessionless variant desktop's EditorWriteFile handler calls after a
+   * successful write. Fire-and-forget by design; the per-root stamp is the
+   * only state it touches (the editor-runs store records the file itself).
+   */
+  recordExternalMutation(): void {
+    this.knowledgeFreshness.lastMutation = new Date().toISOString();
+    void getCodegraphController()
+      ?.sync(this.projectRoot)
+      .then(() => {
+        this.knowledgeFreshness.codegraphSync = new Date().toISOString();
+      })
+      .catch(() => {
+        // Sync failures leave the previous stamp — the dashboard stays honest.
+      });
+  }
+
+  /**
    * After a task turn ends, run an incremental CodeGraph index update if this turn
    * mutated files. Fire-and-forget; the SDK's sync() is concurrent-safe (FileLock).
    */
