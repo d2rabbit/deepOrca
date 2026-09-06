@@ -8,6 +8,7 @@ import { extractSurfaceId, getSurfaceModel } from "../../a2ui/processor";
 import type { Cm6KernelHandle, Cm6SelectionInfo } from "./cm6-kernel";
 import type { BufferStream, PairStage } from "./cm6-buffer-stream";
 import { PAIR_PLAN_STEP_KEYS } from "./pair-i18n";
+import { fileBaseName } from "../../ui/path-utils";
 
 type Props = {
   file: string;
@@ -25,6 +26,10 @@ type Props = {
   onDismissClarify?(): void;
   /** 「解释」 intent → floating card; never rewrites the buffer. */
   onExplain?(): void;
+  /** An explain run is in flight — submitting a pair run NOW would put both
+   *  runs on the same progress broadcast (cross-contamination until runId
+   *  filtering landed); keep the symmetric guard alongside it. */
+  explainBusy?: boolean;
   /** Controlled open state — the workspace owns the ⌘I toggle. */
   open: boolean;
   onClose(): void;
@@ -54,6 +59,7 @@ export function PairBar({
   onDismissError,
   onDismissClarify,
   onExplain,
+  explainBusy,
   open,
   onClose,
   onAskAgent,
@@ -70,9 +76,10 @@ export function PairBar({
   const submit = useCallback((): void => {
     const text = instruction.trim();
     if (!text || !selection || phase === "streaming") return;
+    if (explainBusy) return; // mirror of runExplain's guard — see Props
     onInstructionChange(text);
     void stream.run({ file, selection, instruction: text, extraContext });
-  }, [instruction, selection, phase, stream, file, onInstructionChange, extraContext]);
+  }, [instruction, selection, phase, explainBusy, stream, file, onInstructionChange, extraContext]);
 
   const submitClarify = useCallback(
     (answers: string): void => {
@@ -194,7 +201,7 @@ export function PairBar({
     <div ref={barRef} className="ui-edpair-bar" style={{ left: anchor.left, top: anchor.top }}>
       <div className="ui-edpair-head">
         <span className="ui-edpair-title">
-          ✦ {t("editor.pair.title")} <span className="mono">{file.split(/[\\/]/).pop()}</span> L{selection.startLine}
+          ✦ {t("editor.pair.title")} <span className="mono">{fileBaseName(file)}</span> L{selection.startLine}
           {selection.endLine !== selection.startLine ? `–${selection.endLine}` : ""}
         </span>
         <button
@@ -274,7 +281,7 @@ export function PairBar({
             {ctxFiles.map((f) => (
               <span key={f} className="ui-edpair-chip">
                 <b>@</b>
-                {f.split(/[\\/]/).pop()}
+                {fileBaseName(f)}
                 <button type="button" className="rm" onClick={() => setCtxFiles((xs) => xs.filter((x) => x !== f))}>
                   ✕
                 </button>
@@ -300,7 +307,7 @@ export function PairBar({
                       setCtxMenuOpen(false);
                     }}
                   >
-                    ⌗ <span className="mono">{f.split(/[\\/]/).pop()}</span>
+                    ⌗ <span className="mono">{fileBaseName(f)}</span>
                   </button>
                 ))}
               {openFiles.filter((f) => f !== file && !ctxFiles.includes(f)).length === 0 ? (

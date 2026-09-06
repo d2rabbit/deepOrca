@@ -20,6 +20,7 @@ import { LanePanel } from "./LanePanel";
 import { EditorPalette } from "./EditorPalette";
 import { ExplainCard } from "./ExplainCard";
 import { EditorReviewPreview } from "./EditorReviewPreview";
+import { fileBaseName } from "../../ui/path-utils";
 
 /** Enclosing-symbol heuristic for the breadcrumb trail — one declaration
  *  keyword per line; the nearest match at/above the cursor wins. */
@@ -47,6 +48,12 @@ type Props = {
  * checkpoint strip / status bar) drive the shared decoration domain through
  * one BufferStream instance per mount.
  */
+
+/** Kernel mount sentinel when no file is open yet — INTERNAL ONLY: never a
+ * real path and never rendered (the status bar shows "—" for no file); it
+ * only seeds `kernel.currentFile` until the first setDoc lands. */
+const MOUNT_SENTINEL_FILE = ".scratch-mount";
+
 export function EditorWorkspace({
   store,
   appearance,
@@ -80,7 +87,7 @@ export function EditorWorkspace({
   const state = activeFile ? fileStates.get(activeFile) : undefined;
   const draft = activeFile ? drafts.get(activeFile) : undefined;
   const dirty = Boolean(activeFile && state?.loaded && draft !== state?.saved);
-  const fileName = activeFile ? (activeFile.split(/[\\/]/).pop() ?? activeFile) : "";
+  const fileName = activeFile ? fileBaseName(activeFile) : "";
 
   const activeFileRef = useRef(activeFile);
   activeFileRef.current = activeFile;
@@ -164,7 +171,11 @@ export function EditorWorkspace({
     const kernel = kernelRef.current;
     const cp = lane.state.checkpoints.at(-1);
     const file = cp?.file ?? activeFileRef.current;
-    const applyKey = `${file}::${lane.state.checkpoints.length}`;
+    // Identity = the checkpoint's OWN timestamp, never `checkpoints.length`
+    // — the list caps at MAX_CHECKPOINTS, so past the cap every apply
+    // re-derived the SAME key and the draft sync was permanently skipped
+    // (applied AI edits silently vanished on the next tab switch).
+    const applyKey = `${file}::${cp?.atIso ?? ""}`;
     if (!file || !kernel || appliedFor.current === applyKey) return;
     if (kernel.currentFile !== file) return; // wrong tab — the swap path re-syncs
     appliedFor.current = applyKey;
@@ -352,7 +363,7 @@ export function EditorWorkspace({
     const host = hostRef.current;
     if (!host) return;
     const kernel = mountEditorView(host, {
-      file: activeFileRef.current ?? "scratch.txt",
+      file: activeFileRef.current ?? MOUNT_SENTINEL_FILE,
       doc: "",
       appearance,
       // Localized built-in search/replace panel (2026-09-06 user ask).
@@ -400,6 +411,12 @@ export function EditorWorkspace({
       kernel.destroy();
       kernelRef.current = null;
       setKernelReady(false);
+      // The decorations (and the doc they lived in) died with the kernel —
+      // settle any streaming/reviewing run NOW instead of letting it guard
+      // against a dead view. Paired with the cross-mount generation clock:
+      // a remount can never re-issue the stale run's numbers, and the
+      // settled phase keeps later runs from being rejected.
+      streamRef.current?.discard();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showBody]);
@@ -559,12 +576,20 @@ export function EditorWorkspace({
     return () => {
       if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
       autoSaveTimerRef.current = null;
-      // M5: switching AWAY from a dirty file must not silently drop its pending
-      // save — the new effect run only arms a timer for ITS file. `activeFile`/
-      // `dirty` here are this effect instance's closure values (the file it was
-      // armed for), while the refs already hold the NEW tab's values.
-      if (activeFileRef.current !== activeFile && dirty) {
-        void handleSaveRef.current();
+      // M5 root fix: switching AWAY from a dirty file must flush THAT file.
+      // `handleSaveRef.current()` here would be the NEW tab's closure (the
+      // render body reassigned the ref before this cleanup ran) — it saved
+      // tab B while A's debounced edits stayed unwritten. Write this effect
+      // instance's OWN `activeFile`/`draft` (exactly its deps) directly.
+      // On unmount activeFileRef.current === activeFile, so the guard stays
+      // closed there (E6: no deferred save IPC from an unmounted workspace).
+      if (activeFile && activeFileRef.current !== activeFile && dirty && draft !== undefined) {
+        void api
+          .editorWriteFile(activeFile, draft)
+          .then((res) => {
+            if (res.ok) onSaved(activeFile, draft);
+          })
+          .catch(() => undefined);
       }
     };
     // `dirty` derives from draft/activeFile (re-adding it changes nothing) and
@@ -704,6 +729,7 @@ export function EditorWorkspace({
                   onDismissError={lane.dismissError}
                   onDismissClarify={lane.dismissClarify}
                   onExplain={runExplain}
+                  explainBusy={lane.state.explain?.busy ?? false}
                   open={pairOpen}
                   onClose={() => setPairOpen(false)}
                   onAskAgent={onAskAgent}

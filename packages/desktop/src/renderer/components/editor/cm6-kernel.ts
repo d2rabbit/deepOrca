@@ -288,9 +288,12 @@ export function documentWordCompletion(
   if (seen.size <= 1) return null;
   // 习惯性补全 (2026-09-06 user ask): frecency-boosted ranking + ★N badge +
   // an apply hook that records the accept, so the popup learns from use.
+  // Root fix: sort by habit boost BEFORE the 100-cap — `seen` is document
+  // order, so slicing first silently dropped every habit word whose first
+  // occurrence sat past the 100th document word (large files: the words you
+  // actually use never reached the popup, so they never learned either).
   const options = [...seen.entries()]
     .filter(([label]) => label !== word.text)
-    .slice(0, 100)
     .map(([label, type]) => {
       const count = habitCount(label);
       const boost = habitBoost(label);
@@ -305,7 +308,8 @@ export function documentWordCompletion(
         },
       };
     })
-    .sort((a, b) => (b.boost ?? 0) - (a.boost ?? 0));
+    .sort((a, b) => (b.boost ?? 0) - (a.boost ?? 0))
+    .slice(0, 100);
   if (options.length === 0) return null;
   return { from: word.from, options, validFor: /^[\w$]*$/ };
 }
@@ -442,9 +446,18 @@ export type Cm6KernelHandle = {
   destroy(): void;
 };
 
+/** Monotonic ACROSS mounts (root fix): a remounted kernel must never
+ *  re-issue a generation number an in-flight BufferStream run's B2 guard
+ *  would match — per-mount counters restart at 1 and collided with the
+ *  previous mount's first setDoc, letting a stale run write rows into the
+ *  NEW document (or throw a RangeError from its flush timer). Each mount
+ *  starts at a fresh multiple of 1M; per-mount setDoc bumps never cross
+ *  into another mount's range. */
+let mountGenerationSeq = 0;
+
 /** Mount the single workspace view into a host element. */
 export function mountEditorView(parent: HTMLElement, opts: Cm6DocOptions): Cm6KernelHandle {
-  let generation = 0;
+  let generation = ++mountGenerationSeq * 1_000_000;
 
   // E5: render-safe history flag cache — the workspace reads handle.historyFlags
   // instead of touching kernelRef mid-render.
