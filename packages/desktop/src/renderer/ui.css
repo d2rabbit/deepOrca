@@ -39,6 +39,8 @@
 @import url("./ui-css/skill-cards.css");
 /* Editor file tree · symbol tree · search cards · wiki list · knowledge tab */
 @import url("./ui-css/editor-panel.css");
+/* Editor pair canvas — CM6 kernel surfaces + AI decoration domain (editor-copilot) */
+@import url("./ui-css/editor-pair.css");
 /* Knowledge deep views: mermaid · master–detail · symbol flow board · bilingual toggle */
 @import url("./ui-css/knowledge-views.css");
 /* Wiki reading shell & typography · arch maps · artifact pager · drill rail */

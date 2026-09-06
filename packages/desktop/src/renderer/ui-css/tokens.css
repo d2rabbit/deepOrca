@@ -18,6 +18,14 @@
   --ui-surface-sunken: #eef1f6;
   --ui-surface-hover: rgba(0, 0, 0, 0.05);
 
+  /* Editor canvas (2026-09-06 user ask): softened away from pure white —
+     a warm paper gray that reads comfortable over long sessions. */
+  --editor-canvas-bg: #f3f3ef;
+  --editor-gutter-bg: #ecece8;
+  --editor-canvas-num: #9aa0a6;
+  --ui-folder-icon: #4c7fdb;
+  --ui-folder-fill: rgba(76, 127, 219, 0.16);
+
   --ui-text: #1b2129;
   --ui-text-dim: #55606d;
   --ui-text-faint: #8590a0;
@@ -125,6 +133,8 @@
   --dot-index: #e8590c;
   --dot-prototype: #be4bdb;
   --dot-abandon: #adb5bd;
+  /* 编辑器结对域（链路 D）：琥珀 = 结对画布 pending 行的主色 */
+  --dot-editor: #f08c00;
 }
 :root[data-appearance="dark"] {
   --taskhub-trunk: #64798f;
@@ -135,6 +145,13 @@
   --dot-index: #ff922b;
   --dot-prototype: #da77f2;
   --dot-abandon: #8a94a3;
+  --dot-editor: #ffa94d;
+  /* Editor canvas (dark): soft charcoal — never pure black. */
+  --editor-canvas-bg: #171a20;
+  --editor-gutter-bg: #13151a;
+  --editor-canvas-num: #565d68;
+  --ui-folder-icon: #82aaff;
+  --ui-folder-fill: rgba(130, 170, 255, 0.18);
 }
 
 /* Native form controls (select popups, scrollbars, date pickers) follow the
