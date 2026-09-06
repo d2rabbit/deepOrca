@@ -203,6 +203,10 @@ export const IpcRequest = {
   /** Editor digital entity (specs/editor-agent S2): run the editor-agent
    *  background entity on a selection — sessionless, zero residue. */
   EditorAgentRun: "editor:agentRun",
+  // LSP bare-frame relay (specs/editor-copilot D2)
+  LspRelayAttach: "lsp:relayAttach",
+  LspRelaySend: "lsp:relaySend",
+  LspRelayDetach: "lsp:relayDetach",
 
   // A2UI (Surface user interaction → agent)
   A2uiAction: "a2ui:action",
@@ -234,6 +238,11 @@ export const IpcEvent = {
   A2uiWindowPayload: "event:a2uiWindowPayload",
   /** defineAction progress stream (unified; payload carries actionId). */
   ActionProgress: "event:actionProgress",
+  /** Editor agent run progress (specs/editor-copilot C2): chunk-level
+   *  streaming + iteration milestones + guaranteed terminal event. */
+  EditorAgentProgress: "event:editorAgentProgress",
+  /** LSP relay server→client frames (specs/editor-copilot D2). */
+  LspRelayMessage: "event:lspRelayMessage",
   /** Sandbox backend selection outcome per session (degradation is never silent). */
   SandboxStatusChanged: "event:sandboxStatusChanged",
   /** design-store artifact saved/deleted (payload: { root }) — panels refresh live. */
@@ -371,7 +380,7 @@ export type RiskGraphData = {
 
 // ── Workspace task hub (task-tree-hub design, 2026-09-01) ──────────────────
 /** The four record domains aggregated into one workspace task tree. */
-export type TaskHubDomain = "session" | "index" | "review" | "prototype";
+export type TaskHubDomain = "session" | "index" | "review" | "prototype" | "editor";
 
 /** One unified task node of the workspace task tree (meta-level only — the
  *  payloads stay in their home stores; `source` locates them). */
@@ -391,7 +400,9 @@ export type TaskHubNode = {
     | { kind: "session-chat"; sessionId: string }
     | { kind: "review-report"; reportId: string }
     | { kind: "design-artifact"; artifactId: string; pipeline: string }
-    | { kind: "index-job"; jobId: string };
+    | { kind: "index-job"; jobId: string }
+    /** Editor pair run (specs/editor-copilot 链路 D): click opens the file. */
+    | { kind: "editor-run"; runId: string; file: string };
   /** Domain extras (findings count, scope label, build stages…). */
   meta?: Record<string, unknown>;
 };
@@ -1027,6 +1038,31 @@ export type ActionListItem = {
 /** Result of an ActionRun IPC call — success carries the action's output. */
 export type ActionRunResult = { ok: true; output: unknown } | { ok: false; error: string; code: string };
 
+/** LSP relay attach result (specs/editor-copilot D2). */
+export type LspRelayAttachResult =
+  | { ok: true; sessionId: string; root: string; languageId: string }
+  | { ok: false; error: string };
+
+/** One server→client frame pushed over the relay. */
+export type LspRelayMessageEvent = {
+  sessionId: string;
+  frame: string;
+};
+
+/** One editor-agent run progress event (specs/editor-copilot C2). */
+export type EditorAgentProgressEvent = {
+  /** Correlates renderer subscriptions with a single run. */
+  runId: string;
+  phase: "delta" | "iteration" | "done" | "error";
+  /** Streamed text chunk (phase "delta"). */
+  text?: string;
+  /** Iteration milestone message (phase "iteration"). */
+  message?: string;
+  /** Terminal fields (phase "done" | "error"). */
+  iterations?: number;
+  error?: string;
+};
+
 /** Unified action progress event (replaces the per-tool event:*Progress family). */
 export type ActionProgressEvent = {
   actionId: string;
@@ -1384,7 +1420,13 @@ export type DesktopApi = {
     selection: string;
     instruction: string;
     lang?: string;
+    /** D11 context chips: appended to the prompt as extra context. */
+    extraContext?: string;
   }): Promise<{ ok: true; content: string; iterations: number } | { ok: false; error: string }>;
+  lspRelayAttach(root: string, languageId: string): Promise<LspRelayAttachResult>;
+  lspRelaySend(sessionId: string, frame: string): Promise<{ ok: true } | { ok: false; error: string }>;
+  lspRelayDetach(sessionId: string): Promise<{ ok: true } | { ok: false; error: string }>;
+  onLspRelayMessage(cb: (event: LspRelayMessageEvent) => void): () => void;
 
   // ── A2UI (Surface interaction) ─────────────────────────────────────────
   /** Send a user interaction from an AUI Surface back to the agent.
@@ -1406,6 +1448,8 @@ export type DesktopApi = {
   actionRun(id: string, input?: unknown): Promise<ActionRunResult>;
   /** Subscribe to the unified action progress stream. Returns unsubscribe fn. */
   onActionProgress(cb: (event: ActionProgressEvent) => void): () => void;
+  /** Editor agent run progress subscription (chunk streaming + terminal). */
+  onEditorAgentProgress(cb: (event: EditorAgentProgressEvent) => void): () => void;
   /** Design artifacts changed (a2ui tool saved mid-run / deleted) — live refresh. */
   onDesignChanged(cb: (event: { root: string }) => void): () => void;
   /** Subscribe to the initial payload sent to a popout prototype window. */

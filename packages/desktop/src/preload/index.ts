@@ -191,6 +191,10 @@ const api: DesktopApi = {
     ipcRenderer.invoke(IpcRequest.TaskTreeAbandon, treeId, branch, workspaceRoot),
   taskTreeMerge: (treeId, srcBranch) => ipcRenderer.invoke(IpcRequest.TaskTreeMerge, treeId, srcBranch),
   editorAgentRun: (input) => ipcRenderer.invoke(IpcRequest.EditorAgentRun, input),
+  lspRelayAttach: (root, languageId) => ipcRenderer.invoke(IpcRequest.LspRelayAttach, root, languageId),
+  lspRelaySend: (sessionId, frame) => ipcRenderer.invoke(IpcRequest.LspRelaySend, sessionId, frame),
+  lspRelayDetach: (sessionId) => ipcRenderer.invoke(IpcRequest.LspRelayDetach, sessionId),
+  onLspRelayMessage: (cb) => subscribe(IpcEvent.LspRelayMessage, cb as (p: never) => void),
 
   // ── A2UI (Surface interaction → agent) ──────────────────────────
   a2uiAction: (surfaceId, actionName, context) =>
@@ -204,6 +208,7 @@ const api: DesktopApi = {
   actionList: () => ipcRenderer.invoke(IpcRequest.ActionList),
   actionRun: (id, input) => ipcRenderer.invoke(IpcRequest.ActionRun, id, input),
   onActionProgress: (cb) => subscribe(IpcEvent.ActionProgress, cb as (p: never) => void),
+  onEditorAgentProgress: (cb) => subscribe(IpcEvent.EditorAgentProgress, cb as (p: never) => void),
   onDesignChanged: (cb) => subscribe(IpcEvent.DesignChanged, cb as (p: never) => void),
 
   // ── Agent changes ───────────────────────────────────────────────

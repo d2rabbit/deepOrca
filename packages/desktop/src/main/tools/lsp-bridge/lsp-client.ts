@@ -11,6 +11,7 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { createFrameParser, encodeFrame } from "./frames";
 import { candidatesForSpec, type LspServerSpec, type LspSpawnCandidate } from "./server-specs";
+import { killLspTree, sanitizedLspEnv } from "../lsp-process";
 
 export type LspDiagnostic = {
   severity: number;
@@ -23,29 +24,6 @@ export type LspDiagnostic = {
 
 const INITIALIZE_TIMEOUT_MS = 15000;
 const REQUEST_TIMEOUT_MS = 8000;
-
-/** Sanitized env for the language server — no credentials, no app secrets
- *  (design §2.7: the LS is untrusted computation). */
-function sanitizedEnv(): Record<string, string> {
-  const env: Record<string, string> = {};
-  for (const key of [
-    "PATH",
-    "PATHEXT",
-    "HOME",
-    "USERPROFILE",
-    "APPDATA",
-    "LOCALAPPDATA",
-    "SYSTEMROOT",
-    "COMSPEC",
-    "TEMP",
-    "TMP",
-    "LANG",
-  ]) {
-    const value = process.env[key];
-    if (value !== undefined) env[key] = value;
-  }
-  return env;
-}
 
 export class LspClient {
   private child: ChildProcess | null = null;
@@ -118,8 +96,13 @@ export class LspClient {
         // table — no runtime input ever reaches the command line.
         child = candidate.launch({
           cwd: this.root,
-          env: sanitizedEnv(),
+          env: sanitizedLspEnv(),
           stdio: ["pipe", "pipe", "pipe"],
+          // POSIX: make the server the leader of its own process group so
+          // killCurrent's -pid teardown reaches grandchildren (npx wrappers,
+          // JVM/Swift helpers) instead of silently falling back to the direct
+          // child. Windows relies on taskkill /T /F.
+          detached: process.platform !== "win32",
         });
       } catch (err) {
         fail(err instanceof Error ? err : new Error(String(err)));
@@ -213,15 +196,22 @@ export class LspClient {
     this.notify("textDocument/didOpen", {
       textDocument: { uri, languageId, version: 1, text },
     });
-    // Push diagnostics: wait for the uri's entry to change after didOpen.
+    // Push diagnostics: after didOpen, several servers (gopls, clangd, jdtls,
+    // rust-analyzer) publish an EMPTY array first while analysis is still in
+    // flight — returning on that would report a false "clean" for a file with
+    // real errors. Non-empty results are final; an empty publish only counts
+    // once the state has stayed unchanged for a full poll cycle (≈150ms).
     const deadline = Date.now() + waitMs;
     let last = this.diagnostics.get(uri);
     while (Date.now() < deadline) {
       await new Promise((resolve) => setTimeout(resolve, 150));
       const current = this.diagnostics.get(uri);
-      if (current && current !== last) return current;
-      if (last === undefined && current) return current;
-      last = current;
+      if (current !== last) {
+        if (current && current.length > 0) return current;
+        last = current;
+        continue;
+      }
+      if (current) return current;
     }
     return this.diagnostics.get(uri) ?? [];
   }
@@ -231,19 +221,9 @@ export class LspClient {
   }
 
   private killCurrent(): void {
-    const pid = this.child?.pid;
-    if (!pid) return;
-    if (process.platform === "win32") {
-      // Mirror of core/common/process-tree.ts (taskkill /T /F) — the bridge
-      // bundle is standalone CJS and must not import core.
-      spawn("taskkill", ["/PID", String(pid), "/T", "/F"], { shell: false, stdio: "ignore" });
-    } else {
-      try {
-        process.kill(-pid, "SIGKILL");
-      } catch {
-        this.child?.kill("SIGKILL");
-      }
-    }
+    // Shared tree-kill (2026-09-06 convergence) — the old local copy and the
+    // relay's differed only in guards; the shared one is the superset.
+    killLspTree(this.child);
   }
 
   /** Teardown: Windows kills the whole tree; POSIX kills the process group. */

@@ -7,11 +7,12 @@
 
 import { resolve } from "node:path";
 
-/** Absolute workspace path → file:// URI (LSP wants forward slashes). */
+import { lspPathToUri } from "../../../shared/lsp-uri";
+
+/** Absolute workspace path → file:// URI — delegates to the canonical shared
+ *  implementation (2026-09-06 convergence; also gains correct UNC shapes). */
 export function pathToUri(absPath: string): string {
-  const forward = absPath.replace(/\\/g, "/");
-  const encoded = encodeURI(forward).replace(/#/g, "%23").replace(/\?/g, "%3F");
-  return forward.startsWith("/") ? `file://${encoded}` : `file:///${encoded}`;
+  return lspPathToUri(absPath);
 }
 
 /** file:// URI → absolute workspace path (native separators). */

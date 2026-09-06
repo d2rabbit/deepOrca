@@ -14,7 +14,14 @@
 
 import { spawn, type ChildProcess } from "node:child_process";
 
-export type LspSpawnOpts = { cwd: string; env: Record<string, string>; stdio: ["pipe", "pipe", "pipe"] };
+export type LspSpawnOpts = {
+  cwd: string;
+  env: Record<string, string>;
+  stdio: ["pipe", "pipe", "pipe"];
+  /** POSIX only: lead a new process group so teardown can kill the whole
+   *  tree (-pid). Windows is handled by taskkill /T /F instead. */
+  detached?: boolean;
+};
 
 export type LspSpawnCandidate = {
   /** Human name for error messages. */

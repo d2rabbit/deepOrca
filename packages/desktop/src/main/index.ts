@@ -7,7 +7,17 @@ import { dirname, join, delimiter, resolve as pathResolve, sep as pathSep } from
 import { createRequire as nodeCreateRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { open, readdir, readFile, writeFile, stat } from "node:fs/promises";
-import { statSync, existsSync, readdirSync, readFileSync, appendFileSync, mkdirSync } from "node:fs";
+import {
+  statSync,
+  existsSync,
+  readdirSync,
+  readFileSync,
+  appendFileSync,
+  mkdirSync,
+  openSync,
+  readSync,
+  closeSync,
+} from "node:fs";
 import { spawnSync } from "node:child_process";
 import { homedir } from "node:os";
 import { execFile, spawn, type ChildProcess } from "node:child_process";
@@ -84,7 +94,10 @@ import type {
   WorkspaceTrustLevel,
 } from "../shared/ipc.js";
 import { SessionBridge } from "./session-bridge.js";
+import { LspRelay } from "./tools/lsp-relay.js";
+import { appendEditorRun, listEditorRuns } from "./tools/editor-runs-store.js";
 import { applyAppIcon } from "./app-icon.js";
+import { safePathWithinRoot } from "./safe-path.js";
 import { PluginManager, type PluginEventCallback } from "./plugin-manager.js";
 import { scanFiles } from "./file-scanner.js";
 import { listWorkspaceSessions, readSessionsIndex } from "./workspace-registry.js";
@@ -102,6 +115,7 @@ import {
   emptyTokenSummary,
   migrateLegacyUsageIntoLedger,
   projectSessionsIndexPath,
+  usageLedgerPathForIndex,
 } from "./tools/tokens-summary.js";
 import { listIndexJobs } from "./tools/jobs-store.js";
 import { bindFindingsToNodes, type BindableNode } from "./tools/review-bind.js";
@@ -608,6 +622,58 @@ function emit(channel: string, payload?: unknown): void {
     if (!win.isDestroyed()) {
       win.webContents.send(channel, payload);
     }
+  }
+}
+
+/**
+ * Audit 5.1 root fix: targeted emit for payload channels ONLY the main window
+ * consumes — LSP frames carry document content and editor-agent progress
+ * carries streamed code; broadcasting those into popout windows (prototype,
+ * arch preview, app-icon) violates the minimal-surface principle. The main
+ * window is tracked by identity (M1) — a URL regex can never tell the app
+ * window apart from `index.html?view=prototype` popouts, and window creation
+ * order is not a contract.
+ */
+function emitToMain(channel: string, payload?: unknown): void {
+  const win = mainWindow;
+  if (win && !win.isDestroyed()) {
+    win.webContents.send(channel, payload);
+  }
+}
+
+/**
+ * Token accounting for sessionless runs (2026-09-06 user ask): the project
+ * usage ledger is append-only per LLM request, so diffing the file across a
+ * run window yields exactly the requests that run consumed — no core
+ * plumbing, no double counting with the sessions-index mirror.
+ */
+function ledgerDeltaSince(ledgerPath: string, sinceSize: number): { prompt: number; completion: number } | undefined {
+  try {
+    if (!existsSync(ledgerPath)) return undefined;
+    const size = statSync(ledgerPath).size;
+    if (size <= sinceSize) return undefined;
+    const fh = openSync(ledgerPath, "r");
+    try {
+      const buf = Buffer.alloc(size - sinceSize);
+      readSync(fh, buf, 0, buf.length, sinceSize);
+      let prompt = 0;
+      let completion = 0;
+      for (const line of buf.toString("utf8").split("\n")) {
+        if (!line.trim()) continue;
+        try {
+          const record = JSON.parse(line) as { prompt?: number; completion?: number };
+          prompt += record.prompt ?? 0;
+          completion += record.completion ?? 0;
+        } catch {
+          // Partial trailing line (write raced us) — skip it.
+        }
+      }
+      return prompt || completion ? { prompt, completion } : undefined;
+    } finally {
+      closeSync(fh);
+    }
+  } catch {
+    return undefined; // fail-open: the run record simply stays tokenless
   }
 }
 
@@ -1766,6 +1832,8 @@ function registerTaskTreeIpc({ handle, handlePrivileged }: IpcHelpers): void {
       listReviews: () => listReviewReports(pinned),
       listDesigns: () => listDesignArtifacts(pinned),
       listJobs: () => listIndexJobs(pinned),
+      // Editor pair runs (specs/editor-copilot 链路 D): read the JSONL store.
+      listEditorRuns: () => listEditorRuns(pinned),
       // git binding badge: the tree's file-history repo HEAD (a git record
       // exists only if the tree ever checkpointed artifacts).
       treeGitHash: (treeId) => {
@@ -2082,10 +2150,31 @@ function registerTaskTreeIpc({ handle, handlePrivileged }: IpcHelpers): void {
       selection?: string;
       instruction?: string;
       lang?: string;
+      extraContext?: string;
     }) => {
       if (!input?.filePath || !input.instruction?.trim() || !input.selection?.trim()) {
         return { ok: false as const, error: "filePath, selection and instruction are required" };
       }
+      // Root-pinning: the run record (and the prompt) must reference a file
+      // inside the project — an arbitrary path from the semi-trusted
+      // renderer would otherwise reach unregistered locations through the
+      // editor-agent pipeline.
+      const runRoot = getBridge().projectRoot;
+      if (!safePathWithinRoot(runRoot, input.filePath)) {
+        return { ok: false as const, error: "filePath escapes the project root" };
+      }
+      // Chunk-stream bridge (specs/editor-copilot C2): same pattern as the
+      // action progress channel — every delta/iteration emits, the finally
+      // guarantees a terminal event so the renderer never hangs on "running".
+      const runId = crypto.randomUUID();
+      const startedAt = new Date().toISOString();
+      const startedAtMs = Date.now();
+      // Token snapshot: everything appended to the ledger after this point is
+      // THIS run's consumption (2026-09-06 user ask).
+      const ledgerPath = usageLedgerPathForIndex(
+        join(getUserConfigRoot(), "projects", getProjectCode(runRoot), "sessions-index.json")
+      );
+      const ledgerSizeBefore = existsSync(ledgerPath) ? statSync(ledgerPath).size : 0;
       try {
         const result = await getBridge().runEditorAgent({
           filePath: input.filePath,
@@ -2094,10 +2183,45 @@ function registerTaskTreeIpc({ handle, handlePrivileged }: IpcHelpers): void {
           selection: input.selection,
           instruction: input.instruction.trim(),
           lang: typeof input.lang === "string" ? input.lang : undefined,
+          extraContext: typeof input.extraContext === "string" ? input.extraContext.slice(0, 4000) : undefined,
+          onDelta: (text) => emitToMain(IpcEvent.EditorAgentProgress, { runId, phase: "delta", text }),
+          onIteration: (message) => emitToMain(IpcEvent.EditorAgentProgress, { runId, phase: "iteration", message }),
+        });
+        const durationMs = Date.now() - startedAtMs;
+        emitToMain(IpcEvent.EditorAgentProgress, {
+          runId,
+          phase: "done",
+          iterations: result.iterations,
+        });
+        // 链路 D: the run lands in the task hub's editor domain (JSONL) with
+        // its behavior + token accounting (2026-09-06 user ask: the task tree
+        // records what the editor agent did and what it cost).
+        appendEditorRun(runRoot, {
+          runId,
+          file: input.filePath,
+          instruction: input.instruction.trim().slice(0, 120),
+          status: "done",
+          startedAt,
+          endedAt: new Date().toISOString(),
+          iterations: result.iterations,
+          durationMs,
+          tokens: ledgerDeltaSince(ledgerPath, ledgerSizeBefore),
         });
         return { ok: true as const, content: result.content ?? "", iterations: result.iterations };
       } catch (error) {
-        return { ok: false as const, error: error instanceof Error ? error.message : String(error) };
+        const message = error instanceof Error ? error.message : String(error);
+        emitToMain(IpcEvent.EditorAgentProgress, { runId, phase: "error", error: message });
+        appendEditorRun(runRoot, {
+          runId,
+          file: input.filePath,
+          instruction: input.instruction.trim().slice(0, 120),
+          status: "error",
+          startedAt,
+          endedAt: new Date().toISOString(),
+          durationMs: Date.now() - startedAtMs,
+          tokens: ledgerDeltaSince(ledgerPath, ledgerSizeBefore),
+        });
+        return { ok: false as const, error: message };
       }
     }
   );
@@ -2515,9 +2639,54 @@ function registerEditorIpc({ handle, handlePrivileged }: IpcHelpers): void {
   // ── Editor module ───────────────────────────────────────────────────────
   handle(IpcRequest.EditorReadFile, (filePath: string) => handleEditorReadFile(getBridge().projectRoot, filePath));
   handlePrivileged(IpcRequest.EditorWriteFile, (filePath: string, content: string) =>
-    handleEditorWriteFile(getBridge().projectRoot, filePath, content)
+    handleEditorWriteFile(getBridge().projectRoot, filePath, content).then((res) => {
+      // 链路 D 最小修 (audit D-b): editor writes must reach the workspace
+      // knowledge loop exactly like agent writes — mark the file dirty for
+      // codegraph incremental sync + freshness. Agent writes do this via
+      // recordFileMutationCheckpoint; the editor path goes through the
+      // bridge's external-mutation seam (fail-open, non-blocking).
+      if (res.ok) getBridge().recordExternalMutation();
+      return res;
+    })
   );
   handle(IpcRequest.EditorListFiles, (dirPath: string) => handleEditorListFiles(getBridge().projectRoot, dirPath));
+}
+
+/** LSP bare-frame relay IPC (specs/editor-copilot D2): the renderer-side
+ *  @codemirror/lsp-client owns the protocol; these channels only move
+ *  frames. Root-pinning follows resolveRegisteredRoot — an unregistered
+ *  root never reaches a language server. */
+let lspRelay: LspRelay | null = null;
+function getLspRelay(): LspRelay {
+  if (!lspRelay) {
+    lspRelay = new LspRelay((_channel, payload) => emitToMain(IpcEvent.LspRelayMessage, payload));
+  }
+  return lspRelay;
+}
+
+function registerLspRelayIpc({ handle, handlePrivileged }: IpcHelpers): void {
+  handlePrivileged(IpcRequest.LspRelayAttach, (root: string, languageId: string) => {
+    const pinned = resolveRegisteredRoot(typeof root === "string" && root ? root : undefined);
+    if (!pinned) return { ok: false as const, error: "unregistered workspace" };
+    if (typeof languageId !== "string" || !languageId.trim()) {
+      return { ok: false as const, error: "languageId is required" };
+    }
+    return getLspRelay().attach(pinned, languageId.trim());
+  });
+  handlePrivileged(IpcRequest.LspRelaySend, (sessionId: string, frame: string) => {
+    if (typeof sessionId !== "string" || typeof frame !== "string") {
+      return { ok: false as const, error: "sessionId and frame are required" };
+    }
+    return getLspRelay().send(sessionId, frame);
+  });
+  handlePrivileged(IpcRequest.LspRelayDetach, (sessionId: string) => {
+    if (typeof sessionId !== "string") return { ok: false as const, error: "sessionId is required" };
+    const result = getLspRelay().detach(sessionId);
+    // Audit 7.1: process termination is an auditable, privileged action —
+    // symmetric with spawn.
+    if (result.ok) console.info("[lsp-relay] session detached:", sessionId);
+    return result;
+  });
 }
 
 function registerAgentChangesIpc({ handle }: IpcHelpers): void {
@@ -2584,6 +2753,7 @@ function registerIpc(): void {
   registerWikiIpc(helpers);
   registerMcpManagementIpc(helpers);
   registerGitmcpIpc(helpers);
+  registerLspRelayIpc(helpers);
   registerEditorIpc(helpers);
   registerAgentChangesIpc(helpers);
   registerSessionExportIpc(helpers);
@@ -2682,6 +2852,10 @@ app.on("before-quit", (event) => {
   event.preventDefault();
   isQuitting = true;
   killHelperProcesses();
+  // LSP relay servers are child processes outside the helper registry —
+  // shut them down explicitly (audit 1.2: process.on("exit") alone does not
+  // cover watchdog-forced exits and crash paths on every platform).
+  lspRelay?.shutdown();
   // Hard-exit watchdog: if the async cleanup below hangs (e.g. a wedged memory
   // pipeline or an unkillable helper), force-quit anyway. Without this, the
   // blocked quit leaves a zombie instance whose window never paints — the
