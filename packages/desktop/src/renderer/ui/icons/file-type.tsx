@@ -193,6 +193,19 @@ const SHAPES: Record<GlyphShape, (props: { color: string }) => JSX.Element> = {
   branch: BranchGlyph,
 };
 
+/** Folder silhouette — the generic directory mark (themed two-tone). */
+function FolderGlyph({ color, fill }: { color: string; fill: string }): JSX.Element {
+  return (
+    <path
+      d="M1.9 4.4c0-.9.72-1.62 1.62-1.62h2.8c.47 0 .91.2 1.22.56l.9 1.04h4.64c.9 0 1.62.72 1.62 1.62v5.7c0 .9-.72 1.62-1.62 1.62H3.52c-.9 0-1.62-.72-1.62-1.62z"
+      fill={fill}
+      stroke={color}
+      strokeWidth="1.15"
+      strokeLinejoin="round"
+    />
+  );
+}
+
 function GlyphSvg({ children }: { children: ReactNode }): JSX.Element {
   return (
     <svg
@@ -242,10 +255,19 @@ export function FileIcon({ name, fallback }: { name: string; fallback?: JSX.Elem
   );
 }
 
-/** Type-aware icon for a DIRECTORY name (well-known dirs; fallback folder). */
+/** Type-aware icon for a DIRECTORY name (well-known dirs; themed folder). */
 export function DirIcon({ name, fallback }: { name: string; fallback?: JSX.Element }): JSX.Element | null {
   const glyph = DIR_GLYPHS[name.toLowerCase()];
-  if (!glyph) return fallback ?? null;
+  if (!glyph) {
+    // 2026-09-06 user ask: every folder gets a real folder silhouette in a
+    // themed hue — clearly a FOLDER (shape), never confusable with the file
+    // badges (colored text marks). Tints ride CSS vars per appearance.
+    return (
+      <GlyphSvg>
+        <FolderGlyph color="var(--ui-folder-icon, #4c7fdb)" fill="var(--ui-folder-fill, rgba(76, 127, 219, 0.16))" />
+      </GlyphSvg>
+    );
+  }
   if (glyph.shape) {
     const Shape = SHAPES[glyph.shape];
     return (
