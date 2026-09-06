@@ -32,6 +32,9 @@ restated here for reliability, but when they conflict, skillDoc wins.
    - `skillDoc` (archify/SKILL.md)
    - ONE schema for your chosen type in `schemasDir`, plus `schemas/common.schema.json`
    - ONE matching example in `examplesDir`
+   - If `prototypes/golden/` holds an IR of your chosen type, read ONE as a
+     look-and-density anchor — golden is a reference, never a template: the
+     topology must come from the code you actually read.
      Do not read renderer internals, validators, or tests.
 3. **Explore the repository for facts**: entrypoints, services, stores,
    external dependencies, trust boundaries. Use the codegraph/serena MCP tools
@@ -122,11 +125,20 @@ chosen type's schema supports — and NONE of what it doesn't:
   screen next to the diagram panel; an artifact without any card usually
   reads unfinished.
 - **Guided views** (`meta.views`, all five types; schema caps at 5 — author
-  2–5 chapters): curated routes through the
-  map using stable node ids, each with a one-line `note` (e.g. main request
-  path, write path, auth boundary, failure handling). These power the story
-  rail, follow camera and shareable moments in the delivered HTML — a map
-  without views is silent; a map with views narrates itself.
+  3–5 chapters, never fewer than 3): curated routes through the map using
+  stable node ids. The floor is perspective-driven — cover the story a
+  reader must hear, not one generic "main path": `architecture` covers the
+  main request path, the write/data-landing path, and one trust or failure
+  boundary; `dataflow` covers the end-to-end spine, a fork/join point, and
+  the exception branch; `sequence` chapters mirror its message phases;
+  `workflow` covers the normal flow and the exception/retry lane; `lifecycle`
+  covers the happy path and the failure/recovery path. Every `note` names
+  real identifiers (component ids, file paths, API routes) — "data processing
+  flow" says nothing. Chapter order is the playback order: entry → spine →
+  branches/boundaries → conclusion, and the last chapter's landing point
+  agrees with the final card. Views power the story rail, follow camera and
+  shareable moments in the delivered HTML — a map without views is silent; a
+  map with views narrates itself.
 - **Brand marks** for real, named products: when a component names a
   recognizable product (PostgreSQL, Redis, Kafka, Nginx, React, …), run
   `node <bin> brands "<name>" --json` (read-only; allowlisted in this task)
@@ -152,6 +164,35 @@ chosen type's schema supports — and NONE of what it doesn't:
   in the named direction): a guessed side paired with auto routing
   guarantees `endpoint-side-direction` failures.
 
+## Delivered look (what "showcase" renders like)
+
+Distilled from delivered showcase artifacts (the vendored rendered examples
+plus this pipeline's accepted maps). These are properties finished maps
+share — not new schema capabilities. A map that passes all 9 checks can
+still be mediocre, and the root of mediocre is almost always thin semantics.
+
+- **Readable skeleton**: within 3 seconds the first screen shows which chain
+  is the spine — vertical main chains on adjacent grid cells, boundaries
+  splitting ownership horizontally, hubs surrounded by their neighbors.
+  If the spine needs hunting, the placement is wrong, not the theme.
+- **Restrained color**: color comes from accurate semantic `type`s and the
+  few `emphasis`/`security` relationship variants — nothing else. A map
+  that looks decorated has wrong types or decorative variants; fix the
+  semantics, never add decoration.
+- **Layered density**: every component reads in two lines (role sublabel +
+  runtime tag), edges carry their protocol, 1–3 cards conclude. Sparse
+  labels mean SHORT, not missing; a wall of identical boxes means missing
+  sublabels.
+- **Disciplined corridors**: orthogonal runs, labels that do not collide,
+  bidirectional pairs sharing one corridor. Crossing or colliding geometry
+  is a placement problem — move components adjacent before reaching for
+  routing controls.
+- **Narrated journey**: guided views read like a guided tour — each chapter
+  lands the camera somewhere purposeful and its note speaks in specifics
+  (see the views floor above).
+- **Sparse brand marks**: `brand` only on recognizable products, roughly a
+  third of components at most — everywhere is nowhere.
+
 ## Hard rules
 
 - **Mutate files ONLY with the `write` tool.** NEVER create, modify, or delete
@@ -170,6 +211,9 @@ chosen type's schema supports — and NONE of what it doesn't:
   Nothing else on disk is yours to write.
 - Do not modify, delete, or "clean up" other files in prototypes/.
 - Never claim a diagram rendered — rendering is the host's deterministic gate.
+- A guided-view chapter whose note names no real identifier, or a set of
+  views that skips a floor path the perspective demands, is an unfinished
+  map — same class as an unevidenced boundary.
 - Preserve exact code identifiers and product names in node/edge labels.
 - A beauty feature without evidence is a LIE in color: do not author a
   boundary, card line, variant, or guided view that the code does not

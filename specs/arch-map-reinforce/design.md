@@ -1,6 +1,6 @@
 # 架构图强化层（arch-map-reinforce）— 技术设计
 
-> **状态**：**设计稿 v2（2026-09-06，未实施）**——上游：对 [plannotator/effective-html](https://github.com/plannotator/effective-html) 的对比调研（会话内完成，按约定不落地调研报告）。v2 增补（2026-09-06）：编辑器侧换核复核——`specs/editor-copilot` 拍板 CM6 替换 Monaco 且已在本分支落地（Monaco loader / EditorAgentFloat / EditorDiagnosticsDrawer 已删除，`cm6-kernel/cm6-lsp/PairBar` 等就位），据此催生 **R6 图板 → 编辑器跳转联动**。
+> **状态**：**P0+P1+P2 代码面已落地（2026-09-06）**——R1/R2/R4 提示词层 + R3 focus 参数 + R5 主题回写 + R6 图板→编辑器跳转全部实施，测试断言齐（5 项 mutation-check 验证）、typecheck/lint/test 全绿；真机走查项（R2 前后盲评、focused 恰产 1 图、R6 点选打开）移交预生产测试清单。上游：对 [plannotator/effective-html](https://github.com/plannotator/effective-html) 的对比调研（会话内完成，按约定不落地调研报告）。v2 增补（2026-09-06）：编辑器侧换核复核——`specs/editor-copilot` 拍板 CM6 替换 Monaco 且已在本分支落地（Monaco loader / EditorAgentFloat / EditorDiagnosticsDrawer 已删除，`cm6-kernel/cm6-lsp/PairBar` 等就位），据此催生 **R6 图板 → 编辑器跳转联动**。
 > **命题**：给 archify 架构图管线加一层「强化」——**不动管线架构、不改 IR schema、不 fork 渲染器、不碰安全机制**，把 effective-html 这套已被社区验证的方法论（范例语料锚定、叙事优先、轻量触发）移植到我们的**生成侧提示词层**与**既有 post-deliver patch 层**，并把编辑器换核带来的既有「打开代码」通道接进图板（R6，纯接线）。
 > **对应实现域**：`packages/core/templates/plugins/code/skills/arch-scan/SKILL.md`（提示词层主体）、`packages/core/src/actions/arch-scan.ts` + `packages/core/src/session-manager-tasks.ts`（加性参数与任务提示词段落）、`packages/desktop/src/main/tools/archify-cli.ts`（patch 块家族）、`packages/desktop/src/renderer/components/KnowledgePanel.tsx` arch pane（R6 消息监听与打开接线）、`<targetRoot>/.deeporca/prototypes/golden/`（golden 语料约定，仅目录约定无代码）。
 > **硬约束**：① 零管线改动——`archify deliver` 门禁、receipt/HMAC 链、viewer 渲染器、IPC 形状全部零触碰；② 零新依赖；③ **vendored 树零手工改动**（`scripts/vendor-archify.js` 在上游 HEAD 变化时整树重生成，任何塞进 `vendor/archify/` 的自有文件都会被冲掉——本 spec 所有自有资产一律放 core templates 或 patch 注入）；④ 新增用户可见文案落全 6 个 locale；⑤ 单文件长度标准（2500±10%）不破，SKILL.md 当前 177 行、arch-scan.ts 当前 110 行，余量充足。
@@ -72,7 +72,7 @@ archify 管线在**交付可靠性与安全**上已全面领先 effective-html�
 4. **cards 与 views 收尾呼应**：最后一张 card 的结论应与最后一个 view 的落点一致（图讲完的故事，卡片给出留存结论）。
 
 **触点**：`SKILL.md` 「Showcase surface」guided views bullet 重写 + 「Hard rules」加一条 views 纪律。
-**验收**：eval（arch-scan-positive.yaml）断言产出 IR 的 `meta.views.length ≥ 3` 且 note 含至少一个真实标识符；真机走查一次 story 播放，三张图（architecture/dataflow/sequence 各一）叙事连贯。
+**验收**：eval（arch-scan-positive.yaml）弱钉住 views 已编写（rule_based 只能查转录子串——write 调用的参数携带完整 IR JSON，`"views"` 在列；章数 ≥3 与 note 具名这两条由真机走查把守）；真机走查一次 story 播放，三张图（architecture/dataflow/sequence 各一）叙事连贯。任务提示词的 showcase 段与 SKILL.md 同步为 3–5 下限（审查轮 2026-09-06：两处曾短暂不一致，已对齐）。
 
 ### R2 成品质感规约 — 视觉锚定（P0，纯提示词）
 
@@ -106,7 +106,7 @@ archify 管线在**交付可靠性与安全**上已全面领先 effective-html�
 6. **触发面边界（v2 补）**：编辑器模块（`specs/editor-copilot` 结对画布）**不反向依赖本入口**——若未来编辑器要加「本文件架构」类触发（状态栏/命令面板/右键），属 editor-copilot spec 的领地，本 spec 只保证 `focus` 参数语义稳定、可被外部复用，不向编辑器模块伸出任何钩子。
 
 **触点**：`arch-scan.ts`（类型 + 描述）、`session-manager-tasks.ts`（提示词分支）、`en/zh/zh-tw/zh-hk/ja/ko` 各一条 emit 文案。
-**验收**：focused 调用真机产**恰好一张**聚焦图（slug 独立、不覆盖全量图）；全量路径回归不变；`background-task.test.ts` 补 focused 提示词分支断言。
+**验收**：focused 调用真机产**恰好一张**聚焦图（slug 独立、不覆盖全量图）；全量路径回归不变；focused 提示词分支断言落在 `arch-scan-prompt.test.ts`（buildArchScanTaskPrompt 的专属测试文件，比 background-task.test.ts 更贴切——审查轮 2026-09-06 校准）。
 
 ### R5 主题持久化收敛（P1，patch 块内一行）
 

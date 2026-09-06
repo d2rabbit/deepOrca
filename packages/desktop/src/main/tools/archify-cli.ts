@@ -54,6 +54,22 @@ import { getArchifyLanguage, spawnTracked } from "@deeporca/core";
  *  5. Viewer-chrome i18n (user ask 2026-08-31: 界面文案中英双语). Injected
  *     only for zh app locales; see viewerI18nPatch() for the mechanism.
  *
+ *  6. Theme persistence (specs/arch-map-reinforce R5): the sync in #3 now
+ *     also writes `localStorage('archify-theme')` — the same key the
+ *     template's apply-before-paint boot script reads (assets/template.html).
+ *     Without the write-back, an exported/standalone-opened HTML boots on a
+ *     stale stored value (or the system preference) instead of the host's
+ *     last synced appearance.
+ *
+ *  7. Node-anchor bridge (specs/arch-map-reinforce R6): OUTBOUND focus
+ *     messaging, the mirror of #3's inbound theme channel. When the viewer's
+ *     focused node changes (same state sources the passport patch tracks),
+ *     the block posts `{type:"deeporca-node-focus", nodeId}` to the parent.
+ *     The host (KnowledgePanel arch pane) resolves nodeId against the
+ *     gate-verified IR's components[].sources[] and opens the file in the
+ *     editor. Only the nodeId ever crosses the frame boundary — path
+ *     resolution stays host-side on host-read data.
+ *
  *  A fourth experiment (guided-rail restyle: compact row → side drawer →
  *  floating TOC) was REVERTED on user decision 2026-08-30 — the stock
  *  top-band rail wins. The rail-compact strip regex above stays so
@@ -70,10 +86,11 @@ function applyViewerPatches(htmlPath: string): boolean {
       .replace(/<style id="deeporca-present-lock[^"]*"[\s\S]*?<\/script>/g, "")
       .replace(/<style id="deeporca-theme-sync[^"]*"[\s\S]*?<\/script>/g, "")
       .replace(/<style id="deeporca-viewer-i18n"[\s\S]*?<\/script>/g, "")
+      .replace(/<style id="deeporca-node-anchor[^"]*"[\s\S]*?<\/script>/g, "")
       .replace(/<style id="deeporca-rail-compact[^"]*"[\s\S]*?<\/script>/g, "");
     const idx = stripped.indexOf("</body>");
     if (idx < 0) return false;
-    const patched = `${stripped.slice(0, idx)}${passportPatch()}${presentLockPatch()}${themeSyncPatch()}${viewerI18nPatch()}${stripped.slice(idx)}`;
+    const patched = `${stripped.slice(0, idx)}${passportPatch()}${presentLockPatch()}${themeSyncPatch()}${viewerI18nPatch()}${nodeAnchorPatch()}${stripped.slice(idx)}`;
     if (patched === html) return false;
     // Temp + rename: file:// readers (the embed iframe, preview windows) load
     // these HTMLs out-of-process — a truncated mid-write file renders broken
@@ -192,11 +209,55 @@ function themeSyncPatch(): string {
     if(!d||d.type!=='deeporca-theme')return;
     if(d.theme!=='light'&&d.theme!=='dark')return;
     document.documentElement.setAttribute('data-theme',d.theme);
+    // R5: persist so an exported/standalone-opened copy boots on the host's
+    // last synced appearance (template boot reads this exact key).
+    try{localStorage.setItem('archify-theme',d.theme)}catch(_){}
     var label=document.getElementById('theme-label');
     if(label)label.textContent=d.theme==='dark'?'Dark':'Light';
     var btn=document.getElementById('btn-theme');
     if(btn)btn.setAttribute('aria-pressed',d.theme==='light'?'true':'false');
   });
+})();
+</script>`;
+}
+
+/**
+ * Node-anchor bridge (see applyViewerPatches #7, specs/arch-map-reinforce
+ * R6). The passport patch already derives the focused node from the viewer's
+ * real state; this block reuses those exact signals (svg[data-focus-active]
+ * + the focus chip's visibility) and posts the nodeId to the parent frame.
+ * Payload discipline mirrors themeSync: a fixed type + one string — the
+ * HOST validates and resolves the id against the gate-verified IR; nothing
+ * path-shaped ever originates inside the frame.
+ */
+function nodeAnchorPatch(): string {
+  return `<style id="deeporca-node-anchor">/* host node-anchor bridge */</style>
+<script>
+(function(){
+  var last='';
+  function activeId(){
+    var svg=document.querySelector('.diagram-container svg');
+    if(!svg)return '';
+    var sel=svg.querySelector('[data-node-id][data-focus-selected]');
+    if(sel)return sel.getAttribute('data-node-id')||'';
+    var active=(svg.getAttribute('data-focus-active')||'').trim().split(/\\s+/)[0]||'';
+    if(!active)return '';
+    var node=svg.querySelector('[data-node-id="'+active+'"]');
+    return node?(node.getAttribute('data-node-id')||''):'';
+  }
+  function send(){
+    var id=activeId();
+    if(id===last)return;
+    last=id;
+    if(id&&window.parent&&window.parent!==window){
+      try{window.parent.postMessage({type:'deeporca-node-focus',nodeId:id},'*')}catch(_){}
+    }
+  }
+  var svg=document.querySelector('.diagram-container svg');
+  if(svg)new MutationObserver(send).observe(svg,{attributes:true,attributeFilter:['data-focus-active']});
+  var chip=document.getElementById('focus-chip');
+  if(chip)new MutationObserver(send).observe(chip,{attributes:true,attributeFilter:['hidden']});
+  send();
 })();
 </script>`;
 }

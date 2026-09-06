@@ -20,6 +20,10 @@ expect:
     - "arch-"
     - ".architecture.json"
     - "write"
+    # arch-map-reinforce R1: the write tool call carries the full IR JSON in
+    # the transcript, so "views" pins that meta.views chapters were authored
+    # (the 3-chapter narrative floor itself is a real-machine gate).
+    - "views"
   must_not_contain:
     - "save_archmap"
     - "render_surface"

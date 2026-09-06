@@ -132,6 +132,7 @@ export function buildArchScanTaskPrompt(
   targetRoot: string,
   opts?: {
     perspective?: string;
+    focus?: string;
     incremental?: boolean;
     repository?: { url: string; revision: string } | null;
   }
@@ -166,8 +167,28 @@ export function buildArchScanTaskPrompt(
       ? `Language: write ALL reader-facing text (title, node labels, sublabels, edge labels, boundary labels) in ${getArchifyLanguage()}. Keep exact code identifiers, product names and API paths as-is.`
       : "Language: use the repository's dominant documentation language for reader-facing text.",
     toolkit,
+    // Golden look-anchors (specs/arch-map-reinforce R4): curated best IRs
+    // collected from past showcase deliveries. Reference for density/quality
+    // only — the topology always comes from the code read this run.
+    `Golden anchors: if ${targetRoot}/.deeporca/prototypes/golden/ holds an IR of your chosen type, read ONE as a look-and-density anchor (reference, never template).`,
     repositoryContract,
   ];
+  // Focused mode (specs/arch-map-reinforce R3): a conversational "explain X
+  // with a diagram" run. The constraints are load-bearing — a focused scan
+  // that silently degrades into a full-repository sweep produces a duplicate
+  // of the existing overall map at focused-scan cost.
+  const focusText = opts?.focus?.trim();
+  if (focusText) {
+    lines.push(
+      "",
+      `FOCUSED MODE: this run answers ONE question — "explain ${focusText}".`,
+      "Produce EXACTLY ONE artifact (one slug, one diagram type chosen for explanatory",
+      "power) about the named subsystem. Explore only its entry points and dependency",
+      "boundary — do NOT sweep the whole repository. If evidence is thin, ship the",
+      "smaller truthful map; never widen scope. Existing artifacts are not yours to",
+      "touch: write your single new file, change nothing else."
+    );
+  }
   if (opts?.incremental) {
     lines.push(
       "",
@@ -187,7 +208,8 @@ export function buildArchScanTaskPrompt(
     "full typed surface where the evidence supports it. For architecture maps:",
     "accurate semantic component types, a sublabel + runtime tag on every",
     "component, region/security boundaries for real ownership and trust edges,",
-    "1-3 evidence-backed conclusion cards, 2-5 curated meta.views chapters (they",
+    "1-3 evidence-backed conclusion cards, 3-5 curated meta.views chapters at",
+    "the per-type narrative floor from the skill's guided-views contract (they",
     "power the story rail in the delivered HTML), grid layout. Other diagram",
     "types: use their own placement/ownership fields (workflow lane+col,",
     "dataflow stage+row, sequence participant order) — the beauty bar is the",
@@ -399,6 +421,7 @@ export abstract class SessionManagerTasks extends SessionManagerLifecycle {
       const typed = input as
         | {
             perspective?: string;
+            focus?: string;
             root?: string;
             incremental?: boolean;
             repository?: { url: string; revision: string } | null;
@@ -411,6 +434,7 @@ export abstract class SessionManagerTasks extends SessionManagerLifecycle {
       // denied (review round 4, three agents independently).
       return buildArchScanTaskPrompt(typed?.root ?? this.projectRoot, {
         perspective: typed?.perspective,
+        focus: typed?.focus,
         incremental: typed?.incremental === true,
         repository: typed?.repository ?? null,
       });

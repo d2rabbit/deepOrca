@@ -758,20 +758,20 @@ function toFileUrl(p: string): string {
 /**
  * Architecture BOARD (user decision 2026-08-29: 嵌入自家画板 + 一级直出 +
  * 子级类似索引关系图动态绘制):
- *   - HERO (the newest `architecture` artifact) embeds archify's validated
- *     HTML INLINE via iframe — the first level is directly expanded when the
- *     tab opens, no launcher, no external window;
- *   - SUB-LEVEL artifacts (module/dataflow/sequence/…) render with OUR
- *     dynamic SVG map (ArchifyMiniMap, symbol-graph interaction grammar);
- *   - the rail lists every artifact; selecting swaps the pane (hero embeds,
- *     sub-levels draw); a secondary button still opens the standalone window.
+ *   - EVERY artifact (hero and sub-levels alike — the dynamic-draw idea from
+ *     the original decision was superseded during implementation) resolves
+ *     through the receipt-verified render gate and embeds archify's
+ *     validated HTML INLINE via iframe: the newest `architecture` artifact
+ *     expands directly on tab open, sub-levels on rail selection;
+ *   - the rail lists every artifact; selecting swaps the pane; a secondary
+ *     button still opens the standalone window.
  */
 function ArchBoard({
   files,
   selected,
   appearance,
   onSelect,
-  onOpenFile: _onOpenFile,
+  onOpenFile,
   neighbours,
 }: {
   files: Array<{ name: string; path: string; mtime: string; type?: string; htmlPath?: string }>;
@@ -857,6 +857,59 @@ function ArchBoard({
     if (rendered) setRendered(null);
     if (embedSrc) setEmbedSrc(null);
   }
+
+  // Node-anchor bridge (specs/arch-map-reinforce R6): the embedded viewer
+  // posts {type:"deeporca-node-focus", nodeId} when its focused node changes.
+  // The id resolves against the gate-verified IR — components[].sources[]
+  // are repo-relative paths only the archify deliver gate can have validated
+  // against this checkout — and the first source opens in the editor.
+  // Payload discipline mirrors the theme channel: strict shape, everything
+  // else ignored. Only architecture IRs carry sources (upstream constraint),
+  // so other types skip the fetch entirely. Line anchors stay informational
+  // in v1 — the open flow is path-only by design.
+  const anchorMapRef = useRef<Map<string, string> | null>(null);
+  useEffect(() => {
+    anchorMapRef.current = null;
+    const jsonPath = currentEntry?.path;
+    if (!jsonPath || currentEntry?.type !== "architecture") return;
+    let alive = true;
+    (async () => {
+      const res = await api.knowledgeArchReadJson(jsonPath);
+      if (!alive || !res.ok || !res.json) return;
+      try {
+        const ir = JSON.parse(res.json) as {
+          components?: Array<{ id?: string; sources?: Array<{ path?: string }> }>;
+        };
+        if (!Array.isArray(ir.components)) return;
+        const map = new Map<string, string>();
+        for (const c of ir.components) {
+          const src = Array.isArray(c.sources)
+            ? c.sources.find((s): s is { path: string } => typeof s?.path === "string" && s.path.length > 0)
+            : undefined;
+          if (c?.id && src) map.set(c.id, src.path);
+        }
+        anchorMapRef.current = map.size > 0 ? map : null;
+      } catch {
+        // unparsable IR — anchors stay off for this artifact
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [currentEntry?.path, currentEntry?.type]);
+  useEffect(() => {
+    const onMessage = (e: MessageEvent) => {
+      const d = e.data as { type?: unknown; nodeId?: unknown } | null;
+      if (!d || d.type !== "deeporca-node-focus" || typeof d.nodeId !== "string" || !d.nodeId) return;
+      const rel = anchorMapRef.current?.get(d.nodeId);
+      if (!rel || !currentEntry?.path) return;
+      const root = currentEntry.path.replace(/\\/g, "/").split("/.deeporca/prototypes/")[0];
+      if (!root) return;
+      onOpenFile(`${root}/${rel.replace(/^\/+/, "")}`);
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [currentEntry?.path, onOpenFile]);
 
   if (!currentEntry) return <div className="ui-side-panel-empty">{t("index.archmapsEmpty")}</div>;
   // Trust ONLY gate output (receipt-verified) — a bare htmlPath could be

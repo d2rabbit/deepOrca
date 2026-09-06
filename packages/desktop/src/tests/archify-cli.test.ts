@@ -69,6 +69,22 @@ test("listArchifyArtifacts: absent prototypes dir → empty", () => {
   }
 });
 
+test("listArchifyArtifacts: golden/ corpus dir is invisible to the deliver gate (arch-map-reinforce R4)", () => {
+  // The golden look-anchor corpus (curated best IRs) lives INSIDE prototypes/
+  // by convention but must never be listed, rendered, or swept — discovery is
+  // a flat scan and the golden files sit one level deeper, unprefixed.
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "archify-golden-"));
+  try {
+    const golden = path.join(root, ".deeporca", "prototypes", "golden");
+    fs.mkdirSync(golden, { recursive: true });
+    fs.writeFileSync(path.join(golden, "checkout-platform.head.architecture.json"), "g".repeat(500));
+    fs.writeFileSync(path.join(golden, "agent-tool-call.workflow.json"), "g".repeat(500));
+    assert.deepEqual(listArchifyArtifacts(root), [], "golden corpus files never surface as artifacts");
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("refreshViewerPatches: v1 block replaced + present locked, idempotent, receipt stays valid", () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "archify-passport-"));
   try {
@@ -126,6 +142,24 @@ test("refreshViewerPatches: v1 block replaced + present locked, idempotent, rece
       html.lastIndexOf("deeporca-theme-sync"),
       "single theme-sync block"
     );
+    // Theme persistence (arch-map-reinforce R5): the sync handler writes the
+    // key the template's apply-before-paint boot script reads, so exported /
+    // standalone-opened copies boot on the host's last synced appearance.
+    assert.equal(
+      html.includes("localStorage.setItem('archify-theme'"),
+      true,
+      "R5: synced theme persists to localStorage"
+    );
+    // Node-anchor bridge (arch-map-reinforce R6): outbound focus messaging —
+    // fixed payload shape, nodeId only, fired on focus change.
+    assert.equal(html.includes("deeporca-node-anchor"), true, "R6: node-anchor block present");
+    assert.equal(html.includes("deeporca-node-focus"), true, "R6: posts the deeporca-node-focus message type");
+    assert.equal(
+      html.indexOf("deeporca-node-anchor"),
+      html.lastIndexOf("deeporca-node-anchor"),
+      "single node-anchor block"
+    );
+    assert.equal(html.includes("sources"), false, "R6: no path data crosses the frame boundary");
     // Guided-rail restyle REVERTED (user decision 2026-08-30: the stock top
     // band wins) — no rail block is injected anymore. The strip regex stays
     // so already-delivered files carrying any earlier iteration converge.

@@ -1,8 +1,9 @@
 /**
  * Generate the workspace architecture map by running the REAL arch-scan
  * background LLM task (specs/index-knowledge-rework R2-2 channel) against
- * this repo — same path the desktop build pipeline uses. Surfaces flush to
- * .deeporca/prototypes/arch-*.json.
+ * this repo — same path the desktop build pipeline uses. Typed-IR artifacts
+ * land in .deeporca/prototypes/arch-*.<type>.json (archify era, 2026-08-29+);
+ * the desktop's deliver gate renders them on the next embed/build pass.
  *
  * Usage: npx tsx scripts/gen-arch-map.ts [projectRoot]
  */

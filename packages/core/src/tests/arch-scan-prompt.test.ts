@@ -51,6 +51,29 @@ test("perspective defaults to overall", () => {
   assert.match(buildArchScanTaskPrompt("/r", { perspective: "data-flow" }), /Perspective: data-flow/);
 });
 
+test("focused mode rides along only when set, with one-artifact constraints (arch-map-reinforce R3)", () => {
+  const focused = buildArchScanTaskPrompt("/r", { focus: "the renderer IPC surface" });
+  assert.match(focused, /FOCUSED MODE: this run answers ONE question/);
+  assert.match(focused, /"explain the renderer IPC surface"/);
+  assert.match(focused, /EXACTLY ONE artifact/);
+  assert.match(focused, /never widen scope/);
+  // The focused block must NOT leak into ordinary runs (full sweep stays the
+  // default contract)…
+  const plain = buildArchScanTaskPrompt("/r");
+  assert.doesNotMatch(plain, /FOCUSED MODE/);
+  // …and stays compatible with the existing variant axes.
+  const focusedIncremental = buildArchScanTaskPrompt("/r", { focus: "x", incremental: true });
+  assert.match(focusedIncremental, /FOCUSED MODE/);
+  assert.match(focusedIncremental, /Target repository root: \/r/);
+});
+
+test("golden look-anchor line names the target's golden dir (arch-map-reinforce R4)", () => {
+  const prompt = buildArchScanTaskPrompt("/r");
+  assert.match(prompt, /\/r\/\.deeporca\/prototypes\/golden\//);
+  assert.match(prompt, /look-and-density anchor/);
+  assert.match(prompt, /never template/);
+});
+
 test("background runtime context is slim, target-rooted, and path-explicit (gateway censor class)", () => {
   const ctx = backgroundTaskRuntimeContext("/builds/ws-b");
   assert.match(ctx, /target root: \/builds\/ws-b/);
