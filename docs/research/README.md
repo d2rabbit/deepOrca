@@ -166,6 +166,12 @@
 
 ---
 
+## 2026-09-05 · 交互体系重设计（右键菜单 + 快捷操作）
+
+| 文档 | 主题 | 对应模块 | 消费 | 备注 |
+| --- | --- | --- | --- | --- |
+| [2026-09-05-interaction-redesign.md](./2026-09-05-interaction-redesign.md) | 交互体系完整重设计：全表面一手盘点（现状基线/缺口）→ 统一基建（ContextMenu 组件/ShellRevealInFolder/EditorFileOps 废纸篓语义）→ 五表面菜单设计（Sidebar 会话/编辑器 CM6+结对画布/消息流/知识库审查/Token）→ P0-P3 排期与风险 | 规划落点：`renderer/components/ContextMenu.tsx`、`shared/ipc.ts`（两个新 IPC）、Sidebar/EditorPanel/EditorTabBar/cm6-kernel/PairBar/KnowledgePanel 等接线 | 🟨 | 纯设计留档，无代码变更。**用户定调**：任务树保持现状（历史记录，零改动）；删除一律废纸篓；编辑区右键走 CM6 `domEventHandlers`。**已落 spec**：[specs/context-menu-interaction/](../../specs/context-menu-interaction/design.md)（design+tasks，方案稿待实现） |
+
 ## 消费链（文档 → 文档 → 代码）
 
 - **dsh 链**：deep-dive + takeaways → adoption-plan → P0 三项落地（session.ts / llm-error.ts）→ 2026-08-17 整合为 dsh-consolidated 台账 → v3.19 收官 D 线落地候选池四件套（`29801ee`：崩溃合成收尾 / 两段式 compaction / 执行闸门 / 前缀守卫）→ **2026-09-04 封闭**（用户拍板"dsh 不需要了"；S1/S2 已判"不做"、C1 移除，无悬空候选，已吸收项全部在代码）
