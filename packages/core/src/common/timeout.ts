@@ -1,8 +1,9 @@
 /**
  * Deadline race helper for fail-open lookups: resolve null when the promise is
  * slow (or itself fails), never reject, never block the caller past `ms`.
- * Same pattern as the session-creation memory recall race
- * (session-manager-lifecycle), extracted so action seams can share it.
+ * Mirrors the session-creation memory recall race pattern
+ * (session-manager-lifecycle) with the timer-cleanup discipline of
+ * mcp-manager's races, so action seams share one hardened copy.
  */
 
 export function withTimeoutNull<T>(promise: Promise<T>, ms: number): Promise<T | null> {

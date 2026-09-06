@@ -44,7 +44,9 @@ export function bindKnownMemorySearch(
  * settings.behaviorContext gate as the boot-context injection). Gated off,
  * empty or throwing collectors degrade to null. The optional `fallback`
  * (specs/sop-extraction P2.2: profile block behind the workflow-oriented
- * builder) is tried only when the primary collector yields nothing.
+ * builder) is tried only when the primary collector YIELDS null/blank — a
+ * throwing primary aborts both legs (fail-closed to null: don't run more
+ * collectors in an environment that just proved broken).
  */
 export function bindBehaviorContextCollector(
   isEnabled: () => boolean,

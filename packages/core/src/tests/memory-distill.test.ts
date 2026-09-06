@@ -404,3 +404,97 @@ test("distill: snapshot dir pruned to the newest 10 — memory-audit review-stor
   pruneDistillSnapshots(dir, 2);
   assert.equal(fs.readdirSync(dir).filter((f) => f.startsWith("memory-distill-")).length, 2, "explicit keep honored");
 });
+
+test("distill hardening: query clipped at budget; unsafe skill names dropped; verdicts normalized; corrupt store tolerated", async () => {
+  const home = tempDir("distill-hd-");
+  const workspace = tempDir("distill-hdws-");
+  setHomeDir(home);
+  const projectDir = seedProject(home, workspace);
+  // Two 400-char intents (each digested down to 160) so the joined L1 query
+  // exceeds the 200 budget and the clip must engage.
+  for (const [id, ch, stamp] of [
+    ["s3", "长", "2026-09-04T13:00:00.000Z"],
+    ["s4", "庚", "2026-09-04T12:30:00.000Z"],
+  ] as const) {
+    fs.writeFileSync(
+      path.join(projectDir, `${id}.jsonl`),
+      [msg("user", ch.repeat(400)), msg("assistant", "done")].join("\n") + "\n",
+      "utf8"
+    );
+  }
+  fs.writeFileSync(
+    path.join(projectDir, "sessions-index.json"),
+    JSON.stringify({
+      version: 1,
+      entries: [
+        { id: "s1", status: "completed", updateTime: "2026-09-04T12:00:00.000Z" },
+        { id: "s2", status: "completed", updateTime: "2026-09-04T11:00:00.000Z" },
+        { id: "s3", status: "completed", updateTime: "2026-09-04T13:00:00.000Z" },
+        { id: "s4", status: "completed", updateTime: "2026-09-04T12:30:00.000Z" },
+      ],
+    }),
+    "utf8"
+  );
+
+  const calls: Array<{ q: string }> = [];
+  const out = await memoryDistillRun(
+    { sessions: 4, synthesize: true },
+    buildCtx(workspace, async () => GOOD_SOP, {
+      search: async (q) => {
+        calls.push({ q });
+        return "已知事实";
+      },
+    })
+  );
+  assert.equal(out.ok, true);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0]!.q.length, 200, "query clipped at exactly RELATED_QUERY_MAX");
+  assert.ok(out.context?.relatedMemoriesChars, "known block present");
+
+  // skillName with path separators must be dropped (it becomes a file path).
+  const BAD_NAME =
+    '{"sopProposals":[{"action":"skill-new","skillName":"a/../evil","body":"---\\nname: x\\n---\\nbody","rationale":"pathy","evidenceRefs":["s3#0"],"estTokens":1}]}';
+  const bad = await memoryDistillRun(
+    { sessionId: "s3", synthesize: true },
+    buildCtx(workspace, async () => BAD_NAME)
+  );
+  assert.equal(bad.synthesis?.proposals.length, 0);
+  assert.equal(bad.synthesis?.dropped, 1);
+
+  // A hand-corrupted rejections store must not brick the stats (fail-open).
+  const storeDir = path.join(workspace, ".deeporca", "audits");
+  fs.mkdirSync(storeDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(storeDir, "rejections.json"),
+    JSON.stringify({ "skill-new:agents:deadbeef": null, "add-rule:agents:cafe": { verdict: "accept", at: "t" } }),
+    "utf8"
+  );
+  const stats = await memoryDistillRun({ sessionId: "s3" }, buildCtx(workspace));
+  assert.equal(stats.ok, true);
+  assert.equal(stats.decisionStats?.total, 1, "null entry skipped, valid one counted");
+  assert.equal(stats.decisionStats?.accepted, 1);
+
+  // recordDecisions normalizes unknown verdicts into the skip bucket.
+  const snap = await memoryDistillRun(
+    { synthesize: true, dryRun: false },
+    buildCtx(workspace, async () => GOOD_SOP)
+  );
+  const auditId = path
+    .basename(fs.readdirSync(storeDir).find((f) => f.startsWith("memory-distill-")) ?? "")
+    .replace(/^memory-distill-/, "")
+    .replace(/\.json$/, "");
+  const keyRule = snap.synthesis!.proposals.find((p) => p.action === "add-rule")!.key;
+  const normalized = await memoryDistillRun(
+    { recordDecisions: { auditId, decisions: [{ proposalKey: keyRule, verdict: "accepted" }] } },
+    buildCtx(workspace)
+  );
+  assert.equal(normalized.ok, true);
+  assert.equal(normalized.decisionStats?.skipped, 1, "unknown verdict lands as skip");
+  assert.equal(normalized.decisionStats?.accepted, 1, "pre-seeded accept survives");
+  assert.equal(normalized.pendingWriteBacks, undefined, "skip never produces a write-back");
+  const persisted = JSON.parse(fs.readFileSync(path.join(storeDir, "rejections.json"), "utf8")) as Record<
+    string,
+    { verdict: string }
+  >;
+  assert.equal(persisted[keyRule]?.verdict, "skip", "unknown verdict is normalized at write time");
+});

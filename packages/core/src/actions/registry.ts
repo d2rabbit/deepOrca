@@ -148,8 +148,8 @@ export class ActionRegistry {
     sessionId: string
   ) => { treeId: string; branch: string; nodeId: string } | null | undefined;
   private readonly appendSysMessage?: (sessionId: string, text: string) => void;
-  private readonly knownMemoriesSearch?: (query: string, limit?: number) => Promise<string | null>;
-  private readonly behaviorContextCollector?: () => string | null;
+  private readonly searchKnownMemoriesFn?: (query: string, limit?: number) => Promise<string | null>;
+  private readonly collectBehaviorContextFn?: () => string | null;
 
   constructor(host: RegistryHost) {
     this.projectRoot = host.projectRoot;
@@ -164,8 +164,8 @@ export class ActionRegistry {
     this.setTaskRef = host.setSessionTaskRef;
     this.getTaskRef = host.getSessionTaskRef;
     this.appendSysMessage = host.appendSessionSystemMessage;
-    this.knownMemoriesSearch = host.searchKnownMemories;
-    this.behaviorContextCollector = host.collectBehaviorContext;
+    this.searchKnownMemoriesFn = host.searchKnownMemories;
+    this.collectBehaviorContextFn = host.collectBehaviorContext;
   }
 
   /**
@@ -271,8 +271,8 @@ export class ActionRegistry {
         setSessionTaskRef: this.setTaskRef,
         getSessionTaskRef: this.getTaskRef,
         appendSessionSystemMessage: this.appendSysMessage,
-        searchKnownMemories: this.knownMemoriesSearch,
-        collectBehaviorContext: this.behaviorContextCollector,
+        searchKnownMemories: this.searchKnownMemoriesFn,
+        collectBehaviorContext: this.collectBehaviorContextFn,
       };
       try {
         return (await entry.run(input, ctx)) as O;

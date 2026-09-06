@@ -55,6 +55,7 @@ import type { PermissionSettings } from "./settings";
 import type { SandboxBackend, SandboxProbeResult } from "./sandbox/backend/interface";
 import type { ComplexityVerdict } from "./routing/gate/gate";
 import { evaluateL1Rules } from "./routing/gate/gate";
+import { withTimeoutNull } from "./common/timeout";
 import type {
   BashTimeoutAdjustment,
   SessionEntry,
@@ -216,12 +217,11 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
     // Uses a 2s race: if the Gateway responds fast, memories are injected
     // synchronously before the LLM sees the first message. If it's slow,
     // we proceed without memories rather than blocking session creation.
+    // withTimeoutNull also swallows a rejecting recall and clears the timer
+    // on the fast path (common/timeout — shared with the action seams).
     if (this.memoryProvider?.isAvailable() && userPrompt.text) {
       try {
-        const recall = await Promise.race([
-          this.memoryProvider.recall(userPrompt.text, sessionId),
-          new Promise<null>((r) => setTimeout(() => r(null), 2000)),
-        ]);
+        const recall = await withTimeoutNull(this.memoryProvider.recall(userPrompt.text, sessionId), 2000);
         if (recall) {
           const memoryPrompt = getMemoryPrompt(recall);
           if (memoryPrompt) {

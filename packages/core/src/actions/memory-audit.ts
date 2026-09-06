@@ -375,19 +375,32 @@ function writeSnapshot(projectRoot: string, output: Omit<MemoryAuditOutput, "sna
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   const file = path.join(dir, `memory-audit-${stamp}.json`);
   fs.writeFileSync(file, `${JSON.stringify(output, null, 2)}\n`, "utf8");
-  // review-store discipline: keep the newest SNAPSHOT_KEEP files.
-  const existing = fs
-    .readdirSync(dir)
-    .filter((name) => name.startsWith("memory-audit-") && name.endsWith(".json"))
-    .sort();
-  for (const stale of existing.slice(0, Math.max(0, existing.length - SNAPSHOT_KEEP))) {
+  prunePrefixedSnapshots(dir, "memory-audit-", SNAPSHOT_KEEP);
+  return file;
+}
+
+/**
+ * Review-store discipline shared by memory.audit and memory.distill
+ * (specs/sop-extraction §4.4): keep only the newest N `<prefix>*.json`
+ * snapshots in the audits dir. Best-effort — never throws.
+ */
+export function prunePrefixedSnapshots(dir: string, prefix: string, keep: number): void {
+  let existing: string[] = [];
+  try {
+    existing = fs
+      .readdirSync(dir)
+      .filter((name) => name.startsWith(prefix) && name.endsWith(".json"))
+      .sort();
+  } catch {
+    return;
+  }
+  for (const stale of existing.slice(0, Math.max(0, existing.length - keep))) {
     try {
       fs.rmSync(path.join(dir, stale));
     } catch {
       // best-effort prune
     }
   }
-  return file;
 }
 
 // ── P1/P2: proposal synthesis, review loop, controlled write-back ────────────
@@ -447,11 +460,22 @@ export interface DecisionStats {
 }
 
 export function summarizeDecisions(projectRoot: string): DecisionStats {
+  return summarizeStore(loadRejections(projectRoot));
+}
+
+/**
+ * Store-level aggregate — callers that already hold the in-memory store
+ * (e.g. recordDecisions right after saveRejections) skip the disk re-read.
+ * Entry-shape tolerant: a hand-edited/corrupt store entry is skipped, not
+ * dereferenced — one bad record must never brick the action (fail-open).
+ */
+export function summarizeStore(store: RejectionStore): DecisionStats {
   const byAction: Record<string, { accepted: number; rejected: number; skipped: number }> = {};
   let accepted = 0;
   let rejected = 0;
   let skipped = 0;
-  for (const [key, entry] of Object.entries(loadRejections(projectRoot))) {
+  for (const [key, entry] of Object.entries(store)) {
+    if (!entry || typeof entry !== "object") continue;
     const action = key.split(":")[0] || "unknown";
     const bucket = (byAction[action] ??= { accepted: 0, rejected: 0, skipped: 0 });
     if (entry.verdict === "accept") {
