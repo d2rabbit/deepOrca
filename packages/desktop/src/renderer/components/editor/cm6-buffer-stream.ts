@@ -180,10 +180,18 @@ export class BufferStream {
     // request is still in flight. Rows are parsed incrementally out of the
     // first non-a2ui code fence and flushed at a coalesced cadence; the
     // invoke's return value is authoritative for the final review state.
+    // Run identity (root fix: explain + pair share this broadcast channel):
+    // the renderer mints the runId, main echoes it on every event, and any
+    // foreign run's deltas (a concurrent explain) are dropped here — the
+    // old runSeq-only guard let explain prose pour into the fence buffer.
+    const myRunId = `r-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
     const insertLineNo = opts.selection.endLine + 1;
     // B5: a selection touching EOF has to === doc.length — inserting at
     // to+1 is out of bounds and would splice onto the last ghost row. Clamp
-    // and prefix the first row with a newline so AI rows start on their own.
+    // and prefix the first row with a newline so AI rows start on their own
+    // line — but ONLY when the doc does not already end with a newline (an
+    // explicit trailing \n already opens a fresh empty line; a second one
+    // desynced the apply/finishReview row arithmetic by +1).
     const docLength = view.state.doc.length;
     const atEnd = to >= docLength;
     const insertFrom = Math.min(to + 1, docLength);
@@ -196,6 +204,12 @@ export class BufferStream {
     let inserted = 0;
     let buffer = "";
     let failed = false;
+    // REAL first-row landing line (root fix, paired with the B5 newline
+    // change): `insertLineNo` is a snapshot guess that is off by one when the
+    // doc ends with a newline (rows land INSIDE the trailing empty ghost
+    // line) — finishReview's add decorations must anchor where rows actually
+    // went, or excise/apply refuse to recognize the block.
+    let firstAddLine = insertLineNo;
     const insertRow = (row: string): void => {
       const v = this.view();
       if (!v || this.phase !== "streaming" || this.runSeq !== myRun) return;
@@ -205,8 +219,11 @@ export class BufferStream {
         this.cancelRun();
         return;
       }
-      const prefix = firstRow && atEnd ? "\n" : "";
+      // B5 (root fix): only an at-EOF selection on a doc WITHOUT a trailing
+      // newline needs the visual separator — see the preamble comment above.
+      const prefix = firstRow && atEnd && docLength > 0 && !v.state.doc.toString().endsWith("\n") ? "\n" : "";
       firstRow = false;
+      const rowStart = pos + prefix.length;
       v.dispatch({
         changes: { from: pos, insert: `${prefix}${row}\n` },
         effects: addAi.of(pendingLineRanges(pos + prefix.length)),
@@ -217,6 +234,9 @@ export class BufferStream {
       });
       pos += prefix.length + row.length + 1;
       inserted += 1;
+      if (inserted === 1) {
+        firstAddLine = v.state.doc.lineAt(Math.min(rowStart, v.state.doc.length)).number;
+      }
       // C3: record what actually landed — excise during streaming has no
       // reviewRows yet and falls back to this list.
       this.streamedRows.push(row);
@@ -239,6 +259,7 @@ export class BufferStream {
     };
     this.offProgress = api.onEditorAgentProgress((ev) => {
       if (failed || this.runSeq !== myRun) return;
+      if (ev.runId !== myRunId) return; // foreign run (concurrent explain) — never ours
       if (ev.phase === "delta" && ev.text) {
         buffer += ev.text;
         scheduleFlush();
@@ -250,6 +271,11 @@ export class BufferStream {
         buffer = "";
         if (inserted > 0) {
           this.exciseAiRows();
+          // The excised round's rows are gone from the doc — they MUST also
+          // leave the content-identity multiset, or a later excise (error /
+          // discard on this round) would keep scanning past the block for
+          // text that matches the OLD rows and eat user lines below it.
+          this.streamedRows = [];
           this.clearDecorations();
           this.markGhost(from, to);
           pos = insertFrom;
@@ -282,6 +308,7 @@ export class BufferStream {
           : opts.instruction,
         lang: languageIdForFile(opts.file),
         extraContext: opts.extraContext,
+        runId: myRunId,
       });
     } catch (error) {
       this.cancelRun();
@@ -357,7 +384,7 @@ export class BufferStream {
       return;
     }
     this.unlock();
-    this.finishReview({ ghostFrom: from, ghostTo: to, insertLineNo, rows: finalRows });
+    this.finishReview({ ghostFrom: from, ghostTo: to, insertLineNo: firstAddLine, rows: finalRows });
   }
 
   /** Abort an in-flight run (doc swap / unmount / invoke throw) and SETTLE
@@ -546,10 +573,58 @@ export class BufferStream {
     const doc = view.state.doc;
     const origCount = this.origLines?.length ?? 0;
     const inserted = this.reviewRows?.length ?? 0;
-    const startLine = Math.max(1, Math.min(this.selStartLine, doc.lines));
-    const endLine = Math.min(startLine + origCount + inserted, doc.lines);
     let content: string;
     if (this.reviewGroups && origCount > 0) {
+      // Root fix (paired with exciseAiRows' B1 discipline): apply must never
+      // splice by the run's SNAPSHOT line numbers — the canvas unlocks in
+      // review, so user edits above the block shift it live. Resolve the
+      // block's LIVE span from the decoration domain: the first add/pending
+      // decoration anchors the AI rows, the original ghost rows sit exactly
+      // origCount lines above it, and the block ends where the AI content
+      // multiset is exhausted (identical identity discipline to excise).
+      const rows = this.reviewRows ?? [];
+      const deco = view.state.field(aiField, false);
+      let firstAdd = -1;
+      let blockStart = -1;
+      deco?.between(0, doc.length, (from: number, _to: number, d: { spec?: { kind?: string } }) => {
+        const kind = d.spec?.kind;
+        if (firstAdd < 0 && (kind === "add" || kind === "pending")) firstAdd = doc.lineAt(from).number;
+        if (blockStart < 0 && kind === "del") blockStart = doc.lineAt(from).number;
+      });
+      let startLine: number;
+      let endLine: number;
+      if (firstAdd > 0) {
+        // Block start = the LIVE ghost (del) anchor — NOT arithmetic against
+        // firstAdd: when the doc ends with a newline the first AI row lands
+        // INSIDE the trailing empty ghost line (same line number), so
+        // `firstAdd - origCount` would reach above the block.
+        startLine = blockStart >= 0 ? blockStart : Math.max(1, firstAdd - origCount); // no del deco left — arithmetic fallback
+        const remaining = new Map<string, number>();
+        for (const row of rows) remaining.set(row, (remaining.get(row) ?? 0) + 1);
+        let left = rows.length;
+        let lastNo = firstAdd - 1;
+        for (let no = Math.max(firstAdd, startLine); no <= doc.lines && left > 0; no += 1) {
+          const text = doc.line(no).text;
+          const budget = remaining.get(text) ?? 0;
+          if (budget <= 0) continue; // user row interleaved into the block — survives
+          remaining.set(text, budget - 1);
+          left -= 1;
+          lastNo = no;
+        }
+        if (left > 0) {
+          // Could not re-find every AI row (heavy user re-edit) — nothing
+          // safe to splice; stay in review rather than guess.
+          return;
+        }
+        endLine = lastNo;
+      } else {
+        // No live anchor left (a split edge stripped every add mark) — fall
+        // back to the snapshot arithmetic. Off-by-one root fix: the block
+        // spans [startLine .. startLine + origCount + inserted - 1]; the old
+        // `+inserted` (no -1) swallowed the user line right after the block.
+        startLine = Math.max(1, Math.min(this.selStartLine, doc.lines));
+        endLine = Math.min(startLine + origCount + inserted - 1, doc.lines);
+      }
       const from = doc.line(startLine).from;
       const to = doc.line(endLine).to;
       const replacement = spliceGroups(this.reviewGroups, this.hunkAccepted);
@@ -635,7 +710,12 @@ export class BufferStream {
       this.offProgress = null;
     }
     this.unlock();
-    this.streamedRows = [];
+    // Root fix (run() calls this right after a discard): the PREVIOUS run's
+    // review state must not survive into the new one — a stale reviewRows
+    // multiset would win the `reviewRows ?? streamedRows` fallback in
+    // exciseAiRows and delete the OLD run's row texts out of the NEW run's
+    // error/discard path.
+    this.clearReviewRows();
   }
 
   dispose(): void {
@@ -736,12 +816,18 @@ export function extractFirstFence(buffer: string): { rows: string[]; closed: boo
  *  the language tag against a bare \n) never fail on "\r\n" line endings. */
 export function splitResult(content: string): PairRunResult {
   const normalized = content.replace(/\r\n/g, "\n").replace(/\r/g, "");
-  const fences = [...normalized.matchAll(/```([a-zA-Z0-9+#._-]*)[ \t]*\n([\s\S]*?)```/g)];
-  const codeHit = fences.find((f) => (f[1] ?? "") !== "a2ui");
-  const a2uiHit = normalized.match(/```a2ui[ \t]*\n([\s\S]*?)```/);
+  // Fence grammar MUST mirror extractFirstFence exactly (root fix): the
+  // opener is anchored to a line boundary and the closer must sit at a line
+  // start — a mid-line ``` no longer closes the block. The old lazy
+  // anywhere-``` closer could terminate the fence EARLIER than the streaming
+  // extractor ever would, desyncing the streamed rows from finalRows and
+  // breaking the excise content-identity multiset (orphan rows after discard).
+  const fences = [...normalized.matchAll(/(^|\n)```([a-zA-Z0-9+#._-]*)[ \t]*\n([\s\S]*?)\n```/g)];
+  const codeHit = fences.find((f) => (f[2] ?? "") !== "a2ui");
+  const a2uiHit = normalized.match(/(^|\n)```a2ui[ \t]*\n([\s\S]*?)\n```/);
   return {
     content,
-    code: codeHit ? (codeHit[2] ?? "").replace(/\n$/, "") : null,
-    a2ui: a2uiHit ? (a2uiHit[1] ?? "").trim() : null,
+    code: codeHit ? (codeHit[3] ?? "").replace(/\n$/, "") : null,
+    a2ui: a2uiHit ? (a2uiHit[2] ?? "").trim() : null,
   };
 }

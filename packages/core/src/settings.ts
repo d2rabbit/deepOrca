@@ -176,6 +176,15 @@ export type DeepcodingSettings = {
    */
   lspDiagnostics?: LspDiagnosticsSettings;
   /**
+   * Editor LSP relay: allow the pinned `npx -y <pack>` fallback when a
+   * language server is not on PATH. The pull executes npm code at RUNTIME
+   * (outside the lockfile discipline) — versions are exact-pinned and the
+   * Windows cwd-hijack vector is closed, but security-sensitive setups can
+   * set false to restrict launches to PATH-installed servers. Default true
+   * (the editor ships ts/py language support through the fallback).
+   */
+  lspRelayNpxFallback?: boolean;
+  /**
    * Complexity gate / depth-lane routing (specs/depth-lane): L1 heuristic +
    * L2 flash scoring decides `SessionEntry.lane`. Default OFF — enabling is
    * the P0 observation flip; `depthLaneEnabled` separately gates the staged

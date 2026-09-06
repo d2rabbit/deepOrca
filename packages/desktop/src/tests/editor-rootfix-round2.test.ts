@@ -12,6 +12,16 @@ import { installDom, createApiStub, type DomHandle, type ApiStub } from "./dom-h
 let dom: DomHandle | undefined;
 let stub: ApiStub | undefined;
 const apiOverrides: Record<string, unknown> = {};
+// Renderer-minted runId of the most recent editorAgentRun call — progress
+// events are runId-scoped (root fix: explain + pair share the broadcast),
+// so emits must target the run under test via this capture.
+let lastRunId = "";
+const stubRun =
+  (fn: (input?: { runId?: string }) => unknown) =>
+  (input?: { runId?: string }): unknown => {
+    lastRunId = typeof input?.runId === "string" ? input.runId : "";
+    return fn(input);
+  };
 
 type K = typeof import("../renderer/components/editor/cm6-kernel");
 let K: K | undefined;
@@ -59,7 +69,7 @@ function mount(doc = DOC): { handle: KernelHandle; host: HTMLDivElement } {
 }
 
 test("D10: apply captures a snapshot; rollbackTo restores it exactly", async () => {
-  apiOverrides.editorAgentRun = async () => ({ ok: true, content: CODE("newA\nnewB"), iterations: 1 });
+  apiOverrides.editorAgentRun = stubRun(async () => ({ ok: true, content: CODE("newA\nnewB"), iterations: 1 }));
   const { handle, host } = mount();
   const checkpoints: Array<{ atIso: string; content: string }> = [];
   const stream = new S!.BufferStream(

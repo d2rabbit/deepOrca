@@ -802,9 +802,12 @@ export type KnowledgeBuildJobSnapshot = {
 
 /**
  * Persisted architecture-map artifacts under `.deeporca/prototypes/`:
- * - legacy A2UI surface JSON (`arch-*.json`)
- * - Mermaid diagram documents (`arch-*.md`) — the current arch-scan output
- *   format (diagram-first; the A2UI variant rendered as a flat document).
+ * - current (since 2026-08-29): archify typed-IR pairs —
+ *   `arch-*.<type>.json` + delivered `arch-*.<type>.html` (the five typed
+ *   suffixes, see ARCHIFY_TYPES in main/tools/archify-cli.ts);
+ * - legacy, retired 2026-08-29 and invisible to the current pipeline:
+ *   A2UI surface JSON (`arch-*.json`) and Mermaid diagram documents
+ *   (`arch-*.md`).
  */
 
 /** Git state of a workspace root, checked before a build: the wiki generator
@@ -1422,6 +1425,9 @@ export type DesktopApi = {
     lang?: string;
     /** D11 context chips: appended to the prompt as extra context. */
     extraContext?: string;
+    /** Renderer-minted run identity — main echoes it on every progress
+     * event so concurrent runs (explain + pair) can be told apart. */
+    runId?: string;
   }): Promise<{ ok: true; content: string; iterations: number } | { ok: false; error: string }>;
   lspRelayAttach(root: string, languageId: string): Promise<LspRelayAttachResult>;
   lspRelaySend(sessionId: string, frame: string): Promise<{ ok: true } | { ok: false; error: string }>;

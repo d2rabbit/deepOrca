@@ -162,8 +162,14 @@ export class LspRelay {
   }
 
   /** Attach (or reuse) a session for (root, languageId). Frames flow both
-   *  ways; every server → client frame is emitted as an LspMessage event. */
-  attach(root: string, languageId: string): RelaySession | { error: string } {
+   *  ways; every server → client frame is emitted as an LspMessage event.
+   *
+   *  `allowNpxFallback` (settings gate, security audit): the pinned `npx -y`
+   *  fallback downloads and executes npm code at RUNTIME — it bypasses the
+   *  lockfile discipline every other dependency follows. Default true (the
+   *  editor ships ts/py LSP through it); setting `lspRelayNpxFallback:false`
+   *  restricts launches to servers already on PATH. */
+  attach(root: string, languageId: string, opts?: { allowNpxFallback?: boolean }): RelaySession | { error: string } {
     const spec = specForLanguageId(languageId);
     if (!spec) return { error: `no language server spec for "${languageId}"` };
     for (const session of this.sessions.values()) {
@@ -188,7 +194,10 @@ export class LspRelay {
       lastActiveAt: Date.now(),
     };
 
-    for (const candidate of candidatesForSpec(spec)) {
+    const allCandidates = candidatesForSpec(spec);
+    const candidates =
+      opts?.allowNpxFallback === false ? allCandidates.slice(0, spec.pathCandidates.length) : allCandidates;
+    for (const candidate of candidates) {
       let proc: ChildProcess | null = null;
       try {
         proc = launchCandidate(candidate, root);
@@ -275,7 +284,10 @@ export class LspRelay {
         }
       }
     } catch {
-      // Malformed JSON — let the server reject it (previous behavior).
+      // Fail-closed (audit): a frame we cannot parse cannot be checked
+      // against the method whitelist or the URI containment — forwarding
+      // the raw bytes would silently skip BOTH defenses. Reject instead.
+      return { ok: false, error: "malformed frame rejected by relay" };
     }
     const violation = firstUriOutsideRoot(outFrame, session.root);
     if (violation) {

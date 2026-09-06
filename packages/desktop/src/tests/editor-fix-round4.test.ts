@@ -11,6 +11,16 @@ import { installDom, createApiStub, type DomHandle, type ApiStub } from "./dom-h
 let dom: DomHandle | undefined;
 let stub: ApiStub | undefined;
 const apiOverrides: Record<string, unknown> = {};
+// Renderer-minted runId of the most recent editorAgentRun call — progress
+// events are runId-scoped (root fix: explain + pair share the broadcast),
+// so emits must target the run under test via this capture.
+let lastRunId = "";
+const stubRun =
+  (fn: (input?: { runId?: string }) => unknown) =>
+  (input?: { runId?: string }): unknown => {
+    lastRunId = typeof input?.runId === "string" ? input.runId : "";
+    return fn(input);
+  };
 
 type K = typeof import("../renderer/components/editor/cm6-kernel");
 let K: K | undefined;
@@ -91,7 +101,7 @@ test("C2: a discarded run's late resolve writes nothing and cannot steal the loc
   const gate = new Promise<unknown>((r) => {
     resolveRun = r;
   });
-  apiOverrides.editorAgentRun = () => gate;
+  apiOverrides.editorAgentRun = stubRun(() => gate);
   const { handle, host } = mount();
   const { stream, locked } = makeStream(handle);
   const runA = stream.run({
@@ -100,7 +110,7 @@ test("C2: a discarded run's late resolve writes nothing and cannot steal the loc
     instruction: "go",
   });
   await sleep(10);
-  stub!.emit("onEditorAgentProgress", { runId: "r1", phase: "delta", text: FENCE("rowA") });
+  stub!.emit("onEditorAgentProgress", { runId: lastRunId, phase: "delta", text: FENCE("rowA") });
   await sleep(120); // flush cadence (STREAM_FLUSH_MS = 90)
   assert.ok(handle.view.state.doc.toString().includes("rowA"), "streamed row lands before discard");
   assert.equal(locked.at(-1), true, "streaming locks the canvas");
@@ -119,10 +129,10 @@ test("C2: a discarded run's late resolve writes nothing and cannot steal the loc
     resolveRunB = r;
   });
   let nextIsB = false;
-  apiOverrides.editorAgentRun = () => {
+  apiOverrides.editorAgentRun = stubRun(() => {
     if (nextIsB) return gateB;
     return gate;
-  };
+  });
   nextIsB = true;
   const runB = stream.run({
     file: "a.ts",
@@ -150,7 +160,7 @@ test("C2: a discarded run's late resolve writes nothing and cannot steal the loc
 });
 
 test("C3: agent error mid-stream excises the streamed rows and settles idle", async () => {
-  apiOverrides.editorAgentRun = () => new Promise(() => {});
+  apiOverrides.editorAgentRun = stubRun(() => new Promise(() => {}));
   const { handle, host } = mount();
   const { stream } = makeStream(handle);
   void stream.run({
@@ -159,11 +169,11 @@ test("C3: agent error mid-stream excises the streamed rows and settles idle", as
     instruction: "go",
   });
   await sleep(10);
-  stub!.emit("onEditorAgentProgress", { runId: "r1", phase: "delta", text: FENCE("rowA\nrowB") });
+  stub!.emit("onEditorAgentProgress", { runId: lastRunId, phase: "delta", text: FENCE("rowA\nrowB") });
   await sleep(120);
   assert.ok(handle.view.state.doc.toString().includes("rowA"), "rows streamed");
 
-  stub!.emit("onEditorAgentProgress", { runId: "r1", phase: "error", error: "boom" });
+  stub!.emit("onEditorAgentProgress", { runId: lastRunId, phase: "error", error: "boom" });
   await sleep(20);
   const out = handle.view.state.doc.toString();
   assert.ok(!out.includes("rowA") && !out.includes("rowB"), "error path excises streamed rows");
@@ -174,7 +184,7 @@ test("C3: agent error mid-stream excises the streamed rows and settles idle", as
 });
 
 test("M4: iteration event excises the previous round's preview and restarts the stream", async () => {
-  apiOverrides.editorAgentRun = () => new Promise(() => {});
+  apiOverrides.editorAgentRun = stubRun(() => new Promise(() => {}));
   const { handle, host } = mount();
   const { stream } = makeStream(handle);
   void stream.run({
@@ -183,15 +193,15 @@ test("M4: iteration event excises the previous round's preview and restarts the 
     instruction: "go",
   });
   await sleep(10);
-  stub!.emit("onEditorAgentProgress", { runId: "r1", phase: "delta", text: FENCE("rowA") });
+  stub!.emit("onEditorAgentProgress", { runId: lastRunId, phase: "delta", text: FENCE("rowA") });
   await sleep(120);
   assert.ok(handle.view.state.doc.toString().includes("rowA"), "round-1 preview rows land");
 
-  stub!.emit("onEditorAgentProgress", { runId: "r1", phase: "iteration", message: "round 2" });
+  stub!.emit("onEditorAgentProgress", { runId: lastRunId, phase: "iteration", message: "round 2" });
   await sleep(20);
   assert.ok(!handle.view.state.doc.toString().includes("rowA"), "iteration excises the previous round");
 
-  stub!.emit("onEditorAgentProgress", { runId: "r1", phase: "delta", text: FENCE("rowC") });
+  stub!.emit("onEditorAgentProgress", { runId: lastRunId, phase: "delta", text: FENCE("rowC") });
   await sleep(120);
   const out = handle.view.state.doc.toString();
   assert.ok(out.includes("rowC"), "round-2 streams after the reset");
@@ -202,7 +212,7 @@ test("M4: iteration event excises the previous round's preview and restarts the 
 });
 
 test("C4: apply refuses a stale block (run file ≠ shown file) and settles idle", async () => {
-  apiOverrides.editorAgentRun = async () => ({ ok: true, content: CODE("r1\nr2"), iterations: 1 });
+  apiOverrides.editorAgentRun = stubRun(async () => ({ ok: true, content: CODE("r1\nr2"), iterations: 1 }));
   const { handle, host } = mount();
   let shownFile = "a.ts";
   const { stream, checkpoints } = makeStream(handle, () => shownFile);
@@ -226,7 +236,7 @@ test("C4: apply refuses a stale block (run file ≠ shown file) and settles idle
 });
 
 test("M3: rollbackTo mid-stream releases the lock, settles idle and ignores late deltas", async () => {
-  apiOverrides.editorAgentRun = () => new Promise(() => {});
+  apiOverrides.editorAgentRun = stubRun(() => new Promise(() => {}));
   const { handle, host } = mount();
   const { stream, locked } = makeStream(handle);
   void stream.run({
@@ -235,7 +245,7 @@ test("M3: rollbackTo mid-stream releases the lock, settles idle and ignores late
     instruction: "go",
   });
   await sleep(10);
-  stub!.emit("onEditorAgentProgress", { runId: "r1", phase: "delta", text: FENCE("rowA") });
+  stub!.emit("onEditorAgentProgress", { runId: lastRunId, phase: "delta", text: FENCE("rowA") });
   await sleep(120);
   assert.equal(locked.at(-1), true, "streaming locks the canvas");
 
@@ -245,7 +255,7 @@ test("M3: rollbackTo mid-stream releases the lock, settles idle and ignores late
   const out = handle.view.state.doc.toString();
   assert.ok(!out.includes("rowA"), "rollback replaces the streamed rows");
 
-  stub!.emit("onEditorAgentProgress", { runId: "r1", phase: "delta", text: FENCE("rowZ") });
+  stub!.emit("onEditorAgentProgress", { runId: lastRunId, phase: "delta", text: FENCE("rowZ") });
   await sleep(120);
   assert.ok(!handle.view.state.doc.toString().includes("rowZ"), "late deltas after rollback do not write");
   stream.dispose();
@@ -268,7 +278,7 @@ test("H2: extractFirstFence normalizes CRLF rows to LF identity", () => {
 });
 
 test("多 hunk: apply splices per-hunk decisions and excises the original rows", async () => {
-  apiOverrides.editorAgentRun = async () => ({ ok: true, content: CODE("l1\nX\nl3\nl4"), iterations: 1 });
+  apiOverrides.editorAgentRun = stubRun(async () => ({ ok: true, content: CODE("l1\nX\nl3\nl4"), iterations: 1 }));
   const { handle, host } = mount("l1\nl2\nl3\nend");
   const { stream } = makeStream(handle);
   await stream.run({

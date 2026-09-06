@@ -117,9 +117,12 @@ test("send: method whitelist rejects executeCommand; initialize is pinned to the
     })
   );
   assert.ok(!cfg.ok, "workspace/didChangeConfiguration rejected");
-  // A malformed/non-JSON frame keeps its legacy behavior (server rejects it).
+  // A malformed/non-JSON frame is refused by the RELAY itself (fail-closed,
+  // audit root fix): an unparseable frame cannot be checked against the
+  // method whitelist or the URI containment, so forwarding it would silently
+  // skip both defenses.
   const garbage = relayInstance.send(attached.sessionId, "not json");
-  assert.ok(garbage.ok, "non-JSON payloads still pass through (server-side rejection)");
+  assert.ok(!garbage.ok, "non-JSON payloads are rejected by the relay (fail-closed)");
 
   // H1: initialize with hostile rootPath/initializationOptions is accepted
   // only because the relay REWRITES them onto the pinned session root.

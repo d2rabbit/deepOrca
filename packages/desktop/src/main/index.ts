@@ -7,17 +7,7 @@ import { dirname, join, delimiter, resolve as pathResolve, sep as pathSep } from
 import { createRequire as nodeCreateRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { open, readdir, readFile, writeFile, stat } from "node:fs/promises";
-import {
-  statSync,
-  existsSync,
-  readdirSync,
-  readFileSync,
-  appendFileSync,
-  mkdirSync,
-  openSync,
-  readSync,
-  closeSync,
-} from "node:fs";
+import { statSync, existsSync, readdirSync, readFileSync, appendFileSync, mkdirSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { homedir } from "node:os";
 import { execFile, spawn, type ChildProcess } from "node:child_process";
@@ -94,10 +84,10 @@ import type {
   WorkspaceTrustLevel,
 } from "../shared/ipc.js";
 import { SessionBridge } from "./session-bridge.js";
-import { LspRelay } from "./tools/lsp-relay.js";
-import { appendEditorRun, listEditorRuns } from "./tools/editor-runs-store.js";
+import { registerEditorAgentRunIpc } from "./tools/editor-agent-run.js";
+import { registerLspRelayIpc, shutdownLspRelay } from "./tools/lsp-relay-ipc.js";
+import { listEditorRuns } from "./tools/editor-runs-store.js";
 import { applyAppIcon } from "./app-icon.js";
-import { safePathWithinRoot } from "./safe-path.js";
 import { PluginManager, type PluginEventCallback } from "./plugin-manager.js";
 import { scanFiles } from "./file-scanner.js";
 import { listWorkspaceSessions, readSessionsIndex } from "./workspace-registry.js";
@@ -115,7 +105,6 @@ import {
   emptyTokenSummary,
   migrateLegacyUsageIntoLedger,
   projectSessionsIndexPath,
-  usageLedgerPathForIndex,
 } from "./tools/tokens-summary.js";
 import { listIndexJobs } from "./tools/jobs-store.js";
 import { bindFindingsToNodes, type BindableNode } from "./tools/review-bind.js";
@@ -641,41 +630,9 @@ function emitToMain(channel: string, payload?: unknown): void {
   }
 }
 
-/**
- * Token accounting for sessionless runs (2026-09-06 user ask): the project
- * usage ledger is append-only per LLM request, so diffing the file across a
- * run window yields exactly the requests that run consumed — no core
- * plumbing, no double counting with the sessions-index mirror.
- */
-function ledgerDeltaSince(ledgerPath: string, sinceSize: number): { prompt: number; completion: number } | undefined {
-  try {
-    if (!existsSync(ledgerPath)) return undefined;
-    const size = statSync(ledgerPath).size;
-    if (size <= sinceSize) return undefined;
-    const fh = openSync(ledgerPath, "r");
-    try {
-      const buf = Buffer.alloc(size - sinceSize);
-      readSync(fh, buf, 0, buf.length, sinceSize);
-      let prompt = 0;
-      let completion = 0;
-      for (const line of buf.toString("utf8").split("\n")) {
-        if (!line.trim()) continue;
-        try {
-          const record = JSON.parse(line) as { prompt?: number; completion?: number };
-          prompt += record.prompt ?? 0;
-          completion += record.completion ?? 0;
-        } catch {
-          // Partial trailing line (write raced us) — skip it.
-        }
-      }
-      return prompt || completion ? { prompt, completion } : undefined;
-    } finally {
-      closeSync(fh);
-    }
-  } catch {
-    return undefined; // fail-open: the run record simply stays tokenless
-  }
-}
+// (The editor-agent run handler + its ledger accounting live in
+// ./tools/editor-agent-run.ts; the LSP relay IPC in ./tools/lsp-relay-ipc.ts
+// — file-length split, deps injected.)
 
 // The initial project root: the most recently active known workspace. Home is
 // only a last-resort fallback for a truly fresh install — it must never surface
@@ -2138,93 +2095,9 @@ function registerTaskTreeIpc({ handle, handlePrivileged }: IpcHelpers): void {
       : { ok: false, error: "merge rejected" };
   });
 
-  // Editor digital entity (specs/editor-agent S2): run the editor-agent
-  // background entity on the ACTIVE workspace's manager — sessionless, zero
-  // residue; the final text returns for the editor panel to render.
-  handlePrivileged(
-    IpcRequest.EditorAgentRun,
-    async (input?: {
-      filePath?: string;
-      startLine?: number;
-      endLine?: number;
-      selection?: string;
-      instruction?: string;
-      lang?: string;
-      extraContext?: string;
-    }) => {
-      if (!input?.filePath || !input.instruction?.trim() || !input.selection?.trim()) {
-        return { ok: false as const, error: "filePath, selection and instruction are required" };
-      }
-      // Root-pinning: the run record (and the prompt) must reference a file
-      // inside the project — an arbitrary path from the semi-trusted
-      // renderer would otherwise reach unregistered locations through the
-      // editor-agent pipeline.
-      const runRoot = getBridge().projectRoot;
-      if (!safePathWithinRoot(runRoot, input.filePath)) {
-        return { ok: false as const, error: "filePath escapes the project root" };
-      }
-      // Chunk-stream bridge (specs/editor-copilot C2): same pattern as the
-      // action progress channel — every delta/iteration emits, the finally
-      // guarantees a terminal event so the renderer never hangs on "running".
-      const runId = crypto.randomUUID();
-      const startedAt = new Date().toISOString();
-      const startedAtMs = Date.now();
-      // Token snapshot: everything appended to the ledger after this point is
-      // THIS run's consumption (2026-09-06 user ask).
-      const ledgerPath = usageLedgerPathForIndex(
-        join(getUserConfigRoot(), "projects", getProjectCode(runRoot), "sessions-index.json")
-      );
-      const ledgerSizeBefore = existsSync(ledgerPath) ? statSync(ledgerPath).size : 0;
-      try {
-        const result = await getBridge().runEditorAgent({
-          filePath: input.filePath,
-          startLine: Number(input.startLine) || 1,
-          endLine: Number(input.endLine) || Number(input.startLine) || 1,
-          selection: input.selection,
-          instruction: input.instruction.trim(),
-          lang: typeof input.lang === "string" ? input.lang : undefined,
-          extraContext: typeof input.extraContext === "string" ? input.extraContext.slice(0, 4000) : undefined,
-          onDelta: (text) => emitToMain(IpcEvent.EditorAgentProgress, { runId, phase: "delta", text }),
-          onIteration: (message) => emitToMain(IpcEvent.EditorAgentProgress, { runId, phase: "iteration", message }),
-        });
-        const durationMs = Date.now() - startedAtMs;
-        emitToMain(IpcEvent.EditorAgentProgress, {
-          runId,
-          phase: "done",
-          iterations: result.iterations,
-        });
-        // 链路 D: the run lands in the task hub's editor domain (JSONL) with
-        // its behavior + token accounting (2026-09-06 user ask: the task tree
-        // records what the editor agent did and what it cost).
-        appendEditorRun(runRoot, {
-          runId,
-          file: input.filePath,
-          instruction: input.instruction.trim().slice(0, 120),
-          status: "done",
-          startedAt,
-          endedAt: new Date().toISOString(),
-          iterations: result.iterations,
-          durationMs,
-          tokens: ledgerDeltaSince(ledgerPath, ledgerSizeBefore),
-        });
-        return { ok: true as const, content: result.content ?? "", iterations: result.iterations };
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        emitToMain(IpcEvent.EditorAgentProgress, { runId, phase: "error", error: message });
-        appendEditorRun(runRoot, {
-          runId,
-          file: input.filePath,
-          instruction: input.instruction.trim().slice(0, 120),
-          status: "error",
-          startedAt,
-          endedAt: new Date().toISOString(),
-          durationMs: Date.now() - startedAtMs,
-          tokens: ledgerDeltaSince(ledgerPath, ledgerSizeBefore),
-        });
-        return { ok: false as const, error: message };
-      }
-    }
-  );
+  // Editor digital entity (EditorAgentRun) lives in ./tools/editor-agent-run.ts
+  // (file-length split) — registered right after this function in the wiring
+  // section via registerEditorAgentRunIpc.
 }
 
 function registerA2uiIpc({ handleShared }: IpcHelpers): void {
@@ -2652,42 +2525,8 @@ function registerEditorIpc({ handle, handlePrivileged }: IpcHelpers): void {
   handle(IpcRequest.EditorListFiles, (dirPath: string) => handleEditorListFiles(getBridge().projectRoot, dirPath));
 }
 
-/** LSP bare-frame relay IPC (specs/editor-copilot D2): the renderer-side
- *  @codemirror/lsp-client owns the protocol; these channels only move
- *  frames. Root-pinning follows resolveRegisteredRoot — an unregistered
- *  root never reaches a language server. */
-let lspRelay: LspRelay | null = null;
-function getLspRelay(): LspRelay {
-  if (!lspRelay) {
-    lspRelay = new LspRelay((_channel, payload) => emitToMain(IpcEvent.LspRelayMessage, payload));
-  }
-  return lspRelay;
-}
-
-function registerLspRelayIpc({ handle, handlePrivileged }: IpcHelpers): void {
-  handlePrivileged(IpcRequest.LspRelayAttach, (root: string, languageId: string) => {
-    const pinned = resolveRegisteredRoot(typeof root === "string" && root ? root : undefined);
-    if (!pinned) return { ok: false as const, error: "unregistered workspace" };
-    if (typeof languageId !== "string" || !languageId.trim()) {
-      return { ok: false as const, error: "languageId is required" };
-    }
-    return getLspRelay().attach(pinned, languageId.trim());
-  });
-  handlePrivileged(IpcRequest.LspRelaySend, (sessionId: string, frame: string) => {
-    if (typeof sessionId !== "string" || typeof frame !== "string") {
-      return { ok: false as const, error: "sessionId and frame are required" };
-    }
-    return getLspRelay().send(sessionId, frame);
-  });
-  handlePrivileged(IpcRequest.LspRelayDetach, (sessionId: string) => {
-    if (typeof sessionId !== "string") return { ok: false as const, error: "sessionId is required" };
-    const result = getLspRelay().detach(sessionId);
-    // Audit 7.1: process termination is an auditable, privileged action —
-    // symmetric with spawn.
-    if (result.ok) console.info("[lsp-relay] session detached:", sessionId);
-    return result;
-  });
-}
+// (registerLspRelayIpc + the relay singleton live in ./tools/lsp-relay-ipc.ts
+// — file-length split; wiring passes emitToMain and the npx settings gate.)
 
 function registerAgentChangesIpc({ handle }: IpcHelpers): void {
   // ── Agent changes ─────────────────────────────────────────────────────────
@@ -2747,13 +2586,22 @@ function registerIpc(): void {
   registerEndpointQuotaIpc(helpers);
   registerEndpointTestIpc(helpers);
   registerTaskTreeIpc(helpers);
+  registerEditorAgentRunIpc({
+    handlePrivileged: helpers.handlePrivileged,
+    getBridge,
+    emitToMain,
+  });
   registerDesignIpc(helpers);
   registerA2uiIpc(helpers);
   registerA2uiPrototypeWindowIpc(helpers);
   registerWikiIpc(helpers);
   registerMcpManagementIpc(helpers);
   registerGitmcpIpc(helpers);
-  registerLspRelayIpc(helpers);
+  registerLspRelayIpc({
+    handlePrivileged: helpers.handlePrivileged,
+    emitToMain,
+    allowNpxFallback: () => getBridge().getRawSettings().lspRelayNpxFallback !== false,
+  });
   registerEditorIpc(helpers);
   registerAgentChangesIpc(helpers);
   registerSessionExportIpc(helpers);
@@ -2855,7 +2703,7 @@ app.on("before-quit", (event) => {
   // LSP relay servers are child processes outside the helper registry —
   // shut them down explicitly (audit 1.2: process.on("exit") alone does not
   // cover watchdog-forced exits and crash paths on every platform).
-  lspRelay?.shutdown();
+  shutdownLspRelay();
   // Hard-exit watchdog: if the async cleanup below hangs (e.g. a wedged memory
   // pipeline or an unkillable helper), force-quit anyway. Without this, the
   // blocked quit leaves a zombie instance whose window never paints — the
