@@ -13,6 +13,8 @@
  */
 
 import { spawn, type ChildProcess } from "node:child_process";
+import { statSync } from "node:fs";
+import { join } from "node:path";
 
 export type LspSpawnOpts = {
   cwd: string;
@@ -47,12 +49,48 @@ export type LspServerSpec = {
 const TYPESCRIPT_PIN = "typescript-language-server@6.0.0";
 const PYRIGHT_PIN = "pyright@1.1.413";
 
+/**
+ * Resolve a bare command name to an absolute executable inside a PATH
+ * directory (root fix, security audit): `spawn(name, { shell: true })` with
+ * cwd = the opened workspace let cmd.exe resolve `name` from the CURRENT
+ * DIRECTORY first — a malicious repo shipping `npx.cmd` (or `dart.bat`) at
+ * its root executed with full user privileges the moment a file opened.
+ * An absolute path cannot be shadowed that way; combined with
+ * NoDefaultCurrentDirectoryInExePath (lsp-process.ts) both layers of the
+ * cwd search are closed. POSIX has no cwd search — returns the bare name.
+ */
+function resolveShellCommand(bin: string): string {
+  if (process.platform !== "win32") return bin;
+  const exts = [".cmd", ".exe", ".bat", ""];
+  for (const dir of (process.env.PATH ?? "").split(";")) {
+    if (!dir) continue;
+    for (const ext of exts) {
+      const p = join(dir, `${bin}${ext}`);
+      try {
+        if (statSync(p).isFile()) {
+          // Quote for cmd's `/s` strip-quotes rule when the resolved path
+          // contains spaces (e.g. "C:\Program Files\nodejs\npx.cmd").
+          return p.includes(" ") ? `"${p}"` : p;
+        }
+      } catch {
+        // Not present at this candidate — keep scanning.
+      }
+    }
+  }
+  // Refuse the bare-name + shell form: it is exactly the hijack surface.
+  throw new Error(`${bin} not found on PATH — refusing a cwd-resolvable bare name`);
+}
+
 /** npx resolves to a .cmd shim on Windows — needs the shell form (literal
- *  command + static argv, so still no injection surface). */
+ *  command + static argv, so still no injection surface; the command is
+ *  resolved to an absolute PATH hit first, see resolveShellCommand). */
 function npxCandidate(pack: string, args: string[]): LspSpawnCandidate {
   return {
     command: "npx",
-    launch: (o) => spawn("npx", ["-y", pack, ...args], { ...o, shell: process.platform === "win32" }),
+    launch: (o) =>
+      process.platform === "win32"
+        ? spawn(resolveShellCommand("npx"), ["-y", pack, ...args], { ...o, shell: true })
+        : spawn("npx", ["-y", pack, ...args], o),
   };
 }
 
@@ -181,9 +219,10 @@ export const LSP_SERVER_SPECS: readonly LspServerSpec[] = [
       {
         command: "dart",
         launch: (o) =>
-          spawn("dart", ["language-server"], {
+          // `dart` may be a .bat shim on Windows — static command + argv,
+          // resolved to an absolute PATH hit first (see resolveShellCommand).
+          spawn(resolveShellCommand("dart"), ["language-server"], {
             ...o,
-            // `dart` may be a .bat shim on Windows — static command + argv.
             shell: process.platform === "win32",
           }),
       },

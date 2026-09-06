@@ -13,7 +13,14 @@ import { spawn, type ChildProcess } from "node:child_process";
  * bridge hand this to every spawn.
  */
 export function sanitizedLspEnv(): Record<string, string> {
-  const env: Record<string, string> = {};
+  const env: Record<string, string> = {
+    // Root fix (security audit): cmd.exe resolves a bare command name from
+    // its CURRENT DIRECTORY first — and the LSP child's cwd IS the opened
+    // workspace root, so a malicious repo shipping `npx.cmd`/`dart.bat` at
+    // its top level would execute with full user privileges on file open.
+    // This variable tells cmd.exe to skip the cwd and search PATH only.
+    NoDefaultCurrentDirectoryInExePath: "1",
+  };
   for (const key of [
     "PATH",
     "PATHEXT",
