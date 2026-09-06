@@ -112,6 +112,8 @@ export const ja: Record<MessageKey, string> = {
   "composer.enhancing": "プロンプトを強化中…",
   "composer.enhanceFailed": "プロンプト強化に失敗しました",
   "composer.planMode": "プランモード",
+  "composer.danglingRefs":
+    "参照先が存在しません：{names}。Wiki またはレビュー保管が再構築された可能性があります——もう一度 Enter/送信でそのまま送信します。",
   "composer.planPlaceholder": "プランを記述…",
   "composer.planHint": "プラン要求を入力 · Shift+Tab で切り替え",
   "composer.removeSkill": "スキルを削除",
@@ -308,7 +310,7 @@ export const ja: Record<MessageKey, string> = {
   "builtin.web-access-strategy.desc":
     "3 層の Web アクセス振り分け：一般検索 → WebSearch、静的ページ → WebFetch / curl / Jina Reader、ログイン状態の操作 → 実 Chrome を駆動する browser-skill。ドメインごとの経験を蓄積。",
   "builtin.arch-scan.desc":
-    "視点駆動の再帰的アーキテクチャスキャン — アプリ内で描画されるインタラクティブな A2UI アーキテクチャマップを生成。",
+    "視点駆動の再帰的アーキテクチャスキャン — アプリ内で描画されるインタラクティブなアーキテクチャマップを生成（archify 検証パイプライン）。",
   "builtin.codegraph-cli.desc":
     "CodeGraph CLI ドライバー — コード知識グラフの構築とクエリ（init / index / sync / serve、シンボル、呼び出しチェーン）。",
   "builtin.smart-code-review.desc":
@@ -688,7 +690,7 @@ export const ja: Record<MessageKey, string> = {
   "action.system.ping.desc":
     "ごく簡単なヘルスチェックアクション。名前をエコーして pong を返し、アクションパイプラインをエンドツーエンドで検証。",
   "action.arch-scan.run.desc":
-    "コードベースのアーキテクチャをスキャンし、インタラクティブなアーキテクチャマップを生成（視点駆動：全体 / データフロー / 依存関係）。エージェント駆動で、CodeGraph（シンボル）や OpenWiki（ドキュメント）と補完し合うアーキテクチャレベルのインデックス。",
+    "コードベースのアーキテクチャをスキャンし、インタラクティブなアーキテクチャマップを生成（視点駆動：全体 / データフロー / 依存関係。focus でサブシステム 1 つに絞った説明マップ 1 枚のみの生成も可）。エージェント駆動で、CodeGraph（シンボル）や OpenWiki（ドキュメント）と補完し合うアーキテクチャレベルのインデックス。",
   "action.bento.create.desc": "構造化スライド spec から自己完結型の Bento プレゼンテーション（.bento.html）を生成。",
   "action.browser.session-start.desc":
     "BrowserSkill のブラウザセッションを開始。以降のコマンドで使うセッション ID を返す。",

@@ -5,7 +5,12 @@
 // no DOM or api stub needed.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { extractStoreReferences, splitStoreRefSegments } from "../renderer/lib/store-refs";
+import {
+  extractStoreReferences,
+  isCompleteStoreRef,
+  splitStoreRefSegments,
+  storeRefPath,
+} from "../renderer/lib/store-refs";
 
 test("deepwiki page whose filename contains 'reviews' stays a wiki chip", () => {
   const text = "see @D:\\repo\\.deeporca\\deepwiki\\reviews-guide.md for context";
@@ -81,4 +86,61 @@ test("real command lines still chip with the command as label", () => {
   assert.equal(refs.length, 1);
   assert.equal(refs[0]?.kind, "cmd");
   assert.equal(refs[0]?.label, "npm test --watch");
+});
+
+// ── 2026-09-06: quoted form (whitespace paths) + root-level regression guards ──
+
+test("a QUOTED wiki path containing spaces chips as wiki (2026-09-06 quoted form)", () => {
+  const text = '参考 @"My Drive/My Project/.deeporca/deepwiki/road map.md" 再动手';
+  const { refs } = extractStoreReferences(text);
+  assert.equal(refs.length, 1);
+  assert.equal(refs[0]?.kind, "wiki");
+  assert.equal(refs[0]?.label, "road map", "label drops quotes and the .md suffix");
+  assert.equal(refs[0]?.raw, '@"My Drive/My Project/.deeporca/deepwiki/road map.md"');
+});
+
+test("a QUOTED plain file path containing spaces chips as file", () => {
+  const { refs } = extractStoreReferences('看下 @"docs/My Notes.txt" 谢谢');
+  assert.equal(refs.length, 1);
+  assert.equal(refs[0]?.kind, "file");
+  assert.equal(refs[0]?.label, "My Notes.txt");
+});
+
+test("a QUOTED review path containing spaces chips as review with timestamp label", () => {
+  const { refs } = extractStoreReferences('报告 @"My Project/.deeporca/reviews/review-2026-09-05T10-00-x.json" 已生成');
+  assert.equal(refs.length, 1);
+  assert.equal(refs[0]?.kind, "review");
+  assert.equal(refs[0]?.label, "2026/09/05 10:00");
+});
+
+test("an email address in prose does NOT become a file chip (2026-09-06 guard)", () => {
+  // Root-level files were legalized on 2026-09-05, which let the bare
+  // "@gmail.com" tail of "someone@gmail.com" chip as a file — the lookbehind
+  // now refuses an @ directly attached to a word character.
+  const { refs } = extractStoreReferences("联系 someone@gmail.com 或者 dev@team.org 问问");
+  assert.equal(refs.length, 0);
+});
+
+test("prose like '@e.g.' does NOT become a file chip (2026-09-06 guard)", () => {
+  // Single-character basenames ("e" before the dot) are prose, not files.
+  const { refs } = extractStoreReferences("如 @e.g. 与 @i.e. 所说");
+  assert.equal(refs.length, 0);
+});
+
+test("single-character root-level basenames stay plain text (documented trade-off)", () => {
+  // \S{2,}? requires a ≥2-char basename — real files that short at the repo
+  // root are vanishingly rare, and prose forms are not.
+  const { refs } = extractStoreReferences("open @a.ts now");
+  assert.equal(refs.length, 0);
+});
+
+test("storeRefPath unwraps @-prefix and quotes for filesystem consumers", () => {
+  assert.equal(storeRefPath("@.deeporca/deepwiki/roadmap.md"), ".deeporca/deepwiki/roadmap.md");
+  assert.equal(storeRefPath('@"My Project/.deeporca/deepwiki/a.md"'), "My Project/.deeporca/deepwiki/a.md");
+  assert.equal(storeRefPath("@README.md"), "README.md");
+});
+
+test("quoted refs count as COMPLETE (menu suppression over finished references)", () => {
+  assert.equal(isCompleteStoreRef('@"My Project/.deeporca/deepwiki/a.md"'), true);
+  assert.equal(isCompleteStoreRef('@"half typed'), false);
 });

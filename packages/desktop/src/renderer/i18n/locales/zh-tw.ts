@@ -111,6 +111,7 @@ export const zhTW: Record<MessageKey, string> = {
   "composer.enhancing": "正在強化提示詞…",
   "composer.enhanceFailed": "提示詞強化失敗",
   "composer.planMode": "計畫模式",
+  "composer.danglingRefs": "參照目標已不存在：{names}。Wiki 或審查報告庫可能已重建——再次按 Enter/傳送將照原樣傳送。",
   "composer.planPlaceholder": "描述計畫…",
   "composer.planHint": "輸入計畫需求 · Shift+Tab 切換",
   "composer.removeSkill": "移除技能",
@@ -304,7 +305,7 @@ export const zhTW: Record<MessageKey, string> = {
     "基於 ocr CLI（阿里 Open Code Review）的 AI 程式碼審查——讀取 Git diff，產出結構化的行級審查意見。",
   "builtin.web-access-strategy.desc":
     "三層聯網策略分發：通用搜尋 → WebSearch；靜態頁面 → WebFetch / curl / Jina Reader；登入態互動 → browser-skill 操控真實 Chrome。按網域積累存取經驗。",
-  "builtin.arch-scan.desc": "多視角遞迴架構掃描，產生應用程式內渲染的 A2UI 互動式架構圖。",
+  "builtin.arch-scan.desc": "多視角遞迴架構掃描，產生應用程式內渲染的互動式架構圖（archify 驗證管線）。",
   "builtin.codegraph-cli.desc":
     "CodeGraph CLI 驅動——建置與查詢程式碼知識圖譜（init / index / sync / serve，符號、呼叫鏈）。",
   "builtin.smart-code-review.desc": "智慧程式碼審查——透過 review.full 動作一鍵編排 CRG 風險分析 + OCR 語義審查。",
@@ -669,7 +670,7 @@ export const zhTW: Record<MessageKey, string> = {
   "actions.category.design": "設計",
   "action.system.ping.desc": "最小健康檢查動作。回顯名稱並回傳 pong，用於端到端驗證動作管線。",
   "action.arch-scan.run.desc":
-    "掃描程式碼庫架構並產生互動式架構圖（多視角：總體 / 資料流 / 相依）。由子代理驅動，與 CodeGraph（符號級）、OpenWiki（文件級）互補，構成架構級索引。",
+    "掃描程式碼庫架構並產生互動式架構圖（多視角：總體 / 資料流 / 相依；也可 focus 聚焦單一子系統，只出一張解說圖）。由子代理驅動，與 CodeGraph（符號級）、OpenWiki（文件級）互補，構成架構級索引。",
   "action.bento.create.desc": "從結構化投影片 spec 產生自包含的 Bento 簡報（.bento.html）。",
   "action.browser.session-start.desc": "啟動 BrowserSkill 瀏覽器工作階段，回傳供後續命令使用的工作階段 ID。",
   "action.browser.command.desc":

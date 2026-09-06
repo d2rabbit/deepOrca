@@ -37,7 +37,19 @@ let Composer: typeof ComposerComponent;
 
 const REVIEW_REF = "@D:\\others\\excel-jvm\\.deeporca\\reviews\\review-2026-09-01T16-00-11-014.json";
 
-function renderComposer(value: string): { container: HTMLElement; onChange: (v: string) => void } {
+// Mutable per-test stub overrides — createApiStub reads them at call time, so
+// a test can stub wikiListPages/reviewListReports for the send-guard checks
+// and afterEach restores the fail-open defaults.
+const stubOverrides: Record<string, unknown> = {};
+
+function renderComposer(
+  value: string,
+  opts?: { onSend?: () => void }
+): {
+  container: HTMLElement;
+  onChange: (v: string) => void;
+} {
+  const onSend = opts?.onSend ?? (() => {});
   let current = value;
   const onChange = (v: string): void => {
     current = v;
@@ -53,7 +65,7 @@ function renderComposer(value: string): { container: HTMLElement; onChange: (v: 
             root: "/tmp/demo",
             value: v,
             onChange,
-            onSend: () => {},
+            onSend,
             onStop: () => {},
             busy: false,
             disabled: false,
@@ -78,7 +90,7 @@ function renderComposer(value: string): { container: HTMLElement; onChange: (v: 
         root: "/tmp/demo",
         value,
         onChange,
-        onSend: () => {},
+        onSend,
         onStop: () => {},
         busy: false,
         disabled: false,
@@ -101,7 +113,7 @@ before(async () => {
   const g = globalThis as unknown as { localStorage: Storage };
   g.localStorage = window.localStorage;
   localStorage.setItem("deeporca.locale", "zh");
-  stub = createApiStub();
+  stub = createApiStub(stubOverrides);
   (globalThis as unknown as { window: { deeporca: unknown } }).window.deeporca = stub.api;
   rtl = await import("@testing-library/react");
   ReactPkg = await import("react");
@@ -115,6 +127,7 @@ after(() => {
 });
 afterEach(() => {
   stub.reset();
+  for (const key of Object.keys(stubOverrides)) delete stubOverrides[key];
   rtl.cleanup();
 });
 
@@ -203,4 +216,81 @@ test("a completed store reference does NOT open the file-mention menu", () => {
   ta2.setSelectionRange(ta2.value.length, ta2.value.length);
   rtl.fireEvent.select(ta2);
   assert.ok(partial.container.querySelector(".ui-file-mention-menu"), "partial @path should open the menu");
+});
+
+// ── 2026-09-06: quoted whitespace paths + send-side dangling guard ──────────
+
+test("a QUOTED wiki path with spaces renders the wiki chip in the mirror", () => {
+  const { container } = renderComposer('参考 @"My Drive/My Project/.deeporca/deepwiki/road map.md" 再动手');
+  const chip = container.querySelector(".ui-prompt-mirror .ui-prompt-ref-chip.wiki");
+  assert.ok(chip, `wiki chip missing for the quoted path: ${container.innerHTML}`);
+  assert.equal(chip.textContent, "road map");
+  // The textarea keeps the full quoted token — the send path is untouched.
+  const ta = container.querySelector("textarea") as HTMLTextAreaElement;
+  assert.match(ta.value, /@"My Drive\/My Project\/\.deeporca\/deepwiki\/road map\.md"/);
+});
+
+test("Enter over a dangling wiki ref BLOCKS the first send, the second force-sends", async () => {
+  let sends = 0;
+  const { container } = renderComposer("请结合 @/tmp/demo/.deeporca/deepwiki/roadmap.md 的内容", {
+    onSend: () => {
+      sends += 1;
+    },
+  });
+  const ta = container.querySelector("textarea") as HTMLTextAreaElement;
+  ta.focus();
+  const pressEnter = async (): Promise<void> => {
+    await rtl.act(async () => {
+      rtl.fireEvent.keyDown(ta, { key: "Enter" });
+      await new Promise((r) => setTimeout(r, 0));
+    });
+  };
+  // Store lists default to [] via the api stub → the ref is dangling.
+  await pressEnter();
+  assert.equal(sends, 0, "first Enter must NOT send");
+  const warning = container.querySelector(".ui-composer-dangling");
+  assert.ok(warning, "dangling warning must render");
+  assert.match(warning.textContent ?? "", /roadmap/);
+
+  await pressEnter();
+  assert.equal(sends, 1, "second Enter force-sends the draft as-is");
+  assert.equal(container.querySelector(".ui-composer-dangling"), null, "warning clears after force-send");
+});
+
+test("Enter over a LIVE wiki ref sends on the first press (no warning)", async () => {
+  let sends = 0;
+  stubOverrides.wikiListPages = async () => [{ path: ".deeporca/deepwiki/roadmap.md", title: "路线图" }];
+  const { container } = renderComposer("请结合 @.deeporca/deepwiki/roadmap.md 的内容", {
+    onSend: () => {
+      sends += 1;
+    },
+  });
+  const ta = container.querySelector("textarea") as HTMLTextAreaElement;
+  ta.focus();
+  await rtl.act(async () => {
+    rtl.fireEvent.keyDown(ta, { key: "Enter" });
+    await new Promise((r) => setTimeout(r, 0));
+  });
+  assert.equal(sends, 1, "valid ref sends immediately");
+  assert.equal(container.querySelector(".ui-composer-dangling"), null);
+});
+
+test("a failing store-list IPC fails OPEN — the send is not wedged", async () => {
+  let sends = 0;
+  stubOverrides.wikiListPages = async () => {
+    throw new Error("ipc down");
+  };
+  const { container } = renderComposer("请结合 @.deeporca/deepwiki/roadmap.md 的内容", {
+    onSend: () => {
+      sends += 1;
+    },
+  });
+  const ta = container.querySelector("textarea") as HTMLTextAreaElement;
+  ta.focus();
+  await rtl.act(async () => {
+    rtl.fireEvent.keyDown(ta, { key: "Enter" });
+    await new Promise((r) => setTimeout(r, 0));
+  });
+  assert.equal(sends, 1, "validation failure must never block the send");
+  assert.equal(container.querySelector(".ui-composer-dangling"), null);
 });

@@ -1,7 +1,8 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type JSX } from "react";
 import type { FileMatch, SkillInfo } from "../../shared/ipc";
 import { useI18n, type MessageKey } from "../i18n";
-import { isCompleteStoreRef, splitStoreRefSegments } from "../lib/store-refs";
+import { extractStoreReferences, isCompleteStoreRef, splitStoreRefSegments, storeRefPath } from "../lib/store-refs";
+import { api } from "../api";
 import { FileMentionMenu } from "./FileMentionMenu";
 import {
   Button,
@@ -301,6 +302,101 @@ export const Composer = memo(function Composer(props: Props): JSX.Element {
   const canSend =
     !busy && !disabled && !enhancing && (value.trim().length > 0 || selectedSkills.length > 0 || imageUrls.length > 0);
 
+  // ── Send-side dangling-reference guard (2026-09-06) ─────────────────────────
+  // Store refs are inserted from live lists, but a draft can go stale (wiki
+  // rebuilt, reports pruned) — the chip renders identically either way and the
+  // model only discovers the miss by reading. On send, wiki/review refs are
+  // checked against the live stores; dangling ones block the FIRST send with
+  // an inline warning, and a second activation force-sends as-is. Every IPC
+  // failure fails open — validation must never wedge the composer.
+  const [danglingRefs, setDanglingRefs] = useState<string[] | null>(null);
+  const validatingRef = useRef(false);
+  // Latest-draft mirror for the async stale check below (the `value` captured
+  // by the closure is frozen at validation start).
+  const valueRef = useRef(value);
+  valueRef.current = value;
+
+  // Any edit invalidates a pending warning (the draft no longer matches what
+  // was checked; Enter re-validates from scratch).
+  useEffect(() => {
+    setDanglingRefs(null);
+  }, [value]);
+
+  const doSend = useCallback((): void => {
+    const trimmed = value.trim();
+    if (trimmed) {
+      promptHistoryRef.current = [...promptHistoryRef.current.slice(-49), trimmed];
+    }
+    setHistoryCursor(-1);
+    draftBeforeHistoryRef.current = null;
+    onSend();
+  }, [value, onSend]);
+
+  const trySend = useCallback((): void => {
+    if (busy || disabled || enhancing || !canSend) return;
+    // Warning already on screen for this draft → force-send as-is.
+    if (danglingRefs) {
+      setDanglingRefs(null);
+      doSend();
+      return;
+    }
+    const { refs } = extractStoreReferences(value);
+    const storeRefs = refs.filter((r) => r.kind === "wiki" || r.kind === "review");
+    if (storeRefs.length === 0 || !root) {
+      doSend();
+      return;
+    }
+    if (validatingRef.current) return;
+    validatingRef.current = true;
+    const draftAtCheck = value;
+    void (async () => {
+      let dangling: string[] = [];
+      try {
+        const needWiki = storeRefs.some((r) => r.kind === "wiki");
+        const needReview = storeRefs.some((r) => r.kind === "review");
+        const [pages, reports] = await Promise.all([
+          needWiki ? api.wikiListPages(root) : Promise.resolve([]),
+          needReview ? api.reviewListReports(root) : Promise.resolve([]),
+        ]);
+        // Compare on store-relative tails (page path after deepwiki/ without
+        // .md / report id without .json) so absolute, relative and quoted
+        // spellings all resolve against the same keys.
+        const pageTails = new Set(
+          pages.map((p) =>
+            p.path
+              .replace(/\\/g, "/")
+              .replace(/^.*?deepwiki\//, "")
+              .replace(/\.md$/i, "")
+              .toLowerCase()
+          )
+        );
+        const reportIds = new Set(reports.map((r) => String(r.id).toLowerCase()));
+        dangling = storeRefs
+          .filter((r) => {
+            const path = storeRefPath(r.raw).replace(/\\/g, "/");
+            const wikiMatch = path.match(/[\\/]deepwiki[\\/](.+?)\.md$/i);
+            if (r.kind === "wiki") {
+              return !wikiMatch || !pageTails.has(wikiMatch[1]!.toLowerCase());
+            }
+            const reviewMatch = path.match(/[\\/]reviews[\\/](.+?)\.json$/i);
+            return !reviewMatch || !reportIds.has(reviewMatch[1]!.toLowerCase());
+          })
+          .map((r) => r.label);
+      } catch {
+        dangling = []; // fail-open
+      }
+      validatingRef.current = false;
+      // Draft changed while the lists were loading → result is stale, drop it
+      // (the Enter that produced it will be followed by another validation).
+      if (draftAtCheck !== valueRef.current) return;
+      if (dangling.length > 0) {
+        setDanglingRefs(dangling);
+      } else {
+        doSend();
+      }
+    })();
+  }, [busy, disabled, enhancing, canSend, danglingRefs, value, root, doSend]);
+
   const applySlash = useCallback(
     (item: SlashCandidate) => {
       if (item.kind === "skill") {
@@ -326,7 +422,10 @@ export const Composer = memo(function Composer(props: Props): JSX.Element {
       if (fileTokenStart < 0) return;
       const before = value.slice(0, fileTokenStart);
       const after = value.slice(cursorPos);
-      const insertion = item.type === "directory" ? item.path + "/" : item.path;
+      const raw = item.type === "directory" ? item.path + "/" : item.path;
+      // Paths containing whitespace can't survive the \S-based chip grammar —
+      // wrap in the quoted form so the reference still chips (2026-09-06).
+      const insertion = /\s/.test(raw) ? `"${raw}"` : raw;
       skipUndoRecordRef.current = true;
       onChange(`${before}@${insertion}${after ? " " + after : ""}`);
       setShowFileMenu(false);
@@ -431,16 +530,7 @@ export const Composer = memo(function Composer(props: Props): JSX.Element {
 
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      if (!busy && !disabled && canSend) {
-        // Save to prompt history before sending
-        const trimmed = value.trim();
-        if (trimmed) {
-          promptHistoryRef.current = [...promptHistoryRef.current.slice(-49), trimmed];
-        }
-        setHistoryCursor(-1);
-        draftBeforeHistoryRef.current = null;
-        onSend();
-      }
+      trySend();
       return;
     }
 
@@ -613,6 +703,13 @@ export const Composer = memo(function Composer(props: Props): JSX.Element {
       >
         {/* Plan mode badge */}
         {planMode ? <span className="ui-composer-plan-badge">{t("composer.planMode") || "Plan"}</span> : null}
+        {/* Dangling store-reference warning (send-side guard): blocks the first
+            send, a second Enter/click force-sends the draft as-is. */}
+        {danglingRefs ? (
+          <div className="ui-composer-dangling" role="alert">
+            {t("composer.danglingRefs", { names: danglingRefs.join(", ") })}
+          </div>
+        ) : null}
         {/* Attachments zone: images + selected skill chips */}
         {imageUrls.length > 0 || selectedSkills.length > 0 ? (
           <div className="ui-composer-attachments">
@@ -784,7 +881,7 @@ export const Composer = memo(function Composer(props: Props): JSX.Element {
                     {t("composer.resume")}
                   </Button>
                 ) : null}
-                <Button variant="primary" size="sm" onClick={onSend} disabled={!canSend}>
+                <Button variant="primary" size="sm" onClick={trySend} disabled={!canSend}>
                   {t("composer.send")}
                 </Button>
               </>

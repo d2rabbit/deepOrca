@@ -111,6 +111,7 @@ export const zh: Record<MessageKey, string> = {
   "composer.enhancing": "正在强化提示词…",
   "composer.enhanceFailed": "提示词强化失败",
   "composer.planMode": "计划模式",
+  "composer.danglingRefs": "引用目标已不存在：{names}。Wiki 或审查报告库可能已重建——再次按回车/发送将按原样发送。",
   "composer.planPlaceholder": "描述计划…",
   "composer.planHint": "输入计划请求 · Shift+Tab 切换",
   "composer.removeSkill": "移除技能",
@@ -312,7 +313,7 @@ export const zh: Record<MessageKey, string> = {
     "基于 ocr CLI（阿里 Open Code Review）的 AI 代码审查——读取 Git diff，产出结构化的行级审查意见。",
   "builtin.web-access-strategy.desc":
     "三层联网策略分发：通用搜索 → WebSearch；静态页面 → WebFetch / curl / Jina Reader；登录态交互 → browser-skill 操控真实 Chrome。按域名积累访问经验。",
-  "builtin.arch-scan.desc": "多视角递归架构扫描，生成应用内渲染的 A2UI 交互式架构图。",
+  "builtin.arch-scan.desc": "多视角递归架构扫描，生成应用内渲染的交互式架构图（archify 校验管线）。",
   "builtin.codegraph-cli.desc":
     "CodeGraph CLI 驱动——构建与查询代码知识图谱（init / index / sync / serve，符号、调用链）。",
   "builtin.smart-code-review.desc": "智能代码审查——通过 review.full 动作一键编排 CRG 风险分析 + OCR 语义审查。",
@@ -694,7 +695,7 @@ export const zh: Record<MessageKey, string> = {
   // 动作面板的本地化描述（core/src/actions 中的英文原版仍作为 LLM 工具描述）。
   "action.system.ping.desc": "最小健康检查动作。回显名称并返回 pong，用于端到端验证动作管线。",
   "action.arch-scan.run.desc":
-    "扫描代码库架构并生成交互式架构图（多视角：总体 / 数据流 / 依赖）。由子代理驱动，与 CodeGraph（符号级）、OpenWiki（文档级）互补，构成架构级索引。",
+    "扫描代码库架构并生成交互式架构图（多视角：总体 / 数据流 / 依赖；也可 focus 聚焦单个子系统，只出一张讲解图）。由子代理驱动，与 CodeGraph（符号级）、OpenWiki（文档级）互补，构成架构级索引。",
   "action.bento.create.desc": "从结构化幻灯片 spec 生成自包含的 Bento 演示文稿（.bento.html）。",
   "action.browser.session-start.desc": "启动 BrowserSkill 浏览器会话，返回供后续命令使用的会话 ID。",
   "action.browser.command.desc": "在活动会话上执行 BrowserSkill 命令（navigate、snapshot、click、fill、evaluate 等）。",

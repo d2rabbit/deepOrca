@@ -111,6 +111,8 @@ export const ko: Record<MessageKey, string> = {
   "composer.enhancing": "프롬프트 강화 중…",
   "composer.enhanceFailed": "프롬프트 강화 실패",
   "composer.planMode": "계획 모드",
+  "composer.danglingRefs":
+    "참조 대상이 더 이상 존재하지 않습니다: {names}. Wiki 또는 리뷰 저장소가 재생성되었을 수 있습니다 — Enter/전송을 다시 누르면 그대로 전송됩니다.",
   "composer.planPlaceholder": "계획을 설명…",
   "composer.planHint": "계획 요청 입력 · Shift+Tab으로 전환",
   "composer.removeSkill": "스킬 제거",
@@ -307,7 +309,7 @@ export const ko: Record<MessageKey, string> = {
   "builtin.web-access-strategy.desc":
     "3계층 웹 접근 디스패치: 일반 검색 → WebSearch, 정적 페이지 → WebFetch / curl / Jina Reader, 로그인 상태 상호작용 → browser-skill로 실제 Chrome 제어. 도메인별 접근 경험을 축적합니다.",
   "builtin.arch-scan.desc":
-    "관점 기반 재귀 아키텍처 스캔 — 앱 내에 렌더링되는 인터랙티브 A2UI 아키텍처 맵을 생성합니다.",
+    "관점 기반 재귀 아키텍처 스캔 — 앱 내에 렌더링되는 인터랙티브 아키텍처 맵을 생성합니다(archify 검증 파이프라인).",
   "builtin.codegraph-cli.desc":
     "CodeGraph CLI 드라이버 — 코드 지식 그래프를 빌드하고 쿼리합니다(init / index / sync / serve, 심볼, 호출 체인).",
   "builtin.smart-code-review.desc":
@@ -686,7 +688,7 @@ export const ko: Record<MessageKey, string> = {
   "action.system.ping.desc":
     "가장 단순한 헬스 체크 액션. 이름을 echo하며 pong을 반환합니다. 액션 파이프라인을 end-to-end로 검증합니다.",
   "action.arch-scan.run.desc":
-    "코드베이스 아키텍처를 스캔해 인터랙티브 아키텍처 맵을 생성합니다(관점 기반: 전체 / 데이터 흐름 / 의존성). 에이전트가 구동하며 CodeGraph(심볼), OpenWiki(문서)와 보완되는 아키텍처 수준 인덱스입니다.",
+    "코드베이스 아키텍처를 스캔해 인터랙티브 아키텍처 맵을 생성합니다(관점 기반: 전체 / 데이터 흐름 / 의존성; focus로 하위 시스템 하나에 대한 설명 맵 1장만 생성 가능). 에이전트가 구동하며 CodeGraph(심볼), OpenWiki(문서)와 보완되는 아키텍처 수준 인덱스입니다.",
   "action.bento.create.desc": "구조화된 슬라이드 spec에서 자체 완결형 Bento 발표 덱(.bento.html)을 생성합니다.",
   "action.browser.session-start.desc":
     "BrowserSkill 브라우저 세션을 시작합니다. 이후 명령에 사용할 세션 ID를 반환합니다.",

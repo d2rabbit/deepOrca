@@ -111,6 +111,8 @@ export const en = {
   "composer.enhancing": "Enhancing prompt…",
   "composer.enhanceFailed": "Prompt enhancement failed",
   "composer.planMode": "Plan mode",
+  "composer.danglingRefs":
+    "Reference target no longer exists: {names}. The wiki or review store may have been rebuilt — press Enter/Send again to send as-is.",
   "composer.planPlaceholder": "Describe the plan…",
   "composer.planHint": "Type a plan request · Shift+Tab to toggle",
   "composer.removeSkill": "Remove skill",
@@ -314,7 +316,7 @@ export const en = {
   "builtin.web-access-strategy.desc":
     "Three-layer web-access dispatch: general search → WebSearch; static pages → WebFetch / curl / Jina Reader; login-state interaction → browser-skill driving the real Chrome. Accumulates per-domain experience.",
   "builtin.arch-scan.desc":
-    "Recursive perspective-driven architecture scan producing an interactive A2UI architecture map rendered in-app.",
+    "Recursive perspective-driven architecture scan producing an interactive, validated architecture map rendered in-app (archify pipeline).",
   "builtin.codegraph-cli.desc":
     "CodeGraph CLI driver — build and query the code knowledge graph (init / index / sync / serve, symbols, call chains).",
   "builtin.smart-code-review.desc":
@@ -716,7 +718,7 @@ export const en = {
   "action.system.ping.desc":
     "Trivial health-check action. Returns a pong with the echoed name. Verifies the action pipeline end to end.",
   "action.arch-scan.run.desc":
-    "Scan the codebase architecture and generate an interactive architecture map (perspective-driven: overall / data-flow / dependency). Agent-driven — complements CodeGraph (symbols) and OpenWiki (docs) as the architecture-level index.",
+    "Scan the codebase architecture and generate an interactive architecture map (perspective-driven: overall / data-flow / dependency; or `focus` on one subsystem for a single explanatory map). Agent-driven — complements CodeGraph (symbols) and OpenWiki (docs) as the architecture-level index.",
   "action.bento.create.desc":
     "Generate a self-contained Bento presentation deck (.bento.html) from a structured slide spec.",
   "action.browser.session-start.desc":

@@ -5,16 +5,23 @@
  *   file   @path/to/file.ext 或 @README.md（根级文件亦可）
  *   cmd    $ npm test                     （shell 提示符惯例）
  *   skill  @frontend-review               （小写连字符词）
+ * 含空白的路径走引号包裹形态 @"path with spaces"（@-菜单/引用桥在路径含
+ * 空白时写入——\S 芯片语法无法横跨空格，2026-09-06）。
  * Pure + UI-free — 供会话流芯片、输入框镜像层与 @-菜单抑制共用。
  */
 
 const CHIP_SOURCE = [
+  // ⓪ 引号包裹引用：@"含空白的路径"。菜单/引用桥写入的兜底形态——裸正则的
+  //    \S 无法跨空格，路径含空白时整体退化纯文本，故按目录段归类语义。
+  String.raw`@(?<quoted>"[^"\n]+")`,
   // ① deeporca 结构化引用（wiki 页 / 审查报告 JSON）—— 引用桥 / @-菜单写入，
   //    绝对与相对形态均识别（(?:…)? 可选前缀，2026-09-05 修复相对形态丢失语义）
   String.raw`@(?<deep>(?:\S*?[\\/])?\.deeporca[\\/](?:deepwiki|reviews)[\\/][^\s@]+(?:\.md|\.json)?)`,
   // ② 文件引用：@ + 带扩展名的路径（含路径分隔符或根级文件，如 @README.md——
-  //    2026-09-05 放开根级；扩展名前瞻使 @x.md 归文件、@x 归技能的消歧自然成立）
-  String.raw`@(?<file>(?:\S*?[\\/])?\S+?\.[A-Za-z0-9]{1,10})`,
+  //    2026-09-05 放开根级）。2026-09-06 回归守卫：(?<![\w.]) 拒绝词中 @
+  //    （someone@gmail.com 不再误判成文件芯片），\S{2,}? 拒绝 @e.g. 式
+  //    单字符基名散文。
+  String.raw`(?<![\w.])@(?<file>(?:\S*?[\\/])?\S{2,}?\.[A-Za-z0-9]{1,10})`,
   // ③ 命令引用：$ + 空格 + 命令（≤5 个 token，拒收 CJK 与 $ 歧义；首词合理性
   //    在 splitStoreRefSegments 里二次过滤——正则里塞停用词表会不可读）
   String.raw`\$(?<cmd> ?[a-zA-Z][\w./-]*(?:[ \t]+[\w./=-]+){0,4})`,
@@ -39,8 +46,14 @@ export interface StoreRefToken {
 export type StoreRefSegment = { kind: "text"; text: string } | { kind: "ref"; ref: StoreRefToken };
 
 /** wiki vs review 由目录段（/reviews/）判定——文件名里恰好含 "reviews"
- *  （如 deepwiki/reviews-guide.md）不得改变归类。 */
+ *  （如 deepwiki/reviews-guide.md）不得改变归类。引号形态按内容里的目录段
+ *  归类（wiki/review），否则视为普通文件。 */
 function chipKind(group: string, text: string): StoreRefKind {
+  if (group === "quoted") {
+    if (/[\\/]reviews[\\/]/.test(text)) return "review";
+    if (/[\\/]deepwiki[\\/]/.test(text)) return "wiki";
+    return "file";
+  }
   if (group === "deep") return /[\\/]reviews[\\/]/.test(text) ? "review" : "wiki";
   if (group === "file") return "file";
   if (group === "cmd") return "cmd";
@@ -87,9 +100,10 @@ function isPlausibleCommand(cmdToken: string): boolean {
 }
 
 function chipLabel(kind: StoreRefKind, token: string): string {
-  // Root-level files ("@README.md") carry no separator, so the leading @
-  // survives the path split — normalize it away first (2026-09-05 fix 3).
-  const stripped = token.replace(/^@/, "");
+  // Quoted refs carry their wrapping quotes, and root-level files ("@README.md")
+  // carry no separator so the leading @ survives the path split — normalize both
+  // away first (2026-09-05 fix 3 / 2026-09-06 quoted form).
+  const stripped = token.replace(/^@/, "").replace(/^"(.*)"$/, "$1");
   if (kind === "wiki") {
     const file = stripped.split(/[\\/]/).pop() ?? stripped;
     return file.replace(/\.md$/, "") || "wiki";
@@ -139,8 +153,9 @@ export function extractStoreReferences(text: string): { hasRefs: boolean; refs: 
 }
 
 const COMPLETE_CHIP_SOURCE = [
+  String.raw`@(?<quoted>"[^"\n]+")`,
   String.raw`@(?<deep>(?:\S*?[\\/])?\.deeporca[\\/](?:deepwiki|reviews)[\\/][^\s@]+(?:\.md|\.json)?)`,
-  String.raw`@(?<file>(?:\S*?[\\/])?\S+?\.[A-Za-z0-9]{1,10})`,
+  String.raw`(?<![\w.])@(?<file>(?:\S*?[\\/])?\S{2,}?\.[A-Za-z0-9]{1,10})`,
   String.raw`@(?<skill>[a-z][a-z0-9-]{1,31})(?![\w/-])(?!\.[A-Za-z0-9])`,
 ].join("|");
 const COMPLETE_CHIP_RE = new RegExp(`^(?:${COMPLETE_CHIP_SOURCE})$`);
@@ -151,4 +166,12 @@ const COMPLETE_CHIP_RE = new RegExp(`^(?:${COMPLETE_CHIP_SOURCE})$`);
  *  不经过 @ 菜单，因此不在此列。 */
 export function isCompleteStoreRef(token: string): boolean {
   return COMPLETE_CHIP_RE.test(token);
+}
+
+/** The path a reference token points at — @/$ prefix and wrapping quotes
+ *  removed. Consumers that need to check the token against the filesystem or
+ *  the live store lists (send-side dangling guard, 2026-09-06) must go through
+ *  this instead of slicing the raw token themselves. */
+export function storeRefPath(token: string): string {
+  return token.replace(/^[@$]/, "").replace(/^"(.*)"$/, "$1");
 }

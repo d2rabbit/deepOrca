@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useRef, useState, type JSX } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type JSX } from "react";
 import type { FileMatch } from "../../shared/ipc";
 import { api } from "../api";
 import { useI18n } from "../i18n";
-import { IconBook, IconFileOutline, IconFolderOutline } from "../ui/icons";
+import { IconBook, IconFileOutline, IconFolderOutline, IconShield } from "../ui/icons";
 import { reviewStorePath, wikiStorePath } from "../lib/generated-paths";
 
 type Props = {
@@ -130,12 +130,14 @@ export function FileMentionMenu({ open, query, onSelect, onClose, anchorRect, ro
 
   // Combined list: store groups first (they are the scarcer, semantic refs),
   // then filesystem matches — query-filtered on path + title.
-  const lowerQuery = query.trim().toLowerCase();
-  const matchedStore = storeItems.filter(
-    (item) =>
-      !lowerQuery || item.path.toLowerCase().includes(lowerQuery) || item.title.toLowerCase().includes(lowerQuery)
-  );
-  const combined: FileMatch[] = [...matchedStore, ...items];
+  const combined: FileMatch[] = useMemo(() => {
+    const lowerQuery = query.trim().toLowerCase();
+    const matchedStore = storeItems.filter(
+      (item) =>
+        !lowerQuery || item.path.toLowerCase().includes(lowerQuery) || item.title.toLowerCase().includes(lowerQuery)
+    );
+    return [...matchedStore, ...items];
+  }, [query, storeItems, items]);
 
   // Keyboard navigation
   useEffect(() => {
@@ -185,6 +187,11 @@ export function FileMentionMenu({ open, query, onSelect, onClose, anchorRect, ro
           ) : null}
           {combined.map((item, i) => {
             const isStore = item.kind === "wiki" || item.kind === "review";
+            // Store items carry absolute store paths — when the page has no
+            // frontmatter title, fall back to the basename, never the whole
+            // absolute path. Filesystem items show their workspace-relative
+            // path as before.
+            const display = isStore ? (item.title ?? item.path.split(/[\\/]/).pop() ?? item.path) : item.path;
             return (
               <button
                 key={`${item.kind ?? "fs"}:${item.path}`}
@@ -198,13 +205,15 @@ export function FileMentionMenu({ open, query, onSelect, onClose, anchorRect, ro
                 <span className="ui-file-mention-icon">
                   {item.kind === "wiki" ? (
                     <IconBook />
+                  ) : item.kind === "review" ? (
+                    <IconShield />
                   ) : item.type === "directory" ? (
                     <IconFolderOutline />
                   ) : (
                     <IconFileOutline />
                   )}
                 </span>
-                <span className="ui-file-mention-path">{item.title ?? item.path}</span>
+                <span className="ui-file-mention-path">{display}</span>
                 <span className="ui-file-mention-type">
                   {item.kind === "wiki"
                     ? t("fileMenu.wiki")
