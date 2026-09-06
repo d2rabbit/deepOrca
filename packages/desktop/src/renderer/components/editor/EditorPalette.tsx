@@ -6,6 +6,7 @@ import { useI18n } from "../../i18n";
 import type { KnowledgeSymbol } from "../../../shared/ipc";
 import type { Cm6KernelHandle } from "./cm6-kernel";
 import { jumpToLine } from "./cm6-deco";
+import { fileBaseName } from "../../ui/path-utils";
 
 type Props = {
   kernel: React.RefObject<Cm6KernelHandle | null>;
@@ -177,7 +178,7 @@ export function EditorPalette({
     if (mode === "file") {
       return [...symbolFiles.entries()]
         .map(([path, anyName]) => {
-          const name = path.split(/[\\/]/).pop() ?? path;
+          const name = fileBaseName(path);
           const dir = path.slice(0, path.length - name.length);
           return { row: { kind: "file" as const, name, dir }, s: fuzzyScore(term, name + dir) };
         })
@@ -326,7 +327,7 @@ export function EditorPalette({
                   </span>
                   <span className="name mono">{row.name}</span>
                   <span className="pos mono">
-                    {row.path.split(/[\\/]/).pop()}:{row.line}
+                    {fileBaseName(row.path)}:{row.line}
                   </span>
                   <button
                     type="button"

@@ -4,6 +4,7 @@ import { useI18n } from "../../i18n";
 import { FileIcon } from "../../ui/icons";
 import type { PairLaneState } from "../../hooks/use-pair-lane";
 import { PAIR_PHASE_KEYS, PAIR_PLAN_STEP_KEYS } from "./pair-i18n";
+import { fileBaseName } from "../../ui/path-utils";
 
 type Props = {
   lane: PairLaneState;
@@ -27,7 +28,7 @@ export function LanePanel({ lane, file, openFiles, onOpenFile, onToggle, onAskAg
   const [followup, setFollowup] = useState("");
   const busy = lane.phase === "streaming";
   const cls = busy ? " live" : lane.phase === "review" ? " wait" : "";
-  const activeName = file ? (file.split(/[\\/]/).pop() ?? file) : "—";
+  const activeName = file ? fileBaseName(file) : "—";
   const sendFollowup = (): void => {
     const text = followup.trim();
     if (!text || !onAskAgent) return;
@@ -88,8 +89,8 @@ export function LanePanel({ lane, file, openFiles, onOpenFile, onToggle, onAskAg
             .map((f) => (
               <button key={f} type="button" className="frow" onClick={() => onOpenFile(f)}>
                 <span className="fn mono">
-                  <FileIcon name={f.split(/[\\/]/).pop() ?? f} />
-                  {f.split(/[\\/]/).pop()}
+                  <FileIcon name={fileBaseName(f)} />
+                  {fileBaseName(f)}
                 </span>
               </button>
             ))}

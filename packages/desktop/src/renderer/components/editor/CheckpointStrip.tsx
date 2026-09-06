@@ -50,9 +50,10 @@ export function CheckpointStrip({ checkpoints, baselineAt, onRollback }: Props):
         <span className="nd" />
         {t("editor.pair.cp.baseline")}
         {baselineAt
-          ? ` · ${t("editor.pair.cp.lastSave")} ${String(new Date(baselineAt).getHours()).padStart(2, "0")}:${String(
-              new Date(baselineAt).getMinutes()
-            ).padStart(2, "0")}`
+          ? ` · ${t("editor.pair.cp.lastSave")} ${t("editor.pair.cp.time", {
+              h: String(new Date(baselineAt).getHours()).padStart(2, "0"),
+              m: String(new Date(baselineAt).getMinutes()).padStart(2, "0"),
+            })}`
           : ""}
       </span>
       {checkpoints.length === 0 ? (

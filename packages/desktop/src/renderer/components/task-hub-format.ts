@@ -6,8 +6,10 @@
 export function formatRelative(iso: string | undefined, justNow: string, never: string): string {
   if (!iso) return never;
   const delta = Date.now() - new Date(iso).getTime();
-  if (!Number.isFinite(delta) || delta < 0) return never;
-  const mins = Math.floor(delta / 60000);
+  if (!Number.isFinite(delta)) return never;
+  // A NEGATIVE delta (clock skew, a record synced from a fast clock) is still
+  // a live record — clamp to "just now" instead of rendering it as `never`.
+  const mins = Math.max(0, Math.floor(delta / 60000));
   if (mins < 1) return justNow;
   if (mins < 60) return `${mins}m`;
   const hours = Math.floor(mins / 60);

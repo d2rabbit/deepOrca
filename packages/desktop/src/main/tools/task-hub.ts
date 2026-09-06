@@ -188,8 +188,6 @@ export function buildTaskHub(deps: TaskHubDeps): WorkspaceTaskHub {
     // fail-open
   }
 
-  for (const g of groups) g.nodes.sort((a, b) => b.startedAt.localeCompare(a.startedAt));
-
   // ── editor domain — pair runs from the editor-runs store (链路 D) ─────
   try {
     for (const r of deps.listEditorRuns?.() ?? []) {
@@ -217,6 +215,11 @@ export function buildTaskHub(deps: TaskHubDeps): WorkspaceTaskHub {
   } catch {
     // fail-open: an unreadable store costs only the editor group
   }
+
+  // Sorted LAST so the editor domain joins the same ordering contract as
+  // every other group (previously editor nodes relied on the store being
+  // newest-first — an implicit contract any store change would silently break).
+  for (const g of groups) g.nodes.sort((a, b) => b.startedAt.localeCompare(a.startedAt));
 
   return { root: deps.root, generatedAt: new Date().toISOString(), groups };
 }

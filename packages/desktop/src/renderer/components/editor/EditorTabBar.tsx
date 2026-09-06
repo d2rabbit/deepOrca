@@ -1,6 +1,7 @@
 import type { JSX } from "react";
 import { useI18n } from "../../i18n";
 import { FileIcon } from "../../ui/icons";
+import { fileBaseName } from "../../ui/path-utils";
 
 type Props = {
   /** Open files in workspace order. */
@@ -33,7 +34,7 @@ export function EditorTabBar({
   return (
     <div className="ui-edtabs" role="tablist" aria-label={t("rail.editor")}>
       {files.map((file) => {
-        const name = file.split(/[\\/]/).pop() ?? file;
+        const name = fileBaseName(file);
         const active = file === activeFile;
         const dirty = dirtyFiles.has(file);
         const aiPending = aiPendingFiles?.has(file) ?? false;

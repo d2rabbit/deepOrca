@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 
 import { useI18n } from "../../i18n";
 import type { PairExplainState } from "../../hooks/use-pair-lane";
+import { fileBaseName } from "../../ui/path-utils";
 
 type Props = {
   explain: PairExplainState;
@@ -26,7 +27,7 @@ export function ExplainCard({ explain, file, onDismiss }: Props): JSX.Element {
   }, [explain?.busy]);
 
   if (!explain) return <></>;
-  const fileName = file ? (file.split(/[\\/]/).pop() ?? file) : "";
+  const fileName = file ? fileBaseName(file) : "";
 
   return createPortal(
     <div className="ui-edexplain" role="dialog" aria-label={t("editor.pair.explain.title")}>

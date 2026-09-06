@@ -194,12 +194,18 @@ const SHAPES: Record<GlyphShape, (props: { color: string }) => JSX.Element> = {
 };
 
 /** Folder silhouette — the generic directory mark (themed two-tone). */
-function FolderGlyph({ color, fill }: { color: string; fill: string }): JSX.Element {
+function FolderGlyph(): JSX.Element {
   return (
     <path
       d="M1.9 4.4c0-.9.72-1.62 1.62-1.62h2.8c.47 0 .91.2 1.22.56l.9 1.04h4.64c.9 0 1.62.72 1.62 1.62v5.7c0 .9-.72 1.62-1.62 1.62H3.52c-.9 0-1.62-.72-1.62-1.62z"
-      fill={fill}
-      stroke={color}
+      // Inline STYLE, not presentation attributes: Chromium's SVG presentation
+      // attributes (fill=/stroke=) accept literal values only — a var() there
+      // is dropped entirely, which left both stroke AND fill at none (the
+      // folder rendered as nothing). Inline styles resolve custom properties.
+      style={{
+        stroke: "var(--ui-folder-icon, #4c7fdb)",
+        fill: "var(--ui-folder-fill, rgba(76, 127, 219, 0.16))",
+      }}
       strokeWidth="1.15"
       strokeLinejoin="round"
     />
@@ -256,7 +262,7 @@ export function FileIcon({ name, fallback }: { name: string; fallback?: JSX.Elem
 }
 
 /** Type-aware icon for a DIRECTORY name (well-known dirs; themed folder). */
-export function DirIcon({ name, fallback }: { name: string; fallback?: JSX.Element }): JSX.Element | null {
+export function DirIcon({ name }: { name: string }): JSX.Element {
   const glyph = DIR_GLYPHS[name.toLowerCase()];
   if (!glyph) {
     // 2026-09-06 user ask: every folder gets a real folder silhouette in a
@@ -264,7 +270,7 @@ export function DirIcon({ name, fallback }: { name: string; fallback?: JSX.Eleme
     // badges (colored text marks). Tints ride CSS vars per appearance.
     return (
       <GlyphSvg>
-        <FolderGlyph color="var(--ui-folder-icon, #4c7fdb)" fill="var(--ui-folder-fill, rgba(76, 127, 219, 0.16))" />
+        <FolderGlyph />
       </GlyphSvg>
     );
   }

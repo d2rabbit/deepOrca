@@ -3,6 +3,7 @@ import type { JSX } from "react";
 import { useI18n } from "../../i18n";
 import type { PairLaneState } from "../../hooks/use-pair-lane";
 import { PAIR_PHASE_KEYS } from "./pair-i18n";
+import { fileBaseName } from "../../ui/path-utils";
 
 type Props = {
   lane: PairLaneState;
@@ -37,7 +38,7 @@ export function EditorStatusBar({
   const cls = lane.phase === "streaming" ? " live" : lane.phase === "review" ? " wait" : "";
   return (
     <div className="ui-edpair-status">
-      <span className="it mono">{file ? file.split(/[\\/]/).pop() : "—"}</span>
+      <span className="it mono">{file ? fileBaseName(file) : "—"}</span>
       {branch ? (
         <span className="it mono" title={t("editor.pair.status.branch")}>
           ⑂ {branch}
