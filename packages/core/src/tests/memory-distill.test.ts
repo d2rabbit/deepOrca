@@ -12,7 +12,7 @@ import assert from "node:assert/strict";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
-import { memoryDistillRun, readSessionDigest } from "../actions/memory-distill";
+import { memoryDistillRun, pruneDistillSnapshots, readSessionDigest } from "../actions/memory-distill";
 import { getProjectCode } from "../common/app-dirs";
 import { setHomeDir } from "./session-test-utils";
 
@@ -31,7 +31,11 @@ const CALL = (name: string, args: Record<string, unknown>) => ({
 
 function buildCtx(
   projectRoot: string,
-  complete?: (m: Array<{ role: "system" | "user"; content: string }>) => Promise<string | null>
+  complete?: (m: Array<{ role: "system" | "user"; content: string }>) => Promise<string | null>,
+  seams?: {
+    search?: (query: string, limit?: number) => Promise<string | null>;
+    behavior?: () => string | null;
+  }
 ) {
   return {
     projectRoot,
@@ -39,6 +43,8 @@ function buildCtx(
     emit: () => {},
     spawner: {} as never,
     ...(complete ? { completeViaLlm: complete } : {}),
+    ...(seams?.search ? { searchKnownMemories: seams.search } : {}),
+    ...(seams?.behavior ? { collectBehaviorContext: seams.behavior } : {}),
   } as Parameters<typeof memoryDistillRun>[1];
 }
 
@@ -223,4 +229,178 @@ test("distill: bad auditId fails cleanly; sessionId traversal rejected", async (
   const trav = await memoryDistillRun({ sessionId: "../../etc" }, buildCtx(workspace));
   assert.equal(trav.ok, false);
   assert.match(trav.error ?? "", /invalid sessionId/);
+});
+
+// ── P2 connectors (specs/sop-extraction §4) ─────────────────────────────────
+
+test("distill P2: connector context lands bounded in the prompt; null/throwing seams degrade to empty", async () => {
+  const home = tempDir("distill-p2-");
+  const workspace = tempDir("distill-p2ws-");
+  setHomeDir(home);
+  seedProject(home, workspace);
+
+  const calls: Array<{ q: string; limit?: number }> = [];
+  const prompts: string[] = [];
+  // Over-length on purpose: both slots must clip (600 / 1024 budgets).
+  const known = "用户偏好TypeScript与React，测试用vitest，导出走Codable路径。".repeat(40);
+  const behavior = "- edits under packages/core\n- runs npm test after edits\n".repeat(80);
+
+  const out = await memoryDistillRun(
+    { synthesize: true },
+    buildCtx(
+      workspace,
+      async (m) => {
+        prompts.push(m[1]!.content);
+        return GOOD_SOP;
+      },
+      {
+        search: async (q, limit) => {
+          calls.push({ q, limit });
+          return known;
+        },
+        behavior: () => behavior,
+      }
+    )
+  );
+  assert.equal(out.ok, true);
+  assert.equal(out.synthesis?.ok, true);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0]!.limit, 5);
+  assert.ok(calls[0]!.q.includes("动画时间线"), "query is built from digest intents");
+  assert.ok(calls[0]!.q.length <= 200, "query clipped");
+
+  // Budgets are pinned EXACTLY (over-length input → full budget, no
+  // clip()-style 200-char short-circuit): the bounded slots land verbatim in
+  // the prompt; the output only carries char counts (never the text itself).
+  const expectedKnown = known.replace(/\s+/g, " ").trim().slice(0, 600);
+  const expectedBehavior = behavior.replace(/\s+/g, " ").trim().slice(0, 1024);
+  assert.equal(expectedKnown.length, 600, "fixture is over-length");
+  assert.equal(expectedBehavior.length, 1024, "fixture is over-length");
+  assert.equal(out.context?.relatedMemoriesChars, 600, "relatedMemories fills its budget");
+  assert.equal(out.context?.behaviorProfileChars, 1024, "behaviorProfile fills its budget");
+
+  const prompt = prompts[0]!;
+  assert.match(prompt, /Known memories/);
+  assert.ok(prompt.includes(expectedKnown), "known block embedded verbatim at full budget");
+  assert.match(prompt, /do NOT re-distill the same fact/);
+  assert.match(prompt, /Behavioral profile/);
+  assert.ok(prompt.includes(expectedBehavior));
+  assert.match(prompt, /A fact already present in Known memories must NOT become/);
+
+  // Degraded truth table: null lookup + throwing collector → empty slots,
+  // synthesis unaffected (same shape as a no-connector run).
+  const degraded = await memoryDistillRun(
+    { synthesize: true },
+    buildCtx(workspace, async () => GOOD_SOP, {
+      search: async () => null,
+      behavior: () => {
+        throw new Error("collector down");
+      },
+    })
+  );
+  assert.equal(degraded.ok, true);
+  assert.equal(degraded.context, undefined);
+  assert.equal(degraded.synthesis?.ok, true);
+  assert.equal(degraded.synthesis?.proposals.length, 2);
+});
+
+test("distill P2 red line: a full synthesize run touches only read-only ctx keys", async () => {
+  const home = tempDir("distill-rl-");
+  const workspace = tempDir("distill-rlws-");
+  setHomeDir(home);
+  seedProject(home, workspace);
+
+  const accessed = new Set<string>();
+  const base = buildCtx(workspace, async () => GOOD_SOP, {
+    search: async () => "known fact",
+    behavior: () => "profile",
+  });
+  const proxied = new Proxy(base, {
+    get(target, prop) {
+      if (typeof prop === "string") accessed.add(prop);
+      return Reflect.get(target, prop);
+    },
+  }) as Parameters<typeof memoryDistillRun>[1];
+
+  const out = await memoryDistillRun({ synthesize: true }, proxied);
+  assert.equal(out.ok, true);
+  // There is no write channel to L0–L3 on the action context at all — pin it
+  // behaviorally so an accidental seam addition cannot slip through unnoticed.
+  const allowed = new Set(["projectRoot", "signal", "completeViaLlm", "searchKnownMemories", "collectBehaviorContext"]);
+  for (const key of accessed) {
+    assert.ok(allowed.has(key), `unexpected ctx access: ${key}`);
+  }
+});
+
+test("distill P2.3: decisionStats aggregate the shared store (accept-rate tracking)", async () => {
+  const home = tempDir("distill-st-");
+  const workspace = tempDir("distill-stws-");
+  setHomeDir(home);
+  seedProject(home, workspace);
+
+  const first = await memoryDistillRun(
+    { synthesize: true, dryRun: false },
+    buildCtx(workspace, async () => GOOD_SOP)
+  );
+  assert.deepEqual(first.decisionStats, { total: 0, accepted: 0, rejected: 0, skipped: 0, byAction: {} });
+
+  const auditId = path
+    .basename(
+      fs.readdirSync(path.join(workspace, ".deeporca", "audits")).find((f) => f.startsWith("memory-distill-")) ?? ""
+    )
+    .replace(/^memory-distill-/, "")
+    .replace(/\.json$/, "");
+  const keySkill = first.synthesis!.proposals.find((p) => p.action === "skill-new")!.key;
+  const keyRule = first.synthesis!.proposals.find((p) => p.action === "add-rule")!.key;
+
+  const decided = await memoryDistillRun(
+    {
+      recordDecisions: {
+        auditId,
+        decisions: [
+          { proposalKey: keySkill, verdict: "accept" },
+          { proposalKey: keyRule, verdict: "reject" },
+        ],
+      },
+    },
+    buildCtx(workspace)
+  );
+  assert.equal(decided.ok, true);
+  assert.equal(decided.decisionStats?.total, 2);
+  assert.equal(decided.decisionStats?.accepted, 1);
+  assert.equal(decided.decisionStats?.rejected, 1);
+  assert.equal(decided.decisionStats?.byAction["skill-new"]?.accepted, 1);
+  assert.equal(decided.decisionStats?.byAction["add-rule"]?.rejected, 1);
+
+  // A fresh run surfaces the same aggregate — read-only tracking over the store.
+  const again = await memoryDistillRun(
+    { synthesize: true },
+    buildCtx(workspace, async () => GOOD_SOP)
+  );
+  assert.equal(again.decisionStats?.total, 2);
+  assert.equal(again.decisionStats?.byAction["skill-new"]?.accepted, 1);
+});
+
+test("distill: snapshot dir pruned to the newest 10 — memory-audit review-store discipline", () => {
+  const dir = tempDir("distill-prune-");
+  for (let i = 0; i < 12; i++) {
+    fs.writeFileSync(
+      path.join(dir, `memory-distill-2026-09-06T00-00-${String(i).padStart(2, "0")}Z.json`),
+      "{}",
+      "utf8"
+    );
+  }
+  fs.writeFileSync(path.join(dir, "memory-audit-keepme.json"), "{}", "utf8"); // foreign prefix must survive
+
+  pruneDistillSnapshots(dir);
+  const remaining = fs
+    .readdirSync(dir)
+    .filter((f) => f.startsWith("memory-distill-"))
+    .sort();
+  assert.equal(remaining.length, 10, "keep-N = 10");
+  assert.equal(remaining[0], "memory-distill-2026-09-06T00-00-02Z.json", "oldest two pruned");
+  assert.ok(fs.existsSync(path.join(dir, "memory-audit-keepme.json")), "audit snapshots untouched");
+
+  pruneDistillSnapshots(dir, 2);
+  assert.equal(fs.readdirSync(dir).filter((f) => f.startsWith("memory-distill-")).length, 2, "explicit keep honored");
 });

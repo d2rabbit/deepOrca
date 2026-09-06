@@ -1,7 +1,12 @@
 // Wraps a DeepOrca core `SessionManager` for a single project root and forwards
 // its callbacks to the renderer via the provided `emit` function.
 
-import { collectProfile, formatContextBlock } from "./tools/activity-frames/collectors/aggregator";
+import {
+  collectProfile,
+  collectSopContextSources,
+  formatContextBlock,
+  formatSopContextBlock,
+} from "./tools/activity-frames/collectors/aggregator";
 import {
   buildGitmcpMaintenanceCommand,
   buildGitmcpPlaceholderConfig,
@@ -306,6 +311,17 @@ export class SessionBridge {
       buildBehaviorContext: () => {
         try {
           return formatContextBlock(collectProfile(projectRoot));
+        } catch {
+          return null; // fail-open
+        }
+      },
+      // SOP-oriented twin (specs/sop-extraction P2.2): workflow-shaped view of
+      // the same collectors, PREFERRED by the action-facing seam for SOP
+      // synthesis (procedure > persona). Blank → core falls back to the
+      // profile block above; same settings.behaviorContext gate applies.
+      buildBehaviorPatterns: () => {
+        try {
+          return formatSopContextBlock(collectSopContextSources(projectRoot));
         } catch {
           return null; // fail-open
         }

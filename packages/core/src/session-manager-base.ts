@@ -95,6 +95,7 @@ import {
 import { appendUsageRecord, usageLedgerPath, type UsageRecord, type UsageSource } from "./common/usage-ledger";
 import { getUserConfigRoot } from "./common/app-dirs";
 import { getLlmErrorDetails } from "./common/llm-error";
+import { bindBehaviorContextCollector, bindKnownMemorySearch } from "./common/memory-seam";
 import { getSnippet } from "./common/state";
 import { isUsageRecord } from "./session-usage";
 import { logApiError } from "./common/error-logger";
@@ -200,6 +201,9 @@ export abstract class SessionManagerBase {
   protected readonly onLlmStreamProgress?: (progress: LlmStreamProgress) => void;
 
   protected readonly buildBehaviorContext?: () => string | null;
+
+  /** SOP-oriented builder (sop-extraction P2.2); preferred over the profile block for the action seam. */
+  protected readonly buildBehaviorPatterns?: () => string | null;
 
   protected readonly onMcpStatusChanged?: () => void;
 
@@ -367,6 +371,7 @@ export abstract class SessionManagerBase {
     this.onMcpStatusChanged = options.onMcpStatusChanged;
     this.onSandboxStatusChanged = options.onSandboxStatusChanged;
     this.buildBehaviorContext = options.buildBehaviorContext;
+    this.buildBehaviorPatterns = options.buildBehaviorPatterns;
     this.onProcessStdout = options.onProcessStdout;
     // ActionRegistry must be constructed before ToolExecutor (which dispatches
     // action tool calls through it). Uses the host-injected Spawner so core
@@ -395,6 +400,18 @@ export abstract class SessionManagerBase {
       setSessionTaskRef: (sessionId, ref) => this.setSessionTaskRef(sessionId, ref),
       getSessionTaskRef: (sessionId) => this.getSession(sessionId)?.taskRef ?? null,
       appendSessionSystemMessage: (sessionId, text) => this.appendSessionSystemMessage(sessionId, text),
+      // Read-only memory / behavior seams (specs/sop-extraction P2.1/P2.2):
+      // actions get an L1 lookup and the activity-frames context behind the
+      // same opt-in gate as the boot injection. Both legs fail open to null
+      // (binders in common/memory-seam, unit-tested there). The seam prefers
+      // the workflow-oriented builder (procedure > persona for SOP synthesis)
+      // with the profile block as fallback.
+      searchKnownMemories: bindKnownMemorySearch(() => this.memoryProvider),
+      collectBehaviorContext: bindBehaviorContextCollector(
+        () => this.getResolvedSettings().behaviorContext === true,
+        () => this.buildBehaviorPatterns?.() ?? null,
+        () => this.buildBehaviorContext?.() ?? null
+      ),
     });
     this.actionRegistry.register(pingDefinition, pingRun);
     // ── Phase 1: code review actions ──────────────────────────────────────

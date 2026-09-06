@@ -73,6 +73,33 @@ describe("defineAction primitive", { concurrency: 1 }, () => {
     });
   });
 
+  describe("ActionRegistry context seams (specs/sop-extraction P2)", () => {
+    test("searchKnownMemories / collectBehaviorContext host options reach the action context", async () => {
+      const seen: string[] = [];
+      const r = new ActionRegistry({
+        projectRoot: PROJECT_ROOT,
+        searchKnownMemories: async () => "known",
+        collectBehaviorContext: () => "profile",
+      });
+      r.register({ ...pingDefinition, id: "system.probe" }, async (_input, ctx) => {
+        seen.push((await ctx.searchKnownMemories!("q")) ?? "null", ctx.collectBehaviorContext!());
+        return null;
+      });
+      await r.execute("system.probe", {}).result;
+      assert.deepEqual(seen, ["known", "profile"]);
+    });
+
+    test("seams stay undefined when the host omits them", async () => {
+      const r = makeRegistry();
+      r.register({ ...pingDefinition, id: "system.probe2" }, async (_input, ctx) => {
+        assert.equal(ctx.searchKnownMemories, undefined);
+        assert.equal(ctx.collectBehaviorContext, undefined);
+        return null;
+      });
+      await r.execute("system.probe2", {}).result;
+    });
+  });
+
   describe("ActionRegistry.execute", () => {
     test("runs a deterministic action and returns its result", async () => {
       const r = makeRegistry();

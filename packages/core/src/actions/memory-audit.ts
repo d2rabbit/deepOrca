@@ -430,6 +430,44 @@ export function saveRejections(projectRoot: string, store: RejectionStore): void
   fs.writeFileSync(file, JSON.stringify(store, null, 2), "utf8");
 }
 
+/**
+ * P2.3 (specs/sop-extraction): aggregate the shared decision store so the
+ * distill action output can surface the production accept rate (memory.audit
+ * can adopt the same field later — this is substrate only). Same store,
+ * content-hashed keys — the action prefix of each key (the part before the
+ * first ":") names the proposal's action, so distill's
+ * "skill-new"/"add-rule"/… and audit's "add"/"update"/"delete" bucket apart.
+ */
+export interface DecisionStats {
+  readonly total: number;
+  readonly accepted: number;
+  readonly rejected: number;
+  readonly skipped: number;
+  readonly byAction: Readonly<Record<string, { accepted: number; rejected: number; skipped: number }>>;
+}
+
+export function summarizeDecisions(projectRoot: string): DecisionStats {
+  const byAction: Record<string, { accepted: number; rejected: number; skipped: number }> = {};
+  let accepted = 0;
+  let rejected = 0;
+  let skipped = 0;
+  for (const [key, entry] of Object.entries(loadRejections(projectRoot))) {
+    const action = key.split(":")[0] || "unknown";
+    const bucket = (byAction[action] ??= { accepted: 0, rejected: 0, skipped: 0 });
+    if (entry.verdict === "accept") {
+      accepted += 1;
+      bucket.accepted += 1;
+    } else if (entry.verdict === "reject") {
+      rejected += 1;
+      bucket.rejected += 1;
+    } else {
+      skipped += 1;
+      bucket.skipped += 1;
+    }
+  }
+  return { total: accepted + rejected + skipped, accepted, rejected, skipped, byAction };
+}
+
 const proposalSchema: AuxSchema<{ proposals: Array<Record<string, unknown>> }> = {
   describe: '{"proosals": [{"action","target","ruleText","diffHint","evidenceIds","rationale","estTokens"}]}',
   validate: (parsed) => {

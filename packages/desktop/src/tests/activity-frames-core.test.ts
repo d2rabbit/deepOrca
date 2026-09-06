@@ -11,6 +11,8 @@ import assert from "node:assert/strict";
 import { cleanName, domain, segments, coverage, appLedger } from "../main/tools/activity-frames/sessionize";
 import { parseUrl } from "../main/tools/activity-frames/entities";
 import { buildFrames } from "../main/tools/activity-frames/frames";
+import { formatSopContextBlock } from "../main/tools/activity-frames/collectors/aggregator";
+import type { SopContextSources } from "../main/tools/activity-frames/collectors/aggregator";
 import type { RawFrame, RawEvent } from "../main/tools/activity-frames/types";
 import type { ActivityDb } from "../main/tools/activity-frames/db";
 
@@ -255,4 +257,41 @@ test("buildFrames omits segments below minMinutes and counts them", () => {
   const doc = buildFrames(db, ...win(T0 - 10, T0 + 100), { minMinutes: 5 });
   assert.equal(doc.frames.length, 0);
   assert.equal(doc.omittedBelowMin, 1);
+});
+
+// ── SOP-oriented context block (specs/sop-extraction P2.2) ────────────────────
+
+test("formatSopContextBlock: workflow-shaped view, null when empty", () => {
+  const sources = {
+    session: {
+      totalSessions: 3,
+      workflowPatterns: [{ sequence: ["read", "edit", "bash"], count: 4, label: "read → edit → bash" }],
+      commonFirstActions: ["read AGENTS.md", "run rg"],
+      topTools: [{ name: "read", count: 9 }],
+    },
+    shell: {
+      totalCommands: 40,
+      commandBigrams: [{ sequence: "npm test → git commit", count: 6 }],
+    },
+    git: {
+      totalCommits: 21,
+      activity: { hourlyCommits: { "10": 5, "14": 9 } },
+      topMessagePatterns: ["fix(core):"],
+    },
+  } as unknown as SopContextSources; // partial fakes — only fields the formatter reads
+
+  const block = formatSopContextBlock(sources)!;
+  assert.ok(block.includes("read → edit → bash (4x)"), "recurring tool sequences surface");
+  assert.ok(block.includes("Sessions usually open with: read AGENTS.md; run rg"));
+  assert.ok(block.includes("read(9x)"), "tool cadence surface");
+  assert.ok(block.includes("npm test → git commit (6x)"), "command bigrams surface");
+  assert.ok(block.includes("peaks 14:00 (9), 10:00 (5)"), "peaks sorted desc");
+  assert.ok(block.includes("Commit style: fix(core):"));
+
+  const empty = formatSopContextBlock({
+    session: { totalSessions: 0 },
+    shell: { totalCommands: 0 },
+    git: { totalCommits: 0 },
+  } as unknown as SopContextSources);
+  assert.equal(empty, null, "no workflow data → null (caller falls back to the profile block)");
 });

@@ -145,6 +145,23 @@ export interface ActionContext {
   ) => { treeId: string; branch: string; nodeId: string } | null | undefined;
   /** Append a hidden system message to a session (lineage recycle channel). */
   readonly appendSessionSystemMessage?: (sessionId: string, text: string) => void;
+  /**
+   * Read-only L1 memory search (specs/sop-extraction P2.1) — injected by
+   * SessionManager from the memory provider, bounded by the same 2s race
+   * budget as the session-creation recall. Returns the formatted known-facts
+   * text, or null when memory is off / unavailable / slow — callers MUST fail
+   * open (leave their slot empty) on null. Read-only by construction: this
+   * seam never writes to L0–L3.
+   */
+  readonly searchKnownMemories?: (query: string, limit?: number) => Promise<string | null>;
+  /**
+   * Behavioral profile block (specs/sop-extraction P2.2) — the activity-frames
+   * "how this user works" context, behind the same opt-in gate as the
+   * boot-context injection (settings.behaviorContext). Returns null when
+   * gated off or the collector fails; callers fail open. The seam never
+   * persists the profile anywhere.
+   */
+  readonly collectBehaviorContext?: () => string | null;
 }
 
 export interface RunSubagentOptions {

@@ -20,7 +20,7 @@
 
 import * as fs from "node:fs";
 import * as path from "node:path";
-import type { ActionDefinition, ActionRun } from "./types";
+import type { ActionContext, ActionDefinition, ActionRun } from "./types";
 import { getProjectCode, getProjectConfigRoot, getUserConfigRoot } from "../common/app-dirs";
 import { applyAuxSchema, AUX_CONTENT_RETRY_BUDGET, type AuxSchema } from "../common/aux-llm-contract";
 import {
@@ -30,6 +30,8 @@ import {
   loadRejections,
   proposalKeyOf,
   saveRejections,
+  summarizeDecisions,
+  type DecisionStats,
   type MemoryAuditWriteBack,
 } from "./memory-audit";
 
@@ -79,6 +81,15 @@ export interface MemoryDistillOutput {
   };
   readonly reviewInstructions?: string;
   readonly pendingWriteBacks?: readonly MemoryAuditWriteBack[];
+  /**
+   * P2 connectors fed to synthesis — char counts only (observability). The
+   * profile / known-memory TEXT never leaves the synthesis prompt: red line
+   * (specs/sop-extraction §4.3) — not persisted in snapshots, not echoed
+   * into tool results or the main conversation.
+   */
+  readonly context?: { relatedMemoriesChars?: number; behaviorProfileChars?: number };
+  /** P2.3: shared-store decision aggregate (production accept-rate tracking). */
+  readonly decisionStats?: DecisionStats;
   readonly error?: string;
 }
 
@@ -218,10 +229,24 @@ const sopSchema: AuxSchema<{ sopProposals: Array<Record<string, unknown>> }> = {
 const MAX_SOP = 5;
 const DISTILL_ACTIONS: readonly DistillAction[] = ["add-rule", "update-rule", "skill-new", "skill-append"];
 
+// P2 connector bounds: the L1 query is built from the first intent of each
+// digest; both prompt segments are squashed + clipped so synthesis input
+// stays budgeted. (clip() itself caps at 200 chars — too tight for these
+// slots, hence the local bounded()).
+const RELATED_QUERY_MAX = 200;
+const RELATED_MEMO_MAX = 600;
+const BEHAVIOR_MAX = 1024;
+
+/** Whitespace-squashed clip to a budget. */
+function bounded(text: string, max: number): string {
+  return text.replace(/\s+/g, " ").trim().slice(0, max);
+}
+
 function buildDistillPrompt(
   digests: readonly SessionDigest[],
   existingSkills: string[],
-  rejectedKeys: string[]
+  rejectedKeys: string[],
+  context?: { relatedMemories?: string; behaviorProfile?: string }
 ): string {
   const digestText = digests
     .map(
@@ -234,14 +259,20 @@ function buildDistillPrompt(
     .join("\n");
   const rejected =
     rejectedKeys.length > 0 ? `\nAlready reviewed by the user (DO NOT re-propose): ${rejectedKeys.join(", ")}` : "";
+  const known = context?.relatedMemories
+    ? `\nKnown memories (facts ALREADY in the user's long-term memory — do NOT re-distill the same fact as a new rule/skill; skip it, or use "skill-append" only if it adds procedure): ${context.relatedMemories}`
+    : "";
+  const behavior = context?.behaviorProfile
+    ? `\nBehavioral profile (how this user works — background only, NOT evidence): ${context.behaviorProfile}`
+    : "";
   return `You distill REUSABLE SOPs from what these coding-agent sessions actually did (the procedure worked —固化它, not the failure).
 
 Session digests (evidenceRefs point back as "<session8>#<intentIndex>", e.g. "${digests[0]?.sessionId.slice(0, 8) ?? "s"}#0"):
 ${digestText}
-Existing skills (do NOT create a skill with one of these names — use action "skill-append" for them): ${existingSkills.join(", ") || "(none)"}
-${rejected}
+Existing skills (do NOT create a skill with one of these names — use action "skill-append" for them): ${existingSkills.join(", ") || "(none)"}${known}${behavior}${rejected}
 Rules:
 - Propose only procedures with real reuse value across future sessions; every proposal cites evidenceRefs.
+- A fact already present in Known memories must NOT become a new rule/skill — that would duplicate the cross-session memory.
 - "skill-new" (a NEW skill): body = full SKILL.md draft — frontmatter (name/description) + concise procedure steps. Name must NOT collide with existing skills.
 - "skill-append": ruleText = a compact appendix bullet for the named existing skill.
 - "add-rule"/"update-rule": ruleText = 1-2 sentence AGENTS.md rule.
@@ -250,9 +281,51 @@ Rules:
 Respond with JSON only: {"sopProposals": [{"action":"add-rule|update-rule|skill-new|skill-append","skillName":"...","ruleText":"...","body":"...","rationale":"...","evidenceRefs":["<sid>#0"],"estTokens":40}]}`;
 }
 
+/**
+ * P2.1/P2.2 connector context (specs/sop-extraction §4.2): absent seams,
+ * nulls and thrown errors all degrade to an empty slot — the pipeline shape
+ * is identical with or without the connectors.
+ */
+async function collectDistillContext(
+  ctx: ActionContext,
+  digests: readonly SessionDigest[]
+): Promise<{ relatedMemories?: string; behaviorProfile?: string }> {
+  const out: { relatedMemories?: string; behaviorProfile?: string } = {};
+  if (ctx.searchKnownMemories) {
+    const seen = new Set<string>();
+    const intents = digests.flatMap((d) => d.intents.slice(0, 1));
+    const query = intents
+      .filter((i) => {
+        if (seen.has(i)) return false;
+        seen.add(i);
+        return true;
+      })
+      .join(" ")
+      .slice(0, RELATED_QUERY_MAX);
+    if (query.trim()) {
+      try {
+        const text = await ctx.searchKnownMemories(query, 5);
+        if (text && text.trim()) out.relatedMemories = bounded(text, RELATED_MEMO_MAX);
+      } catch {
+        // fail-open: slot stays empty
+      }
+    }
+  }
+  if (ctx.collectBehaviorContext) {
+    try {
+      const block = ctx.collectBehaviorContext();
+      if (block && block.trim()) out.behaviorProfile = bounded(block, BEHAVIOR_MAX);
+    } catch {
+      // fail-open: slot stays empty
+    }
+  }
+  return out;
+}
+
 async function synthesizeSop(opts: {
   projectRoot: string;
   digests: readonly SessionDigest[];
+  context: { relatedMemories?: string; behaviorProfile?: string };
   complete: (messages: Array<{ role: "system" | "user"; content: string }>) => Promise<string | null>;
 }): Promise<NonNullable<MemoryDistillOutput["synthesis"]>> {
   const store = loadRejections(opts.projectRoot);
@@ -260,7 +333,7 @@ async function synthesizeSop(opts: {
   const existingSkills = listSkillNames(opts.projectRoot);
   const messages: Array<{ role: "system" | "user"; content: string }> = [
     { role: "system", content: "You distill reusable SOPs from session digests. Respond with JSON only." },
-    { role: "user", content: buildDistillPrompt(opts.digests, existingSkills, rejectedKeys) },
+    { role: "user", content: buildDistillPrompt(opts.digests, existingSkills, rejectedKeys, opts.context) },
   ];
 
   for (let attempt = 0; attempt <= AUX_CONTENT_RETRY_BUDGET; attempt++) {
@@ -342,6 +415,33 @@ function listSkillNames(projectRoot: string): string[] {
       .slice(0, 50);
   } catch {
     return [];
+  }
+}
+
+const DISTILL_SNAPSHOT_KEEP = 10;
+
+/**
+ * Review-store discipline (same as memory-audit's SNAPSHOT_KEEP): keep only
+ * the newest N `memory-distill-*.json` snapshots in the audits dir. Exported
+ * for direct unit testing — timestamps make the write path itself awkward to
+ * race in a test.
+ */
+export function pruneDistillSnapshots(dir: string, keep = DISTILL_SNAPSHOT_KEEP): void {
+  let existing: string[] = [];
+  try {
+    existing = fs
+      .readdirSync(dir)
+      .filter((name) => name.startsWith("memory-distill-") && name.endsWith(".json"))
+      .sort();
+  } catch {
+    return;
+  }
+  for (const stale of existing.slice(0, Math.max(0, existing.length - keep))) {
+    try {
+      fs.rmSync(path.join(dir, stale));
+    } catch {
+      // best-effort prune
+    }
   }
 }
 
@@ -481,15 +581,25 @@ export const memoryDistillRun: ActionRun<MemoryDistillInput, MemoryDistillOutput
 
   let synthesis: NonNullable<MemoryDistillOutput["synthesis"]> | undefined;
   let reviewInstructions: string | undefined;
-  if (input?.synthesize) {
-    synthesis = ctx.completeViaLlm
-      ? await synthesizeSop({
-          projectRoot: ctx.projectRoot,
-          digests,
-          complete: (messages) => ctx.completeViaLlm!(messages),
-        })
-      : { ok: false, proposals: [], dropped: 0, error: "completeViaLlm seam not injected" };
+  let context: NonNullable<MemoryDistillOutput["context"]> | undefined;
+  if (input?.synthesize && ctx.completeViaLlm) {
+    // Connectors run only when synthesis can actually consume them — a host
+    // without the LLM seam must not burn an L1 lookup for nothing.
+    const payload = await collectDistillContext(ctx, digests);
+    synthesis = await synthesizeSop({
+      projectRoot: ctx.projectRoot,
+      digests,
+      context: payload,
+      complete: (messages) => ctx.completeViaLlm!(messages),
+    });
     if (synthesis.proposals.length > 0) reviewInstructions = buildReviewInstructions(synthesis);
+    // Counts only — the text itself stays inside the synthesis prompt (§4.3).
+    context = {
+      ...(payload.relatedMemories !== undefined ? { relatedMemoriesChars: payload.relatedMemories.length } : {}),
+      ...(payload.behaviorProfile !== undefined ? { behaviorProfileChars: payload.behaviorProfile.length } : {}),
+    };
+  } else if (input?.synthesize) {
+    synthesis = { ok: false, proposals: [], dropped: 0, error: "completeViaLlm seam not injected" };
   }
 
   const output: MemoryDistillOutput = {
@@ -498,6 +608,8 @@ export const memoryDistillRun: ActionRun<MemoryDistillInput, MemoryDistillOutput
     digests,
     ...(synthesis ? { synthesis } : {}),
     ...(reviewInstructions ? { reviewInstructions } : {}),
+    ...(context && Object.keys(context).length > 0 ? { context } : {}),
+    decisionStats: summarizeDecisions(ctx.projectRoot),
   };
   if (dryRun || !synthesis || synthesis.proposals.length === 0) return output;
   // Persist the distill snapshot so recordDecisions can resolve accepted keys.
@@ -507,6 +619,7 @@ export const memoryDistillRun: ActionRun<MemoryDistillInput, MemoryDistillOutput
     const stamp = new Date().toISOString().replace(/[:.]/g, "-");
     const file = path.join(dir, `memory-distill-${stamp}.json`);
     fs.writeFileSync(file, JSON.stringify(output, null, 2), "utf8");
+    pruneDistillSnapshots(dir);
   } catch {
     // Snapshot is the review-loop anchor; without it recordDecisions can't run
     // — surface but keep the digest output usable.
@@ -550,5 +663,11 @@ function recordDistillDecisions(
   } catch (err) {
     return baseError(projectDir, `rejection store write failed: ${err instanceof Error ? err.message : String(err)}`);
   }
-  return { ok: true, projectDir, digests: [], ...(writeBacks.length > 0 ? { pendingWriteBacks: writeBacks } : {}) };
+  return {
+    ok: true,
+    projectDir,
+    digests: [],
+    decisionStats: summarizeDecisions(projectRoot),
+    ...(writeBacks.length > 0 ? { pendingWriteBacks: writeBacks } : {}),
+  };
 }

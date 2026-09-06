@@ -147,3 +147,68 @@ export function formatContextBlock(profile: BehavioralProfile): string {
 export function formatProfileJson(profile: BehavioralProfile): string {
   return JSON.stringify(profile, null, 2);
 }
+
+// ── SOP-oriented block (specs/sop-extraction P2.2 enhancement) ───────────────
+
+/** Workflow-shaped slice of the collectors (what get_workflows exposes). */
+export interface SopContextSources {
+  session: SessionProfile;
+  shell: ShellProfile;
+  git: GitProfile;
+}
+
+export function collectSopContextSources(projectRoot: string): SopContextSources {
+  return {
+    session: collectSessionProfile(projectRoot),
+    shell: collectShellProfile(),
+    git: collectGitProfile(projectRoot),
+  };
+}
+
+/**
+ * SOP-oriented context block: the procedure-shaped view of the same collector
+ * data — recurring tool-call sequences, command bigrams, session openings and
+ * commit rhythm (vs formatContextBlock's "how this user works" persona view).
+ * memory.distill's behaviorProfile slot prefers this when the host provides
+ * it. Returns null when no workflow-shaped data exists (caller falls back to
+ * the profile block).
+ */
+export function formatSopContextBlock(sources: SopContextSources): string | null {
+  const lines: string[] = [];
+  const s = sources.session;
+  if (s.totalSessions > 0) {
+    if (s.workflowPatterns.length > 0) {
+      lines.push("Recurring tool sequences:");
+      for (const w of s.workflowPatterns.slice(0, 5)) lines.push(`  ${w.label} (${w.count}x)`);
+    }
+    if (s.commonFirstActions.length > 0) {
+      lines.push(`Sessions usually open with: ${s.commonFirstActions.slice(0, 3).join("; ")}`);
+    }
+    if (s.topTools.length > 0) {
+      lines.push(
+        `Tool cadence: ${s.topTools
+          .slice(0, 6)
+          .map((t) => `${t.name}(${t.count}x)`)
+          .join(", ")}`
+      );
+    }
+  }
+  const sh = sources.shell;
+  if (sh.totalCommands > 0 && sh.commandBigrams.length > 0) {
+    lines.push("Command sequences:");
+    for (const b of sh.commandBigrams.slice(0, 5)) lines.push(`  ${b.sequence} (${b.count}x)`);
+  }
+  const g = sources.git;
+  if (g.totalCommits > 0) {
+    const peaks = Object.entries(g.activity.hourlyCommits)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 2)
+      .map(([h, c]) => `${h}:00 (${c})`)
+      .join(", ");
+    if (peaks) lines.push(`Commit rhythm: ${g.totalCommits} commits/30d, peaks ${peaks}`);
+    if (g.topMessagePatterns.length > 0) {
+      lines.push(`Commit style: ${g.topMessagePatterns.slice(0, 3).join(", ")}`);
+    }
+  }
+  return lines.length > 0 ? lines.join("\n") : null;
+}

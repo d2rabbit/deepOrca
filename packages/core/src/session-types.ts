@@ -313,6 +313,9 @@ export type SessionResolvedSettings = {
   visionModel?: string;
   visionApiKey?: string;
   streamIdleTimeoutMs?: number;
+  /** Activity-frames opt-in: boot-context injection AND the action-facing
+   * collectBehaviorContext seam (specs/sop-extraction P2.2); absent = off. */
+  behaviorContext?: boolean;
 };
 
 export type SessionManagerOptions = {
@@ -333,6 +336,15 @@ export type SessionManagerOptions = {
   onLlmStreamProgress?: (progress: LlmStreamProgress) => void;
   /** Behavioral-memory provider (activity-frames pipeline B, host-injected). Returns a compact context block or null. */
   buildBehaviorContext?: () => string | null;
+  /**
+   * SOP-oriented behavioral builder (specs/sop-extraction P2.2 enhancement,
+   * host-injected): workflow-shaped view of the same collectors — recurring
+   * tool sequences / command bigrams / session openings. When present it is
+   * PREFERRED over {@link buildBehaviorContext} for the action-facing
+   * collectBehaviorContext seam (procedure > persona for SOP synthesis); the
+   * profile block stays the fallback. Boot injection is unaffected.
+   */
+  buildBehaviorPatterns?: () => string | null;
   onMcpStatusChanged?: () => void;
   /** Sandbox backend selection outcome per session (active or degraded). */
   onSandboxStatusChanged?: (status: SandboxBackendStatus) => void;

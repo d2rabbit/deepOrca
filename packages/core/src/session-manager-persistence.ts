@@ -60,7 +60,7 @@ export abstract class SessionManagerPersistence extends SessionManagerSkills {
    */
   protected appendBehaviorContext(sessionId: string): void {
     try {
-      if ((this.getResolvedSettings() as { behaviorContext?: boolean }).behaviorContext !== true) return;
+      if (this.getResolvedSettings().behaviorContext !== true) return;
       const block = this.buildBehaviorContext?.();
       if (!block || !block.trim()) return;
       this.appendSessionMessage(
