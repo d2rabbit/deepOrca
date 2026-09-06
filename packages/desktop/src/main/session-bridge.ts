@@ -272,6 +272,14 @@ export function toSettingsSummary(root: string): SettingsSummary {
   };
 }
 
+// TTL cache for the SOP-oriented behavior context (specs/sop-extraction
+// P2.2): the collectors behind formatSopContextBlock are synchronous disk/git
+// scans on the main process — memory.distill calls must not re-pay them
+// within the cache window. Keyed by project root (bridge instances are
+// per-project; a stale entry for another root is simply never read).
+const SOP_CACHE_TTL_MS = 60_000;
+let sopContextCache: { root: string; at: number; value: string | null } | null = null;
+
 export class SessionBridge {
   private manager: SessionManager;
 
@@ -319,9 +327,17 @@ export class SessionBridge {
       // the same collectors, PREFERRED by the action-facing seam for SOP
       // synthesis (procedure > persona). Blank → core falls back to the
       // profile block above; same settings.behaviorContext gate applies.
+      // TTL-cached: the collectors are synchronous disk/git scans on the main
+      // process, and memory.distill must not re-pay them on every call.
       buildBehaviorPatterns: () => {
         try {
-          return formatSopContextBlock(collectSopContextSources(projectRoot));
+          const now = Date.now();
+          if (sopContextCache && sopContextCache.root === projectRoot && now - sopContextCache.at < SOP_CACHE_TTL_MS) {
+            return sopContextCache.value;
+          }
+          const value = formatSopContextBlock(collectSopContextSources(projectRoot));
+          sopContextCache = { root: projectRoot, at: now, value };
+          return value;
         } catch {
           return null; // fail-open
         }

@@ -179,7 +179,7 @@ export function formatSopContextBlock(sources: SopContextSources): string | null
   if (s.totalSessions > 0) {
     if (s.workflowPatterns.length > 0) {
       lines.push("Recurring tool sequences:");
-      for (const w of s.workflowPatterns.slice(0, 5)) lines.push(`  ${w.label} (${w.count}x)`);
+      for (const w of s.workflowPatterns.slice(0, 5)) lines.push(`  ${w.label} (${w.count}×)`);
     }
     if (s.commonFirstActions.length > 0) {
       lines.push(`Sessions usually open with: ${s.commonFirstActions.slice(0, 3).join("; ")}`);
@@ -188,7 +188,7 @@ export function formatSopContextBlock(sources: SopContextSources): string | null
       lines.push(
         `Tool cadence: ${s.topTools
           .slice(0, 6)
-          .map((t) => `${t.name}(${t.count}x)`)
+          .map((t) => `${t.name}(${t.count}×)`)
           .join(", ")}`
       );
     }
@@ -196,7 +196,7 @@ export function formatSopContextBlock(sources: SopContextSources): string | null
   const sh = sources.shell;
   if (sh.totalCommands > 0 && sh.commandBigrams.length > 0) {
     lines.push("Command sequences:");
-    for (const b of sh.commandBigrams.slice(0, 5)) lines.push(`  ${b.sequence} (${b.count}x)`);
+    for (const b of sh.commandBigrams.slice(0, 5)) lines.push(`  ${b.sequence} (${b.count}×)`);
   }
   const g = sources.git;
   if (g.totalCommits > 0) {

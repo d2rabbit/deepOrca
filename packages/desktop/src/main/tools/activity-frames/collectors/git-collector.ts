@@ -117,8 +117,10 @@ export function collectGitProfile(projectRoot: string, days = 30): GitProfile {
         const dayKey = date.trim().slice(0, 10);
         dailyCommits[dayKey] = (dailyCommits[dayKey] ?? 0) + 1;
 
-        // Track message prefix (conventional commits).
-        const prefixMatch = message.trim().match(/^(\w+(\([^)]+\))?!?):/);
+        // Track message prefix (conventional commits). Scope is charset-gated
+        // so a hostile commit message in a cloned repo cannot smuggle free
+        // text through this collector into behavior-context prompts.
+        const prefixMatch = message.trim().match(/^(\w+(\([A-Za-z0-9._-]+\))?!?):/);
         if (prefixMatch) {
           const prefix = prefixMatch[1];
           messagePrefixes.set(prefix, (messagePrefixes.get(prefix) ?? 0) + 1);
