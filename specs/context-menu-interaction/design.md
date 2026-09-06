@@ -3,7 +3,7 @@
 > **状态**：**方案稿（只出方案，不改代码）** · **日期**：2026-09-05 · 分支 `feat/modern-ui-redesign`。
 > **上游调研**：[`docs/research/2026-09-05-interaction-redesign.md`](../../docs/research/2026-09-05-interaction-redesign.md)（全部表面一手盘点 + 设计论证，本 spec 的直接依据）。
 > **用户定调**：① 任务树**保持现状**——现有交互（节点点击→timeline、轨迹行→详情面板）已够用，本 spec 完全不涉及；② 每个右键菜单只放"当前对象特有的操作"；③ 删除走**废纸篓语义**（`shell.trashItem`，可恢复）。
-> **对应实现域**：`packages/desktop/src/renderer/`（ContextMenu 组件 + 各表面接线）与 `packages/desktop/src/main/`（ShellRevealInFolder / EditorFileOps 两个 IPC）。**活跃 spec，不属 next-version 规划区。**
+> **对应实现域**：`packages/desktop/src/renderer/`（ContextMenu 组件 + 各表面接线）与 `packages/desktop/src/main/`（ShellRevealInFolder / EditorFileOps 两个 IPC）。**活跃 spec，不属 next-version 规划区。编辑器交互以 [`specs/editor-copilot`](../editor-copilot/design.md) 为唯一权威——本 spec 不替换任何既有编辑器交互，仅在文件树/tab/既有菜单追加。**
 
 ---
 
@@ -61,42 +61,45 @@ Props: items: Array<{
 
 工作区分组头右键：「在文件管理器中显示工作区根」。归档桶行右键：取消归档 / 删除。
 
-## §3 编辑器（CM6 + 结对画布）
+## §3 编辑器 —— **以 specs/editor-copilot 为唯一权威；本 spec 只覆盖文件树/tab/既有菜单追加**
 
-### 3.1 文件树（EditorPanel）
+> **2026-09-06 重新梳理（用户纠偏）**：编辑器已有完整交互体系（CM6 内核 + 结对画布 + **既有编辑区右键菜单 `ui-edctx`**：行内协作⌘I/解释选中/重构选中/优化它/发送到会话/复制/粘贴/全选，2026-09-06 已落地，wrapper DOM portal 实现）。本 spec 对编辑器**只做三件不冲突的事**：文件树侧栏右键（§3.1）、tab 条右键（§3.2）、向既有菜单**追加**"引用到输入框"一项（§3.3）。**结对画布组件族（PairBar/EditorReviewBar/CheckpointStrip/LanePanel/EditorPalette/ExplainCard）零改动**——其交互归 editor-copilot 管。
+
+### 3.1 文件树（EditorPanel，返回对话旁的"编辑器"视图）
 
 | 菜单项 | 文件 | 目录 |
 |--------|:----:|:----:|
 | 打开 | ✓ | — |
 | 在文件管理器中显示 | ✓ | ✓ |
 | 复制相对路径 / 绝对路径 | ✓ | ✓ |
-| 引用到输入框（`@<相对路径>`） | ✓ | ✓ |
+| 引用到输入框（`@<相对路径>` 注入 composer） | ✓ | ✓ |
 | 新建文件… / 新建文件夹… | — | ✓ |
 | 重命名… | ✓ | ✓ |
-| 删除（移到废纸篓，danger；非空目录加确认） | ✓ | ✓ |
+| 删除（废纸篓，danger；非空目录确认浮层） | ✓ | ✓ |
+
+完成后 revalidate EditorPanel 该目录懒加载缓存。
 
 ### 3.2 文件 tab（EditorTabBar）
 
-关闭 / **关闭其他** / **关闭全部**（逐个走脏守卫，首个被取消即停）/ 复制路径 / 在文件管理器中显示。
+关闭 / 关闭其他 / 关闭全部（逐个走既有脏守卫，首个取消即停）/ 复制路径 / 在文件管理器中显示。
 
-### 3.3 编辑区（CM6 `EditorView.domEventHandlers`）
+### 3.3 编辑区右键 —— **既有 `ui-edctx` 菜单追加一项，不替换不重构**
 
-在 `cm6-kernel.ts` 扩展集注册 `contextmenu` handler（DOM portal 会被 editor 捕获，必须走 kernel）：
-- **有选区**：preventDefault + 自绘菜单——「✦ 问智能体（喂 PairBar）」「引用到输入框（代码块注入）」「复制」
-- **无选区**：交回浏览器默认（拼写检查等原生能力保留）
-- **gutter 右键**：「复制行号引用」（`file.ts:L42` 格式）
+现状：`ui-editor-cm6-wrap` 上 `onContextMenu` → DOM portal `ui-edctx`，八项已落地（AI 项无选区 disabled）。本 spec 唯一动作：
 
-### 3.4 结对画布
+| 追加项 | 行为 | 实现 |
+|--------|------|------|
+| ⇨ 引用到输入框 | 选区代码块注入 composer 草稿（`setDraft`）——与"发送到会话"互补（那个流式执行，这个只填草稿），同样零 buffer 写入 | 遵循既有模式：portal 渲染、无选区 disabled、`editor.ctx.quote` 键 ×6 locale |
 
-| 表面 | 右键 |
-|------|------|
-| CheckpointStrip 节点 | 复制此快照全文 / 在文件管理器中显示该文件 |
-| PairBar review 态 hunk 芯片 | 复制本块 diff / 放弃本块（等价 ✕ 免瞄准） |
-| LanePanel 历史行 | 复制该轮指令 / 重发此指令（回填 PairBar 输入框） |
+**明确不做**：替换菜单实现或触发机制（wrapper portal 已验证可行，无需迁 kernel `domEventHandlers`——早期判断有误已更正）；增删既有八项；结对画布任何组件的右键或新交互（归 editor-copilot）。
 
-### 3.5 边界
+### 3.4 结对画布 —— **零改动（不在本 spec 范围）**
 
-自动保存/undo·redo/⌘S 已在位——菜单不放"保存"；AI 装饰不触发自动保存的基线不受影响。
+PairBar（⌘I 协作条）/ EditorReviewBar+EditorReviewPreview（多 hunk ✓✕ 芯片与导航）/ CheckpointStrip（点击回滚）/ LanePanel / EditorPalette（⌘P/⌘T/⌘⇧O）/ ExplainCard（解释永不落盘）——全部维持 specs/editor-copilot 现状。
+
+### 3.5 对齐声明
+
+自动保存/⌘S/undo·redo 已在位不放菜单；AI 装饰不触发自动保存基线不受影响；追加项零 buffer 写入（同"解释"纪律）；面包屑/诊断/LSP 不动。
 
 ## §4 任务树 —— **不在范围内（保持现状）**
 
@@ -125,19 +128,19 @@ Props: items: Array<{
 | 批次 | 内容 | 验收 |
 |------|------|------|
 | **P0** | ContextMenu 组件 + ShellRevealInFolder + Sidebar 会话右键（§2 全表）+ 文件树只读项（3.1 前四行） | 每表面可右键执行；Esc/键盘导航；reveal 有 root-pin 测试 |
-| **P1** | EditorFileOps（新建/重命名/废纸篓）+ tab 右键 + CM6 编辑区 contextmenu | 写操作 root-pinned 测试；删除可从废纸篓恢复；"关闭其他"遇脏逐个守卫 |
-| **P2** | 结对画布右键（3.4）+ 知识库/审查（§6）+ assistant 引用 + 工具行"在编辑器中打开" + Token 行 | — |
+| **P1** | EditorFileOps（新建/重命名/废纸篓）+ tab 右键 + 既有 `ui-edctx` 菜单追加"引用到输入框"项 | 写操作 root-pinned 测试；删除可从废纸篓恢复；"关闭其他"遇脏逐个守卫；追加项 disabled 态与既有项一致 |
+| **P2** | 知识库/审查（§6）+ assistant 引用 + 工具行"在编辑器中打开" + Token 行 | — |
 | P3 占位 | gutter 断点 / 图表导出 / 工作区头开终端 | 不排期 |
 
 ## §9 风险与对策
 
 | 风险 | 对策 |
 |------|------|
-| CM6 `domEventHandlers` 与 React 生命周期 | kernel mount 时注册，openMenu 经 ref 转发（kernel 不持 React state） |
+| 编辑区菜单与 CM6 生命周期 | 不涉及——既有 `ui-edctx` wrapper portal 已验证可行；追加项沿用同一模式 |
 | reveal 对不存在文件静默无效 | 统一先 existsSync，不存在 toast |
 | "关闭其他"批量强关风险 | 逐个走脏守卫，首个取消即停 |
 | 菜单与文本选择冲突（消息流） | 消息流只做 assistant 右键，工具行走展开按钮 |
 
 ## §10 明确不做
 
-系统级全局右键覆写；Monaco 遗留方案；任务树任何改动（保持现状）；热力图格子右键。
+系统级全局右键覆写；替换/重构既有 `ui-edctx` 编辑区菜单；结对画布组件任何改动（归 specs/editor-copilot）；任务树任何改动（保持现状）；热力图格子右键。

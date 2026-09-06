@@ -75,53 +75,54 @@ Props: items: Array<{
 
 **归档桶行**右键：取消归档 / 删除。
 
-## §3 编辑器（CM6 + 结对画布）
+## §3 编辑器（CM6 + 结对画布）——**以 specs/editor-copilot 为唯一权威，本方案不另立编辑器交互**
 
-### 3.1 文件树（EditorPanel，密度最高的右键面）
+> **2026-09-06 重新梳理（用户纠偏）**：编辑器交互已有完整体系且仍在快速演进（右键菜单/结对画布/多 hunk 审阅/检查点/⌘P 导航/面包屑均为 2026-09-05~06 新落地）。本方案对编辑器**只做两件不与之冲突的事**：① 文件树侧栏（EditorPanel）与 tab 条的右键——这两个表面不在 editor-copilot 范围内且无既有菜单；② 向**既有**编辑区右键菜单（`ui-edctx`）按其既有模式**追加**菜单项，不替换、不重构。此前草案中"走 kernel domEventHandlers"的技术判断是错的（现有 wrapper DOM portal 实现已验证可行），结对画布右键设计（CheckpointStrip/PairBar/LanePanel）全部撤回——这些表面的交互归 editor-copilot 管。
+
+### 3.1 文件树（EditorPanel 侧栏，返回对话旁的"编辑器"视图）
 
 | 菜单项 | 文件 | 目录 |
 | --- | :-: | :-: |
 | 打开 | ✓（=左键，进 CM6 tab） | — |
-| 在文件管理器中显示 | ✓ | ✓（目录本身） |
+| 在文件管理器中显示 | ✓ | ✓ |
 | 复制相对路径 / 复制绝对路径 | ✓ | ✓ |
 | 引用到输入框 | ✓（注入 `@<相对路径>`，file 芯片正则已支持） | ✓ |
-| ── | | |
-| 新建文件…（输入名弹小浮层） | — | ✓ |
-| 新建文件夹… | — | ✓ |
+| 新建文件… / 新建文件夹… | — | ✓ |
 | 重命名… | ✓ | ✓ |
-| 删除（移到废纸篓，danger） | ✓ | ✓（非空目录需确认浮层） |
+| 删除（移到废纸篓，danger；非空目录确认） | ✓ | ✓ |
 
-新建/重命名完成后刷新该目录的懒加载缓存（EditorPanel 已有 per-dir cache，revalidate 单目录即可）。
+新建/重命名/删除完成后 revalidate EditorPanel 该目录懒加载缓存（已有 per-dir cache）。
 
 ### 3.2 文件 tab（EditorTabBar）
 
 | 菜单项 | 行为 |
 | --- | --- |
 | 关闭 | `onRequestCloseFile`（脏守卫在 App） |
-| 关闭其他 | App 层扩展：循环关闭非当前 tab（逐个走脏守卫，全部干净时才批量） |
-| 关闭全部 | 同上，关完回到空态 |
+| 关闭其他 / 关闭全部 | App 层扩展：逐个走脏守卫，首个被用户取消即停 |
 | 复制路径 / 在文件管理器中显示 | 同 3.1 |
 
-### 3.3 编辑区（CM6 EditorView）——走 kernel 的 `EditorView.domEventHandlers`
+### 3.3 编辑区右键 —— **既有 `ui-edctx` 菜单是权威实现，只追加不替换**
 
-在 `cm6-kernel.ts` 扩展集注册 `contextmenu` handler（**不能**用 DOM portal——会被 editor 捕获）：
+现状（2026-09-06 已落地）：`EditorWorkspace` 在 `ui-editor-cm6-wrap` 上 `onContextMenu` → DOM portal 渲染 `ui-edctx` 菜单，项含：✦ 行内协作(⌘I) / ◌ 解释选中 / ⟲ 重构选中 / ↑ 优化它 / ⇱ 发送到会话（选区指令注入主会话）/ 复制 / 粘贴 / 全选——无选区时 AI 项 disabled，剪贴板项常可用。
 
-- **有选区时** preventDefault + 自绘菜单：「✦ 问智能体（结对画布）」（把选区喂 PairBar）/「引用到输入框」（代码块注入 composer）/「复制」
-- **无选区** 交回浏览器默认菜单（拼写检查等原生能力保留）
-- **gutter 上右键**：切换断点（P3，先占位不做）、「复制行号引用」（`file.ts:L42` 格式，恰好是引用桥子集）
+本方案仅追加一项（遵循既有模式：portal 渲染、disabled 无选区、i18n `editor.ctx.*` 键族 ×6）：
 
-### 3.4 结对画布（PairBar / CheckpointStrip / LanePanel）
+| 追加项 | 行为 |
+| --- | --- |
+| ⇨ 引用到输入框 | 选区代码块注入 composer 草稿（`setDraft`，与"发送到会话"互补：那个走流式执行，这个只填草稿） |
 
-| 表面 | 左键（已有/新增） | 右键 |
-| --- | :-: | --- |
-| CheckpointStrip 节点 | 回滚到该快照（已有 `onRollback`） | 「复制此快照全文」「在文件管理器中显示该文件」 |
-| PairBar review 态 hunk 芯片 | ✓ 接受 / ✕ 拒绝（CM6 merge 原生） | 「复制本块 diff」「放弃本块」（等价 ✕ 但免瞄准） |
-| LanePanel 历史行 | 展开该轮 prompt/输出 | 「复制该轮指令」「重发此指令」（重新进 PairBar 输入框） |
+**不做的**：替换菜单实现；改触发机制（wrapper portal 已验证可行，无需迁 kernel `domEventHandlers`）；增删既有八项的任何一项。
 
-### 3.5 与既有编辑器交互的边界
+### 3.4 结对画布（PairBar / EditorReviewBar / CheckpointStrip / LanePanel / EditorPalette / ExplainCard）——**交互归 specs/editor-copilot，本方案零改动**
 
-- **自动保存/undo·redo/⌘S 已在位**——右键菜单不放"保存"（自动保存已废除手动保存心智）
-- AI 编辑装饰不触发自动保存（干净基线）不受右键影响；undo 栈由 checkpoint + history 双轨覆盖
+这些表面的交互设计（⌘I 协作条、多 hunk ✓✕ 芯片与导航、检查点回滚、⌘P/⌘T/⌘⇧O、解释卡不落盘）全部是 editor-copilot 的领域且已实现。本方案不为其添加任何右键或新交互——此前草案的相关设计**全部作废**。
+
+### 3.5 与既有编辑器逻辑的对齐声明
+
+- 自动保存（debounce）/⌘S/undo·redo icon——已在位，菜单不放"保存"
+- AI 编辑走装饰域不触发自动保存的干净基线——不受影响
+- "解释永不改写 buffer"（ExplainCard 浮卡）——追加项"引用到输入框"同样零 buffer 写入
+- 面包屑/诊断跳转/LSP——不动
 
 ## §4 任务树 hub —— **保持现状，本方案不动**
 
