@@ -51,7 +51,12 @@ import { ContextProgress } from "./components/ContextProgress";
 import { TokenStatsPanel } from "./components/TokenStatsPanel";
 import { TokenHeatmapModal } from "./components/TokenHeatmapModal";
 import { IndexLibraryPanel } from "./components/IndexLibraryPanel";
-import { BuildQuickContent, ReportQuickContent, TaskQuickSheet } from "./components/TaskQuickSheet";
+import {
+  BuildQuickContent,
+  ReportQuickContent,
+  StepDetailQuickContent,
+  TaskQuickSheet,
+} from "./components/TaskQuickSheet";
 import { InstructionToc } from "./components/InstructionToc";
 import { ActivityRail } from "./components/ActivityRail";
 import { PinnedPlan } from "./components/PinnedPlan";
@@ -1258,13 +1263,16 @@ export function App(): JSX.Element {
   // Flow bridge (wiki → chat): quote a Wiki page into the composer as an
   // @-mention so the agent reads the exact page, then land the user back in
   // the conversation — knowledge becomes usable inside the chat without a
-  // manual copy-paste round-trip.
+  // manual copy-paste round-trip. Whitespace-bearing roots wrap in the quoted
+  // chip form (the \S chip grammar can't span spaces, 2026-09-06).
   const handleQuoteWikiToChat = useCallback(
     (root: string, path: string, title: string) => {
       setActiveTab({ kind: "chat" });
       setDraft((current) => {
         const prefix = current.trim().length > 0 ? `${current.trimEnd()}\n\n` : "";
-        return `${prefix}${t("index.quoteWikiPrompt", { title })} @${wikiStorePath(root, path)}\n`;
+        const ref = wikiStorePath(root, path);
+        const token = /\s/.test(ref) ? `@"${ref}"` : `@${ref}`;
+        return `${prefix}${t("index.quoteWikiPrompt", { title })} ${token}\n`;
       });
     },
     [t]
@@ -1273,13 +1281,16 @@ export function App(): JSX.Element {
   // Flow bridge (review → chat), wiki parity: quote a saved report into the
   // composer as an @-mention of its structured JSON (full findings, scope,
   // status — NOT the lossy 8-finding text copy of handleReviewAskInChat) so
-  // the agent reads the exact run and can act on it in the session.
+  // the agent reads the exact run and can act on it in the session. Quoted
+  // chip form for whitespace-bearing roots (2026-09-06).
   const handleQuoteReviewToChat = useCallback(
     (root: string, reportId: string) => {
       setActiveTab({ kind: "chat" });
       setDraft((current) => {
         const prefix = current.trim().length > 0 ? `${current.trimEnd()}\n\n` : "";
-        return `${prefix}${t("review.quotePrompt")} @${reviewStorePath(root, reportId)}\n`;
+        const ref = reviewStorePath(root, reportId);
+        const token = /\s/.test(ref) ? `@"${ref}"` : `@${ref}`;
+        return `${prefix}${t("review.quotePrompt")} ${token}\n`;
       });
     },
     [t]
@@ -2575,87 +2586,7 @@ export function App(): JSX.Element {
             {taskQuick.kind === "report" ? (
               <ReportQuickContent root={taskQuick.root} reportId={taskQuick.reportId} />
             ) : taskQuick.kind === "step-detail" ? (
-              (() => {
-                // 2026-09-06 user ask: the trajectory detail was a bare JSON
-                // dump — structured key/value params, local op time and the
-                // tool's result markdown turn it into a real report.
-                let prettyArg = taskQuick.step.arg ?? "";
-                const paramRows: Array<{ k: string; v: string }> = [];
-                try {
-                  const parsed = JSON.parse(taskQuick.step.arg) as Record<string, unknown>;
-                  if (parsed && typeof parsed === "object") {
-                    for (const [k, v] of Object.entries(parsed)) {
-                      paramRows.push({ k, v: typeof v === "string" ? v : JSON.stringify(v) });
-                    }
-                    prettyArg = JSON.stringify(parsed, null, 2);
-                  }
-                } catch {
-                  /* non-JSON args stay raw */
-                }
-                const opTime = taskQuick.step.at
-                  ? (() => {
-                      const d = new Date(taskQuick.step.at as string);
-                      return Number.isNaN(d.getTime())
-                        ? ""
-                        : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
-                            d.getDate()
-                          ).padStart(2, "0")} ${String(d.getHours()).padStart(2, "0")}:${String(
-                            d.getMinutes()
-                          ).padStart(2, "0")}:${String(d.getSeconds()).padStart(2, "0")}`;
-                    })()
-                  : "";
-                return (
-                  <div className="ui-depth-op-report">
-                    <div className="ui-depth-op-head">
-                      <span className={`ui-depth-op-status ${taskQuick.step.fail ? "fail" : "ok"}`}>
-                        {taskQuick.step.fail ? "✗ 失败" : taskQuick.step.ok ? "✓ 已完成" : "◐ 进行中"}
-                      </span>
-                      <span className="ui-depth-op-tool">{taskQuick.step.tool}</span>
-                      {taskQuick.step.mcp ? <span className="ui-depth-op-mcp">{taskQuick.step.mcp}</span> : null}
-                    </div>
-                    <div className="ui-depth-op-meta">
-                      <div className="ui-depth-op-meta-item">
-                        <span className="ui-depth-op-meta-label">{t("taskrec.detailDuration")}</span>
-                        <span className="ui-depth-op-meta-value">{taskQuick.step.ms || "—"}</span>
-                      </div>
-                      {opTime ? (
-                        <div className="ui-depth-op-meta-item">
-                          <span className="ui-depth-op-meta-label">{t("taskrec.detailTime")}</span>
-                          <span className="ui-depth-op-meta-value">{opTime}</span>
-                        </div>
-                      ) : null}
-                      {taskQuick.step.mcp ? (
-                        <div className="ui-depth-op-meta-item">
-                          <span className="ui-depth-op-meta-label">MCP</span>
-                          <span className="ui-depth-op-meta-value">{taskQuick.step.mcp}</span>
-                        </div>
-                      ) : null}
-                    </div>
-                    {paramRows.length > 0 ? (
-                      <div className="ui-depth-op-section">
-                        <div className="ui-depth-op-section-label">{t("taskrec.detailArgs")}</div>
-                        {paramRows.map((row) => (
-                          <div key={row.k} className="ui-depth-op-kv">
-                            <span className="k mono">{row.k}</span>
-                            <span className="v mono">{row.v}</span>
-                          </div>
-                        ))}
-                      </div>
-                    ) : taskQuick.step.arg ? (
-                      <div className="ui-depth-op-section">
-                        <div className="ui-depth-op-section-label">{t("taskrec.detailArgs")}</div>
-                        <pre className="ui-depth-op-pre">{prettyArg}</pre>
-                      </div>
-                    ) : null}
-                    {taskQuick.step.resultMd ? (
-                      <div className="ui-depth-op-section">
-                        <div className="ui-depth-op-section-label">{t("taskrec.detailResult")}</div>
-                        <pre className="ui-depth-op-pre">{taskQuick.step.resultMd}</pre>
-                      </div>
-                    ) : null}
-                  </div>
-                );
-              })()
+              <StepDetailQuickContent step={taskQuick.step} />
             ) : taskQuick.kind === "timeline" ? (
               <TaskRecordPanel treeId={taskQuick.treeId} workspaceRoot={taskQuick.root} />
             ) : (
