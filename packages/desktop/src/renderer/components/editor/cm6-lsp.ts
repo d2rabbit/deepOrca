@@ -66,14 +66,38 @@ export function buildFileUri(root: string, file: string): string {
   return lspPathToUri(abs);
 }
 
+/** Drop every cached alias of a relay session (root fix: the relay reaps
+ *  idle sessions after 120s and forgets crashed servers SILENTLY — the old
+ *  cache kept `connected === true` forever because only disconnect() flips
+ *  it, so every later hover/completion timed out on a dead sessionId until
+ *  the workspace remounted. A rejected send (`ok:false` = relay no longer
+ *  knows the session) is the reliable dead-session signal; dropping here
+ *  makes the next ensureSession re-attach and self-heal.) */
+function dropSessionByRelayId(sessionId: string): void {
+  for (const [key, session] of [...sessions]) {
+    if (session.sessionId !== sessionId) continue;
+    sessions.delete(key);
+    session.client.disconnect();
+    session.off();
+  }
+}
+
 /** Adapter: LSPClient transport ↔ relay IPC (sessionId-scoped, fail-quiet). */
 function relayTransport(sessionId: string, handlers: Set<(value: string) => void>): Transport {
   return {
     send(message: string): void {
       // Audit 6.2: a detached session must not surface as an unhandled
-      // rejection on every keystroke — swallow and let the client observe
-      // the silence (fail-open contract).
-      void api.lspRelaySend(sessionId, message).catch(() => undefined);
+      // rejection on every keystroke — swallow transport-level errors and
+      // let the client observe the silence (fail-open contract). A resolved
+      // `{ok:false}` is NOT silence though: the relay no longer knows this
+      // session (idle-reaped or crashed server) — drop the cache so the
+      // next ensureSession reconnects instead of timing out forever.
+      void api.lspRelaySend(sessionId, message).then(
+        (res) => {
+          if (!res.ok) dropSessionByRelayId(sessionId);
+        },
+        () => undefined
+      );
     },
     subscribe(handler: (value: string) => void): void {
       handlers.add(handler);
