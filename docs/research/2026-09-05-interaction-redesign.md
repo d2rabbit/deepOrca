@@ -152,14 +152,14 @@ Props: items: Array<{
 | 批次 | 内容 | 验收 |
 | --- | --- | --- |
 | **P0** | `ContextMenu` 组件 + `ShellRevealInFolder` IPC + Sidebar 会话右键（§2 全表）+ 文件树右键（§3.1 只读部分：打开/reveal/复制路径/引用） | 每表面至少一处可右键打开菜单并执行；Esc 关闭；键盘导航可用 |
-| **P1** | 文件树写操作（新建/重命名/废纸篓，§1.3 IPC）+ tab 右键（关闭其他/全部）+ CM6 编辑区 contextmenu handler（§3.3） | 写操作 root-pinned 有测试；删除可从废纸篓恢复 |
-| **P2** | 结对画布右键（§3.4）+ 知识库/审查右键（§6）+ assistant 引用到输入框 + 工具行"在编辑器中打开" | — |
+| **P1** | 文件树写操作（新建/重命名/废纸篓，§1.3 IPC）+ tab 右键（关闭其他/全部）+ 既有 `ui-edctx` 菜单追加"引用到输入框"项（§3.3） | 写操作 root-pinned 有测试；删除可从废纸篓恢复；追加项 disabled 态一致 |
+| **P2** | 知识库/审查右键（§6）+ assistant 引用到输入框 + 工具行"在编辑器中打开" | — |
 | **P3 占位** | gutter 断点、图表导出 PNG、工作区头开终端、用户消息编辑重发 | 不排期 |
 
 **风险与对策**：
-- CM6 `domEventHandlers` 与 React 生命周期——kernel 扩展在 mount 时注册，菜单 openMenu 回调经 ref 转发（kernel 不持 React state）。
+- ~~CM6 `domEventHandlers` 方案~~ 已废弃——既有 `ui-edctx` wrapper portal 实现验证可行，追加项沿用同一模式（2026-09-06 重梳理更正）。
 - `showItemInFolder` 对不存在文件静默无效——统一先 `existsSync` 校验，不存在 toast。
 - "关闭其他"遇脏文件——逐个走既有脏守卫，第一个被用户取消即停止（不批量强关）。
 - macOS 触控板轻点右键手势天然兼容（contextmenu 事件一致）。
 
-**明确不做**：系统级全局右键覆写；Monaco 时代遗留方案（内核已换 CM6）；任务树任何状态变更操作（历史只读定调）。
+**明确不做**：系统级全局右键覆写；替换/重构既有 `ui-edctx` 编辑区菜单；结对画布组件任何改动（归 specs/editor-copilot）；任务树任何改动（保持现状）。
