@@ -1,0 +1,1152 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-appearance="light">
+<head>
+<meta charset="UTF-8">
+<title>DeepOrca — UI 设计模块设计稿 v2（一版一套 · 联动原型版本 · 内部主题）</title>
+<!--
+  UI 设计模块（design.*）HTML 交互视觉稿 · v2.1（2026-09-05）
+  ─────────────────────────────────────────────────────────────
+  定位: specs/design-systems-advance §6/§7 的可点击视觉稿；与「原型设计模块」独立成稿
+        （screen-prototype-design.html v2.1），交互逻辑与其完全一致，内容基座保留
+  v2 结构（对齐原型模块 v2.1）:
+   · 去掉 Hub 图标列；左侧面板 = 纯目录分组（零操作）
+   · 模块内三段页签：视觉稿 → 设计系统 → 质量与评审
+   · 版本一份、三段同步：一个版本 = 视觉稿 + 设计系统 + 质量报告 一套，
+     且【每个版本记录其对应的原型版本】（「基于原型 vX」徽章）——UI 联动原型
+   · 旧版本只读（可一键回到最新）；缺失段虚线徽章标注
+  基底与主题（评审意见）:
+   · 基底选择 = 选择【原型的版本历史】（原型 v3 · 走查修复 / v2 · 品牌注入 / v1 · 初稿），
+     不再是泛泛的「某个原型」——UI 版本与原型版本精确对应
+   · 「方向」升级为【主题】：取【设计模块专属的九套内置设计系统】
+     （现代极简 / 编辑风 / 暗色科技 / 粗野对比 / 瑞士国际 / 终端等宽 / 玻璃拟态 / 软拟物 / 暖手作），
+     切换即确定性重染设计画布——非产品应用主题（Aqua/Metro 等属 app 外壳）
+   · v2.1: 设计系统页签改双栏布局（tokens 表 + 组件原子库并排，消除空区）；
+     生成/评审链路显式化——「⚡ 从原型生成」（读基底原型页面清单 → .dds tokens → 逐页渲染 → 新版本入列）
+     与「▶ 运行质量评审」（lint 三 preset → 渲染后机检 → review 门 R1→自愈→R2，触发链路卡说明）
+  交互逻辑与原型模块一致:
+   · 全链路：基底原型版本 + 主题 → 生成视觉稿（.dds + 多页 .dd）→ 质量与评审
+     （lint findings 审查报告同款形态 + 「定位 ◎」→ 视觉稿 section 闪烁 + 机检实测 + review 门）
+   · 悬浮设计智能体跨三段常驻（silent · 页签感知快捷项 + 输入下达修复）
+   · v2.1 选区悬浮修正：视觉稿内点击任意 section → 修正卡跟随选中位置
+     （语义定位 //section[@data-dd-id=…] + 快捷项 + 定向输入，Esc/点空白取消）
+   · 品牌漂移闸门（dembrandt · 按工作区 baseline）收进「视觉稿」工具行
+  交互演示: ① 版本切换（三段同步 + 原型版本徽章 + 只读/回到最新） ② 主题切换确定性重染
+   ③ 基底原型版本切换（页面三方映射对齐提示） ④ 页切换 + section 选区悬浮修正
+   ⑤ 设计系统 token 表/组件墙 ⑥ 质量与评审（定位◎双向 + 机检 + review 门） ⑦ 漂移检测
+   ⑧ 悬浮智能体 ⑨ 浅色/深色切换 · 深链：#tokens / #quality / #pages-sel
+-->
+<style>
+  /* ── Aqua 主题语义 token（styles.css，与 screen-review.html 同源） ── */
+  :root {
+    --pinstripe-a: #eef2f7; --pinstripe-b: #e5eaf1;
+    --pinstripes: repeating-linear-gradient(0deg, var(--pinstripe-a) 0px, var(--pinstripe-a) 1px, var(--pinstripe-b) 1px, var(--pinstripe-b) 2px);
+    --gel-top: #7fb2f7; --gel-mid: #3f86ef; --gel-bot: #1862d8;
+    --ui-bg: var(--pinstripes);
+    --ui-surface: #f7f9fc; --ui-surface-raised: #ffffff; --ui-surface-sunken: #eef1f6;
+    --ui-surface-hover: rgba(20, 60, 130, 0.07);
+    --ui-text: #1b2129; --ui-text-dim: #55606d; --ui-text-faint: #8590a0; --ui-text-on-accent: #ffffff;
+    --ui-accent: #1c6fe0; --ui-accent-strong: #0f52bd; --ui-accent-soft: rgba(28, 111, 224, 0.12);
+    --ui-accent-fill: linear-gradient(var(--gel-top), var(--gel-mid) 52%, var(--gel-bot));
+    --ui-focus-ring: rgba(60, 132, 235, 0.6);
+    --ui-border: #9aa7b6; --ui-border-soft: #c3cdd9;
+    --ui-success: #2f9e44; --ui-danger: #d1453b; --ui-warning: #cf9310; --ui-info: #7b4fe0;
+    --ui-radius-sm: 6px; --ui-radius-md: 9px; --ui-radius-lg: 12px; --ui-radius-pill: 999px;
+    --ui-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
+    --ui-shadow-card: 0 1px 2px rgba(0, 0, 0, 0.18), 0 6px 20px rgba(20, 50, 100, 0.14);
+    --ui-shadow-modal: 0 18px 60px rgba(20, 40, 80, 0.3);
+    --ui-ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+    --ui-font-sans: "Lucida Grande", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --ui-font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  }
+  :root[data-appearance="dark"] {
+    --pinstripe-a: #23262b; --pinstripe-b: #1f2226;
+    --pinstripes: repeating-linear-gradient(0deg, var(--pinstripe-a) 0px, var(--pinstripe-a) 1px, var(--pinstripe-b) 1px, var(--pinstripe-b) 2px);
+    --ui-surface: #26292e; --ui-surface-raised: #2c3037; --ui-surface-sunken: #1e2126;
+    --ui-surface-hover: rgba(255, 255, 255, 0.06);
+    --ui-text: #e7ebf1; --ui-text-dim: #a7b0bd; --ui-text-faint: #6f7a89;
+    --ui-accent-soft: rgba(90, 150, 240, 0.18);
+    --ui-border: #3a3f47; --ui-border-soft: #2c3037;
+    --ui-success: #4cc266; --ui-danger: #ff6a5f; --ui-warning: #e6b23a; --ui-info: #a583f0;
+    --ui-shadow-card: 0 1px 2px rgba(0, 0, 0, 0.5), 0 8px 24px rgba(0, 0, 0, 0.4);
+    --ui-shadow-modal: 0 18px 60px rgba(0, 0, 0, 0.6);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { font-family: var(--ui-font-sans); font-size: 13.5px; line-height: 1.5; -webkit-font-smoothing: antialiased;
+    color: var(--ui-text); background: var(--ui-bg); overflow: hidden;
+    transition: background 0.2s var(--ui-ease), color 0.2s var(--ui-ease); }
+  button { font-family: inherit; cursor: pointer; border: none; background: none; color: inherit; }
+  input, select { font-family: inherit; }
+  .mono { font-family: var(--ui-font-mono); }
+
+  .shell { position: relative; height: 100%; overflow: hidden; }
+  .shell::before { content: ""; position: absolute; inset: 0; pointer-events: none;
+    background:
+      radial-gradient(1100px 760px at 16% -8%, color-mix(in srgb, var(--ui-accent) 8%, transparent), transparent 62%),
+      radial-gradient(900px 680px at 102% 108%, color-mix(in srgb, var(--ui-info) 7%, transparent), transparent 58%);
+    z-index: 0; }
+  .shell > * { position: relative; z-index: 1; }
+
+  /* ── Cockpit ── */
+  .cockpit { position: relative; z-index: 300; height: 52px; display: flex; align-items: center;
+    gap: 8px; padding: 6px 10px 0 16px; }
+  .c-pill { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 11px;
+    border-radius: var(--ui-radius-pill);
+    background: color-mix(in srgb, var(--ui-surface) 72%, transparent);
+    border: 1px solid color-mix(in srgb, var(--ui-border-soft) 55%, transparent);
+    box-shadow: var(--ui-shadow-sm); backdrop-filter: blur(14px);
+    font-size: 11.5px; font-weight: 500; color: var(--ui-text-dim); white-space: nowrap; }
+  .c-pill .dot { width: 7px; height: 7px; border-radius: 50%; }
+  .c-pill .dot.accent { background: var(--ui-accent); }
+  .c-pill .dot.ok { background: var(--ui-success); }
+  .c-pill .tnum { font-family: var(--ui-font-mono); font-size: 10.5px; color: var(--ui-text-faint); }
+  .c-pill b { font-weight: 600; color: var(--ui-text); }
+  .c-spacer { flex: 1; }
+  .surface-chips { display: inline-flex; align-items: center; gap: 4px; padding: 3px;
+    border-radius: var(--ui-radius-pill);
+    background: color-mix(in srgb, var(--ui-surface) 72%, transparent);
+    border: 1px solid color-mix(in srgb, var(--ui-border-soft) 55%, transparent);
+    box-shadow: var(--ui-shadow-sm); backdrop-filter: blur(14px); max-width: min(52vw, 100%); }
+  .s-chip { display: inline-flex; align-items: center; gap: 5px; height: 26px; max-width: 200px;
+    padding: 0 10px; border-radius: var(--ui-radius-pill); font-size: 11.5px; font-weight: 500;
+    color: var(--ui-text-dim); white-space: nowrap; overflow: hidden; }
+  .s-chip:hover { background: var(--ui-surface-hover); color: var(--ui-text); }
+  .s-chip.active { background: linear-gradient(135deg, color-mix(in srgb, var(--ui-accent) 22%, transparent), color-mix(in srgb, var(--ui-info) 16%, transparent));
+    color: var(--ui-accent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-accent) 34%, transparent); }
+  .theme-seg { display: inline-flex; padding: 2px; border-radius: var(--ui-radius-pill);
+    background: color-mix(in srgb, var(--ui-surface) 72%, transparent);
+    border: 1px solid color-mix(in srgb, var(--ui-border-soft) 55%, transparent);
+    box-shadow: var(--ui-shadow-sm); backdrop-filter: blur(14px); font-size: 10.5px; }
+  .theme-seg button { padding: 3px 10px; border-radius: var(--ui-radius-pill); color: var(--ui-text-faint); font-size: 10.5px; }
+  .theme-seg button.on { background: var(--ui-surface-raised); color: var(--ui-accent); font-weight: 600; box-shadow: var(--ui-shadow-sm); }
+  .win-controls { display: flex; gap: 6px; }
+  .win-controls i { width: 12px; height: 12px; border-radius: 50%; display: block; }
+  .wc-min { background: #e6b23a; } .wc-max { background: #4cc266; } .wc-close { background: #ff6a5f; }
+
+  /* ── 左侧目录面板（纯目录分组 · 零操作） ── */
+  .dir-panel { position: absolute; top: 60px; bottom: 14px; left: 14px; width: 292px; z-index: 30;
+    display: flex; flex-direction: column; min-width: 0;
+    border-radius: 18px; background: color-mix(in srgb, var(--ui-surface) 86%, transparent);
+    backdrop-filter: blur(20px) saturate(1.25);
+    border: 1px solid color-mix(in srgb, var(--ui-border-soft) 62%, transparent);
+    box-shadow: var(--ui-shadow-modal); overflow: hidden; }
+  .dir-head { display: flex; align-items: center; gap: 8px; padding: 12px 14px 8px; flex: none; }
+  .dir-title { font-size: 13px; font-weight: 700; }
+  .dir-sub { font-size: 9.5px; color: var(--ui-text-faint); font-family: var(--ui-font-mono); }
+  .dir-body { flex: 1; min-height: 0; overflow-y: auto; padding: 2px 10px 12px; }
+  .dir-group { border: 1px solid var(--ui-border-soft); border-radius: 10px; margin-bottom: 8px; overflow: hidden; }
+  .dir-group.current { border-color: color-mix(in srgb, var(--ui-accent) 45%, transparent); }
+  .dir-ws { display: flex; align-items: center; gap: 8px; padding: 8px 10px;
+    background: color-mix(in srgb, var(--ui-surface-sunken) 60%, transparent); }
+  .dir-group.current .dir-ws { background: var(--ui-accent-soft); }
+  .dir-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; background: var(--ui-text-dim); }
+  .dir-dot.on { background: var(--ui-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-accent) 22%, transparent); }
+  .dir-dot.busy { background: var(--ui-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-accent) 22%, transparent); animation: pulse 1.1s infinite; }
+  @keyframes pulse { 50% { opacity: 0.35; } }
+  .dir-ws .n { font-size: 12.5px; font-weight: 650; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dir-ws .cur { font-size: 9px; font-weight: 700; color: var(--ui-accent); border: 1px solid color-mix(in srgb, var(--ui-accent) 40%, transparent);
+    padding: 0 6px; border-radius: 99px; }
+  .dir-ws .p { font-size: 9.5px; color: var(--ui-text-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dir-items { padding: 4px 10px 8px; }
+  .dir-item { display: flex; align-items: center; gap: 7px; font-size: 11px; color: var(--ui-text-dim); padding: 3px 0; }
+  .dir-item .ic { font-size: 11px; width: 14px; text-align: center; flex: none; }
+  .dir-item .st { margin-left: auto; font-family: var(--ui-font-mono); font-size: 9.5px; color: var(--ui-text-faint); text-align: right; }
+  .dir-item .st.ok { color: var(--ui-success); }
+  .dir-item .st.run { color: var(--ui-accent); }
+  .dir-none { padding: 2px 10px 8px; font-size: 10.5px; color: var(--ui-text-faint); }
+  .dir-note { margin-top: 8px; padding-top: 10px; border-top: 1px solid var(--ui-border-soft);
+    font-size: 10.5px; color: var(--ui-text-faint); line-height: 1.6; }
+
+  /* ── Sheet（UI 设计工作区：视觉稿 → 设计系统 → 质量与评审 · 一版一套） ── */
+  .ui-sheet { position: absolute; top: 60px; left: calc(14px + 292px + 10px); right: 16px; bottom: 14px;
+    z-index: 28; display: flex; flex-direction: column; min-width: 0; min-height: 0;
+    background: var(--ui-surface);
+    border-top: 1px solid color-mix(in srgb, var(--ui-border-soft) 62%, transparent);
+    border-radius: 14px; box-shadow: var(--ui-shadow-card); overflow: hidden;
+    animation: sheet-in 0.32s cubic-bezier(0.16, 1, 0.3, 1) both; }
+  @keyframes sheet-in { from { opacity: 0; transform: translateY(10px); } }
+  .sheet-close { position: absolute; top: 12px; right: 14px; z-index: 6; display: inline-flex;
+    align-items: center; gap: 6px; height: 28px; padding: 0 12px;
+    border: 1px solid color-mix(in srgb, var(--ui-border-soft) 65%, transparent);
+    border-radius: var(--ui-radius-pill); background: color-mix(in srgb, var(--ui-surface) 88%, transparent);
+    backdrop-filter: blur(10px); box-shadow: var(--ui-shadow-sm); color: var(--ui-text-dim);
+    font-size: 11.5px; font-weight: 500; }
+  .sheet-close:hover { background: var(--ui-surface-hover); color: var(--ui-text); border-color: color-mix(in srgb, var(--ui-accent) 40%, transparent); }
+  .rev-tab-head { display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    flex-wrap: wrap; padding: 10px 130px 8px 16px; border-bottom: 1px solid var(--ui-border-soft);
+    background: var(--ui-surface); flex: none; }
+  .rev-tab-tabs { display: flex; gap: 6px; flex: none; }
+  .rev-pill { padding: 5px 14px; border: 1px solid var(--ui-border-soft); border-radius: var(--ui-radius-pill);
+    background: transparent; color: var(--ui-text-dim); font-size: 12px;
+    transition: background 0.14s var(--ui-ease), color 0.14s var(--ui-ease); }
+  .rev-pill:hover { background: var(--ui-surface-hover); }
+  .rev-pill.active { background: color-mix(in srgb, var(--ui-accent) 14%, transparent);
+    border-color: color-mix(in srgb, var(--ui-accent) 55%, transparent); color: var(--ui-text); font-weight: 600; }
+  .rev-tab-active { font-size: 11px; padding: 3px 10px; border-radius: var(--ui-radius-pill);
+    background: color-mix(in srgb, var(--ui-success) 14%, transparent); color: var(--ui-success); }
+  .rev-tab-head .scope-hint { font-size: 11px; color: var(--ui-text-faint); }
+  .rev-tab-body { flex: 1; min-height: 0; display: flex; gap: 10px; padding: 12px 16px; }
+  /* 版本 rail：一份 · 三段同步 —— 一个版本 = 视觉稿 + 设计系统 + 质量报告 一套（含原型基底徽章） */
+  .ver-rail { width: 244px; flex: none; overflow-y: auto; border: 1px solid var(--ui-border-soft);
+    border-radius: 10px; padding: 6px; background: var(--ui-surface); }
+  .ver-rail .rail-cap { font-size: 9.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--ui-text-faint); padding: 4px 8px 6px; }
+  .ver-item { padding: 8px 9px; border-radius: 8px; cursor: pointer; }
+  .ver-item:hover { background: var(--ui-surface-hover); }
+  .ver-item.active { background: color-mix(in srgb, var(--ui-accent) 12%, transparent); }
+  .vi-time { font-size: 12px; color: var(--ui-text); display: flex; align-items: center; gap: 6px; }
+  .vi-time .vtag { font-family: var(--ui-font-mono); font-size: 11px; color: var(--ui-accent); font-weight: 700; }
+  .vi-time .new { font-size: 9.5px; font-weight: 700; color: var(--ui-success); background: color-mix(in srgb, var(--ui-success) 14%, transparent); padding: 0 6px; border-radius: 99px; }
+  .vi-meta { font-size: 11px; color: var(--ui-text-dim); margin-top: 2px; }
+  .vi-set { display: flex; gap: 4px; margin-top: 5px; flex-wrap: wrap; }
+  .vi-set i { font-style: normal; font-size: 9px; padding: 1px 6px; border-radius: 99px;
+    border: 1px solid var(--ui-border-soft); color: var(--ui-text-faint); }
+  .vi-set i.miss { border-style: dashed; color: var(--ui-warning); border-color: color-mix(in srgb, var(--ui-warning) 45%, transparent); }
+  .vi-set i.proto { border-color: color-mix(in srgb, var(--ui-info) 45%, transparent); color: var(--ui-info); }
+  .rev-empty { padding: 14px 10px; font-size: 12px; color: var(--ui-text-faint); }
+  .rev-tab-content { flex: 1; min-width: 0; border: 1px solid var(--ui-border-soft); border-radius: 10px;
+    overflow: hidden; display: flex; background: var(--ui-surface); position: relative; }
+
+  /* ── 原生报告文档（质量与评审 = 审查报告阅读面同构） ── */
+  .report-doc { flex: 1; min-width: 0; overflow-y: auto; padding: 18px 24px 26px; position: relative; }
+  .ro-bar { display: none; align-items: center; gap: 10px; margin: 0 0 12px; padding: 7px 12px;
+    border: 1px solid color-mix(in srgb, var(--ui-warning) 40%, transparent);
+    background: color-mix(in srgb, var(--ui-warning) 8%, transparent); border-radius: 9px;
+    font-size: 11.5px; color: var(--ui-text-dim); }
+  .ro-bar.show { display: flex; }
+  .ro-bar button { margin-left: auto; font-size: 11px; font-weight: 600; color: var(--ui-accent); }
+  .report-doc h1 { font-size: 19px; margin: 0 0 4px; }
+  .rp-meta { color: var(--ui-text-dim); font-size: 12.5px; margin-bottom: 14px; display: flex; flex-wrap: wrap; gap: 4px 14px; }
+  .rp-actions { display: flex; gap: 8px; margin: 0 0 14px; flex-wrap: wrap; }
+  .rp-btn { font-size: 11.5px; font-weight: 600; padding: 5px 12px; border-radius: 8px;
+    border: 1px solid var(--ui-border-soft); color: var(--ui-accent); background: var(--ui-surface-raised);
+    transition: all 0.14s var(--ui-ease); }
+  .rp-btn:hover { background: var(--ui-accent); color: #fff; border-color: var(--ui-accent); }
+  .rp-btn.gel { background: var(--ui-accent-fill); border-color: transparent; color: #fff; }
+  .rp-cards { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+  .rp-card { min-width: 110px; padding: 10px 16px; border: 1px solid var(--ui-border-soft);
+    border-radius: 10px; background: var(--ui-surface-raised); }
+  .rp-card .num { font-size: 22px; font-weight: 650; }
+  .rp-card .lbl { font-size: 11.5px; color: var(--ui-text-dim); }
+  .rp-card.warn { border-color: color-mix(in srgb, #d97706 45%, transparent); }
+  .rp-card.warn .num { color: #d97706; }
+  .rp-empty-note { border: 1px solid color-mix(in srgb, #d97706 45%, transparent);
+    background: color-mix(in srgb, #d97706 8%, transparent); border-radius: 10px;
+    padding: 10px 14px; font-size: 12px; color: var(--ui-text-dim); margin-bottom: 14px; }
+  .rp-file { margin-bottom: 14px; }
+  .rp-file h2 { display: flex; align-items: center; gap: 8px; font-size: 13px; margin: 0 0 6px; }
+  .rp-file h2 code { background: var(--ui-surface-sunken); border-radius: 6px; padding: 2px 8px;
+    font-family: var(--ui-font-mono); font-size: 12px; }
+  .rp-file .cnt { font-size: 11.5px; color: var(--ui-text-dim); }
+  .rp-finding { border: 1px solid var(--ui-border-soft); border-radius: 9px; padding: 9px 12px;
+    margin: 8px 0; background: var(--ui-surface-raised); }
+  .rp-finding .head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
+  .rp-finding .loc { font-family: var(--ui-font-mono); font-size: 12px; color: var(--ui-text-dim); margin-left: auto; }
+  .chip { font-size: 10.5px; font-weight: 650; padding: 1px 8px; border-radius: 99px; color: #fff; }
+  .chip.sev-critical { background: #7f1d1d; }
+  .chip.sev-high { background: #c2410c; }
+  .chip.sev-medium { background: #b45309; }
+  .chip.sev-low { background: #64748b; }
+  .chip.crg { background: color-mix(in srgb, var(--ui-accent) 14%, transparent); color: var(--ui-accent); }
+  .chip.crg.locate { cursor: pointer;
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-accent) 28%, transparent);
+    transition: box-shadow 0.14s var(--ui-ease), background 0.14s var(--ui-ease); }
+  .chip.crg.locate:hover { background: color-mix(in srgb, var(--ui-accent) 24%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-accent) 55%, transparent); }
+  .chip.crg.locate .lnk { margin-left: 3px; font-weight: 800; }
+  .rp-finding.flash { animation: find-flash 1.8s var(--ui-ease); }
+  @keyframes find-flash { 0%, 55% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-accent) 45%, transparent); border-color: color-mix(in srgb, var(--ui-accent) 60%, transparent); } 100% { box-shadow: none; } }
+  .rp-finding .body { white-space: pre-wrap; font-size: 12.5px; line-height: 1.55; }
+  .rp-finding .body code { font-family: var(--ui-font-mono); font-size: 11.5px; background: var(--ui-surface-sunken);
+    border-radius: 4px; padding: 0 4px; color: var(--ui-accent); }
+  .rp-finding .code { font-family: var(--ui-font-mono); font-size: 12px; border-radius: 8px; padding: 8px 10px;
+    overflow-x: auto; white-space: pre-wrap; margin: 6px 0 0; }
+  .rp-finding .code.existing { background: color-mix(in srgb, #d14545 8%, transparent); border: 1px solid color-mix(in srgb, #d14545 25%, transparent); }
+  .rp-finding .code.suggestion { background: color-mix(in srgb, #2f9e44 8%, transparent); border: 1px solid color-mix(in srgb, #2f9e44 25%, transparent); }
+  .rp-finding .sug-label { font-size: 11px; color: var(--ui-success); margin-top: 6px; }
+  .rp-footer { margin-top: 22px; font-size: 11.5px; color: var(--ui-text-faint); }
+  .rr-cards { display: flex; gap: 8px; margin: 8px 0; }
+  .rr { flex: 1; text-align: center; padding: 8px 6px; border: 1px solid var(--ui-border-soft);
+    border-radius: 9px; font-size: 10px; color: var(--ui-text-faint); background: var(--ui-surface-raised); }
+  .rr b { display: block; font-family: var(--ui-font-mono); font-size: 15px; color: var(--ui-text); }
+  .rr.pass { border-color: color-mix(in srgb, var(--ui-success) 50%, transparent); } .rr.pass b { color: var(--ui-success); }
+  .rr.fail { border-color: color-mix(in srgb, var(--ui-danger) 45%, transparent); } .rr.fail b { color: var(--ui-danger); }
+
+  /* ── 视觉稿页签（工具行 + Meridian 画布 · 主题确定性重染 · 选区悬浮修正） ── */
+  .proto-doc { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
+  .proto-top { display: flex; align-items: center; gap: 8px; padding: 9px 16px; flex-wrap: wrap;
+    border-bottom: 1px solid var(--ui-border-soft); background: var(--ui-surface); flex: none; }
+  .proto-top .seg { display: inline-flex; background: var(--ui-surface-sunken); border-radius: var(--ui-radius-pill); padding: 2px; }
+  .proto-top .seg button { height: 22px; padding: 0 11px; border-radius: var(--ui-radius-pill); font-size: 11px; color: var(--ui-text-dim); }
+  .proto-top .seg button.on { background: var(--ui-surface-raised); color: var(--ui-text); font-weight: 600; box-shadow: var(--ui-shadow-sm); }
+  .proto-top .vbadge { font-size: 10.5px; padding: 2px 9px; border-radius: 99px; font-weight: 700;
+    background: color-mix(in srgb, var(--ui-accent) 12%, transparent); color: var(--ui-accent); }
+  .proto-top .vnote { font-size: 11px; color: var(--ui-text-faint); }
+  .proto-top select { font-size: 11px; padding: 3px 6px; border: 1px solid var(--ui-border-soft);
+    border-radius: var(--ui-radius-sm); background: var(--ui-surface); color: var(--ui-text); max-width: 168px; }
+  .proto-top .lbl { font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ui-text-faint); }
+  .drift-chip { display: none; align-items: center; gap: 6px; font-size: 10.5px; }
+  .drift-chip.show { display: inline-flex; }
+  .drift-chip .b { padding: 1px 8px; border-radius: 99px; font-weight: 700; font-size: 10px;
+    color: var(--ui-success); background: color-mix(in srgb, var(--ui-success) 12%, transparent); }
+  .drift-chip .sc { font-family: var(--ui-font-mono); color: var(--ui-text-dim); font-size: 10px; }
+  .proto-canvas { position: relative; flex: 1; min-height: 0; overflow: auto; padding: 18px 22px; }
+  /* 设计系统预览容器（独立 --ds-* · 内部主题确定性重染） */
+  .ds-canvas { --ds-paper: #f7f9fc; --ds-surface: #ffffff; --ds-ink: #1b2129; --ds-dim: #55606d;
+    --ds-accent: #1c6fe0; --ds-accent-soft: rgba(28, 111, 224, 0.12); --ds-radius: 12px;
+    border-radius: 12px; border: 1px solid var(--ui-border-soft); background: var(--ds-paper);
+    color: var(--ds-ink); padding: 16px 18px; transition: background 0.3s var(--ui-ease); }
+  .dd-page { display: flex; flex-direction: column; gap: 12px; max-width: 760px; margin: 0 auto; }
+  .dd-sec { border-radius: var(--ds-radius); background: var(--ds-surface);
+    box-shadow: 0 2px 14px rgba(10, 30, 25, 0.08); overflow: hidden; position: relative; cursor: pointer; }
+  .dd-sec.pd-sel { outline: 2px solid var(--ui-accent); outline-offset: 2px; }
+  .dd-sec.flash { animation: find-flash 1.8s var(--ui-ease); }
+  .addr-tip { position: absolute; top: 6px; right: 8px; font-family: var(--ui-font-mono); font-size: 9px;
+    padding: 2px 7px; border-radius: 4px; background: var(--ui-surface-raised); color: var(--ui-text-dim);
+    border: 1px solid var(--ui-border-soft); opacity: 0; transition: opacity 0.15s; z-index: 5; pointer-events: none; }
+  .dd-sec:hover .addr-tip { opacity: 1; }
+  .dd-hero { padding: 24px 26px 20px; background: linear-gradient(180deg, var(--ds-accent-soft), transparent); }
+  .dd-hero h2 { font-size: 20px; letter-spacing: -0.01em; }
+  .dd-hero p { font-size: 12px; color: var(--ds-dim); margin-top: 5px; max-width: 420px; }
+  .dd-bar { display: flex; gap: 8px; margin-top: 13px; flex-wrap: wrap; }
+  .ds-btn { display: inline-flex; align-items: center; height: 32px; padding: 0 14px;
+    border-radius: calc(var(--ds-radius) - 4px); background: var(--ds-accent); color: #fff;
+    font-weight: 600; font-size: 12px; border: none; }
+  .ds-btn.ghost { background: transparent; color: var(--ds-accent); box-shadow: inset 0 0 0 1.5px var(--ds-accent); }
+  .dd-sec .plain { padding: 18px 22px; }
+  .dd-sec .plain h4 { font-size: 13px; margin-bottom: 10px; }
+  .dd-input { width: 100%; max-width: 320px; height: 32px; border: 1px solid rgba(127, 127, 127, 0.35);
+    border-radius: calc(var(--ds-radius) - 6px); padding: 0 10px; background: var(--ds-surface);
+    color: var(--ds-ink); font-size: 12px; margin-top: 7px; }
+  .dd-table { width: 100%; border-collapse: collapse; font-size: 11.5px; color: var(--ds-ink); }
+  .dd-table th { text-align: left; font-size: 10px; color: var(--ds-dim); padding: 6px 8px; border-bottom: 1px solid rgba(127, 127, 127, 0.25); }
+  .dd-table td { padding: 7px 8px; border-bottom: 1px solid rgba(127, 127, 127, 0.15); }
+  .dd-mini { font-size: 10px; padding: 2px 8px; border-radius: 99px; }
+  .dd-mini.ok { background: color-mix(in srgb, var(--ds-accent) 14%, transparent); color: var(--ds-accent); }
+  .dd-mini.pend { background: #fff7e0; color: #b08c00; }
+  .dd-foot { padding: 11px 22px; font-size: 10.5px; color: var(--ds-dim); display: flex; justify-content: space-between; }
+  /* 选区悬浮修正卡（与原型模块同款） */
+  .pd-sel { outline: 2px solid var(--ui-accent); outline-offset: 2px; }
+  .ppop { position: absolute; width: 256px; z-index: 45; display: none;
+    background: var(--ui-surface-raised);
+    border: 1px solid color-mix(in srgb, var(--ui-accent) 45%, transparent);
+    border-radius: 10px; box-shadow: var(--ui-shadow-modal); overflow: hidden;
+    animation: sheet-in 0.18s var(--ui-ease) both; }
+  .ppop.show { display: block; }
+  .pp-hd { display: flex; align-items: center; gap: 6px; padding: 6px 8px 5px 10px;
+    border-bottom: 1px solid var(--ui-border-soft); }
+  .pp-hd .cap { font-size: 9px; font-weight: 700; letter-spacing: 0.06em; color: var(--ui-text-faint); flex: none; }
+  .pp-sem { font-family: var(--ui-font-mono); font-size: 10px; color: var(--ui-accent);
+    flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pp-close { width: 18px; height: 18px; border-radius: 5px; color: var(--ui-text-faint); font-size: 10px; flex: none; }
+  .pp-close:hover { background: var(--ui-surface-hover); color: var(--ui-text); }
+  .pp-chips { display: flex; flex-wrap: wrap; gap: 4px; padding: 8px 9px 2px; }
+  .pp-chips .qc { font-size: 10px; padding: 2px 8px; border-radius: 99px; border: 1px solid var(--ui-border-soft);
+    color: var(--ui-text-dim); background: var(--ui-surface); transition: all 0.14s var(--ui-ease); }
+  .pp-chips .qc:hover { color: var(--ui-accent); border-color: color-mix(in srgb, var(--ui-accent) 40%, transparent); }
+  .pp-input { display: flex; gap: 5px; padding: 7px 9px 9px; }
+  .pp-input input { flex: 1; min-width: 0; height: 26px; padding: 0 8px; font-size: 11px;
+    background: var(--ui-surface-sunken); border: 1px solid var(--ui-border-soft); border-radius: 7px; color: var(--ui-text); }
+  .pp-input button { font-size: 10.5px; font-weight: 700; padding: 0 10px; border-radius: 7px;
+    background: var(--ui-accent-fill); color: #fff; }
+  /* tokens 表 + 组件墙（设计系统页签） */
+  .tok-wrap { flex: 1; min-width: 0; overflow-y: auto; padding: 16px 20px; }
+  .tok-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+  .tok-head b { font-size: 14px; }
+  .schema-badge { display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px; border-radius: 99px;
+    font-size: 10px; border: 1px solid color-mix(in srgb, var(--ui-success) 45%, transparent); color: var(--ui-success); }
+  .tok-table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+  .tok-table th { text-align: left; padding: 6px 10px; font-size: 10px; letter-spacing: 0.06em;
+    text-transform: uppercase; color: var(--ui-text-faint); border-bottom: 1px solid var(--ui-border-soft); }
+  .tok-table td { padding: 6px 10px; border-bottom: 1px solid var(--ui-border-soft); vertical-align: middle; }
+  .tok-table .grp td { background: var(--ui-surface-sunken); font-weight: 700; font-size: 10.5px;
+    letter-spacing: 0.08em; text-transform: uppercase; color: var(--ui-text-dim); }
+  .tok-table .nm { font-family: var(--ui-font-mono); color: var(--ui-accent); font-size: 10.5px; }
+  .tok-table .val { font-family: var(--ui-font-mono); font-size: 10.5px; color: var(--ui-text-dim); }
+  .tok-table .note { color: var(--ui-text-faint); font-size: 10px; }
+  .swatch { width: 15px; height: 15px; border-radius: 4px; display: inline-block; vertical-align: -3px;
+    border: 1px solid rgba(0, 0, 0, 0.15); margin-right: 6px; }
+  .comp-sec { margin-bottom: 16px; }
+  .comp-sec h4 { font-size: 12.5px; margin-bottom: 2px; display: flex; align-items: baseline; gap: 8px; }
+  .comp-sec h4 .refs { font-size: 10px; color: var(--ui-text-faint); font-weight: 400; }
+  .comp-sec p { font-size: 10.5px; color: var(--ui-text-faint); margin-bottom: 8px; }
+  .ds-mini-btn { display: inline-flex; align-items: center; height: 32px; padding: 0 14px;
+    border-radius: var(--ds-radius); background: var(--ds-accent); color: #fff; font-weight: 600;
+    font-size: 12px; border: none; }
+  .ds-mini-btn.ghost { background: transparent; color: var(--ds-accent); box-shadow: inset 0 0 0 1.5px var(--ds-accent); }
+  .ds-mini-btn[disabled] { opacity: 0.4; }
+  .wall-row { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin: 6px 0 14px; }
+  .wall-cell { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .state-tag { font-size: 9.5px; font-family: var(--ui-font-mono); padding: 1px 6px; border-radius: 4px;
+    background: var(--ui-surface-sunken); color: var(--ui-text-faint); border: 1px solid var(--ui-border-soft); }
+  .tok-grid { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 12px; align-items: start; }
+  .tok-grid > .ds-canvas { min-width: 0; }
+  .gen-progress { display: none; margin: 0 0 12px; padding: 9px 12px; border-radius: 9px;
+    background: var(--ui-accent-soft); border: 1px solid color-mix(in srgb, var(--ui-accent) 30%, transparent);
+    font-size: 12px; align-items: center; gap: 10px; }
+  .gen-progress.show { display: flex; }
+  .trigger-card { display: flex; align-items: flex-start; gap: 8px; margin: 0 0 14px; padding: 9px 12px;
+    border-radius: 9px; border: 1px solid color-mix(in srgb, var(--ui-info) 35%, transparent);
+    background: color-mix(in srgb, var(--ui-info) 7%, transparent); font-size: 11.5px;
+    color: var(--ui-text-dim); line-height: 1.6; }
+  .trigger-card b { color: var(--ui-info); flex: none; }
+  .run-toast { position: fixed; top: 64px; right: 20px; background: var(--ui-surface-raised);
+    border: 1px solid color-mix(in srgb, var(--ui-success) 40%, transparent); color: var(--ui-success);
+    border-radius: 10px; padding: 10px 14px; font-size: 12px; z-index: 99;
+    box-shadow: var(--ui-shadow-card); animation: sheet-in 0.3s both; }
+  @keyframes sheet-in { from { opacity: 0; transform: translateY(10px); } }
+  /* 悬浮设计智能体 */
+  .proto-dialog { position: absolute; right: 18px; bottom: 18px; width: 316px; z-index: 40;
+    background: var(--ui-surface-raised); border: 1px solid var(--ui-border-soft); border-radius: 12px;
+    box-shadow: var(--ui-shadow-modal); display: flex; flex-direction: column; overflow: hidden;
+    animation: sheet-in 0.3s var(--ui-ease) both; }
+  .pdlg-hd { display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+    border-bottom: 1px solid var(--ui-border-soft); font-size: 12px; font-weight: 600; }
+  .pdlg-hd .sp { flex: 1; }
+  .pdlg-hd .silent { font-size: 9px; padding: 1px 7px; border-radius: 99px;
+    border: 1px solid color-mix(in srgb, var(--ui-success) 45%, transparent); color: var(--ui-success); }
+  .pdlg-ctx { display: flex; align-items: center; gap: 5px; padding: 7px 12px 0; flex-wrap: wrap; }
+  .pdlg-ctx .qc { font-size: 10px; padding: 2px 9px; border-radius: 99px; border: 1px solid var(--ui-border-soft);
+    color: var(--ui-text-dim); background: var(--ui-surface); }
+  .pdlg-ctx .qc:hover { color: var(--ui-accent); border-color: color-mix(in srgb, var(--ui-accent) 40%, transparent); }
+  .pdlg-bd { max-height: 196px; overflow-y: auto; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; font-size: 11.5px; }
+  .pdlg-msg .who { font-size: 9.5px; color: var(--ui-text-faint); font-family: var(--ui-font-mono); }
+  .pdlg-msg .tx { color: var(--ui-text-dim); line-height: 1.55; }
+  .pdlg-msg.agent .tx { color: var(--ui-text); }
+  .pdlg-msg.user .tx { color: var(--ui-accent); }
+  .pdlg-typing { display: none; align-items: center; gap: 7px; padding: 0 12px 6px; color: var(--ui-accent); font-size: 11px; }
+  .pdlg-typing.show { display: flex; }
+  .pdlg-typing i { width: 5px; height: 5px; border-radius: 50%; background: var(--ui-accent); animation: breath 1s infinite; }
+  @keyframes breath { 0%, 100% { box-shadow: 0 0 0 0 var(--ui-accent-soft); opacity: 0.75; } 50% { box-shadow: 0 0 0 6px transparent; opacity: 1; } }
+  .pdlg-input { display: flex; gap: 6px; padding: 8px 12px 10px; border-top: 1px solid var(--ui-border-soft); }
+  .pdlg-input input { flex: 1; min-width: 0; height: 28px; padding: 0 9px; font-size: 11.5px;
+    background: var(--ui-surface-sunken); border: 1px solid var(--ui-border-soft); border-radius: 8px; color: var(--ui-text); }
+  .pdlg-input button { font-size: 11px; font-weight: 700; padding: 0 11px; border-radius: 8px;
+    background: var(--ui-accent-fill); color: #fff; }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- ── Cockpit ── -->
+  <header class="cockpit">
+    <span class="c-pill"><span class="dot accent"></span><b>deepcode-ui</b></span>
+    <span class="c-pill"><span class="dot ok"></span>DeepSeek V4 <span class="tnum">· think</span></span>
+    <span class="c-pill"><span class="dot"></span><span class="tnum">▮▮▮▯▯ 62%</span></span>
+    <div class="c-spacer"></div>
+    <div class="surface-chips">
+      <button class="s-chip">◈ 对话</button>
+      <button class="s-chip active">✦ 设计 · deepcode-ui <span class="x">✕</span></button>
+      <button class="s-chip">◎ 原型 · deepcode-ui <span class="x">✕</span></button>
+    </div>
+    <div class="c-spacer"></div>
+    <div class="theme-seg" id="themeSeg">
+      <button data-app="light" class="on">浅色</button>
+      <button data-app="dark">深色</button>
+    </div>
+    <div class="win-controls"><i class="wc-min"></i><i class="wc-max"></i><i class="wc-close"></i></div>
+  </header>
+
+  <!-- ═══ 左侧目录面板（纯目录分组 · 零操作） ═══ -->
+  <aside class="dir-panel">
+    <header class="dir-head">
+      <span class="dir-title">UI 设计</span>
+      <span class="dir-sub">视觉稿 → 设计系统 → 质量与评审</span>
+    </header>
+    <div class="dir-body">
+      <div class="dir-group current">
+        <div class="dir-ws">
+          <span class="dir-dot on"></span>
+          <span class="n">deepcode-ui</span>
+          <span class="cur">当前</span>
+        </div>
+        <div class="dir-ws"><span class="p">~/dev/deepcodeUI/deepcode-cli</span></div>
+        <div class="dir-items">
+          <div class="dir-item"><span class="ic">🎨</span>视觉稿<span class="st ok">v4 · 基于原型 v3</span></div>
+          <div class="dir-item"><span class="ic">🧩</span>设计系统<span class="st ok">tokens.schema ✓</span></div>
+          <div class="dir-item"><span class="ic">✓</span>质量报告<span class="st ok">0 findings</span></div>
+        </div>
+      </div>
+      <div class="dir-group">
+        <div class="dir-ws">
+          <span class="dir-dot"></span>
+          <span class="n">meridian-store</span>
+        </div>
+        <div class="dir-ws"><span class="p">~/dev/meridian/store</span></div>
+        <div class="dir-none">未开始 —— 该工作区暂无 UI 设计产物</div>
+      </div>
+      <div class="dir-group">
+        <div class="dir-ws">
+          <span class="dir-dot busy"></span>
+          <span class="n">orca-docs</span>
+        </div>
+        <div class="dir-ws"><span class="p">~/dev/orca/docs</span></div>
+        <div class="dir-items">
+          <div class="dir-item"><span class="ic">🎨</span>生成中<span class="st run">67% · 渲染 订单列表页</span></div>
+        </div>
+      </div>
+      <div class="dir-note">
+        此处仅作工作区分组展示（目录），不含操作；UI 设计的全部操作在右侧工作区内完成。
+        每个版本记录其【原型基底版本】——UI 与原型精确联动（.deeporca/designs/，按工作区隔离）。
+      </div>
+    </div>
+  </aside>
+
+  <!-- ═══ Sheet：UI 设计工作区（视觉稿 → 设计系统 → 质量与评审 · 一版一套） ═══ -->
+  <section class="ui-sheet">
+    <button class="sheet-close">✕ 返回对话</button>
+
+    <div class="rev-tab-head">
+      <div class="rev-tab-tabs">
+        <button class="rev-pill active" data-view="pages">视觉稿</button>
+        <button class="rev-pill" data-view="tokens">设计系统</button>
+        <button class="rev-pill" data-view="quality">质量与评审</button>
+      </div>
+      <span class="rev-tab-active">● 当前工作区</span>
+      <span class="scope-hint" id="scopeHint">版本 v4 · 基于原型 v3 · 主题：Aqua</span>
+    </div>
+
+    <div class="rev-tab-body">
+      <!-- 版本 rail：一份 · 三段同步 —— 一版一套 + 原型基底徽章 -->
+      <div class="ver-rail" id="verRail">
+        <div class="rail-cap">版本 · 一版一套（视觉稿 + 设计系统 + 质量）· 联动原型</div>
+        <div class="ver-item active" data-ver="v4">
+          <div class="vi-time"><span class="vtag">v4</span> 09:15 <span class="new">最新</span></div>
+          <div class="vi-meta">lint 清零 · 机检全绿 · 主题：Aqua</div>
+          <div class="vi-set"><i class="proto">基于原型 v3</i><i>视觉稿</i><i>设计系统</i><i>质量报告</i></div>
+        </div>
+        <div class="ver-item" data-ver="v3">
+          <div class="vi-time"><span class="vtag">v3</span> 09:02</div>
+          <div class="vi-meta">品牌注入 · DESIGN.md tokens 同步</div>
+          <div class="vi-set"><i class="proto">基于原型 v3</i><i>视觉稿</i><i>设计系统</i><i>质量报告</i></div>
+        </div>
+        <div class="ver-item" data-ver="v2">
+          <div class="vi-time"><span class="vtag">v2</span> 08:56</div>
+          <div class="vi-meta">主题切换 Glass · 确定性重染</div>
+          <div class="vi-set"><i class="proto">基于原型 v2</i><i>视觉稿</i><i>设计系统</i><i>质量报告</i></div>
+        </div>
+        <div class="ver-item" data-ver="v1">
+          <div class="vi-time"><span class="vtag">v1</span> 08:44</div>
+          <div class="vi-meta">初稿 · ai-default-indigo 命中</div>
+          <div class="vi-set"><i class="proto">基于原型 v1</i><i>视觉稿</i><i>设计系统</i><i class="miss">质量未跑</i></div>
+        </div>
+      </div>
+
+      <div class="rev-tab-content">
+
+        <!-- ═══ 段一：视觉稿（主题重染 + 选区悬浮修正 + 漂移闸门） ═══ -->
+        <div class="proto-doc" id="viewPages">
+          <div class="proto-top">
+            <span class="vbadge" id="verBadge">v4 · lint 清零</span>
+            <span class="vnote" id="verNote">机检全绿 · tokens.schema ✓ · 三方映射 1 缺页告警</span>
+            <button class="rp-btn gel" id="btnGenUi">⚡ 从原型生成</button>
+            <span style="flex:1"></span>
+            <span class="lbl">基底原型</span>
+            <select id="baseSel" title="基底 = 原型的版本历史（UI 与原型精确联动）">
+              <option value="v3" selected>原型 v3 · 走查修复</option>
+              <option value="v2">原型 v2 · 品牌注入</option>
+              <option value="v1">原型 v1 · 初稿</option>
+            </select>
+            <span class="lbl">主题</span>
+            <select id="themeSel" title="设计模块专属设计系统 · 切换即确定性重染">
+              <option value="modern-minimal" selected>现代极简</option>
+              <option value="editorial">编辑风</option>
+              <option value="dark-tech">暗色科技</option>
+              <option value="brutalist-contrast">粗野对比</option>
+              <option value="swiss-international">瑞士国际</option>
+              <option value="terminal-mono">终端等宽</option>
+              <option value="glass-morphism">玻璃拟态</option>
+              <option value="soft-neumorphic">软拟物</option>
+              <option value="warm-handcrafted">暖手作</option>
+            </select>
+            <div class="seg" id="pageSeg">
+              <button data-page="login" class="on">页 · 登录</button>
+              <button data-page="orders">页 · 订单列表</button>
+            </div>
+            <button class="rp-btn" id="btnDrift">⚑ 漂移检测</button>
+            <span class="drift-chip" id="driftChip"><span class="b">基线内</span><span class="sc">7 / 100</span></span>
+            <button class="rp-btn" id="btnDdu">⤓ .ddu</button>
+          </div>
+          <div class="proto-canvas" id="protoCanvas">
+            <div class="gen-progress" id="uiGen"><span class="orb"></span><span class="tx" id="uiGenTx">读取原型页面清单…</span></div>
+            <div class="ds-canvas" id="dsCanvas">
+              <div class="dd-page">
+                <div class="dd-sec" data-dd="hero"><span class="addr-tip">//section[@data-dd-id=hero]</span>
+                  <div class="dd-hero">
+                    <h2>轻订单 · 小团队订单处理</h2>
+                    <p>从群聊搬进系统 —— 登录、对账、履约一屏完成。主题与 tokens 由内部主题 + DESIGN.md 契约共同决定。</p>
+                    <div class="dd-bar"><button class="ds-btn">开始使用</button><button class="ds-btn ghost">查看示例</button></div>
+                  </div>
+                </div>
+                <div class="dd-sec" data-dd="login" id="sec-login"><span class="addr-tip">//section[@data-dd-id=login]</span>
+                  <div class="plain">
+                    <h4>登录</h4>
+                    <input class="dd-input" placeholder="邮箱">
+                    <input class="dd-input" type="password" placeholder="密码">
+                    <div style="margin-top:10px"><button class="ds-btn" style="width:100%; max-width:320px">登 录</button></div>
+                  </div>
+                </div>
+                <div class="dd-sec" data-dd="orders" id="sec-orders"><span class="addr-tip">//section[@data-dd-id=orders]</span>
+                  <div class="plain">
+                    <h4>订单列表</h4>
+                    <table class="dd-table">
+                      <thead><tr><th>单号</th><th>客户</th><th>金额</th><th>状态</th><th></th></tr></thead>
+                      <tbody>
+                        <tr><td class="mono" style="font-size:10.5px">ORD-2419</td><td>北岛渔业</td><td class="mono">¥1,280</td><td><span class="dd-mini ok">已履约</span></td><td><span class="dd-mini ok" style="cursor:pointer">⋯</span></td></tr>
+                        <tr><td class="mono" style="font-size:10.5px">ORD-2418</td><td>青屿咖啡</td><td class="mono">¥640</td><td><span class="dd-mini pend">待履约</span></td><td><span class="dd-mini ok" style="cursor:pointer">⋯</span></td></tr>
+                        <tr><td class="mono" style="font-size:10.5px">ORD-2417</td><td>南山书屋</td><td class="mono">¥2,410</td><td><span class="dd-mini ok">已履约</span></td><td><span class="dd-mini ok" style="cursor:pointer">⋯</span></td></tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+                <div class="dd-sec" data-dd="footer"><span class="addr-tip">//section[@data-dd-id=footer]</span>
+                  <div class="dd-foot"><span>Meridian Design System · .dds v2 · 基于原型 <span id="footProto">v3</span></span><span class="mono">tokens.schema ✓ · lint 0</span></div>
+                </div>
+              </div>
+            </div>
+            <!-- v2 选区悬浮修正卡（与原型模块同款） -->
+            <div class="ppop" id="ppop">
+              <div class="pp-hd"><span class="cap">修正</span><span class="pp-sem" id="ppSem">—</span>
+                <button class="pp-close" id="ppClose" title="取消选中">✕</button></div>
+              <div class="pp-chips" id="ppChips"></div>
+              <div class="pp-input"><input id="ppInput" placeholder="对这里说修改…"><button id="ppSend">修</button></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ═══ 段二：设计系统 ═══ -->
+        <div class="tok-wrap" id="viewTokens" style="display:none">
+          <div class="tok-head">
+            <b>Meridian tokens <span class="mono" style="color:var(--ui-text-faint); font-size:10px">· .dds v2 · 主题：<span id="tokTheme">Aqua</span></span></b>
+            <span class="schema-badge">✓ tokens.schema v2（六组 · 必填/类型校验）</span>
+            <span style="font-size:10.5px; color:var(--ui-text-faint)">旧 .dd 降级兼容（校验失败只警告不阻断）</span>
+          </div>
+          <div class="tok-grid">
+          <div class="ds-canvas">
+            <table class="tok-table">
+              <thead><tr><th>token</th><th>值 / 引用</th><th>light · dark</th><th>语义</th></tr></thead>
+              <tbody>
+                <tr class="grp"><td colspan="4">Color 颜色</td></tr>
+                <tr><td class="nm">brand.500</td><td class="val"><span class="swatch" style="background:#2563eb"></span>#2563eb</td><td><span class="swatch" style="background:#2563eb"></span><span class="swatch" style="background:#6ea8ff"></span><span class="val" style="font-size:9px">tuple</span></td><td class="note">分类层 · 换主题只改这层</td></tr>
+                <tr><td class="nm">accent</td><td class="val">{brand.500}</td><td><span class="swatch" style="background:#2563eb"></span><span class="val" style="font-size:9px">light-dark()</span></td><td class="note">语义层 → 分类层单向重定向</td></tr>
+                <tr><td class="nm">text.primary</td><td class="val">{ink.900}</td><td><span class="swatch" style="background:#111111"></span></td><td class="note">语义层</td></tr>
+                <tr><td class="nm">surface.body</td><td class="val">{paper.50}</td><td><span class="swatch" style="background:#ffffff"></span></td><td class="note">语义层</td></tr>
+                <tr class="grp"><td colspan="4">Typography 排版</td></tr>
+                <tr><td class="nm">font.sans</td><td class="val">system-ui, sans-serif</td><td>—</td><td class="note">随主题字族</td></tr>
+                <tr><td class="nm">size.scale</td><td class="val">12 / 14 / 16 / 20 / 28</td><td>—</td><td class="note">5 级 · 行高 1.6</td></tr>
+                <tr class="grp"><td colspan="4">Spacing 间距</td></tr>
+                <tr><td class="nm">space.1..4</td><td class="val">4 / 8 / 12 / 16</td><td>—</td><td class="note">4px 基数 · 8 级封顶</td></tr>
+                <tr class="grp"><td colspan="4">Radius 圆角</td></tr>
+                <tr><td class="nm">radius.sm/md/lg</td><td class="val">8 / 12 / 16</td><td>—</td><td class="note">--radius-none/full 固定不参与倍率</td></tr>
+                <tr class="grp"><td colspan="4">Shadow 阴影</td></tr>
+                <tr><td class="nm">shadow.low/med/high</td><td class="val">y1 / y4 / y12 · blur 递增</td><td>—</td><td class="note">低饱和 · color-mix(accent 8%)</td></tr>
+                <tr class="grp"><td colspan="4">Motion 动效</td></tr>
+                <tr><td class="nm">motion.dur / ease</td><td class="val">120ms / 240ms · ease-out</td><td>—</td><td class="note">light-dark() 元组见 color 组</td></tr>
+              </tbody>
+            </table>
+            <p style="font-size:10.5px; color:var(--ui-text-faint); line-height:1.6; margin-top:10px">
+              ▸ 引用语法 {组.名}（penpot 借鉴）· 环引用校验 · 语义层单向重定向分类层，换主题只写分类层<br>
+              ▸ sections 的 CSS 只引用变量名 —— 「token 外颜色 = 违例」由 design.lint 强制
+            </p>
+          </div>
+          <div class="ds-canvas">
+          <div class="comp-sec">
+              <h4>组件原子库 <span class="refs">· sections 引用组件而非复制 · 实例覆盖显式记录（3 处引用）</span></h4>
+              <p>变体与状态显式声明于 schema；覆盖走合法键（props/states 枚举）。</p>
+              <div class="wall-row">
+                <div class="wall-cell"><button class="ds-mini-btn">primary</button><span class="state-tag">default</span></div>
+                <div class="wall-cell"><button class="ds-mini-btn" style="filter:brightness(1.1)">primary</button><span class="state-tag">hover</span></div>
+                <div class="wall-cell"><button class="ds-mini-btn" style="transform:scale(0.97)">primary</button><span class="state-tag">pressed</span></div>
+                <div class="wall-cell"><button class="ds-mini-btn" disabled>primary</button><span class="state-tag">disabled</span></div>
+                <div class="wall-cell"><button class="ds-mini-btn ghost">ghost</button><span class="state-tag">ghost</span></div>
+              </div>
+              <div class="wall-row">
+                <div class="wall-cell"><input class="dd-input" style="margin:0; width:170px" placeholder="default"><span class="state-tag">Input · default</span></div>
+                <div class="wall-cell"><input class="dd-input" style="margin:0; width:170px; border:1.5px solid var(--ds-accent); outline:2px solid var(--ds-accent-soft)" value="focus"><span class="state-tag">Input · focus</span></div>
+                <div class="wall-cell"><input class="dd-input" style="margin:0; width:170px; border:1.5px solid #d1453b" value="error"><span class="state-tag">Input · error</span></div>
+              </div>
+            </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ═══ 段三：质量与评审（原生报告文档 · 与审查报告同构；finding ↔ 视觉稿双向定位） ═══ -->
+        <div class="report-doc" id="viewQuality" style="display:none">
+          <div class="ro-bar" id="roBar2"><span>正在查看历史版本 <b id="roVer2">v2</b>（只读）。</span><button id="roBack2">回到最新 →</button></div>
+          <h1>UI 设计质量报告 — <span id="qOwner">deepcode-ui</span></h1>
+          <div class="rp-meta">
+            <span>主题：Aqua · 基于原型 v3</span>
+            <span>生成时间：2026-09-05 09:14</span>
+            <span>状态：<b id="qStatus">v4 复检通过（lint 0 · 机检全绿 · review R2 8.4）</b></span>
+          </div>
+          <div class="rp-actions">
+            <button class="rp-btn gel" id="btnRunQuality">▶ 运行质量评审</button>
+            <button class="rp-btn" id="btnSeeV2">查看 v2 检出（6 findings）</button>
+            <button class="rp-btn" id="btnDdu2">⤓ 导出 .ddu（tokens.json · components.html · verification.md）</button>
+          </div>
+          <div class="trigger-card"><b>触发链路</b>　生成 / 每次修订后自动：design.lint（taste-required / anti-slop / a11y 三 preset）→ 渲染后机检（iframe 实测）；「▶ 运行质量评审」手动触发 review 加权门（opt-in · ≤3 轮收敛）→ 报告落 meta.verification。</div>
+          <div class="gen-progress" id="qProg"><span class="orb"></span><span class="tx" id="qProgTx">design.lint 扫描…</span></div>
+          <div class="rp-cards">
+            <div class="rp-card"><div class="num" id="qcLint">0</div><div class="lbl">lint findings</div></div>
+            <div class="rp-card"><div class="num" id="qcMachine">4/4</div><div class="lbl">渲染后机检</div></div>
+            <div class="rp-card"><div class="num" id="qcReview">8.4</div><div class="lbl">review composite（≥8）</div></div>
+          </div>
+
+          <div id="v2Findings" style="display:none">
+            <div class="rp-empty-note">以下为 <b>v2 检出</b>（主题切换后、自愈前）——v4 已全部修复；保留作为质量回环证据。点击「定位 ◎」可在视觉稿中闪烁对应 section。</div>
+            <div class="rp-file">
+              <h2><code>//section[@data-dd-id=hero]</code> <span class="cnt">2</span></h2>
+              <div class="rp-finding" id="f-hero-a">
+                <div class="head"><span class="chip sev-high">error</span><span class="chip crg locate" data-dd="hero" title="在视觉稿中定位该 section">no-hardcoded-color<span class="lnk"> · 定位 ◎</span></span><span class="loc">hero//p[1]</span></div>
+                <div class="body">hero 副标题硬编码 <code>#4f46e5</code> —— token 外颜色 = 违例（taste 纪律机检化）。</div>
+                <div class="sug-label">建议</div>
+                <pre class="code suggestion">color: var(--ds-accent)   /* 引用分类层 brand.500 */</pre>
+              </div>
+              <div class="rp-finding" id="f-hero-b">
+                <div class="head"><span class="chip sev-medium">warn</span><span class="chip crg locate" data-dd="hero" title="在视觉稿中定位该 section">contrast<span class="lnk"> · 定位 ◎</span></span><span class="loc">hero//p[1]</span></div>
+                <div class="body">meta 文本对比度实测 3.2:1 &lt; 4.5:1（渲染后机检，非自报）。</div>
+                <div class="sug-label">建议</div>
+                <pre class="code suggestion">color: var(--ds-ink) @ 90%  /* 或加深 dim 档 */</pre>
+              </div>
+            </div>
+            <div class="rp-file">
+              <h2><code>//section[@data-dd-id=orders]</code> <span class="cnt">2</span></h2>
+              <div class="rp-finding" id="f-orders-a">
+                <div class="head"><span class="chip sev-high">error</span><span class="chip crg locate" data-dd="orders" title="在视觉稿中定位该 section">touch-target<span class="lnk"> · 定位 ◎</span></span><span class="loc">orders//td[5]//button</span></div>
+                <div class="body">表格行操作触达 26px &lt; 44px（taste 触点纪律）。</div>
+                <div class="sug-label">建议</div>
+                <pre class="code suggestion">min-height: 44px</pre>
+              </div>
+              <div class="rp-finding" id="f-orders-b">
+                <div class="head"><span class="chip sev-medium">warn</span><span class="chip crg locate" data-dd="orders" title="在视觉稿中定位该 section">overflow-375<span class="lnk"> · 定位 ◎</span></span><span class="loc">@media 375 orders//table</span></div>
+                <div class="body">375px 横向溢出 +12px（表格未收敛）。</div>
+                <div class="sug-label">建议</div>
+                <pre class="code suggestion">min-width: 0 + 表格容器横向滚动</pre>
+              </div>
+            </div>
+            <div class="rp-file">
+              <h2><code>//section[@data-dd-id=nav]</code> <span class="cnt">2</span></h2>
+              <div class="rp-finding" id="f-nav-a">
+                <div class="head"><span class="chip sev-high">error</span><span class="chip crg">ai-default-indigo</span><span class="loc">hero//button[1]</span></div>
+                <div class="body">命中 AI 默认 indigo 常量（anti-slop 七宗罪 #1）—— v1 未定向初稿的即兴产物，主题确定后已重染修复。</div>
+              </div>
+              <div class="rp-finding" id="f-nav-b">
+                <div class="head"><span class="chip sev-low">info</span><span class="chip crg">emoji-icon</span><span class="loc">nav//item[2]</span></div>
+                <div class="body">emoji 作导航图标（七宗罪 #3）。建议描边 SVG 图标。</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="rp-file">
+            <h2><code>渲染后机检（实测 · 非自报）</code></h2>
+            <div class="rp-finding">
+              <div class="head"><span class="chip pass" style="background:#2f9e44">全绿 · v4</span><span class="loc">iframe 实测</span></div>
+              <div class="body">375px 溢出 0px ✓ · 触达 44px ✓ · 正文对比度 4.6:1 ✓ · 视口 meta / 字体缺失 ✓<br>
+              v2 实测：溢出 +12px ✗ · 触达 26px ✗ · 对比度 3.2:1 ✗ —— 自愈两轮后清零。</div>
+            </div>
+          </div>
+          <div class="rp-file">
+            <h2><code>design.review（opt-in · 默认关）</code></h2>
+            <div class="rr-cards">
+              <div class="rr fail"><span>R1</span><b>6.8</b><span>fail</span></div>
+              <div class="rr pass"><span>R2</span><b>8.4</b><span>pass</span></div>
+              <div class="rr"><span>R3</span><b>—</b><span>未启用</span></div>
+            </div>
+            <div class="rp-finding">
+              <div class="head"><span class="chip crg">强制证据</span><span class="loc">composite 8.4 ≥ 8.0 ✓</span></div>
+              <div class="body">层级 8.8 — KPI → 表格 → 操作的 F 型动线清晰；hero 与表格层级差 ≥ 2 级字号。<br>
+              品牌 8.4 — accent 随主题（Aqua 蓝）贯穿按钮/Badge；paper 与主题底一致。<br>
+              a11y 8.0 — 对比度实测 4.6:1；触点 44px；focus ring 可见。<br>
+              文案 8.2 — 无占位 lorem；按钮动词开头；空态有指引。<br>
+              加权（critic .4 / brand .2 / a11y .2 / copy .2）· 无证据的分数被拒 · ship_best 兜底未触发。</div>
+            </div>
+          </div>
+
+          <p class="rp-footer">design.lint（taste-required / anti-slop / a11y 三 preset）→ 渲染后机检（iframe 实测）→ design.review（加权门 · ≤3 轮收敛）· 自愈 ≤3 轮，仍失败如实交付并附 findings</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ 悬浮设计智能体（跨三段常驻 · silent） ═══ -->
+    <div class="proto-dialog" id="protoDialog">
+      <div class="pdlg-hd">✦ 设计智能体<span class="sp"></span>
+        <span class="silent">silent · 主会话零记录</span>
+        <button class="pp-close" id="pdlgMin" title="收起" style="margin-left:0; width:20px; height:20px">—</button></div>
+      <div class="pdlg-ctx" id="pdlgCtx"><span style="font-size:9.5px; color:var(--ui-text-faint)">快捷（随当前段变化）：</span></div>
+      <div class="pdlg-bd" id="pdlgBody">
+        <div class="pdlg-msg agent"><div class="who">agent · 就绪</div><div class="tx">我是本工作区的设计智能体：视觉稿里<b>点击任意 section</b>，修正卡会跟到那个位置；三段任一处不满意也可以在这里直接说——我以修订形式应用并出新版本（版本与原型基底精确联动）。</div></div>
+      </div>
+      <div class="pdlg-typing" id="pdlgTyping"><i></i><i style="animation-delay:.2s"></i><i style="animation-delay:.4s"></i> agent 正在响应（runSubagent · silent）</div>
+      <div class="pdlg-input">
+        <input id="pdlgInput" placeholder="例：hero 标题改短一点…">
+        <button id="pdlgSend">送达</button>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+/* ── 浅色/深色外观切换 ── */
+(function () {
+  var seg = document.getElementById("themeSeg");
+  seg.addEventListener("click", function (e) {
+    var btn = e.target.closest("button[data-app]");
+    if (!btn) return;
+    document.documentElement.setAttribute("data-appearance", btn.dataset.app);
+    seg.querySelectorAll("button").forEach(function (b) { b.classList.toggle("on", b === btn); });
+  });
+})();
+
+/* ── 主题 = 设计模块专属的九套内置设计系统（templates 资产，非产品应用主题） ── */
+var THEMES = {
+  "modern-minimal":      { label: "现代极简",   paper: "#ffffff", ink: "#111111", dim: "#5f6b7a", accent: "#2563eb", soft: "rgba(37,99,235,0.12)",   radius: "8px" },
+  "editorial":           { label: "编辑风",     paper: "#faf8f4", ink: "#1d1b16", dim: "#6b675c", accent: "#b45309", soft: "rgba(180,83,9,0.12)",    radius: "4px" },
+  "dark-tech":           { label: "暗色科技",   paper: "#0f1218", ink: "#e6edf3", dim: "#8b98a9", accent: "#22d3ee", soft: "rgba(34,211,238,0.12)",  radius: "6px" },
+  "brutalist-contrast":  { label: "粗野对比",   paper: "#ffffff", ink: "#000000", dim: "#555555", accent: "#e03131", soft: "rgba(224,49,49,0.10)",   radius: "0px" },
+  "swiss-international": { label: "瑞士国际",   paper: "#f5f5f0", ink: "#141414", dim: "#5c5c57", accent: "#d92b2b", soft: "rgba(217,43,43,0.10)",   radius: "0px" },
+  "terminal-mono":       { label: "终端等宽",   paper: "#0d1117", ink: "#c9d1d9", dim: "#8b949e", accent: "#3fb950", soft: "rgba(63,185,80,0.12)",   radius: "2px" },
+  "glass-morphism":      { label: "玻璃拟态",   paper: "#eef1f8", ink: "#241d3d", dim: "#6f6790", accent: "#6247ea", soft: "rgba(98,71,234,0.12)",   radius: "16px" },
+  "soft-neumorphic":     { label: "软拟物",     paper: "#e8ebf2", ink: "#2d3a4a", dim: "#6b7a8f", accent: "#5b7cfa", soft: "rgba(91,124,250,0.12)",  radius: "14px" },
+  "warm-handcrafted":    { label: "暖手作",     paper: "#f9f4ec", ink: "#3a2d20", dim: "#8a7660", accent: "#c2703d", soft: "rgba(194,112,61,0.12)",  radius: "12px" }
+};
+function applyTheme(key) {
+  var t = THEMES[key] || THEMES.aqua;
+  document.querySelectorAll(".ds-canvas").forEach(function (c) {
+    c.style.setProperty("--ds-paper", t.paper); c.style.setProperty("--ds-ink", t.ink);
+    c.style.setProperty("--ds-dim", t.dim); c.style.setProperty("--ds-accent", t.accent);
+    c.style.setProperty("--ds-accent-soft", t.soft); c.style.setProperty("--ds-radius", t.radius);
+  });
+  return t;
+}
+
+/* ── 版本集（一份 · 三段同步 · 每版记录原型基底） ── */
+var UIVERS = {
+  v4: { badge: "v4 · lint 清零", note: "机检全绿 · tokens.schema ✓ · 三方映射 1 缺页告警", proto: "v3", theme: "modern-minimal", status: "v4 复检通过（lint 0 · 机检全绿 · review R2 8.4）" },
+  v3: { badge: "v3 · 品牌注入", note: "DESIGN.md tokens 同步 · 基于原型 v3", proto: "v3", theme: "glass-morphism", status: "v3 检出 2（对比度 / 触点）" },
+  v2: { badge: "v2 · 主题切换", note: "主题 暗色科技 · 确定性重染（自愈前 6 findings）", proto: "v2", theme: "dark-tech", status: "v2 检出 6（含 ai-default-indigo）" },
+  v1: { badge: "v1 · 初稿", note: "未定向 · ai-default-indigo 命中（质量未跑）", proto: "v1", theme: "terminal-mono", status: "未运行" }
+};
+var latest = "v4", curVer = "v4";
+window.applyVersion = function (v) {
+  var d = UIVERS[v];
+  curVer = v;
+  document.getElementById("verBadge").textContent = d.badge;
+  document.getElementById("verNote").textContent = d.note;
+  document.getElementById("baseSel").value = d.proto;
+  document.getElementById("themeSel").value = d.theme;
+  document.getElementById("qStatus").textContent = d.status;
+  document.getElementById("footProto").textContent = d.proto;
+  document.getElementById("tokTheme").textContent = THEMES[d.theme].label;
+  document.getElementById("scopeHint").textContent = "版本 " + v + " · 基于原型 " + d.proto + " · 主题：" + THEMES[d.theme].label;
+  applyTheme(d.theme);
+  var ro = v !== latest;
+  document.getElementById("roBar2").classList.toggle("show", ro);
+  document.getElementById("roVer2").textContent = v;
+};
+(function () {
+  document.getElementById("verRail").addEventListener("click", function (e) {
+    var item = e.target.closest(".ver-item");
+    if (!item || item.dataset.ver === curVer) return;
+    document.querySelectorAll("#verRail .ver-item").forEach(function (h) { h.classList.toggle("active", h === item); });
+    window.applyVersion(item.dataset.ver);
+  });
+  var back = function () {
+    document.querySelectorAll("#verRail .ver-item").forEach(function (h) { h.classList.toggle("active", h.dataset.ver === latest); });
+    window.applyVersion(latest);
+  };
+  document.getElementById("roBack2").onclick = back;
+})();
+
+/* ── 页签切换（视觉稿 / 设计系统 / 质量与评审） ── */
+var curTab = "pages";
+var switchView = (function () {
+  var pills = document.querySelectorAll(".rev-pill");
+  return function (v) {
+    curTab = v;
+    pills.forEach(function (p) { p.classList.toggle("active", p.dataset.view === v); });
+    document.getElementById("viewPages").style.display = v === "pages" ? "flex" : "none";
+    document.getElementById("viewTokens").style.display = v === "tokens" ? "block" : "none";
+    document.getElementById("viewQuality").style.display = v === "quality" ? "" : "none";
+    if (v !== "pages") deselect(); /* 离开视觉稿段取消选区 */
+    renderCtxChips();
+  };
+})();
+(function () {
+  document.querySelectorAll(".rev-pill").forEach(function (p) {
+    p.addEventListener("click", function () { switchView(p.dataset.view); });
+  });
+})();
+
+/* ── 基底原型版本（原型版本历史） / 主题（内部主题） ── */
+document.getElementById("baseSel").addEventListener("change", function () {
+  var v = this.value;
+  toast("已切换基底原型 · " + v + " —— 视觉稿按原型 v" + v.slice(1) + " 的页面清单对齐（缺页检测运行中）");
+  document.getElementById("footProto").textContent = v;
+});
+document.getElementById("themeSel").addEventListener("change", function () {
+  var t = applyTheme(this.value);
+  document.getElementById("tokTheme").textContent = t.label;
+  toast("✓ 主题已切换 · " + t.label + " — 确定性重染（tokens 只改分类层，全稿联动）");
+});
+/* 页切换 */
+document.getElementById("pageSeg").addEventListener("click", function (e) {
+  var b = e.target.closest("button[data-page]");
+  if (!b) return;
+  document.querySelectorAll("#pageSeg button").forEach(function (x) { x.classList.toggle("on", x === b); });
+  document.getElementById("sec-login").style.display = b.dataset.page === "login" ? "" : "none";
+});
+/* 漂移检测（dembrandt · 按工作区 baseline） */
+document.getElementById("btnDrift").onclick = function () {
+  document.getElementById("driftChip").classList.add("show");
+  toast("⚑ 漂移检测完成 — dembrandt --compare · 确定性 0-100 分（零 LLM）");
+};
+
+/* ═══ UI 设计怎么从原型生成：读基底原型页面清单 → .dds tokens → 逐页渲染 → 新版本入列 ═══ */
+document.getElementById("btnGenUi").onclick = function () {
+  var btn = this;
+  if (btn.dataset.running) return;
+  btn.dataset.running = "1";
+  var prog = document.getElementById("uiGen");
+  var tx = document.getElementById("uiGenTx");
+  var base = document.getElementById("baseSel").value;
+  var themeKey = document.getElementById("themeSel").value;
+  var theme = THEMES[themeKey].label;
+  var steps = [
+    "读取原型 " + base + " 页面清单（登录 / 订单列表 / 设置）",
+    "生成 .dds tokens（主题：" + theme + " · 分类层优先）",
+    "渲染 [1/3] hero",
+    "渲染 [2/3] 登录页",
+    "渲染 [3/3] 订单列表页",
+    "挂接三方映射与缺页检测…"
+  ];
+  var i = 0;
+  prog.classList.add("show");
+  var timer = setInterval(function () {
+    if (i >= steps.length) {
+      clearInterval(timer);
+      delete btn.dataset.running;
+      prog.classList.remove("show");
+      var rail = document.getElementById("verRail");
+      var item = document.createElement("div");
+      item.className = "ver-item";
+      item.dataset.ver = "v" + (Date.now() % 1000);
+      item.innerHTML = '<div class="vi-time"><span class="vtag">v5</span> 刚刚 <span class="new">NEW</span></div>' +
+        '<div class="vi-meta">基于原型 ' + base + ' · 主题：' + theme + '</div>' +
+        '<div class="vi-set"><i class="proto">基于原型 ' + base + '</i><i>视觉稿</i><i>设计系统</i><i class="miss">质量未跑</i></div>';
+      rail.insertBefore(item, rail.querySelectorAll(".ver-item")[0] || null);
+      toast("✓ UI 设计稿已生成（基于原型 " + base + " · 主题：" + theme + "）—— 可运行质量评审");
+      return;
+    }
+    tx.textContent = steps[i];
+    i++;
+  }, 650);
+};
+
+/* ═══ 质量评审怎么产生：lint 三 preset → 渲染后机检 → review 门（R1 → 自愈 → R2） ═══ */
+document.getElementById("btnRunQuality").onclick = function () {
+  var btn = this;
+  if (btn.dataset.running) return;
+  btn.dataset.running = "1";
+  var prog = document.getElementById("qProg");
+  var tx = document.getElementById("qProgTx");
+  var rr1 = document.querySelector(".rr.fail");
+  var rr2 = document.querySelector(".rr.pass");
+  var steps = [
+    "design.lint · taste-required 扫描…",
+    "design.lint · anti-slop / a11y 扫描…",
+    "渲染后机检（375 溢出 / 触达 / 对比度实测）…",
+    "review 门 R1（critic .4 / brand .2 / a11y .2 / copy .2）…",
+    "R1 6.8 < 8.0 → 自愈第 1 轮…",
+    "R2 复评…"
+  ];
+  var i = 0;
+  rr1.querySelector("b").textContent = "—";
+  rr2.querySelector("b").textContent = "—";
+  prog.classList.add("show");
+  var timer = setInterval(function () {
+    if (i >= steps.length) {
+      clearInterval(timer);
+      delete btn.dataset.running;
+      prog.classList.remove("show");
+      rr1.querySelector("b").textContent = "6.8";
+      rr2.querySelector("b").textContent = "8.4";
+      document.getElementById("qcLint").textContent = "0";
+      document.getElementById("qcMachine").textContent = "4/4";
+      document.getElementById("qcReview").textContent = "8.4";
+      document.getElementById("qStatus").textContent = "v4 复检通过（lint 0 · 机检全绿 · review R2 8.4）";
+      toast("✓ 质量评审完成 — lint 0 · 机检 4/4 · review R2 8.4 ≥ 8.0（报告已更新）");
+      return;
+    }
+    tx.textContent = steps[i];
+    if (i === 3) rr1.querySelector("b").textContent = "6.8";
+    i++;
+  }, 850);
+};
+
+/* ═══ v2 选区悬浮修正：设计智能体追随选中 section（与原型模块同款） ═══ */
+var selEl = null;
+var ppop = document.getElementById("ppop");
+var SEC_CHIPS = ["改这一节文案", "调留白/间距", "换 accent 实验色"];
+function placePop() {
+  if (!selEl) return;
+  var canvas = selEl.closest(".proto-canvas");
+  if (!canvas) return;
+  var cr = canvas.getBoundingClientRect();
+  var er = selEl.getBoundingClientRect();
+  var x = er.right - cr.left + canvas.scrollLeft + 10;
+  var y = er.top - cr.top + canvas.scrollTop - 6;
+  if (x + 262 > cr.width + canvas.scrollLeft - 6) x = er.left - cr.left + canvas.scrollLeft - 266;
+  y = Math.max(canvas.scrollTop + 6, Math.min(y, canvas.scrollTop + cr.height - 160));
+  ppop.style.left = Math.max(canvas.scrollLeft + 6, x) + "px";
+  ppop.style.top = y + "px";
+}
+function selectEl(el) {
+  if (selEl) selEl.classList.remove("pd-sel");
+  selEl = el;
+  el.classList.add("pd-sel");
+  var sem = "//section[@data-dd-id=" + el.dataset.dd + "]";
+  document.getElementById("ppSem").textContent = sem;
+  var chips = document.getElementById("ppChips");
+  chips.innerHTML = "";
+  SEC_CHIPS.forEach(function (label) {
+    var b = document.createElement("button");
+    b.className = "qc";
+    b.textContent = label;
+    b.addEventListener("click", function (ev) { ev.stopPropagation(); applyFix(sem, label); });
+    chips.appendChild(b);
+  });
+  ppop.classList.add("show");
+  placePop();
+}
+function deselect() {
+  if (selEl) selEl.classList.remove("pd-sel");
+  selEl = null;
+  ppop.classList.remove("show");
+}
+function applyFix(sem, text) {
+  dlgPush("user", "修正 · " + sem + " — " + text);
+  document.getElementById("pdlgTyping").classList.add("show");
+  setTimeout(function () {
+    document.getElementById("pdlgTyping").classList.remove("show");
+    dlgPush("agent", "已按选中 section 完成修正（" + sem + "）——变更摘要写入版本 note，修订并入当前版本集。");
+    toast("✓ 选区修正已应用（silent · 修订 +1）");
+  }, 1300);
+}
+document.getElementById("protoCanvas").addEventListener("click", function (e) {
+  var sec = e.target.closest(".dd-sec");
+  if (!sec) { deselect(); return; }
+  selectEl(sec);
+});
+document.getElementById("ppClose").addEventListener("click", function (e) { e.stopPropagation(); deselect(); });
+document.getElementById("protoCanvas").addEventListener("scroll", function () { if (selEl) placePop(); });
+document.addEventListener("keydown", function (e) { if (e.key === "Escape") deselect(); });
+document.getElementById("ppSend").addEventListener("click", function () {
+  var input = document.getElementById("ppInput");
+  var v = input.value.trim();
+  if (!v || !selEl) return;
+  input.value = "";
+  applyFix("//section[@data-dd-id=" + selEl.dataset.dd + "]", v);
+});
+document.getElementById("ppInput").addEventListener("keydown", function (e) {
+  if (e.key === "Enter") document.getElementById("ppSend").click();
+});
+
+/* ── 悬浮智能体：页签感知快捷项 + 输入 ── */
+function dlgPush(who, tx) {
+  var m = document.createElement("div");
+  m.className = "pdlg-msg " + who;
+  m.innerHTML = '<div class="who">' + (who === "agent" ? "agent · silent 响应" : "设计事件 / 我") + '</div><div class="tx">' + tx + '</div>';
+  var bd = document.getElementById("pdlgBody");
+  bd.appendChild(m); bd.scrollTop = bd.scrollHeight;
+}
+var CTX_CHIPS = {
+  pages: ["换主题为 Glass", "订单列表加状态筛选", "hero 文案更克制"],
+  tokens: ["补 motion token 档位", "圆角改 3 档", "补 dark 分支"],
+  quality: ["修复对比度", "修 touch-target", "重跑 review 门"]
+};
+function renderCtxChips() {
+  var ctx = document.getElementById("pdlgCtx");
+  ctx.innerHTML = '<span style="font-size:9.5px; color:var(--ui-text-faint)">快捷（' +
+    ({ pages: "视觉稿", tokens: "设计系统", quality: "质量与评审" }[curTab]) + '）：</span>';
+  CTX_CHIPS[curTab].forEach(function (label) {
+    var b = document.createElement("button");
+    b.className = "qc";
+    b.textContent = label;
+    b.onclick = function () { agentHandle(label); };
+    ctx.appendChild(b);
+  });
+}
+var AGENT_REPLIES = {
+  pages: "已按你的要求修改视觉稿对应 section——变更摘要写入版本 note，修订并入当前版本集（保持原型基底联动）。",
+  tokens: "已更新 .dds tokens（分类层优先，语义层引用自动跟随）——schema 校验通过，全稿联动重染。",
+  quality: "已按报告定位并修复，复检通过——结果写回质量报告与 meta.verification。"
+};
+function agentHandle(text) {
+  dlgPush("user", text);
+  document.getElementById("pdlgTyping").classList.add("show");
+  setTimeout(function () {
+    document.getElementById("pdlgTyping").classList.remove("show");
+    dlgPush("agent", AGENT_REPLIES[curTab]);
+    toast("✓ 智能体修订已应用（silent · 修订 +1）");
+  }, 1400);
+}
+document.getElementById("pdlgSend").onclick = function () {
+  var input = document.getElementById("pdlgInput");
+  var v = input.value.trim();
+  if (!v) return;
+  input.value = "";
+  agentHandle(v);
+};
+document.getElementById("pdlgInput").addEventListener("keydown", function (e) {
+  if (e.key === "Enter") document.getElementById("pdlgSend").click();
+});
+document.getElementById("pdlgMin").onclick = function () {
+  var hide = document.getElementById("pdlgBody").style.display !== "none";
+  ["pdlgBody", "pdlgCtx", "pdlgTyping"].forEach(function (id) { document.getElementById(id).style.display = hide ? "none" : ""; });
+  document.querySelector(".pdlg-input").style.display = hide ? "none" : "";
+};
+function toast(msg, color) {
+  var t = document.createElement("div");
+  t.className = "run-toast";
+  if (color) t.style.color = color;
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(function () { t.remove(); }, 2400);
+}
+
+/* ── 质量页：v2 检出开关 + 双向定位（finding ↔ 视觉稿） + 交付 ── */
+document.getElementById("btnSeeV2").onclick = function () {
+  var v = document.getElementById("v2Findings");
+  v.style.display = v.style.display === "none" ? "" : "none";
+};
+(function () {
+  document.querySelectorAll(".chip.crg.locate").forEach(function (chip) {
+    chip.addEventListener("click", function () {
+      switchView("pages");
+      var sec = document.querySelector('.dd-sec[data-dd="' + chip.dataset.dd + '"]');
+      if (!sec) return;
+      if (sec.scrollIntoView) sec.scrollIntoView({ behavior: "smooth", block: "center" });
+      sec.classList.remove("flash");
+      void sec.offsetWidth;
+      sec.classList.add("flash");
+    });
+  });
+})();
+document.getElementById("btnDdu").onclick = function () { toast("⤓ orders.ddu — tokens.json · components.html · pages.json · verification.md · manifest v2"); };
+document.getElementById("btnDdu2").onclick = function () { toast("⤓ orders.ddu 已导出（质量证明随包：verification.md）"); };
+
+/* ── 深链初始段（#tokens / #quality / #pages-sel） ── */
+window.applyVersion(latest); /* 初始态显式化（主题变量内联 + 基底/提示对齐） */
+(function () {
+  var h = location.hash.replace("#", "");
+  if (h === "tokens" || h === "quality") switchView(h);
+  if (h === "pages-sel") {
+    switchView("pages");
+    setTimeout(function () { selectEl(document.querySelector('.dd-sec[data-dd="orders"]')); }, 60);
+  }
+})();
+renderCtxChips();
+</script>
+</body>
+</html>
