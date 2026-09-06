@@ -107,8 +107,9 @@ const lspBridgeServerConfig = {
 /**
  * Renderer: browser bundle with code splitting.
  * Splitting enables React.lazy() and dynamic import() to produce separate
- * chunk files, so heavy dependencies (Monaco ~5MB) are only loaded when the
- * user actually opens the editor.
+ * chunk files, so heavy dependencies (markdown renderers, mermaid) are only
+ * loaded when the user actually navigates to those surfaces. The editor is
+ * also lazy (CodeMirror 6 kernel — far lighter than the retired Monaco).
  * Requires outdir (not outfile) + format: "esm" (already set).
  */
 const rendererOutdir = resolve(outdir, "renderer");

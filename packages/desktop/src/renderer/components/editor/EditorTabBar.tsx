@@ -1,5 +1,6 @@
 import type { JSX } from "react";
 import { useI18n } from "../../i18n";
+import { FileIcon } from "../../ui/icons";
 
 type Props = {
   /** Open files in workspace order. */
@@ -7,6 +8,8 @@ type Props = {
   activeFile: string | null;
   /** Files whose draft differs from the on-disk baseline. */
   dirtyFiles: ReadonlySet<string>;
+  /** Files with an AI run awaiting review / just applied (amber dot). */
+  aiPendingFiles?: ReadonlySet<string>;
   onSelect: (file: string) => void;
   /** Always routed through the parent — the dirty-close guard lives there. */
   onCloseRequest: (file: string) => void;
@@ -18,7 +21,14 @@ type Props = {
  * tabs never reach the top-level tab model. Pure display: closing always asks
  * the parent, which owns the per-file dirty guard.
  */
-export function EditorTabBar({ files, activeFile, dirtyFiles, onSelect, onCloseRequest }: Props): JSX.Element {
+export function EditorTabBar({
+  files,
+  activeFile,
+  dirtyFiles,
+  aiPendingFiles,
+  onSelect,
+  onCloseRequest,
+}: Props): JSX.Element {
   const { t } = useI18n();
   return (
     <div className="ui-edtabs" role="tablist" aria-label={t("rail.editor")}>
@@ -26,6 +36,7 @@ export function EditorTabBar({ files, activeFile, dirtyFiles, onSelect, onCloseR
         const name = file.split(/[\\/]/).pop() ?? file;
         const active = file === activeFile;
         const dirty = dirtyFiles.has(file);
+        const aiPending = aiPendingFiles?.has(file) ?? false;
         return (
           <div
             key={file}
@@ -35,7 +46,13 @@ export function EditorTabBar({ files, activeFile, dirtyFiles, onSelect, onCloseR
             title={file}
           >
             <button type="button" className="ui-edtab-main" onClick={() => onSelect(file)}>
+              {/* Per-file-type badge (2026-09-06 user ask): the same linguist
+                  palette the tree uses, so tabs scan by color at a glance. */}
+              <FileIcon name={name} />
               <span className="ui-edtab-name">{name}</span>
+              {aiPending ? (
+                <span className="ui-edtab-ai" title={t("editor.pair.tabAi")} aria-label={t("editor.pair.tabAi")} />
+              ) : null}
               {dirty ? (
                 <span className="ui-edtab-dirty" title={t("editor.dirty")} aria-label={t("editor.dirty")} />
               ) : null}
