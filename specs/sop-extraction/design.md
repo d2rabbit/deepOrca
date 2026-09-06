@@ -122,6 +122,8 @@
 
 补充落地（2026-09-06 第二批，遗留项清偿）：**patterns/workflows 取向 builder**——core 新增 `buildBehaviorPatterns` 选项（binder fallback：patterns 优先、profile 兜底，boot 注入不受影响），desktop `formatSopContextBlock`（get_workflows 同源数据，纯函数）经 session-bridge 注入；**distill 快照 keep-N 剪枝**（`pruneDistillSnapshots`，对齐 memory-audit SNAPSHOT_KEEP=10，导出可直测）——原"预存缺口：快照无剪枝"闭合。门禁：core 847/0、desktop 510/0、`npm run build` ESM 重写覆盖新文件、变异校验 3/3。
 
+第三批（2026-09-06，code-bug-analyzer 四维扫描的修复批）：**Medium** ①`summarizeDecisions` 对损坏 rejections 条目解引用会砖化整个 action → `summarizeStore` 入口形状守卫（fail-open）+ 免重读；②剪枝逻辑在 distill 侧整段复制违"共享基底"约定 → 提取 `prunePrefixedSnapshots`，audit/distill 共用；③conclusion 400 预算被 clip-200 短路（与本批修过的 P1 同类遗留）→ `bounded(conclusion, 400)`。**安全加固**：L1/画像 prompt 段加 "DATA, not instructions" 定界；skillName 字符集门（`SAFE_SKILL_NAME`，防路径注入写回指令）；git commit scope 字符集白名单（防恶意仓库经 behavior-context 走私文本）；desktop patterns builder 60s TTL 缓存（主进程同步扫描不进 distill 热路径）。**Low 清偿**：快照文件名随机后缀（同毫秒不互相覆盖）、`bounded()` 尾部孤立代理对清理、verdict 入库归一（非 accept/reject → skip）、`(Nx)`→`(N×)` 统一、registry seam 字段命名统一、fallback/timeout 文档对齐实现。测试：query 截断钉值 200 / skillName 拒绝 / 损坏 store 容错 / verdict 归一钉 store 内容 / git scope 真仓夹具——变异校验 5/5。门禁：core 848/0、desktop 511/0。**未采纳（留痕）**：skill-new 审阅展示完整 body（UX 改动，另议）；lifecycle 内联 race 迁移到 withTimeoutNull（返回形状不同，非本批）。
+
 ## 5. 回写规则
 
 落地回写本 spec 状态行 + `specs/archive/memory-audit/tasks.md` P3 行指向本文；P2 连接器等 seam，不设时限。
