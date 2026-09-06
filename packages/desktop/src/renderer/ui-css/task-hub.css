@@ -260,6 +260,10 @@
   color: var(--dot-session, #1c6fe0);
   background: color-mix(in srgb, var(--dot-session, #1c6fe0) 12%, transparent);
 }
+.chip.tag-pair {
+  color: var(--dot-editor, #f08c00);
+  background: color-mix(in srgb, var(--dot-editor, #f08c00) 13%, transparent);
+}
 .chip.tag-pm-design {
   color: #e64980;
   background: color-mix(in srgb, #e64980 12%, transparent);

@@ -37,7 +37,7 @@ import { formatAbsolute, formatRelative } from "./task-hub-format";
  * 汇总全工作区 LLM 消耗（silent subagents 含）。
  */
 
-const DOMAINS: TaskHubDomain[] = ["session", "index", "review", "prototype"];
+const DOMAINS: TaskHubDomain[] = ["session", "index", "review", "prototype", "editor"];
 const RAIL_W = 90;
 const TRUNK_X = 28;
 
@@ -51,7 +51,19 @@ export type TaskHubQuickView =
       kind: "step-detail";
       root: string;
       title: string;
-      step: { tool: string; arg: string; ok?: boolean; fail?: boolean; ms?: string; mcp?: string; cls: string };
+      step: {
+        tool: string;
+        arg: string;
+        ok?: boolean;
+        fail?: boolean;
+        ms?: string;
+        mcp?: string;
+        cls: string;
+        /** Op start time (ISO) — rendered in the workspace timezone. */
+        at?: string;
+        /** Truncated tool result markdown (detail enrichment). */
+        resultMd?: string;
+      };
     }
   | {
       kind: "build";
@@ -75,6 +87,8 @@ type Props = {
   /** 分支独立 fork（九轮）：切进 git worktree 临时工作区（停泊当前 →
    *  切 root → 会话主视图）。 */
   onOpenWorkspace: (root: string) => void;
+  /** Editor pair-run nodes (specs/editor-copilot 链路 D): open the file. */
+  onOpenEditorFile?: (root: string, file: string) => void;
 };
 
 export function TaskHubWorkspace({
@@ -83,6 +97,7 @@ export function TaskHubWorkspace({
   onOpenDesign,
   onOpenKnowledge,
   onOpenSession,
+  onOpenEditorFile,
   onOpenWorkspace,
 }: Props): JSX.Element {
   const { t } = useI18n();
@@ -115,6 +130,9 @@ export function TaskHubWorkspace({
       });
     } else if (src.kind === "design-artifact") {
       onOpenDesign(src.artifactId, src.pipeline);
+    } else if (src.kind === "editor-run") {
+      // Editor pair-run nodes (链路 D): open the owning file's tab.
+      onOpenEditorFile?.(root, src.file);
     }
   };
   const [traces, setTraces] = useState<Record<string, Awaited<ReturnType<typeof api.taskHubTrace>>>>({});
@@ -241,7 +259,13 @@ export function TaskHubWorkspace({
     setMergeFor(null);
   }, [pop]);
 
-  const flat = useMemo(() => hub?.groups.flatMap((g) => g.nodes) ?? [], [hub]);
+  const flat = useMemo(
+    // 2026-09-06 user ask: the trunk is ONE global timeline — sort every node
+    // by start time (newest first) instead of domain-block order, so a fresh
+    // editor pair-run is never buried under 4-day-old review nodes.
+    () => (hub?.groups.flatMap((g) => g.nodes) ?? []).sort((a, b) => b.startedAt.localeCompare(a.startedAt)),
+    [hub]
+  );
   /** Fork 伪节点交错进行序列：每棵会话树后面紧跟它的分支节点行
    *  （lane 1，⑂ 标题，abandoned → archived 状态）。 */
   const rows = useMemo(() => {
@@ -549,6 +573,7 @@ export function TaskHubWorkspace({
     if (isFork(n)) return { label: "FORK", cls: "tag-fork" };
     if (n.source.kind === "review-report") return { label: "REVIEW", cls: "tag-review" };
     if (n.source.kind === "index-job") return { label: "INDEX", cls: "tag-index" };
+    if (n.source.kind === "editor-run") return { label: "PAIR", cls: "tag-pair" };
     if (n.source.kind === "design-artifact")
       return {
         label: n.source.pipeline === "spec" ? "PM-DESIGN" : "UI-DESIGN",
@@ -764,6 +789,16 @@ export function TaskHubWorkspace({
                             {formatRelative(node.startedAt, t("index.freshness.justNow"), "—")}
                             {node.startedAt ? ` · ${formatAbsolute(node.startedAt)}` : ""}
                           </span>
+                          {/* Editor pair-run cost/behavior (2026-09-06 user ask):
+                              token 消耗 + 迭代次数 directly on the task node. */}
+                          {node.source.kind === "editor-run" && node.meta?.tokens ? (
+                            <span className="mono" title="token 消耗（本地计数 ≈）">
+                              ≈{fmtTokens(Number((node.meta.tokens as { total?: number }).total ?? 0))} tok
+                            </span>
+                          ) : null}
+                          {node.source.kind === "editor-run" && node.meta?.iterations != null ? (
+                            <span title="agent 迭代轮数">{String(node.meta.iterations)} it</span>
+                          ) : null}
                           {node.meta?.comments != null ? (
                             <span>{t("taskhub.findings", { n: node.meta.comments as number })}</span>
                           ) : null}
@@ -790,7 +825,7 @@ export function TaskHubWorkspace({
                                       <div className="turn-head">
                                         <span>
                                           Turn {i + 1}
-                                          {turn.at ? ` · ${turn.at}` : ""}
+                                          {turn.at ? ` · ${formatAbsolute(turn.at)}` : ""}
                                           {s.truncated && i === 0 ? " …" : ""}
                                         </span>
                                         <span className="ln" />
@@ -822,6 +857,10 @@ export function TaskHubWorkspace({
                                                   ms: step.ms,
                                                   mcp: step.mcp,
                                                   cls: step.cls,
+                                                  // 2026-09-06 user ask: richer detail —
+                                                  // local time + the tool's result markdown.
+                                                  at: step.at,
+                                                  resultMd: step.resultMd,
                                                 },
                                               });
                                             }}

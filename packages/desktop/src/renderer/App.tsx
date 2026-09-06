@@ -38,7 +38,6 @@ import { Sidebar } from "./components/Sidebar";
 import { MessageList } from "./components/MessageList";
 import { DepthLaneProgressStrip } from "./components/DepthLaneProgressStrip";
 import { AnimatePresence, m, springToken } from "./ui/motion";
-import { scheduleMonacoWarmup } from "./components/editor/monaco-loader";
 import { Composer } from "./components/Composer";
 import { PermissionCard } from "./components/PermissionCard";
 import { QuestionCard } from "./components/QuestionCard";
@@ -61,7 +60,9 @@ import { lazy, Suspense } from "react";
 
 // Lazy-load heavy components that are only shown when the user navigates to
 // specific views. This keeps the initial bundle small and defers ~5MB+ of
-// code (Monaco + markdown renderers) until actually needed.
+// code (markdown renderers, mermaid, review surfaces) until actually needed;
+// the editor below is also lazy (CodeMirror 6 kernel — far lighter than the
+// retired Monaco).
 const CodeReviewPanel = lazy(() =>
   import("./components/CodeReviewPanel").then((m) => ({ default: m.CodeReviewPanel }))
 );
@@ -338,11 +339,13 @@ export function App(): JSX.Element {
   useEffect(() => {
     if (previewOpen) setTaskQuick(null);
   }, [previewOpen]);
-  // Editor open-speed warmup (user ask 2026-09-05): fetch the editor chunk
-  // + Monaco core during idle so the first editor open skips the multi-MB
-  // parse. Best-effort — failures just fall back to cold open. Run once.
+  // Editor open-speed warmup (user ask 2026-09-05, CM6 era): pre-import the
+  // editor chunk during idle so the first open renders at speed. The ~2MB
+  // CM6 family ships in the workspace chunk — no worker bootstrap needed.
   useEffect(() => {
-    const warmTimer = window.setTimeout(() => scheduleMonacoWarmup(), 1500);
+    const warmTimer = window.setTimeout(() => {
+      void import("./components/editor/EditorWorkspace").catch(() => undefined);
+    }, 1500);
     return () => window.clearTimeout(warmTimer);
   }, []);
   // Workspace task tabs (specs/task-tree session→task cross-reference entry):
@@ -2386,6 +2389,7 @@ export function App(): JSX.Element {
                   onOpenQuick={(quick) => handleOpenTaskQuick(quick)}
                   onOpenKnowledge={handleOpenKnowledgeTab}
                   onOpenSession={handleSelectSession}
+                  onOpenEditorFile={(_root, file) => handleOpenEditor(file)}
                   onOpenWorkspace={(wtRoot) => {
                     // 分支独立 fork（九轮）：切进 git worktree 临时工作区 ——
                     // 停泊当前会话 → 切 root → 会话主视图（结构性隔离）。
@@ -2571,33 +2575,87 @@ export function App(): JSX.Element {
             {taskQuick.kind === "report" ? (
               <ReportQuickContent root={taskQuick.root} reportId={taskQuick.reportId} />
             ) : taskQuick.kind === "step-detail" ? (
-              <div className="ui-depth-op-report">
-                <div className="ui-depth-op-head">
-                  <span className={`ui-depth-op-status ${taskQuick.step.fail ? "fail" : "ok"}`}>
-                    {taskQuick.step.fail ? "✗ 失败" : taskQuick.step.ok ? "✓ 已完成" : "◐ 进行中"}
-                  </span>
-                  <span className="ui-depth-op-tool">{taskQuick.step.tool}</span>
-                  {taskQuick.step.mcp ? <span className="ui-depth-op-mcp">{taskQuick.step.mcp}</span> : null}
-                </div>
-                <div className="ui-depth-op-meta">
-                  <div className="ui-depth-op-meta-item">
-                    <span className="ui-depth-op-meta-label">{t("taskrec.detailDuration")}</span>
-                    <span className="ui-depth-op-meta-value">{taskQuick.step.ms || "—"}</span>
-                  </div>
-                  {taskQuick.step.mcp ? (
-                    <div className="ui-depth-op-meta-item">
-                      <span className="ui-depth-op-meta-label">MCP</span>
-                      <span className="ui-depth-op-meta-value">{taskQuick.step.mcp}</span>
+              (() => {
+                // 2026-09-06 user ask: the trajectory detail was a bare JSON
+                // dump — structured key/value params, local op time and the
+                // tool's result markdown turn it into a real report.
+                let prettyArg = taskQuick.step.arg ?? "";
+                const paramRows: Array<{ k: string; v: string }> = [];
+                try {
+                  const parsed = JSON.parse(taskQuick.step.arg) as Record<string, unknown>;
+                  if (parsed && typeof parsed === "object") {
+                    for (const [k, v] of Object.entries(parsed)) {
+                      paramRows.push({ k, v: typeof v === "string" ? v : JSON.stringify(v) });
+                    }
+                    prettyArg = JSON.stringify(parsed, null, 2);
+                  }
+                } catch {
+                  /* non-JSON args stay raw */
+                }
+                const opTime = taskQuick.step.at
+                  ? (() => {
+                      const d = new Date(taskQuick.step.at as string);
+                      return Number.isNaN(d.getTime())
+                        ? ""
+                        : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+                            d.getDate()
+                          ).padStart(2, "0")} ${String(d.getHours()).padStart(2, "0")}:${String(
+                            d.getMinutes()
+                          ).padStart(2, "0")}:${String(d.getSeconds()).padStart(2, "0")}`;
+                    })()
+                  : "";
+                return (
+                  <div className="ui-depth-op-report">
+                    <div className="ui-depth-op-head">
+                      <span className={`ui-depth-op-status ${taskQuick.step.fail ? "fail" : "ok"}`}>
+                        {taskQuick.step.fail ? "✗ 失败" : taskQuick.step.ok ? "✓ 已完成" : "◐ 进行中"}
+                      </span>
+                      <span className="ui-depth-op-tool">{taskQuick.step.tool}</span>
+                      {taskQuick.step.mcp ? <span className="ui-depth-op-mcp">{taskQuick.step.mcp}</span> : null}
                     </div>
-                  ) : null}
-                </div>
-                {taskQuick.step.arg ? (
-                  <div className="ui-depth-op-section">
-                    <div className="ui-depth-op-section-label">{t("taskrec.detailArgs")}</div>
-                    <pre className="ui-depth-op-pre">{taskQuick.step.arg}</pre>
+                    <div className="ui-depth-op-meta">
+                      <div className="ui-depth-op-meta-item">
+                        <span className="ui-depth-op-meta-label">{t("taskrec.detailDuration")}</span>
+                        <span className="ui-depth-op-meta-value">{taskQuick.step.ms || "—"}</span>
+                      </div>
+                      {opTime ? (
+                        <div className="ui-depth-op-meta-item">
+                          <span className="ui-depth-op-meta-label">{t("taskrec.detailTime")}</span>
+                          <span className="ui-depth-op-meta-value">{opTime}</span>
+                        </div>
+                      ) : null}
+                      {taskQuick.step.mcp ? (
+                        <div className="ui-depth-op-meta-item">
+                          <span className="ui-depth-op-meta-label">MCP</span>
+                          <span className="ui-depth-op-meta-value">{taskQuick.step.mcp}</span>
+                        </div>
+                      ) : null}
+                    </div>
+                    {paramRows.length > 0 ? (
+                      <div className="ui-depth-op-section">
+                        <div className="ui-depth-op-section-label">{t("taskrec.detailArgs")}</div>
+                        {paramRows.map((row) => (
+                          <div key={row.k} className="ui-depth-op-kv">
+                            <span className="k mono">{row.k}</span>
+                            <span className="v mono">{row.v}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : taskQuick.step.arg ? (
+                      <div className="ui-depth-op-section">
+                        <div className="ui-depth-op-section-label">{t("taskrec.detailArgs")}</div>
+                        <pre className="ui-depth-op-pre">{prettyArg}</pre>
+                      </div>
+                    ) : null}
+                    {taskQuick.step.resultMd ? (
+                      <div className="ui-depth-op-section">
+                        <div className="ui-depth-op-section-label">{t("taskrec.detailResult")}</div>
+                        <pre className="ui-depth-op-pre">{taskQuick.step.resultMd}</pre>
+                      </div>
+                    ) : null}
                   </div>
-                ) : null}
-              </div>
+                );
+              })()
             ) : taskQuick.kind === "timeline" ? (
               <TaskRecordPanel treeId={taskQuick.treeId} workspaceRoot={taskQuick.root} />
             ) : (
