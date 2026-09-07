@@ -1,0 +1,583 @@
+<!doctype html>
+<html lang="zh" data-appearance="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>工作链 · 设计稿（以项目真实 UI 构建 · 任务树唯一共享面 · 链 id 绑设备 · fork=checkout 新分支并自动上链）</title>
+    <!-- 与运行中应用相同的样式（真实 ui.css + Aqua 主题），结构逐行对齐真实组件 -->
+    <link rel="stylesheet" href="../../packages/desktop/src/renderer/ui.css" />
+    <link rel="stylesheet" href="../../packages/desktop/src/renderer/styles.css" />
+    <style>
+      /* ================================================================
+       * 设计稿 —— 需求基线（requirements-reset.md + 2026-09-07 二次澄清）：
+       * · 工作区 = 项目维度（一个项目一个工作区）；任务区 = 任务树节点；
+       *   fork 一个节点 → 本工作区产生一个新任务区（会话模块新增 item）。
+       * · fork = checkout 一个新分支；fork 行为即上链（自动，无需手动共享）。
+       * · 行为轨迹 = git log 式（图符 + refs + 作者 + 时间 + 说明）。
+       * · 链 id 绑定设备、每设备唯一；任务树显示链 id；会话模块任务区
+       *   item 底部一行小字链 id；fork 相关处显示来源链 id。
+       * · 编辑器/审查报告/设计/需求原型/知识库模块：按版本管理
+       *   （版本 item 命名「<名称> yyyy-mm-dd」），版本 item 下一行链 id
+       *   （= fork 来源的链 id）。
+       * · 设置只新增一个「开启链共享」开关：关=本地独立；开=自动上链。
+       * 本 <style> 只承载新增最小元素（任务区 item 链 id 行、链 chip、
+       * git log 轨迹行、版本 item），其余全部来自项目真实 CSS。
+       * ================================================================ */
+      html, body { height: 100%; margin: 0; overflow: hidden; }
+      .v-shell { height: 100vh; display: flex; flex-direction: column; background: var(--ui-bg); }
+      .v-main { flex: 1; min-height: 0; display: flex; }
+      .v-stage { flex: 1; min-width: 0; display: flex; flex-direction: column; padding: 14px 20px 0; gap: 10px; overflow: hidden; }
+      .v-stage-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+      .v-stage-head .t { font-size: 14px; font-weight: 600; }
+      .v-ws-ident { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--ui-border-soft, #c3cdd9); border-radius: var(--ui-radius-pill, 999px); padding: 3px 12px; font-size: 11px; color: var(--ui-text-dim, #55606d); background: var(--ui-surface-raised, #fff); }
+      .v-ws-ident .wid { font-family: var(--ui-font-mono, monospace); color: var(--ui-text, #1b2129); }
+      .v-ws-ident .cid { font-family: var(--ui-font-mono, monospace); color: var(--ui-accent, #1c6fe0); }
+      .v-seg { display: inline-flex; border: 1px solid var(--ui-border-soft, #c3cdd9); border-radius: var(--ui-radius-pill, 999px); overflow: hidden; margin-left: auto; }
+      .v-seg button { background: transparent; border: none; padding: 4px 14px; font-size: 11.5px; color: var(--ui-text-dim, #55606d); cursor: pointer; font-family: var(--ui-font-sans, system-ui); }
+      .v-seg button.on { background: var(--ui-surface-raised, #fff); color: var(--ui-text, #1b2129); }
+
+      /* 任务区 item 底部小字链 id（会话模块，新增最小元素） */
+      .v-item-chain { font-family: var(--ui-font-mono, monospace); font-size: 9px; color: var(--ui-text-faint, #8590a0); padding: 0 0 1px 24px; line-height: 1.5; }
+      .v-item-chain .src { color: var(--ui-accent, #1c6fe0); }
+      .v-item-chain b { color: var(--ui-text-dim, #55606d); font-weight: 400; }
+
+      /* 树卡片 meta 里的链 chip（fork 节点显示来源链 id） */
+      .v-chain-chip { font-family: var(--ui-font-mono, monospace); font-size: 9.5px; color: var(--ui-accent, #1c6fe0); border: 1px solid color-mix(in srgb, var(--ui-accent, #1c6fe0) 35%, transparent); border-radius: 5px; padding: 0 5px; background: color-mix(in srgb, var(--ui-accent, #1c6fe0) 7%, transparent); }
+      .v-chain-chip.src { color: var(--ui-text-dim, #55606d); border-color: var(--ui-border-soft, #c3cdd9); background: transparent; }
+
+      /* fork/merge pop（沿用真实 ui-taskhub-pop / forkform 语义） */
+      .v-pop { border-radius: 12px; padding: 12px 14px; margin: 8px 0 0 14px; background: var(--ui-surface-raised, #fff); box-shadow: var(--ui-shadow-card, 0 1px 2px rgba(0, 0, 0, 0.2), 0 6px 20px rgba(20, 50, 100, 0.14)); }
+      .v-pop.fork { border: 1px solid var(--ui-accent, #1c6fe0); }
+      .v-pop.merge { border: 1px solid var(--ui-warning, #cf9310); }
+      .v-pop h5 { font-size: 12.5px; font-weight: 600; margin-bottom: 9px; }
+      .v-pop .src-box { border: 1px solid var(--ui-border-soft, #c3cdd9); border-radius: 8px; padding: 8px 10px; font-size: 11px; line-height: 1.8; background: var(--ui-surface, #fff); margin-bottom: 9px; }
+      .v-pop .src-box .k { color: var(--ui-text-faint, #8590a0); font-size: 9.5px; letter-spacing: 0.04em; }
+      .v-pop .src-box .cl { font-family: var(--ui-font-mono, monospace); color: var(--ui-accent, #1c6fe0); }
+      .v-dom { display: flex; gap: 6px; flex-wrap: wrap; }
+      .v-dom label { font-size: 11px; border: 1px solid var(--ui-border-soft, #c3cdd9); border-radius: var(--ui-radius-pill, 999px); padding: 4px 11px; cursor: pointer; color: var(--ui-text-dim, #55606d); display: inline-flex; align-items: center; gap: 6px; }
+      .v-dom label.on { border-color: var(--ui-accent, #1c6fe0); color: var(--ui-text, #1b2129); background: var(--ui-accent-soft, rgba(28, 111, 224, 0.14)); }
+      .v-dom label.locked { opacity: 0.5; cursor: not-allowed; border-style: dashed; color: var(--ui-danger, #d1453b); }
+      .v-pop input[type="text"], .v-pop textarea { width: 100%; padding: 6px 9px; border-radius: 8px; border: 1px solid var(--ui-border-soft, #c3cdd9); background: var(--ui-surface, #fff); color: var(--ui-text, #1b2129); font-size: 12px; outline: none; font-family: var(--ui-font-sans, system-ui); }
+      .v-pop input:focus, .v-pop textarea:focus { border-color: var(--ui-accent, #1c6fe0); }
+      .v-pop textarea { resize: vertical; min-height: 40px; margin-top: 6px; }
+      .v-pop .auto-note { font-size: 10.5px; color: var(--ui-text-dim, #55606d); line-height: 1.8; border: 1px solid var(--ui-border-soft, #c3cdd9); border-radius: 8px; padding: 7px 10px; background: var(--ui-surface, #fff); margin-top: 8px; }
+      .v-pop .auto-note b { color: var(--ui-success, #2f9e44); }
+      .v-pop .acts { display: flex; gap: 8px; justify-content: flex-end; margin-top: 10px; }
+
+      /* git log 式行为轨迹（子页） */
+      .v-gitlog { font-family: var(--ui-font-mono, monospace); font-size: 11.5px; line-height: 2.0; color: var(--ui-text-dim, #55606d); padding: 10px 16px; }
+      .v-gitlog .row { display: flex; gap: 10px; white-space: nowrap; cursor: pointer; border-radius: 6px; padding: 0 6px; }
+      .v-gitlog .row:hover { background: var(--ui-surface-hover, rgba(0, 0, 0, 0.05)); }
+      .v-gitlog .g { color: var(--ui-text-faint, #8590a0); width: 34px; flex-shrink: 0; }
+      .v-gitlog .h { color: var(--ui-warning, #cf9310); width: 52px; flex-shrink: 0; }
+      .v-gitlog .refs { color: var(--ui-accent, #1c6fe0); }
+      .v-gitlog .msg { color: var(--ui-text, #1b2129); overflow: hidden; text-overflow: ellipsis; }
+      .v-gitlog .who { margin-left: auto; color: var(--ui-text-faint, #8590a0); flex-shrink: 0; }
+      .v-gitlog .head { color: var(--ui-text-faint, #8590a0); font-size: 10px; padding: 0 6px 6px; }
+
+      /* 模块版本管理 item（编辑器/审查/设计/原型/知识库，新增最小元素） */
+      .v-ver-item { border: 1px solid var(--ui-border-soft, #c3cdd9); border-radius: 8px; padding: 8px 10px; background: var(--ui-surface, #fff); margin-bottom: 8px; }
+      .v-ver-item .vt { display: flex; align-items: baseline; gap: 8px; font-size: 12px; }
+      .v-ver-item .vt .nm { font-weight: 600; }
+      .v-ver-item .vt .tm { color: var(--ui-text-faint, #8590a0); font-size: 10.5px; }
+      .v-ver-item .vt .vv { margin-left: auto; font-family: var(--ui-font-mono, monospace); font-size: 10px; color: var(--ui-text-dim, #55606d); }
+      .v-ver-item .vc { font-family: var(--ui-font-mono, monospace); font-size: 9px; color: var(--ui-text-faint, #8590a0); margin-top: 4px; padding-left: 2px; }
+      .v-ver-item .vc b { color: var(--ui-accent, #1c6fe0); font-weight: 400; }
+
+      /* 设置「开启链共享」开关 + 标注/页脚/模态/toast */
+      .v-field { border: 1px solid var(--ui-border-soft, #c3cdd9); border-radius: var(--ui-radius-md, 9px); padding: 11px 13px; background: var(--ui-surface-raised, #fff); margin-bottom: 10px; }
+      .v-field .fw { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+      .v-field .ft { font-size: 12.5px; font-weight: 600; }
+      .v-field .fd { font-size: 10.5px; color: var(--ui-text-dim, #55606d); margin-top: 3px; line-height: 1.6; }
+      .v-switch { width: 38px; height: 21px; border-radius: 99px; border: 1px solid var(--ui-border, #9aa7b6); background: var(--ui-surface-sunken, #eef1f6); position: relative; cursor: pointer; flex-shrink: 0; transition: background 0.15s; }
+      .v-switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 15px; height: 15px; border-radius: 50%; background: var(--ui-text-dim, #55606d); transition: transform 0.15s, background 0.15s; }
+      .v-switch.on { background: var(--ui-accent, #1c6fe0); border-color: var(--ui-accent, #1c6fe0); }
+      .v-switch.on::after { transform: translateX(17px); background: #fff; }
+      .v-annot { display: none; position: relative; margin-left: 4px; width: 15px; height: 15px; border-radius: 50%; background: var(--ui-accent, #1c6fe0); color: #fff; font-size: 9px; text-align: center; line-height: 15px; cursor: pointer; flex-shrink: 0; font-weight: 700; vertical-align: middle; }
+      body.v-annot-on .v-annot { display: inline-block; }
+      .v-foot { padding: 6px 16px; border-top: 1px solid var(--ui-border-soft, #c3cdd9); background: var(--ui-surface, #fff); font-size: 10px; color: var(--ui-text-faint, #8590a0); display: flex; gap: 14px; flex-wrap: wrap; align-items: center; flex-shrink: 0; line-height: 1.7; }
+      .v-foot b { color: var(--ui-text-dim, #55606d); }
+      .v-foot .tgl { margin-left: auto; border: 1px solid var(--ui-border-soft, #c3cdd9); border-radius: 999px; padding: 1px 10px; background: transparent; color: var(--ui-text-dim, #55606d); font-size: 10px; cursor: pointer; font-family: var(--ui-font-sans, system-ui); }
+      .v-scrim { position: fixed; inset: 0; background: rgba(4, 6, 10, 0.55); backdrop-filter: blur(3px); display: none; align-items: center; justify-content: center; z-index: 98; }
+      .v-scrim.show { display: flex; }
+      .v-modal-card { width: 480px; max-width: calc(100vw - 40px); max-height: calc(100vh - 60px); overflow: auto; border-radius: var(--ui-radius-lg, 12px); border: 1px solid var(--ui-border, #9aa7b6); background: var(--ui-surface, #fff); box-shadow: var(--ui-shadow-modal, 0 18px 60px rgba(0, 0, 0, 0.32)); padding: 16px 18px; }
+      .v-modal-card h3 { font-size: 14.5px; margin-bottom: 8px; }
+      .v-modal-card .sub { font-size: 11.5px; color: var(--ui-text-dim, #55606d); line-height: 1.8; }
+      .v-settings { width: 680px; max-width: calc(100vw - 60px); max-height: calc(100vh - 70px); border-radius: var(--ui-radius-lg, 12px); border: 1px solid var(--ui-border, #9aa7b6); background: var(--ui-surface, #fff); box-shadow: var(--ui-shadow-modal, 0 18px 60px rgba(0, 0, 0, 0.32)); display: flex; overflow: hidden; }
+      .v-settings-nav { width: 164px; border-right: 1px solid var(--ui-border-soft, #c3cdd9); padding: 10px 8px; display: flex; flex-direction: column; gap: 2px; background: var(--ui-surface-raised, #fff); overflow: auto; }
+      .v-settings-nav button { display: flex; align-items: center; gap: 9px; padding: 7px 10px; border-radius: var(--ui-radius-md, 9px); border: none; background: transparent; color: var(--ui-text-dim, #55606d); font-size: 12px; cursor: pointer; text-align: left; font-family: var(--ui-font-sans, system-ui); }
+      .v-settings-nav button.on { background: var(--ui-accent-soft, rgba(28, 111, 224, 0.14)); color: var(--ui-text, #1b2129); }
+      .v-settings-nav button.new { color: var(--ui-accent, #1c6fe0); }
+      .v-settings-body { flex: 1; min-width: 0; overflow: auto; padding: 16px 18px; }
+      .v-settings-body h2 { font-size: 14.5px; margin-bottom: 6px; }
+      .v-settings-body .sg { font-size: 11.5px; color: var(--ui-text-dim, #55606d); line-height: 1.8; margin-bottom: 14px; }
+      .v-settings-footer { display: flex; justify-content: flex-end; gap: 8px; border-top: 1px solid var(--ui-border-soft, #c3cdd9); padding: 10px 16px; }
+      .v-toasts { position: fixed; right: 18px; bottom: 18px; display: flex; flex-direction: column; gap: 8px; z-index: 200; align-items: flex-end; }
+      .v-toast { background: var(--ui-surface-raised, #fff); border: 1px solid var(--ui-border, #9aa7b6); border-left: 3px solid var(--ui-accent, #1c6fe0); border-radius: 10px; padding: 9px 13px; font-size: 12px; box-shadow: var(--ui-shadow-modal, 0 18px 60px rgba(0, 0, 0, 0.32)); max-width: 400px; line-height: 1.6; }
+      .v-toast.ok { border-left-color: var(--ui-success, #2f9e44); }
+      .v-toast.err { border-left-color: var(--ui-danger, #d1453b); }
+      .v-toast .tt { font-weight: 600; }
+      .v-toast .td { color: var(--ui-text-faint, #8590a0); font-size: 10px; font-family: var(--ui-font-mono, monospace); margin-top: 2px; }
+    </style>
+  </head>
+  <body>
+    <div class="v-shell">
+      <!-- TopBar —— 结构与 TopBar.tsx 一致 -->
+      <header class="ui-window-bar">
+        <div class="ui-window-controls mac">
+          <button class="ui-gumdrop close"></button><button class="ui-gumdrop min"></button><button class="ui-gumdrop zoom"></button>
+        </div>
+        <div class="ui-topbar-pill ui-topbar-project" title="/Volumes/data/dev/coding/gvgl">
+          <span class="ui-topbar-project-name">GVGL</span>
+          <span class="ui-topbar-sep">/</span>
+          <select class="ui-topbar-branch" id="pillBranch" title="分支">
+            <option>main</option><option>fork/passkey</option><option>fork/design-passkey</option>
+          </select>
+        </div>
+        <div class="ui-window-bar-spacer">
+          <span class="ui-topbar-session-status">
+            <span class="ui-status-dot ui-status-dot--running"></span>
+            <span class="ui-topbar-session-title" id="topbarStatus">任务树 = 全链唯一共享面 · 链 id 绑定设备（每设备唯一）</span>
+          </span>
+        </div>
+        <div class="ui-topbar-pill ui-topbar-models">
+          <button class="ui-topbar-model" style="background:transparent;border:none;color:inherit;cursor:pointer;font:inherit">StepFun Plan / step-3.</button>
+          <span class="ui-topbar-divider"></span>
+          <button class="ui-topbar-thinking" style="background:transparent;border:none;color:inherit;cursor:pointer;font:inherit">High</button>
+        </div>
+        <button class="ui-topbar-pill ui-topbar-tokens" title="上下文 / 工作区令牌">
+          <span class="ui-topbar-token-part"><span class="ui-topbar-token-label">上下文</span><span class="ui-topbar-token-value">142k</span></span>
+          <span class="ui-topbar-token-bar"><span class="ui-topbar-token-bar-fill" style="width:28%"></span></span>
+          <span class="ui-topbar-token-part"><span class="ui-topbar-token-label">工作区</span><span class="ui-topbar-token-value">1.10M</span></span>
+        </button>
+        <button class="ui-topbar-pill" id="appearanceBtn" style="cursor:pointer;background:transparent;border:none">🌓</button>
+        <button class="ui-topbar-pill" id="settingsBtn" style="cursor:pointer;background:transparent;border:none">⚙</button>
+      </header>
+
+      <div class="v-main">
+        <!-- 会话模块 —— 结构与 Sidebar.tsx 一致：工作区（项目维度）分组，children = 任务区（任务树节点）；
+             每个任务区 item 最底下一行小字链 id（fork 的显示来源链 id） -->
+        <aside class="ui-session-panel" style="width:272px;flex-shrink:0;border-right:1px solid var(--ui-border-soft,#c3cdd9);display:flex;flex-direction:column;min-height:0">
+          <div class="ui-session-panel-head">
+            <span>会话 <span class="ui-session-count-badge" id="sessCount">4</span></span>
+            <div class="ui-session-panel-head-actions">
+              <span class="v-annot" data-map="sessions">i</span>
+              <button class="ui-icon-btn--sm" title="新建工作区">＋</button>
+              <button class="ui-icon-btn--sm" title="收起">⟨</button>
+            </div>
+          </div>
+          <div class="ui-session-search"><input class="ui-input" type="text" placeholder="搜索会话" /></div>
+          <div class="ui-session-list" id="sessList" style="overflow:auto;flex:1;min-height:0"></div>
+          <button class="ui-session-tokens" title="令牌面板">
+            <span class="ui-session-tokens-part"><span class="ui-session-tokens-label">工作区</span><span class="ui-session-tokens-value">1.10M</span></span>
+            <span class="ui-session-tokens-part"><span class="ui-session-tokens-label">累计</span><span class="ui-session-tokens-value">18.4M</span></span>
+          </button>
+        </aside>
+
+        <!-- 主内容区：任务树（TaskHubWorkspace 结构还原）；树节点显示链 id -->
+        <main class="v-stage">
+          <div class="v-stage-head">
+            <span class="t">任务树</span>
+            <span class="v-ws-ident"><span>🌿</span><span class="wid" id="stageWs"></span><span class="sep">·</span><span class="cid" id="stageChain" title="本设备链 id（每设备唯一）"></span></span>
+            <span class="v-annot" data-map="tree">i</span>
+            <div class="v-seg" id="mainSeg">
+              <button data-v="tree" class="on">任务树</button>
+              <button data-v="trail">行为轨迹（git log）</button>
+            </div>
+          </div>
+          <div id="hubWrap" style="flex:1;min-height:0;overflow:auto"></div>
+        </main>
+
+        <!-- 右侧悬浮预览（TaskQuickSheet 结构）：模块版本管理（编辑器/审查/设计/原型/知识库） -->
+        <section class="ui-preview-panel ui-task-quick" id="previewPanel" style="display:none"></section>
+      </div>
+
+      <footer class="v-foot">
+        <span><b>概念</b>：工作区=项目维度（一个项目一个）；<b>任务区=任务树节点</b>——fork 一个节点，本工作区即产生一个新任务区（会话模块新增 item）。</span>
+        <span><b>规则</b>：fork=checkout 新分支，<b>行为即上链（自动）</b>；行为轨迹=git log 式；链 id 绑定设备、每设备唯一；fork 相关处显示<b>来源链 id</b>；编辑器/审查/设计/原型/知识库按版本管理（版本 item 下写来源链 id）；设置仅一个「开启链共享」开关。</span>
+        <button class="tgl" id="annotTgl">ⓘ 实现映射</button>
+      </footer>
+    </div>
+
+    <div class="v-scrim" id="settingsScrim"></div>
+    <div class="v-scrim" id="modal"></div>
+    <div class="v-toasts" id="toasts"></div>
+
+    <script>
+      "use strict";
+      const $ = (id) => document.getElementById(id);
+      const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+      const ALPHA = "abcdefghijklmnopqrstuvwxyz234567";
+      const rid = (n) => Array.from({ length: n }, () => ALPHA[Math.random() * 32 | 0]).join("");
+      const sha = (s) => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(16).padStart(8, "0"); };
+
+      /* —— 链 id：绑定设备，每设备唯一（隐藏层按既有设计稿执行，此处只呈现 id） —— */
+      const DEVICES = {
+        kel: { name: "kelthas-mbp", chain: "orca1-wiymh-xraxv-a7ovu-yzdft" },
+        dev: { name: "dev-windows-01", chain: "orca1-8a41c-c02d9-1b773-3d91b" },
+        ipad: { name: "design-ipad", chain: "orca1-3f9d2-k8m1p-7w2qx" },
+        kai: { name: "kai-linux", chain: "orca1-b51e9-n4r6t-2h8vz" },
+      };
+      const MY = "kel"; // 本机设备
+
+      /* —— 任务区（= 任务树节点） —— */
+      let AREAS = [];
+      function seedAreas() {
+        AREAS = [
+          { key: "main", title: "登录重构", domain: "chat", kind: "own", branch: "main", gitHash: "a91c2fe", status: "wip", ver: [["登录重构 2026-09-07", "c:5e6f"]] },
+          { key: "passkey", title: "passkey 方案", domain: "chat", kind: "fork", from: "dev", branch: "fork/passkey", gitHash: "c3d4e01", status: "done", ver: [["passkey 方案 2026-09-07", "c:3d4e"], ["passkey 基线 2026-09-07", "c:5e6f"]], land: "会话模块新任务区（基线检出）" },
+          { key: "editor-check", title: "编辑器核对", domain: "editor", kind: "fork", from: "dev", branch: "fork/editor-passkey", gitHash: "c7a11f2", status: "wip", ver: [["编辑器核对 2026-09-07", "c:7a11"]], land: "编辑器模块 · 版本管理（代码合入本地）" },
+          { key: "design-ui", title: "passkey 视觉稿", domain: "design", kind: "fork", from: "ipad", branch: "fork/design-passkey", gitHash: null, status: "wip", ver: [["passkey 视觉稿 2026-09-07", "v3"], ["passkey 视觉稿 2026-09-06", "v2"]], land: "设计模块 · 版本管理（产物检出本地）· 不生成会话任务" },
+          { key: "prototype-flow", title: "需求原型 · 交互流", domain: "prototype", kind: "fork", from: "ipad", branch: "fork/prototype-flow", gitHash: null, status: "wip", ver: [["需求原型 2026-09-06", "v2"]], land: "需求原型模块 · 版本管理 · 不生成会话任务" },
+          { key: "review", title: "审查报告", domain: "review", kind: "follow", from: null, branch: "main", gitHash: null, status: "follow", ver: [["审查报告 2026-09-07", "随代码"]], land: "审查模块 · 随代码跟随版本 · 不生成会话任务" },
+          { key: "kb", title: "知识库", domain: "kb", kind: "follow", from: null, branch: "main", gitHash: null, status: "follow", ver: [["知识库 2026-09-07", "随代码"]], land: "知识库模块 · 随代码跟随版本 · 不生成会话任务" },
+          { key: "token", title: "token 迁移", domain: "chat", kind: "own", branch: "wip/token-migration", gitHash: "b77e90a", status: "wip", ver: [["token 迁移 2026-09-06", "c:9a02"]] },
+        ];
+      }
+
+      /* —— git log 式行为轨迹（操作流程级：谁/做了什么/到哪里/是否合并） —— */
+      let GITLOG = [];
+      function seedLog() {
+        GITLOG = [
+          { g: "*", h: "e51f0c2", refs: "(main)", msg: "merge fork/passkey → main（双亲 · 冲突 src/auth.ts 已在编辑器解决）", who: "kelthas-mbp", at: "17:02" },
+          { g: "|\\", h: "", refs: "", msg: "", who: "", at: "" },
+          { g: "| *", h: "c3d4e01", refs: "(fork/passkey)", msg: "完成 passkey 方案 · 上链：fork 来源链 orca1-8a41c…", who: "dev-windows-01", at: "16:48" },
+          { g: "| *", h: "d91f7a3", refs: "(fork/design-passkey)", msg: "设计模块版本 2026-09-07（v3 · 来源链 orca1-3f9d2…）", who: "design-ipad", at: "16:40" },
+          { g: "* |", h: "c7a11f2", refs: "(fork/editor-passkey)", msg: "编辑器核对 · 代码合入本地 worktree", who: "dev-windows-01", at: "15:10" },
+          { g: "|/", h: "", refs: "", msg: "", who: "", at: "" },
+          { g: "*", h: "b77e90a", refs: "(wip/token-migration)", msg: "token 迁移进行中", who: "kelthas-mbp", at: "14:20" },
+          { g: "*", h: "5e6f21a", refs: "", msg: "fork 登录重构 = checkout 新分支 ×3（自动上链 · 来源断言携带）", who: "kelthas-mbp", at: "11:05" },
+          { g: "*", h: "a91c2fe", refs: "(main, HEAD)", msg: "init 任务链：登录重构（链 id 绑定本机设备 orca1-wiymh…）", who: "kelthas-mbp", at: "09:00" },
+        ];
+      }
+
+      let view = "tree";
+      let selKey = "main";
+      let pop = null; // { mode:'fork'|'merge', key }
+      let forkDom = "chat";
+      let sharedOn = false;
+      const area = (k) => AREAS.find((a) => a.key === k);
+      const chainOf = (a) => (a.kind === "fork" && a.from ? DEVICES[a.from].chain : DEVICES[MY].chain);
+
+      /* ================= 会话模块（Sidebar 结构 1:1；children=任务区） ================= */
+      function renderSess() {
+        const list = $("sessList");
+        $("sessCount").textContent = AREAS.length;
+        const items = AREAS.map((a) => {
+          const chain = chainOf(a);
+          const chainLine = `<div class="v-item-chain">${a.kind === "fork" ? '<b>来源链</b> <span class="src">⛓ ' + chain + "</span>" : "⛓ " + chain}</div>`;
+          const st = a.status === "done" ? "已完成" : a.status === "follow" ? "随代码" : "进行中";
+          return `<div class="ui-session-item ui-tree-session${selKey === a.key ? " active" : ""}" data-area="${a.key}">
+            <div class="ui-session-title"><span class="ui-tree-icon">${a.domain === "design" || a.domain === "prototype" ? "🎨" : a.domain === "editor" ? "✏️" : a.domain === "review" ? "📋" : a.domain === "kb" ? "📚" : "💬"}</span>${esc(a.title)}</div>
+            <div class="ui-session-meta">
+              <span class="ui-status-dot ui-status-dot--${a.status === "done" ? "succeeded" : "running"}"></span> <span>${st}</span>
+              <span class="ui-session-time">${GITLOG.find((g) => g.msg.includes(a.title))?.at || ""}</span>
+            </div>
+            ${chainLine}
+          </div>`;
+        }).join("");
+        list.innerHTML = `<div class="ui-tree-workspace" data-ws="gvgl">
+          <div class="ui-tree-ws-head current" role="button">
+            <span class="ui-tree-caret">▾</span>
+            <span class="ui-tree-icon ui-tree-icon-folder"></span>
+            <span class="ui-tree-ws-label">GVGL</span>
+            <span class="ui-tree-count">${AREAS.length}</span>
+            <button class="ui-tree-ws-new" title="新建会话">＋</button>
+          </div>
+          <div class="ui-tree-children">${items}</div>
+        </div>`;
+        list.querySelectorAll("[data-area]").forEach((el) => el.addEventListener("click", () => {
+          const a = area(el.dataset.area);
+          selKey = a.key;
+          if (["review", "kb", "design", "prototype", "editor"].includes(a.domain)) openVersions(a);
+          else { closePreview(); pop = null; }
+          renderAll();
+        }));
+        list.querySelector(".ui-tree-ws-new").addEventListener("click", (e) => {
+          e.stopPropagation();
+          toast("info", "新建会话", "会话 = 新任务区（任务树新节点）· 链 id 绑定本机设备");
+        });
+      }
+
+      /* ================= 任务树（TaskHubWorkspace 结构还原；节点显示链 id） ================= */
+      function renderTree() {
+        const wrap = $("hubWrap");
+        const cards = AREAS.map((a) => {
+          const isForkRow = a.kind === "fork";
+          const chain = chainOf(a);
+          const chip = `<span class="v-chain-chip${a.kind === "fork" ? " src" : ""}" title="${a.kind === "fork" ? "来源链 id（fork 来源设备）" : "本设备链 id"}">⛓ ${chain.slice(0, 15)}…</span>`;
+          const tag = a.kind === "fork" ? "⑂ fork" : a.kind === "follow" ? "追随 main · 随代码" : "主域";
+          const tagCls = a.kind === "follow" ? "st-abandoned" : a.kind === "fork" ? "st-chain" : "st-chain";
+          const statusChip = a.status === "done" ? '<span class="chip st-done">已完成</span>' : "";
+          return `<div class="ui-taskhub-row${isForkRow ? " fork-row" : ""}" data-br="${a.key}">
+            <div class="ui-taskhub-card-wrap">
+              <div class="ui-taskhub-card${selKey === a.key ? " sel" : ""}" role="button" tabindex="0">
+                <div class="t">
+                  <span class="chip ${tagCls}">${tag}</span>
+                  <span class="name">${esc(a.title)}</span>
+                  ${statusChip}
+                </div>
+                <div class="meta">
+                  ${a.gitHash ? `<span class="git-chip" title="git 绑定"><span class="hash">⎇ ${a.gitHash}</span></span>` : ""}
+                  <span class="meta-branch">⑂ ${a.branch}</span>
+                  ${chip}
+                  <span>${a.ver.length} 版本 · ${a.land ? esc(a.land.split("·")[0]) : "主会话"}</span>
+                </div>
+              </div>
+            </div>
+          </div>`;
+        }).join("");
+        const popHtml = pop ? renderPop() : "";
+        wrap.innerHTML = `
+          <div class="ui-taskhub" style="display:flex;flex-direction:column;min-height:100%">
+            <div class="ui-taskhub-top">
+              <span class="ui-taskhub-ws"><i class="dot"></i>GVGL</span>
+              <span class="ui-taskhub-ws" style="opacity:.85"><i class="dot" style="background:var(--line-fork,#9775fa)"></i>⛓ ${DEVICES[MY].chain} <span style="opacity:.7">（本机设备链 id）</span></span>
+              <div class="ui-taskhub-pills">
+                <button class="ui-taskhub-pill on">全部 · ${AREAS.length}</button>
+                <button class="ui-taskhub-pill"><i class="sw sw-session"></i>会话 · ${AREAS.filter((a) => a.domain === "chat").length}</button>
+                <button class="ui-taskhub-pill"><i class="sw sw-editor"></i>编辑器 · ${AREAS.filter((a) => a.domain === "editor").length}</button>
+                <button class="ui-taskhub-pill"><i class="sw sw-prototype"></i>设计/原型 · ${AREAS.filter((a) => a.domain === "design" || a.domain === "prototype").length}</button>
+                <button class="ui-taskhub-pill"><i class="sw sw-review"></i>审查 · ${AREAS.filter((a) => a.domain === "review").length}</button>
+                <button class="ui-taskhub-pill"><i class="sw sw-index"></i>知识库 · ${AREAS.filter((a) => a.domain === "kb").length}</button>
+              </div>
+              <div class="ui-taskhub-legend">
+                <span class="it"><i class="sw round session"></i>会话</span>
+                <span class="it"><i class="sw ring"></i>fork（=checkout 新分支）</span>
+                <span class="it"><i class="sw diamond"></i>独立域</span>
+                <span class="it"><i class="ln dash"></i>放弃</span>
+                <span class="it"><i class="ln"></i>已并入</span>
+              </div>
+              <div class="ui-taskhub-tokens"><button class="ui-taskhub-token-badge">Ⓣ 1.10M · 218 reqs</button></div>
+            </div>
+            <div class="ui-taskhub-body" style="flex:1;min-height:0;overflow:auto;padding:10px 14px">
+              <div class="ui-taskhub-graph"><div class="ui-taskhub-rows" style="position:relative">${cards}${popHtml}</div></div>
+            </div>
+          </div>`;
+        wrap.querySelectorAll("[data-br]").forEach((el) => el.addEventListener("click", () => {
+          const a = area(el.dataset.br);
+          selKey = a.key;
+          if (a.kind === "fork" || (a.kind === "own" && a.domain !== "chat")) {
+            if (["design", "prototype", "editor", "review", "kb"].includes(a.domain)) { openVersions(a); pop = null; }
+            else pop = { mode: "fork", key: a.key };
+          } else if (a.kind === "follow") {
+            pop = null; openVersions(a);
+          } else if (a.key === "main") {
+            pop = { mode: "merge", key: a.key };
+          } else { pop = null; }
+          renderAll();
+        }));
+      }
+
+      /* ================= fork / merge pop（fork=checkout 新分支 · 自动上链） ================= */
+      function renderPop() {
+        const a = area(pop.key);
+        if (pop.mode === "merge") {
+          const cands = AREAS.filter((x) => x.kind === "fork" && x.domain === "chat" && x.status === "done");
+          return `<div class="v-pop merge" data-pop="merge">
+            <h5 style="color:var(--ui-warning,#cf9310)">⇄ 并入 main —— cherry-pick 语义 · merge commit 双亲上链</h5>
+            <div class="v-dom"><label class="on">要并入的分支：<select id="mergeSel" style="margin-left:6px;background:var(--ui-surface,#fff);border:1px solid var(--ui-border-soft,#c3cdd9);border-radius:6px;padding:3px 6px">${cands.map((c) => `<option>${c.branch}（${DEVICES[c.from].name}）</option>`).join("")}</select></label></div>
+            <div class="auto-note">冲突处理沿用现状：<b>只报告、不自动解决</b>（在编辑器中解决后完成）；合并后源分支标「已并入」并回写分支状态；行为轨迹新增 merge 行（git log）。</div>
+            <div class="acts"><button class="ui-btn" data-pp="cancel">取消</button><button class="ui-btn ui-btn-primary" data-pp="mergeGo">⇄ 确认并入</button></div>
+          </div>`;
+        }
+        const srcChain = a.kind === "fork" ? DEVICES[a.from].chain : DEVICES[MY].chain;
+        const doms = `
+          <label class="${forkDom === "chat" ? "on" : ""}" data-dom="chat">💬 主会话（生成会话区）</label>
+          <label class="${forkDom === "editor" ? "on" : ""}" data-dom="editor">✏️ 编辑器 = chat 变种（版本管理）</label>
+          <label class="${forkDom === "design" ? "on" : ""}" data-dom="design">🎨 设计模块（版本管理）</label>
+          <label class="${forkDom === "prototype" ? "on" : ""}" data-dom="prototype">📐 需求原型（版本管理）</label>
+          <label class="locked" data-dom="review">📋 审查报告 · 随代码</label>
+          <label class="locked" data-dom="kb">📚 知识库 · 随代码</label>`;
+        const landLine = {
+          chat: "落地：<b>会话模块新任务区</b>（item 底部小字显示来源链 id）+ 基线检出；审查/知识库随代码整体 fork（对应模块跟随版本）。",
+          editor: "落地：<b>编辑器模块</b>版本管理（<name> yyyy-mm-dd 版本 item + 来源链 id 小字）· 代码合入本地 worktree。",
+          design: "落地：<b>设计模块</b>版本管理（passkey 视觉稿 yyyy-mm-dd · v n+1；版本 item 下写来源链 id）· <b>不生成会话任务</b>。",
+          prototype: "落地：<b>需求原型模块</b>版本管理（同设计模块命名规则）· <b>不生成会话任务</b>。",
+        }[forkDom];
+        return `<div class="v-pop fork" data-pop="fork">
+          <h5>⑂ fork = checkout 新分支（树上声明 · 行为即上链）</h5>
+          <div class="src-box">
+            <div class="k">来源（自动携带 · 只读）</div>
+            <div class="cl">来源链：${srcChain}</div>
+            <div class="cl">来源设备：${DEVICES[a.kind === "fork" ? a.from : MY].name} · 分支 ${a.branch} · ⎇ ${a.gitHash || "—"}</div>
+          </div>
+          <div class="v-dom" id="popDoms">${doms}</div>
+          <input type="text" id="ffName" style="margin-top:8px" value="${(a.title + "-fork").replace(/\s+/g, "-").slice(0, 16)}" />
+          <textarea id="ffWhy" placeholder="一句话理由（进链上 fork 记录）"></textarea>
+          <div class="v-ver" style="margin-top:8px;font-family:var(--ui-font-mono,monospace);font-size:10px;color:var(--ui-text-dim,#55606d)">新分支 fork/&lt;新任务区名&gt; · 上游 ⎇ ${a.gitHash || a.branch} · 基线 = 来源工作区当前版本</div>
+          <div class="auto-note">链行为：<b>fork 即自动上链</b>（无需手动共享）——链上记录：fork（来源链/工作区/分支断言）+ checkout（新分支基线）。${landLine}</div>
+          <div class="acts"><button class="ui-btn" data-pp="cancel">取消</button><button class="ui-btn ui-btn-primary" data-pp="forkGo">⑂ 确认 fork</button></div>
+        </div>`;
+      }
+      function bindPop() {
+        const popEl = document.querySelector("[data-pop]");
+        if (!popEl) return;
+        popEl.querySelectorAll("[data-dom]").forEach((l) => l.addEventListener("click", () => {
+          if (l.classList.contains("locked")) { toast("err", "审查/知识库不可单独 fork", "与代码强绑定 → 随代码整体 fork，在对应模块跟随版本"); return; }
+          forkDom = l.dataset.dom;
+          popEl.querySelectorAll("[data-dom]").forEach((x) => x.classList.toggle("on", x === l));
+          renderAll();
+        }));
+        popEl.querySelectorAll("[data-pp]").forEach((b) => b.addEventListener("click", () => {
+          if (b.dataset.pp === "cancel") { pop = null; renderAll(); }
+          else if (b.dataset.pp === "forkGo") doFork();
+          else if (b.dataset.pp === "mergeGo") doMerge();
+        }));
+      }
+
+      function doFork() {
+        const a = area(pop.key);
+        const name = $("ffName").value.trim();
+        if (!name) return toast("err", "需要给新任务区命名", "任务区 = 任务树节点");
+        const srcChain = a.kind === "fork" ? DEVICES[a.from].chain : DEVICES[MY].chain;
+        const branch = "fork/" + name.replace(/\s+/g, "-").toLowerCase().slice(0, 14);
+        const domMap = { chat: "chat", editor: "editor", design: "design", prototype: "prototype" };
+        const dom = domMap[forkDom] || "chat";
+        const na = {
+          key: "n" + rid(4), title: name, domain: dom, kind: "fork", from: a.kind === "fork" ? a.from : MY,
+          branch, gitHash: a.gitHash, status: "wip",
+          ver: dom === "chat" ? [[name + " 基线", "checkout " + a.gitHash]] : [[name + " " + today(), "v1"]],
+          land: dom === "chat" ? "会话模块新任务区（基线检出）" : dom === "editor" ? "编辑器模块 · 版本管理" : dom === "design" ? "设计模块 · 版本管理 · 不生成会话" : "需求原型模块 · 版本管理 · 不生成会话",
+        };
+        AREAS.push(na);
+        GITLOG.splice(GITLOG.length - 1, 0, { g: "* ", h: sha(branch).slice(0, 7), refs: "(" + branch + ")", msg: "fork " + a.title + " = checkout " + branch + "（自动上链 · 来源链 " + srcChain.slice(0, 12) + "…）", who: DEVICES[MY].name, at: "刚刚" });
+        toast("ok", "fork 已上链 · 新任务区已产生", branch + " · 来源链 " + srcChain.slice(0, 12) + "…（会话模块 item 底部显示来源链 id）");
+        pop = null;
+        selKey = na.key;
+        renderAll();
+      }
+      function doMerge() {
+        const cands = AREAS.filter((x) => x.kind === "fork" && x.domain === "chat" && x.status === "done");
+        const t = cands[0];
+        if (t) t.status = "done";
+        GITLOG.splice(0, 0, { g: "*", h: sha("merge" + Date.now()).slice(0, 7), refs: "(main)", msg: "merge " + (t ? t.branch : "") + " → main（双亲 · 冲突已报告）", who: DEVICES[MY].name, at: "刚刚" });
+        if (t) t.ver.unshift([t.title + " " + today() + "（并入 main）", "merge"]);
+        pop = null;
+        toast("ok", "已并入 main ✓", "源分支标注「已并入」· 行为轨迹新增 merge 行");
+        renderAll();
+      }
+      const today = () => "2026-09-07";
+
+      /* ================= 模块版本管理（编辑器/审查/设计/原型/知识库） ================= */
+      function openVersions(a) {
+        const pn = $("previewPanel");
+        pn.style.display = "flex";
+        const modName = { editor: "编辑器模块", review: "审查模块", design: "设计模块", prototype: "需求原型模块", kb: "知识库模块" }[a.domain] || "模块";
+        const srcChain = a.kind === "fork" && a.from ? DEVICES[a.from].chain : DEVICES[MY].chain;
+        pn.innerHTML = `<div class="ui-preview-panel-head">
+          <div class="ui-preview-tabs"><button class="ui-preview-tab active">✨ ${modName} · 版本管理</button></div>
+          <button class="ui-preview-close" data-cclose>✕</button>
+        </div><div class="ui-preview-panel-body">
+          <div style="font-family:var(--ui-font-mono,monospace);font-size:10px;color:var(--ui-text-faint,#8590a0);padding:0 2px">${esc(a.title)} · 分支 ${esc(a.branch)} · 版本 item 下 = 来源链 id</div>
+          ${a.ver.map(([nm, v]) => `<div class="v-ver-item">
+            <div class="vt"><span class="nm">${esc(nm)}</span><span class="tm">${a.kind === "fork" && a.from ? DEVICES[a.from].name : DEVICES[MY].name}</span><span class="vv">${esc(v)}</span></div>
+            <div class="vc">⛓ <b>${srcChain}</b>${a.kind === "fork" ? "（来源链）" : ""}</div>
+          </div>`).join("")}
+          ${a.land ? `<div style="font-size:10.5px;color:var(--ui-text-faint,#8590a0);line-height:1.7">落地：${esc(a.land)}</div>` : ""}
+          ${["design", "prototype", "editor"].includes(a.domain) ? `<div style="display:flex;justify-content:flex-end;margin-top:6px"><button class="ui-btn ui-btn-primary" id="verFork">⑂ fork 此节点（checkout 新分支）</button></div>` : ""}
+        </div>`;
+        pn.querySelector("[data-cclose]").addEventListener("click", closePreview);
+        const vf = pn.querySelector("#verFork");
+        if (vf) vf.addEventListener("click", () => { forkDom = a.domain; pop = { mode: "fork", key: a.key }; closePreview(); renderAll(); });
+      }
+      function closePreview() { $("previewPanel").style.display = "none"; }
+
+      /* ================= 行为轨迹（git log 式） ================= */
+      function renderTrail() {
+        const wrap = $("hubWrap");
+        wrap.innerHTML = `<div class="ui-taskhub" style="display:flex;flex-direction:column;min-height:100%">
+          <div class="ui-taskhub-top">
+            <span class="ui-taskhub-ws"><i class="dot" style="background:var(--dot-review,#51cf66)"></i>行为轨迹（git log 式）</span>
+            <span class="ui-taskhub-ws" style="opacity:.85">操作流程级：谁做了什么 / 到哪里 / 是否合并 —— 非 agent 工具轨迹</span>
+          </div>
+          <div class="v-gitlog">
+            <div class="head">与 git log 同构：图符 · hash · (refs) · 说明 · 作者 · 时间；fork/merge/版本均为链上自动记录</div>
+            ${GITLOG.map((g) => g.msg ? `<div class="row"><span class="g">${g.g}</span><span class="h">${g.h}</span><span class="refs">${g.refs}</span><span class="msg">${esc(g.msg)}</span><span class="who">${g.who} · ${g.at}</span></div>` : `<div class="row"><span class="g">${g.g}</span><span class="h"></span><span class="refs"></span><span class="msg"></span><span class="who"></span></div>`).join("")}
+          </div>
+        </div>`;
+      }
+
+      /* ================= 设置（SettingsPanel TABS + 「工作链」段：仅一个开关） ================= */
+      const SET_TABS = [["⇅", "端点"], ["◈", "模型"], ["▦", "实体"], ["🌓", "外观"], ["▤", "记忆"], ["⚑", "权限"], ["⚡", "动作"], ["⛓", "工作链"], ["◔", "通道"], ["ⓘ", "关于"]];
+      function openSettings() {
+        $("settingsScrim").innerHTML = `<div class="v-settings">
+          <nav class="v-settings-nav">${SET_TABS.map(([ic, label], i) => `<button data-st="${i}" class="${i === 7 ? "on new" : ""}"><span>${ic}</span>${label}</button>`).join("")}</nav>
+          <div style="flex:1;min-width:0;display:flex;flex-direction:column;min-height:0">
+            <div class="v-settings-body" id="setBody">
+              <h2>工作链（新增段 · 仅一个开关）</h2>
+              <div class="sg">链 id 绑定设备、每设备唯一；任务树是全链唯一共享面；链路本身为隐藏行为。</div>
+              <div class="v-field"><div class="fw"><div><div class="ft">开启链共享</div><div class="fd">关闭：本地独立（链不上行）。<b>开启：自动上链</b>——fork / 合并 / 版本等行为自动记录上链，无需任何手动共享操作。</div></div><span class="v-switch${sharedOn ? " on" : ""}" id="swShare"></span></div></div>
+            </div>
+            <div class="v-settings-footer"><button class="ui-btn" id="setClose">完成</button></div>
+          </div>
+        </div>`;
+        $("settingsScrim").classList.add("show");
+        $("setClose").addEventListener("click", () => $("settingsScrim").classList.remove("show"));
+        $("swShare")?.addEventListener("click", () => {
+          sharedOn = !sharedOn;
+          openSettings();
+          toast(sharedOn ? "ok" : "info", sharedOn ? "链共享已开启 —— 行为自动上链" : "链共享已关闭 —— 本地独立", sharedOn ? "fork/合并/版本自动记录，无需手动操作" : "重新开启后恢复自动上链");
+        });
+        $("settingsScrim").querySelectorAll("[data-st]").forEach((b) => b.addEventListener("click", () => {
+          if (Number(b.dataset.st) === 7) return;
+          $("setBody").innerHTML = "<h2>" + b.textContent.trim().replace(/^[^\u4e00-\u9fa5]+/, "") + "</h2><div class='sg'>真实设置段占位（SettingsPanel TABS）。</div>";
+          $("settingsScrim").querySelectorAll("[data-st]").forEach((x) => x.classList.toggle("on", x === b));
+        }));
+      }
+
+      /* ================= 通用 ================= */
+      const MAPS = {
+        sessions: { st: "todo", lines: ["会话模块：<code>components/Sidebar.tsx</code>（ui-session-panel / ui-tree-workspace / ui-session-item）", "新增（待实现）：children = 任务区（任务树节点）；item 最底下一行小字链 id（fork 显示来源链 id）"] },
+        tree: { st: "go", lines: ["任务树 = 全链唯一共享面：<code>components/TaskHubWorkspace.tsx</code>", "新增（待实现）：节点 meta 显示链 id chip（fork 节点 = 来源链 id）；fork=checkout 新分支 pop；merge 沿用现状语义"] },
+        versions: { st: "todo", lines: ["模块版本管理（待实现）：编辑器/审查/设计/需求原型/知识库，版本 item 命名「<名称> yyyy-mm-dd」，item 下一行链 id（= fork 来源链）", "呈现：右浮 TaskQuickSheet（<code>TaskQuickSheet.tsx</code> ui-preview-panel）"] },
+      };
+      function modal(title, sub) {
+        const m = $("modal");
+        m.innerHTML = `<div class="v-modal-card"><h3>${title}</h3><div class="sub">${sub}</div><div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px"><button class="ui-btn ui-btn-primary">关闭</button></div></div>`;
+        m.classList.add("show");
+        m.querySelectorAll("button").forEach((b) => b.addEventListener("click", () => m.classList.remove("show")));
+        m.addEventListener("click", (e) => { if (e.target === m) e.target.classList.remove("show"); });
+      }
+      function toast(kind, title, sub) {
+        const el = document.createElement("div");
+        el.className = "v-toast " + kind;
+        el.innerHTML = `<div class="tt">${title}</div><div class="td">${esc(sub || "")}</div>`;
+        $("toasts").appendChild(el);
+        setTimeout(() => el.remove(), 4200);
+      }
+      function bindAnnot() {
+        document.querySelectorAll("[data-map]").forEach((el) => el.addEventListener("click", () => {
+          const mp = MAPS[el.dataset.map];
+          if (mp) modal("实现挂点 · " + el.dataset.map, `<div class="v-map">${mp.lines.join("<br/>")}</div>`);
+        }));
+      }
+      function renderAll() {
+        renderSess();
+        $("stageWs").textContent = "GVGL";
+        $("stageChain").textContent = "⛓ " + DEVICES[MY].chain + "（本机设备链 id）";
+        if (view === "tree") renderTree(); else renderTrail();
+        bindPop();
+        bindAnnot();
+      }
+
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") { $("modal").classList.remove("show"); $("settingsScrim").classList.remove("show"); closePreview(); pop = null; renderAll(); }
+        if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
+      });
+      $("appearanceBtn").addEventListener("click", () => {
+        document.documentElement.dataset.appearance = document.documentElement.dataset.appearance === "dark" ? "light" : "dark";
+      });
+      $("settingsBtn").addEventListener("click", openSettings);
+      $("mainSeg").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => {
+        view = b.dataset.v;
+        $("mainSeg").querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === b));
+        renderAll();
+      }));
+      $("annotTgl").addEventListener("click", () => document.body.classList.toggle("v-annot-on"));
+
+      seedAreas(); seedLog();
+      renderAll();
+    </script>
+  </body>
+</html>
