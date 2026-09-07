@@ -9,6 +9,11 @@ jobs:
   build-and-test:
     name: Node ${{ matrix.node-version }} / ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    # @openuidev/lang-core ships install telemetry (PostHog/CloudFront) — keep
+    # CI silent (see design/skills/openui/README.md telemetry note).
+    env:
+      OPENUI_TELEMETRY_DISABLED: "1"
+      DO_NOT_TRACK: "1"
     # Outer guard. The per-test `--test-timeout` in each run-tests.mjs is the first
     # line of defence; this catches a hang outside the test runner (install, build,
     # a stuck child process) which would otherwise burn the 360-minute default.

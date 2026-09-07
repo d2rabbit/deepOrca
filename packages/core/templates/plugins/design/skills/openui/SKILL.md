@@ -1,6 +1,8 @@
 ---
 name: openui
 description: "Use for building, debugging, integrating, migrating, or documenting OpenUI, OpenUI Lang, Agent Interface, ThemeProvider/theming, OpenUI Cloud, @openuidev packages, streaming generative UI rendering, component libraries, reliability testing and observability, existing-project Cloud integration, Cloud BYOK, self-hosted-to-Cloud migration, migrations from JSON UI formats, Cloud tools (web/image search, artifacts), remote MCP servers, custom function tools and tool loops, and multi-user or multi-app identity (frontend tokens, app_id/user_id, conversation APIs, Responses metadata)."
+metadata:
+  allow-implicit-invocation: false
 ---
 
 # OpenUI
@@ -95,7 +97,7 @@ If “migrate” does not establish whether Cloud should replace the self-hosted
 Never generate, print, echo, or invent placeholder API key values, and never ask the user to paste credentials into chat. Ask the user to configure required credentials outside the agent through their secret manager or an untracked local environment file. In generated commands, name the required variable but never emit a credential `NAME=value` assignment.
 
 ```bash
-npx @openuidev/cli@latest create --name genui-chat-app --template openui-self-hosted --no-skill --no-interactive
+npx @openuidev/cli@0.2.12 create --name genui-chat-app --template openui-self-hosted --no-skill --no-interactive
 cd genui-chat-app
 # Confirm OPENAI_API_KEY is configured outside chat before starting the app.
 npm run dev
@@ -106,7 +108,7 @@ The CLI is the easiest way to scaffold a new OpenUI/GenUI app. Version-sensitive
 Use `--no-install` when the agent needs to control package-manager behavior explicitly:
 
 ```bash
-npx @openuidev/cli@latest create --name genui-chat-app --template openui-self-hosted --no-skill --no-interactive --no-install
+npx @openuidev/cli@0.2.12 create --name genui-chat-app --template openui-self-hosted --no-skill --no-interactive --no-install
 ```
 
 If scaffold install/build fails with `ERR_PNPM_IGNORED_BUILDS` for native packages such as `sharp` or `unrs-resolver`, do not treat the scaffold as broken. Run `pnpm approve-builds` or `pnpm approve-builds --all`, then rerun install/build in an environment where package build scripts are allowed. Use first-party GitHub examples for Vue, Svelte, React Native, LangGraph, Mastra, Supabase, Vercel AI SDK, and other integrations.
@@ -250,8 +252,8 @@ OpenUI publishes first-party examples at `https://github.com/thesysdev/openui/tr
 ### Generate a prompt or schema
 
 ```bash
-npx @openuidev/cli@latest generate ./src/library.tsx --out ./src/generated/system-prompt.txt
-npx @openuidev/cli@latest generate ./src/library.tsx --json-schema --out ./src/generated/component-spec.json
+npx @openuidev/cli@0.2.12 generate ./src/library.tsx --out ./src/generated/system-prompt.txt
+npx @openuidev/cli@0.2.12 generate ./src/library.tsx --json-schema --out ./src/generated/component-spec.json
 ```
 
 The target module must export a library with `prompt()` and `toJSONSchema()`. By default the CLI looks for `library`, then `default`, then any matching export. It can also auto-detect prompt options from `promptOptions`, `options`, or an export ending in `PromptOptions`.

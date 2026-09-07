@@ -293,6 +293,11 @@ Conventional Commits (`feat:`, `fix:`, `chore:`, `refactor:`, `style:`, `test:`,
 - `electron-builder.yml` copies the whole `vendor/` tree to `Resources/app/vendor`
   via `extraResources` — so anything added under `vendor/` ships in the installer
   (the Granite model alone is ~118MB).
+- **`@openuidev/lang-core` install telemetry**: `npm ci`/`npm install` fires
+  PostHog/CloudFront telemetry (pseudonymized). CI sets
+  `OPENUI_TELEMETRY_DISABLED=1` + `DO_NOT_TRACK=1` at the job level (ci.yml,
+  release.yml); set them in your shell profile too — details in
+  `packages/core/templates/plugins/design/skills/openui/README.md`.
 - CodeGraph needs Node 22.5+ at runtime (`node:sqlite`); the desktop client runs the
   vendored entry through a system Node 22+ binary (see `packages/core/src/common/codegraph.ts`).
 

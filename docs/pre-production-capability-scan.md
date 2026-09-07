@@ -47,7 +47,7 @@
 
 | 接线面 | 在树证据 |
 | --- | --- |
-| 8 插件包技能加载 | `packages/core/templates/plugins/`：browser（web-access-strategy）/ code（arch-scan、codegraph-cli、smart-code-review）/ design（deep-design、pm-designer-openui、taste）/ knowledge（book-distill、openwiki、wiki-qa）/ memory / meta-skills（a2ui-annotation、deeporca-self-refer、skill-digester、skill-spector、skill-writer）/ vision / work（bento-slides），8 包 eval.yaml 齐备（A4） |
+| 8 插件包技能加载 | `packages/core/templates/plugins/`：browser（web-access-strategy）/ code（arch-scan、codegraph-cli、smart-code-review）/ design（deep-design、openui（vendored 官方）、pm-designer-openui、spec-writer、taste）/ knowledge（book-distill、openwiki、wiki-qa）/ memory / meta-skills（a2ui-annotation、deeporca-self-refer、skill-digester、skill-spector、skill-writer）/ vision / work（bento-slides），8 包 eval.yaml 齐备（A4） |
 | MCP builtin 全量 | desktop `main/index.ts` 起停循环注册 8 个：`openwiki / uv / skillspector / browser-skill / serena / crg / bento / dembrandt`；dembrandt 为 vendored 离线 + 内置 Chromium CDP（`configureDembrandtVendorRoot` + `dembrandt-browser.ts`，打包态/树内 vendor 双判定） |
 | vendor 13 脚本 | `scripts/vendor-*.js` 恰 13：bento / browser-skill / crg / **dembrandt** / download / fs / granite / notice / openwiki / serena / skillspector / tailwind / uv |
 | i18n | `SUPPORTED_LOCALES = ["en","zh","zh-TW","zh-HK","ja","ko"]`（en + 5 语言，与"5 语言"口径一致），locales/ 四文件 + 内建 zh/en |

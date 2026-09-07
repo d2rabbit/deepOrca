@@ -22,6 +22,11 @@ jobs:
   package:
     name: Package ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    # @openuidev/lang-core ships install telemetry (PostHog/CloudFront) — keep
+    # release CI silent (see design/skills/openui/README.md telemetry note).
+    env:
+      OPENUI_TELEMETRY_DISABLED: "1"
+      DO_NOT_TRACK: "1"
     timeout-minutes: 90
     strategy:
       fail-fast: false

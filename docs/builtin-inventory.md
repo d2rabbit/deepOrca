@@ -262,13 +262,14 @@ dotnet-writing-mstest-tests
 | qt-qt-qml-test-run | QML 测试运行 |
 | qt-qt-ui-design | UI 设计 |
 
-### 3.8 DeepOrca 自研 Skills（10 个）
+### 3.8 DeepOrca 内置 Skills（11 个：自研 10 + vendored 官方 1）
 
 | 目录名 | 作用 | 来源 |
 |---|---|---|
 | deep-design | DeepDesign .dd 格式设计生成 | DeepOrca 自研 |
-| a2ui-prototype | A2UI 原型模板 | DeepOrca 自研 |
-| pm-designer-openui | PM-Designer（OpenUI Lang） | DeepOrca 自研 |
+| openui | OpenUI Lang / @openuidev 全栈参考（官方技能） | @openuidev 官方（vendored，本地偏差记于 `design/skills/openui/README.md`） |
+| pm-designer-openui | PM-Designer（OpenUI Lang；组件表由官方 openuiLibrary.prompt() 生成，DeepOrca 规则叠加） | DeepOrca 自研规则 + 官方组件库生成 |
+| spec-writer | 需求文档 7 节结构化展开（原型模块 §1.2 契约） | DeepOrca 自研 |
 | taste | 设计纪律/品味准则 | DeepOrca 自研 |
 | openwiki | 项目 Wiki 知识图谱生成 | DeepOrca 自研 |
 | web-access-strategy | 智能联网策略（WebSearch/curl/Jina/bsk） | DeepOrca 自研 |
@@ -276,6 +277,8 @@ dotnet-writing-mstest-tests
 | bento-slides | Bento 演示文稿生成 | DeepOrca 自研 |
 | skill-writer | Skill 编写向导 | DeepOrca 自研 |
 | skill-digester | Skill 审查/消化 | DeepOrca 自研 |
+
+> 变更记录：`a2ui-prototype` 已随设计双工作区重构移除（A2UI 模板内置于 a2ui-mcp）；2026-09 起 vendored 官方 `openui` 技能入册，`pm-designer-openui` 的组件表改为官方库生成。
 
 ---
 
@@ -303,7 +306,7 @@ dotnet-writing-mstest-tests
 | qt-dev | Skills: qt-\* |
 | apple-dev | Skills: apple-\*, swift-\*, uikit-\*, swiftui-\*（platform: darwin） |
 | deepin-dev | Skills: deepin-\*, dde-\*, dtk-\*（platform: linux） |
-| design | Skills: deep-design, a2ui-prototype, taste, pm-designer-openui · MCP: a2ui |
+| design | Skills: deep-design, openui (vendored 官方), pm-designer-openui, spec-writer, taste · MCP: a2ui |
 | documentation | Skills: openwiki · MCP: gitmcp:\*, activity-frames · CLI: git-mcp |
 | browser | Skills: web-access-strategy · CLI: browser-skill |
 | security | MCP: skill-spector |

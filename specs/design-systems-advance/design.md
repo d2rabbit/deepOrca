@@ -60,7 +60,7 @@ deepOrca 的设计域在 2026-08 完成了一次重要的真机驱动的模块�
 
 - `prototype.spec`（L83-107）：需求（一句话即可）→ `spec-writer` skill 展开为 7 节结构化文档（背景与目标/用户与场景/功能需求/页面清单/非功能需求/验收标准/待确认），经 `render_spec` MCP 工具持久化为 spec artifact。**页面清单是原型的契约**——"页面名即原型页面"。
 - `prototype.materialize`（L142-176）：读取 spec artifact → `pm-designer-openui` skill 严格按页面清单生成 OpenUI Lang 程序，经 `render_openui` 持久化。**禁止超出文档发明范围**。
-- 载体：**OpenUI Lang**——紧凑行式声明语言（`id = Component(args)`，11 个组件：Layout 5 / Content 3 / Interactive 3），hoisting + 流式渐进呈现（root 先行），全量替换迭代（`update_openui`），语义 ID 保持版本 diff 可读（`pm-designer-openui/SKILL.md`）。
+- 载体：**OpenUI Lang**——紧凑行式声明语言（`id = Component(args)`，11 个组件：Layout 5 / Content 3 / Interactive 3），hoisting + 流式渐进呈现（root 先行），全量替换迭代（`update_openui`），语义 ID 保持版本 diff 可读（`pm-designer-openui/SKILL.md`）。**〔2026-09-07 superseded〕**组件基座已整体切换为官方 `@openuidev/react-ui` openuiLibrary（60+ 组件），本文的 11 组件 legacy 库仅作旧套件回退渲染；交互契约（全量替换、语义 ID、action 回传）不变，见 [issues/2026-09-07-openui-official-library-migration-review.md](../../issues/2026-09-07-openui-official-library-migration-review.md)。
 - 渲染：`OpenuiRenderer.tsx`（官方 SDK + `deeporcaLibrary` 组件库，`--ui-*` CSS 变量与桌面主题同源）+ `tool-provider.ts` 7 个只读 `design.*` 工具（prototype 内 `Query()` 直连本地数据，零 LLM token）+ `correction.ts` 结构化错误码回喂纠错回路（同错去重，防死循环）。
 
 **视觉稿模块**（`actions/design.ts`）：
@@ -203,7 +203,7 @@ deepOrca 的设计域在 2026-08 完成了一次重要的真机驱动的模块�
 
 **设计决策**：
 
-1. **行为契约层（不改语言、不换渲染器）**：OpenUI Lang 语法与 11 组件 schema 保持不变（守住 `@openuidev/lang-core` 流式优势与防漂移机制），在 SKILL.md 中新增"action 命名约定"：`Button(label, "域名:动作")`，如 `auth:submit` / `nav:goto:orders` / `data:refresh` / `form:reset`。语义 ID + action 命名空间让 agent 在响应回路里能定位"发生了什么"。
+1. **行为契约层（不改语言、不换渲染器）**：OpenUI Lang 语法与 11 组件 schema 保持不变（守住 `@openuidev/lang-core` 流式优势与防漂移机制），在 SKILL.md 中新增"action 命名约定"：`Button(label, "域名:动作")`，如 `auth:submit` / `nav:goto:orders` / `data:refresh` / `form:reset`。语义 ID + action 命名空间让 agent 在响应回路里能定位"发生了什么"。**〔2026-09-07 superseded〕**"11 组件 schema 保持不变"已由官方 openuiLibrary（60+ 组件）整体接管，"不改语言、不换渲染器"中的渲染器指 OpenUI Lang 面本身——A2UI 面 boundary 仍不介入 designer；同上见 issues 审查报告。
 2. **回传通道（复用而非新建）**：PrototypePanel 的 `handleOpenuiAction` 事件经既有 `IpcRequest.A2uiAction` 转发链（`main/index.ts:1936-1959` 已实现）回传 agent；契约层把通道名泛化为 `design:action`（旧名保持兼容别名），preload 暴露 `designAction(surfaceId, actionName, context)`。零新增主进程特权面。
 3. **agent 响应模式（双模式）**：
    - **人工走查模式（默认）**：用户在原型上点击 → 事件经后台静默通道回传（`runSubagent({silent:true})` 既有通道，不产生主会话记录，守住 prototype-companion Issue 2 不变量）→ 响应者 agent 输出更新后的完整原型程序（全量替换语义 + 语义 ID 保证 diff 可读）→ 预览刷新。用户感知："原型会响应"，agent 附一句状态变更说明。
