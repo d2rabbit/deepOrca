@@ -195,6 +195,16 @@ export class BufferStream {
     const docLength = view.state.doc.length;
     const atEnd = to >= docLength;
     const insertFrom = Math.min(to + 1, docLength);
+    // B5 perf fix (2026-09-07 review): the trailing-newline probe used to
+    // materialize the whole document (O(document) `doc.toString()`) inside
+    // insertRow on EVERY streamed row. It cannot change between this snapshot
+    // and the rows: the canvas is read-locked for the whole run (B6), the
+    // only doc writes are insertRow's own appends, the iteration excision
+    // restores the document EXACTLY (each AI row's change includes its
+    // trailing newline, leaving the tail byte-identical — firstRow is only
+    // ever true on a doc identical to this snapshot), and a setDoc swap
+    // aborts the run via the generation guard before any write.
+    const docEndsWithNewline = view.state.doc.toString().endsWith("\n");
     this.events.onStage({ step: 2, written: 0, total: 0 });
     this.clearDecorations();
     this.markGhost(from, to);
@@ -221,7 +231,9 @@ export class BufferStream {
       }
       // B5 (root fix): only an at-EOF selection on a doc WITHOUT a trailing
       // newline needs the visual separator — see the preamble comment above.
-      const prefix = firstRow && atEnd && docLength > 0 && !v.state.doc.toString().endsWith("\n") ? "\n" : "";
+      // The trailing-newline state is the run-start snapshot (perf fix):
+      // recomputing it here would materialize the doc per row.
+      const prefix = firstRow && atEnd && docLength > 0 && !docEndsWithNewline ? "\n" : "";
       firstRow = false;
       const rowStart = pos + prefix.length;
       v.dispatch({
@@ -622,8 +634,26 @@ export class BufferStream {
         // back to the snapshot arithmetic. Off-by-one root fix: the block
         // spans [startLine .. startLine + origCount + inserted - 1]; the old
         // `+inserted` (no -1) swallowed the user line right after the block.
-        startLine = Math.max(1, Math.min(this.selStartLine, doc.lines));
+        // Honor the del-ghost anchor when only the add marks are gone (e.g.
+        // the user deleted the AI rows): the del ghost marks the ORIGINAL
+        // selection and survives edits that kill the add decorations — it is
+        // strictly more live than the run's selStartLine snapshot.
+        startLine = blockStart >= 0 ? blockStart : Math.max(1, Math.min(this.selStartLine, doc.lines));
         endLine = Math.min(startLine + origCount + inserted - 1, doc.lines);
+        // Data-loss guard (2026-09-07 review): the fallback has NO live add
+        // anchor, so before splicing it must PROVE the window it is about to
+        // overwrite is still the reviewed block — the origCount original
+        // rows followed by the AI rows. (The old blind splice fired even
+        // when the user had deleted the AI rows during unlocked review,
+        // overwriting `inserted` USER lines below the ghost rows with the
+        // content they had just rejected.) Any mismatch → stay in review,
+        // exactly like the healthy branch's `left > 0` refusal above.
+        const orig = this.origLines;
+        for (let no = startLine; no <= endLine; no += 1) {
+          const offset = no - startLine;
+          const expected = offset < origCount ? orig?.[offset] : rows[offset - origCount];
+          if (doc.line(no).text !== expected) return;
+        }
       }
       const from = doc.line(startLine).from;
       const to = doc.line(endLine).to;
@@ -693,6 +723,20 @@ export class BufferStream {
     }
     if (this.settleStale()) return;
     this.runSeq += 1; // kill the in-flight run's continuation (C2)
+    // Listener-leak fix (2026-09-07 review): discard() bumped runSeq but never
+    // unsubscribed offProgress — the in-flight editorAgentRun continuation
+    // early-returns on the identity check BEFORE its own unsubscribe block,
+    // so a mid-run discard leaked the IPC progress listener until a FUTURE
+    // run's reset() happened to clean it up (and on unmount-less flows it
+    // leaked for good). Run the same teardown reset()/cancelRun() perform;
+    // runSeq was already bumped above, so no continuation of this run can
+    // race or resurrect the subscription, and a newer run cannot exist yet
+    // (discard is synchronous through here).
+    this.cancelFlush();
+    if (this.offProgress) {
+      this.offProgress();
+      this.offProgress = null;
+    }
     if (this.phase === "review" || this.phase === "streaming") {
       this.exciseAiRows();
     }

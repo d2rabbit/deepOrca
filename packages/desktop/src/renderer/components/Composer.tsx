@@ -107,6 +107,14 @@ function filterSlashCandidates(items: SlashCandidate[], token: string): SlashCan
   return items.filter((item) => item.name.toLowerCase().includes(query));
 }
 
+/**
+ * Deadline for the send-side dangling-reference validation (ms). The check
+ * must NEVER wedge the composer: a hung wiki/report IPC would otherwise leave
+ * `validatingRef` true forever and silently block every future send — after
+ * this long the validation resolves to null and the send fails open.
+ */
+const REF_VALIDATION_DEADLINE_MS = 1500;
+
 // Memoized: all props are stable references from App (state slices + useCallback
 // handlers), so App-level stream/busy ticks don't re-render the composer.
 export const Composer = memo(function Composer(props: Props): JSX.Element {
@@ -350,38 +358,59 @@ export const Composer = memo(function Composer(props: Props): JSX.Element {
     validatingRef.current = true;
     const draftAtCheck = value;
     void (async () => {
-      let dangling: string[] = [];
+      // null = validation could not complete (deadline or IPC failure) →
+      // fail open. A resolved list pair yields the dangling labels (possibly
+      // empty = all refs live).
+      let dangling: string[] | null = null;
       try {
         const needWiki = storeRefs.some((r) => r.kind === "wiki");
         const needReview = storeRefs.some((r) => r.kind === "review");
-        const [pages, reports] = await Promise.all([
-          needWiki ? api.wikiListPages(root) : Promise.resolve([]),
-          needReview ? api.reviewListReports(root) : Promise.resolve([]),
-        ]);
-        // Compare on store-relative tails (page path after deepwiki/ without
-        // .md / report id without .json) so absolute, relative and quoted
-        // spellings all resolve against the same keys.
-        const pageTails = new Set(
-          pages.map((p) =>
-            p.path
-              .replace(/\\/g, "/")
-              .replace(/^.*?deepwiki\//, "")
-              .replace(/\.md$/i, "")
-              .toLowerCase()
-          )
-        );
-        const reportIds = new Set(reports.map((r) => String(r.id).toLowerCase()));
-        dangling = storeRefs
-          .filter((r) => {
-            const path = storeRefPath(r.raw).replace(/\\/g, "/");
-            const wikiMatch = path.match(/[\\/]deepwiki[\\/](.+?)\.md$/i);
-            if (r.kind === "wiki") {
-              return !wikiMatch || !pageTails.has(wikiMatch[1]!.toLowerCase());
-            }
-            const reviewMatch = path.match(/[\\/]reviews[\\/](.+?)\.json$/i);
-            return !reviewMatch || !reportIds.has(reviewMatch[1]!.toLowerCase());
-          })
-          .map((r) => r.label);
+        // Deadline race (mirrors core's withTimeoutNull fail-open semantics):
+        // the old bare `await Promise.all([...])` left validatingRef true
+        // forever when the IPC hung, wedging the composer silently — the
+        // deadline resolves to null instead, and validatingRef is always
+        // cleared below. The losing list fetch carries a no-op catch so a
+        // late rejection never surfaces as an unhandled rejection.
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const deadline = new Promise<null>((resolve) => {
+          timer = setTimeout(() => resolve(null), REF_VALIDATION_DEADLINE_MS);
+        });
+        const lists = await Promise.race([
+          Promise.all([
+            needWiki ? api.wikiListPages(root) : Promise.resolve([]),
+            needReview ? api.reviewListReports(root) : Promise.resolve([]),
+          ]).catch(() => null),
+          deadline,
+        ]).finally(() => {
+          if (timer) clearTimeout(timer);
+        });
+        if (lists) {
+          const [pages, reports] = lists;
+          // Compare on store-relative tails (page path after deepwiki/ without
+          // .md / report id without .json) so absolute, relative and quoted
+          // spellings all resolve against the same keys.
+          const pageTails = new Set(
+            pages.map((p) =>
+              p.path
+                .replace(/\\/g, "/")
+                .replace(/^.*?deepwiki\//, "")
+                .replace(/\.md$/i, "")
+                .toLowerCase()
+            )
+          );
+          const reportIds = new Set(reports.map((r) => String(r.id).toLowerCase()));
+          dangling = storeRefs
+            .filter((r) => {
+              const path = storeRefPath(r.raw).replace(/\\/g, "/");
+              const wikiMatch = path.match(/[\\/]deepwiki[\\/](.+?)\.md$/i);
+              if (r.kind === "wiki") {
+                return !wikiMatch || !pageTails.has(wikiMatch[1]!.toLowerCase());
+              }
+              const reviewMatch = path.match(/[\\/]reviews[\\/](.+?)\.json$/i);
+              return !reviewMatch || !reportIds.has(reviewMatch[1]!.toLowerCase());
+            })
+            .map((r) => r.label);
+        }
       } catch {
         dangling = []; // fail-open
       }
@@ -389,7 +418,7 @@ export const Composer = memo(function Composer(props: Props): JSX.Element {
       // Draft changed while the lists were loading → result is stale, drop it
       // (the Enter that produced it will be followed by another validation).
       if (draftAtCheck !== valueRef.current) return;
-      if (dangling.length > 0) {
+      if (dangling !== null && dangling.length > 0) {
         setDanglingRefs(dangling);
       } else {
         doSend();

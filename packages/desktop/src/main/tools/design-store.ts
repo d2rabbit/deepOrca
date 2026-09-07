@@ -270,9 +270,10 @@ function getIndex(root: string): DesignIndex {
 }
 
 function writeIndex(root: string, index: DesignIndex): void {
-  const dir = getDesignsDir(root);
-  fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(path.join(dir, "index.json"), JSON.stringify(index, null, 2), "utf8");
+  // Atomic write (review fix): a torn bare writeFileSync here silently reset
+  // the legacy artifact index on the next persist — same temp+rename
+  // discipline as the suite index path.
+  writeJsonAtomic(path.join(getDesignsDir(root), "index.json"), index);
 }
 
 /** Full meta (incl. versions) from the artifact directory; null when absent. */
@@ -283,6 +284,26 @@ function readMetaFile(root: string, id: string): DesignArtifactMeta | null {
     return JSON.parse(fs.readFileSync(path.join(dir, "meta.json"), "utf8")) as DesignArtifactMeta;
   } catch {
     return null;
+  }
+}
+
+/**
+ * True when the id resolves to a meta.json that has been reshaped into the v2
+ * suite model (schemaVersion 2 / no `pipeline` field): the legacy artifact
+ * file map no longer applies, and a legacy lineage update must NOT touch it
+ * (it used to throw deep inside path.join and silently drop the revision).
+ */
+export function isSuiteNormalizedArtifact(root: string, id: string): boolean {
+  const dir = resolveArtifactDir(root, id);
+  if (!dir) return false;
+  try {
+    const meta = JSON.parse(fs.readFileSync(path.join(dir, "meta.json"), "utf8")) as {
+      pipeline?: DesignPipeline;
+      schemaVersion?: unknown;
+    };
+    return meta.pipeline === undefined || meta.schemaVersion === 2;
+  } catch {
+    return false;
   }
 }
 
@@ -314,6 +335,12 @@ export function saveDesignArtifact(
     const index = getIndex(root);
     const now = new Date().toISOString();
     const existing = input.id ? (readMetaFile(root, input.id) ?? undefined) : undefined;
+    // A suite-shaped meta (v2 normalization) has no `pipeline` — the legacy
+    // file map does not apply. Fail explicitly here instead of throwing
+    // inside path.join below; callers surface the reason to the tool layer.
+    if (existing && (existing as { pipeline?: DesignPipeline }).pipeline === undefined) {
+      return null;
+    }
 
     // Snapshot the outgoing content before it is replaced.
     let versions = existing?.versions ?? [];
@@ -733,6 +760,12 @@ export function appendDesignSuiteVersion(root: string, input: AppendDesignSuiteV
       status: versionStatus,
     }));
     let currentVersion = suite.currentVersion;
+    // Evicted version files are deleted only AFTER the new meta/index persist
+    // (delete-last): deleting first meant a crash in between left meta.json
+    // referencing deleted files, and readDesignSuite returned null for the
+    // whole suite. Delete-last leaves at most orphan files, never a dangling
+    // meta.
+    const evictedPaths: string[] = [];
     if (contentChanged) {
       const now = new Date().toISOString();
       currentVersion = {
@@ -751,7 +784,7 @@ export function appendDesignSuiteVersion(root: string, input: AppendDesignSuiteV
       while (versions.length > MAX_VERSIONS) {
         const removed = versions.shift();
         const removedPath = removed ? resolveContainedFile(dir, "versions", `${removed.versionId}.json`) : null;
-        if (removedPath) fs.rmSync(removedPath, { force: true });
+        if (removedPath) evictedPaths.push(removedPath);
       }
     } else if (wasLegacy) {
       versions = versions.map((version) =>
@@ -782,6 +815,14 @@ export function appendDesignSuiteVersion(root: string, input: AppendDesignSuiteV
       versions,
     };
     persistSuiteVersion(root, meta, currentVersion);
+    for (const evictedPath of evictedPaths) {
+      try {
+        fs.rmSync(evictedPath, { force: true });
+      } catch {
+        // Best-effort eviction — an orphan file is harmless; a failed delete
+        // must not fail the already-persisted append.
+      }
+    }
     notifySuiteChange({
       root,
       suiteId: suite.id,
@@ -815,7 +856,14 @@ export function readDesignSuite(root: string, id: string): DesignSuite | null {
   const versions: DesignSuiteVersion[] = [];
   for (const summary of meta.versions) {
     const version = readSuiteVersionFile(root, id, summary.versionId);
-    if (!version) return null;
+    if (!version) {
+      // Crash tolerance (delete-last companion): a non-current version file
+      // that went missing is dropped from the read instead of nulling the
+      // whole suite. The CURRENT version is the suite head — without it the
+      // suite is unreadable and stays null.
+      if (summary.versionId === meta.currentVersionId) return null;
+      continue;
+    }
     versions.push(version);
   }
   const currentVersion = versions.find((version) => version.versionId === meta.currentVersionId);

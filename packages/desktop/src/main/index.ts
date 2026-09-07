@@ -18,8 +18,6 @@ import {
   resolveModernNode,
   getUserConfigRoot,
   getProjectCode,
-  collectLaneRateSessions,
-  computeLaneRates,
   evaluateL1Rules,
   type LaneRatesReport,
   configureCrgVersionRoot,
@@ -59,6 +57,7 @@ import { gitPreflight, gitBootstrap } from "./git-preflight";
 import type { ModelConfigSelection, UserPromptContent } from "@deeporca/core";
 import { IpcEvent, IpcRequest } from "../shared/ipc.js";
 import { ensureDembrandtBrowserProvider, getDembrandtCdpEndpoint } from "./tools/dembrandt-browser";
+import { laneRatesReport } from "./tools/lane-rates-ipc";
 import { fetchEndpointQuota } from "./endpoint-quota.js";
 import { testEndpoint } from "./endpoint-test.js";
 import type {
@@ -2283,44 +2282,20 @@ function registerWikiIpc({ handle, handlePrivileged }: IpcHelpers): void {
     return fallback.charAt(0).toUpperCase() + fallback.slice(1);
   }
 
+  /** Lane-rates panel scan: the select → preload → collect pipeline lives in
+   *  tools/lane-rates-ipc.ts (extracted so it is unit-testable without
+   *  Electron); the handler keeps only the root-pinning invariant. */
   handle(IpcRequest.LaneRatesGet, async (rootArg?: string): Promise<LaneRatesReport | null> => {
     // Root PINNED (same invariant as every knowledge channel): unregistered
     // root → null, never an arbitrary path's session storage.
     const pinned = resolveRegisteredRoot(rootArg);
     if (!pinned) return null;
     try {
-      const projectDir = join(getUserConfigRoot(), "projects", getProjectCode(pinned));
-      const readIndex = () => {
-        try {
-          return (
-            (
-              JSON.parse(readFileSync(join(projectDir, "sessions-index.json"), "utf8")) as {
-                entries?: Array<{ id: string; isSilentSubagent?: boolean; lane?: "express" | "deep" }>;
-              }
-            ).entries ?? []
-          );
-        } catch {
-          return [];
-        }
-      };
-      const readTranscript = (sessionId: string) => {
-        try {
-          return readFileSync(join(projectDir, `${sessionId}.jsonl`), "utf8")
-            .split("\n")
-            .filter((l) => l.trim())
-            .map((l) => JSON.parse(l) as never);
-        } catch {
-          return [];
-        }
-      };
-      const sessions = collectLaneRateSessions({
-        readIndex,
-        readTranscript,
-        evaluateL1: (text: string) => evaluateL1Rules({ planMode: false, text }),
+      return await laneRatesReport(join(getUserConfigRoot(), "projects", getProjectCode(pinned)), {
+        evaluateL1: (text) => evaluateL1Rules({ planMode: false, text }),
       });
-      return computeLaneRates(sessions) as LaneRatesReport;
     } catch {
-      return null; // fail-open: the panel shows "no data" instead of erroring
+      return null;
     }
   });
 

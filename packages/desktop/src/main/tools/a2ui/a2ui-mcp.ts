@@ -27,6 +27,8 @@ import {
   appendDesignSuiteVersion,
   createDesignSuite,
   deriveTitle,
+  isSafeDesignId,
+  isSuiteNormalizedArtifact,
   readDesignSuite,
   readDesignSuiteVersion,
   saveDesignArtifact,
@@ -167,6 +169,10 @@ export function persistSurfaces(projectRoot: string, idPrefix?: string, sinceSta
     for (const [id, state] of surfaces) {
       if (idPrefix && !id.startsWith(idPrefix)) continue;
       if (sinceStamp !== undefined && state.stamp <= sinceStamp) continue;
+      // Defense in depth: surface ids become file names — an id that slipped
+      // past the tool boundary (e.g. restored from disk) must never reach
+      // path.join with traversal segments.
+      if (!isSafeDesignId(id)) continue;
       const filePath = nodePath.join(dir, `${id}.json`);
       fs.writeFileSync(
         filePath,
@@ -205,6 +211,9 @@ export function restoreSurfaces(projectRoot: string): void {
           dataModel: Record<string, unknown>;
           components?: unknown[];
         };
+        // The id becomes a file name at flush time — a hand-crafted/traversal
+        // id on disk must never re-enter the surfaces map (nor knownSurfaceIds).
+        if (!isSafeDesignId(data.surfaceId)) continue;
         knownSurfaceIds.add(data.surfaceId);
         surfaces.set(data.surfaceId, {
           surfaceId: data.surfaceId,
@@ -468,6 +477,41 @@ function suiteError(message: string): CallToolResult {
   return { content: [{ type: "text", text: `Error: ${message}` }], isError: true };
 }
 
+// save_suite_result persists model-supplied payloads verbatim — clamp them at
+// the tool boundary so one runaway LLM blob cannot bloat the suite store.
+const SUITE_PAYLOAD_MAX_CHARS = 512 * 1024;
+const SUITE_PAYLOAD_MAX_DEPTH = 12;
+
+function jsonDepth(value: unknown, depth = 0): number {
+  // Recursion is bounded one level past the budget: anything reaching
+  // MAX_DEPTH + 1 returns >= MAX_DEPTH + 1, so "> MAX_DEPTH" rejects 13+ while
+  // a structure nested exactly MAX_DEPTH deep still passes.
+  if (value === null || typeof value !== "object" || depth >= SUITE_PAYLOAD_MAX_DEPTH + 1) return depth;
+  let max = depth + 1;
+  for (const item of Array.isArray(value) ? value : Object.values(value)) {
+    max = Math.max(max, jsonDepth(item, depth + 1));
+    if (max >= SUITE_PAYLOAD_MAX_DEPTH + 1) break;
+  }
+  return max;
+}
+
+/** Reason the payload must be rejected, or null when it fits the budget. */
+function suitePayloadError(value: unknown): string | null {
+  let encoded: string | undefined;
+  try {
+    encoded = JSON.stringify(value);
+  } catch {
+    return "payload is not JSON-serializable";
+  }
+  if (encoded !== undefined && encoded.length > SUITE_PAYLOAD_MAX_CHARS) {
+    return `payload is too large (limit ${SUITE_PAYLOAD_MAX_CHARS} characters)`;
+  }
+  if (jsonDepth(value) > SUITE_PAYLOAD_MAX_DEPTH) {
+    return `payload nesting exceeds depth ${SUITE_PAYLOAD_MAX_DEPTH}`;
+  }
+  return null;
+}
+
 function artifactResult(
   ref: DesignArtifactRef,
   message: string,
@@ -591,6 +635,20 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
     },
     async (args) => {
       const surfaceId = String(args.surfaceId ?? `surface-${Date.now()}`);
+      // The surface id becomes a file name under .deeporca/prototypes at flush
+      // time — reject traversal/unsafe ids at the boundary instead of letting
+      // them reach path.join.
+      if (!isSafeDesignId(surfaceId)) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: "Error: surfaceId must be a safe identifier (letters, digits, '.', '_', '-'; no '/', '\\\\' or '..').",
+            },
+          ],
+          isError: true,
+        };
+      }
       const title = String(args.title ?? "A2UI Surface");
       const components = normalizeComponents(args.components);
       const dataModel = (args.dataModel as Record<string, unknown>) ?? {};
@@ -650,6 +708,18 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
     async (args) => {
       const template = String(args.template ?? "");
       const surfaceId = String(args.surfaceId ?? `proto-${Date.now()}`);
+      // Same file-name boundary as render_surface.
+      if (!isSafeDesignId(surfaceId)) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: "Error: surfaceId must be a safe identifier (letters, digits, '.', '_', '-'; no '/', '\\\\' or '..').",
+            },
+          ],
+          isError: true,
+        };
+      }
       const title = String(args.title ?? "Prototype");
       const params = (args.params as Record<string, unknown>) ?? {};
 
@@ -891,11 +961,12 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
           { spec: document }
         );
       }
-      saveArtifactWithLineage(projectRoot, "spec", "render", {
+      const saveError = saveArtifactWithLineage(projectRoot, "spec", "render", {
         title: deriveTitle(document),
         content: document,
         requirement,
       });
+      if (saveError) return suiteError(saveError);
       return {
         content: [
           {
@@ -960,7 +1031,13 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
         }
         const sourcePrototype = sourcePrototypeArg(args);
         const designSystemId = stringArg(args, "designSystemId");
-        const kind: DesignSuiteKind = sourcePrototype || designSystemId ? "ui" : "prototype";
+        // Appending to an existing suite keeps the suite's kind: a bare
+        // suiteId+versionId append (no designSystemId/sourcePrototype) would
+        // otherwise compute kind "prototype" from the args heuristic and fail
+        // against a ui suite (update_openui already derives it this way).
+        const suiteId = stringArg(args, "suiteId");
+        const existingSuite = suiteId && projectRoot ? readDesignSuite(projectRoot, suiteId) : undefined;
+        const kind: DesignSuiteKind = existingSuite?.kind ?? (sourcePrototype || designSystemId ? "ui" : "prototype");
         const ref = persistSuiteContent(
           projectRoot,
           args,
@@ -989,11 +1066,12 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
           openui: code,
         });
       }
-      saveArtifactWithLineage(projectRoot, "openui", "render", {
+      const renderError = saveArtifactWithLineage(projectRoot, "openui", "render", {
         title: deriveTitle(code),
         content: code,
         requirement,
       });
+      if (renderError) return suiteError(renderError);
       // Return as text content with metadata.openui. The desktop renderer
       // detects this and switches to OpenUI Lang rendering mode.
       return {
@@ -1059,7 +1137,11 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
       }
       // Iterate on the same artifact (versions[] accumulate; render_openui
       // starts a fresh lineage for a brand-new prototype).
-      saveArtifactWithLineage(projectRoot, "openui", "update", { title: deriveTitle(code), content: code });
+      const updateError = saveArtifactWithLineage(projectRoot, "openui", "update", {
+        title: deriveTitle(code),
+        content: code,
+      });
+      if (updateError) return suiteError(updateError);
       return {
         content: [
           {
@@ -1124,6 +1206,21 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
       const suite = readDesignSuite(projectRoot, suiteId);
       const version = readDesignSuiteVersion(projectRoot, suiteId, versionId);
       if (!suite || !version) return suiteError("suite or version not found");
+      // Contract fix: appending against a non-head version must not silently
+      // roll the suite head back — the caller has to re-read the latest
+      // version and retry against it.
+      if (suite.currentVersionId !== versionId) {
+        return suiteError(
+          `suite head has moved: the latest version of "${suiteId}" is "${suite.currentVersionId}", ` +
+            `not "${versionId}". Re-read the latest version and retry against it.`
+        );
+      }
+      // Clamp the model-supplied payloads before they are persisted verbatim.
+      for (const key of ["verification", "quality", "tokens", "components"] as const) {
+        if (args[key] === undefined) continue;
+        const reason = suitePayloadError(args[key]);
+        if (reason) return suiteError(`${key}: ${reason}`);
+      }
       const note = stringArg(args, "note");
       let content: DesignSuiteContent;
       let status: DesignSuiteStatus;
@@ -1215,7 +1312,11 @@ export function registerDesignTools(registerTool: RegisterToolLoose, projectRoot
         } as CallToolResult;
       }
       lastDesignDoc = content;
-      saveArtifactWithLineage(projectRoot, "design", "render", { title: deriveTitle(content), content });
+      const renderError = saveArtifactWithLineage(projectRoot, "design", "render", {
+        title: deriveTitle(content),
+        content,
+      });
+      if (renderError) return suiteError(renderError);
       const sectionCount = (content.match(/<!--\s*dd:section\s/g) || []).length;
       return {
         content: [
@@ -1276,10 +1377,11 @@ export function registerDesignTools(registerTool: RegisterToolLoose, projectRoot
       lastDesignDoc = nextContent;
       const sectionCount = (nextContent.match(/<!--\s*dd:section\s/g) || []).length;
 
-      saveArtifactWithLineage(projectRoot, "design", "update", {
+      const updateError = saveArtifactWithLineage(projectRoot, "design", "update", {
         title: deriveTitle(nextContent),
         content: nextContent,
       });
+      if (updateError) return suiteError(updateError);
       const message = deltaCount
         ? `DeepDesign updated via section delta (${deltaCount} patched, ${sectionCount} total sections).`
         : `DeepDesign updated (${sectionCount} section(s)).`;
@@ -1302,16 +1404,28 @@ let lastDesignDoc: string | null = null;
  */
 const latestArtifactIds = new Map<string, { openui?: string; design?: string; spec?: string }>();
 
-/** Save with lineage: create (render) or version (update), remembering the id. */
+/**
+ * Save with lineage: create (render) or version (update), remembering the id.
+ * Returns null on success; a caller-facing error string otherwise. The tool
+ * layer MUST surface it — a legacy update whose lineage target was normalized
+ * into a v2 suite used to throw-to-null and still report "updated" while
+ * nothing was written.
+ */
 function saveArtifactWithLineage(
   root: string | undefined,
   kind: "openui" | "design" | "spec",
   mode: "render" | "update",
   input: { title: string; content: string; requirement?: string }
-): void {
-  if (!root) return;
+): string | null {
+  if (!root) return null; // hostless context — unchanged fail-quiet semantics
   const latest = latestArtifactIds.get(root) ?? {};
   const id = mode === "update" ? latest[kind] : undefined;
+  if (id && isSuiteNormalizedArtifact(root, id)) {
+    return (
+      `previous ${kind} artifact "${id}" was normalized into a v2 design suite — ` +
+      "persist this revision by re-issuing the call with its suiteId (or render anew)"
+    );
+  }
   const meta = saveDesignArtifact(root, {
     ...(id ? { id } : {}),
     title: input.title,
@@ -1319,9 +1433,9 @@ function saveArtifactWithLineage(
     content: input.content,
     ...(input.requirement ? { requirement: input.requirement } : {}),
   });
-  if (meta) {
-    latestArtifactIds.set(root, { ...latest, [kind]: meta.id });
-  }
+  if (!meta) return `could not persist the ${kind} artifact (write failed)`;
+  latestArtifactIds.set(root, { ...latest, [kind]: meta.id });
+  return null;
 }
 
 /**

@@ -50,8 +50,17 @@ const RELAY_MAX_SESSIONS = 8;
  * didChangeConfiguration, raw $/… extensions — is rejected at the relay so
  * a compromised renderer cannot drive the server beyond the protocol the
  * client owns. Mirrors the outbound set of @codemirror/lsp-client.
+ *
+ * Exported (read-only use) for the whitelist-coverage test: audited against
+ * node_modules/@codemirror/lsp-client 6.2.5 — its full outbound set is
+ * initialize, initialized, $/cancelRequest, textDocument/didOpen|didChange|
+ * didClose (notifications) and textDocument/{completion,hover,signatureHelp,
+ * definition,declaration,typeDefinition,implementation,references,rename,
+ * formatting} (requests). It does NOT send completionItem/resolve,
+ * textDocument/prepareRename, workspace/configuration or shutdown, so the
+ * whitelist needs no additions for this version.
  */
-const RELAY_ALLOWED_METHODS = new Set([
+export const RELAY_ALLOWED_METHODS: ReadonlySet<string> = new Set([
   "$/cancelRequest",
   "initialize",
   "initialized",
@@ -113,8 +122,9 @@ function containedResolved(rootPath: string, resolved: string): string | null {
   return resolved;
 }
 
-/** LSP file URI → local path (three-slash drive letters / UNC host form). */
-function fileUriToPath(value: string): string | null {
+/** LSP file URI → local path (three-slash drive letters / UNC host form).
+ *  Exported for the unskippable URI round-trip tests (lsp-relay.test.ts). */
+export function fileUriToPath(value: string): string | null {
   try {
     const url = new URL(value);
     if (url.protocol !== "file:") return null;
@@ -122,7 +132,16 @@ function fileUriToPath(value: string): string | null {
       // file://host/share/x → \\host\share\x (UNC)
       return `\\\\${url.host}${decodeURIComponent(url.pathname).replace(/\//g, "\\")}`;
     }
-    return decodeURIComponent(url.pathname);
+    let rest = decodeURIComponent(url.pathname);
+    // file:///C:/x/y.ts — url.pathname is "/C:/x/y.ts": the leading slash is
+    // the empty-authority separator, NOT part of the path. Strip it for the
+    // drive-letter form only (mirror of lsp-bridge/routing.uriToPath):
+    // path.win32.resolve("/C:/a/b.ts") folds the drive into a folder
+    // (`<cwd-drive>:\C:\a\b.ts`), which made firstUriOutsideRoot reject EVERY
+    // document URI on Windows — LSP was completely dead on drive-letter
+    // workspaces. POSIX ("/home/…") and UNC shapes are unchanged.
+    if (/^\/[A-Za-z]:/.test(rest)) rest = rest.slice(1);
+    return rest;
   } catch {
     return null;
   }
@@ -219,6 +238,13 @@ export class LspRelay {
         // session detaches instead.
         proc.stdin.on("error", () => this.detach(sessionId));
         proc.on("exit", () => {
+          const current = this.sessions.get(sessionId);
+          if (current === session) this.sessions.delete(sessionId);
+        });
+        // 异步 spawn error（候选二进制缺失 ENOENT / EACCES）不能以未处理
+        // error 事件击杀主进程 —— 会话直接移除，渲染层下次 send 会收到
+        // "unknown or closed session" 并走自愈路径。
+        proc.on("error", () => {
           const current = this.sessions.get(sessionId);
           if (current === session) this.sessions.delete(sessionId);
         });

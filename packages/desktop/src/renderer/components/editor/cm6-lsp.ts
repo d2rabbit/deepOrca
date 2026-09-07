@@ -82,6 +82,35 @@ function dropSessionByRelayId(sessionId: string): void {
   }
 }
 
+/**
+ * The relay's `send` returns ok:false for FOUR distinct causes (see
+ * tools/lsp-relay.ts) and only ONE of them means the cached session is dead:
+ *   - `unknown or closed session <id>` — the session was idle-reaped, the
+ *     server crashed or was detached → the cache must be dropped so the next
+ *     ensureSession re-attaches (self-heal);
+ *   - `method not allowed: <m>` / `malformed frame rejected by relay` /
+ *     `frame uri escapes session root: <uri>` — the session is ALIVE; the
+ *     relay merely refused this one frame. Dropping the cache here tore down
+ *     a perfectly healthy client on every refused frame (e.g. the relay's
+ *     whitelist rejecting a stray method) and pinned the editor to
+ *     reconnect-thrash. Exported pure for the regression tests.
+ */
+export function shouldDropRelaySession(relayError: string): boolean {
+  return relayError.startsWith("unknown or closed session ");
+}
+
+/** Fail-quiet throttle for the refuse-but-alive causes: one console.debug per
+ *  distinct error head ("method not allowed", "malformed frame rejected by
+ *  relay", "frame uri escapes session root") — never per keystroke, and the
+ *  set stays bounded because the head never carries the variable tail. */
+const transportRejectionHeads = new Set<string>();
+function debugTransportRejectionOnce(relayError: string): void {
+  const head = relayError.split(":")[0] ?? relayError;
+  if (transportRejectionHeads.has(head)) return;
+  transportRejectionHeads.add(head);
+  console.debug(`[cm6-lsp] relay refused a frame (${head}) — session kept:`, relayError);
+}
+
 /** Adapter: LSPClient transport ↔ relay IPC (sessionId-scoped, fail-quiet). */
 function relayTransport(sessionId: string, handlers: Set<(value: string) => void>): Transport {
   return {
@@ -89,12 +118,18 @@ function relayTransport(sessionId: string, handlers: Set<(value: string) => void
       // Audit 6.2: a detached session must not surface as an unhandled
       // rejection on every keystroke — swallow transport-level errors and
       // let the client observe the silence (fail-open contract). A resolved
-      // `{ok:false}` is NOT silence though: the relay no longer knows this
-      // session (idle-reaped or crashed server) — drop the cache so the
-      // next ensureSession reconnects instead of timing out forever.
+      // `{ok:false}` is only a dead-session signal for the "unknown or
+      // closed session" cause; the relay's other rejections (whitelist,
+      // malformed frame, uri escape) leave the session ALIVE — dropping the
+      // cache there disconnected a healthy client on every refused frame.
       void api.lspRelaySend(sessionId, message).then(
         (res) => {
-          if (!res.ok) dropSessionByRelayId(sessionId);
+          if (res.ok) return;
+          if (shouldDropRelaySession(res.error)) {
+            dropSessionByRelayId(sessionId);
+            return;
+          }
+          debugTransportRejectionOnce(res.error);
         },
         () => undefined
       );
