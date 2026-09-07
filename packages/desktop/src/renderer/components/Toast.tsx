@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type JSX } from "react";
 import { useI18n } from "../i18n";
 import { IconInfo } from "../ui/index";
+import { AnimatePresence, m } from "../ui/motion";
 
 export type ToastKind = "info" | "success" | "error";
 export type Toast = { id: number; kind: ToastKind; text: string };
@@ -106,28 +107,36 @@ export function ToastContainer({
   if (toasts.length === 0) return null;
   return (
     <div className="ui-toast-container" role="status" aria-live="polite">
-      {toasts.map((toast) => (
-        <div
-          key={toast.id}
-          className={`ui-toast ui-toast--${toast.kind}`}
-          onMouseEnter={onPause ? () => onPause(toast.id) : undefined}
-          onMouseLeave={onResume ? () => onResume(toast.id, TOAST_DURATION_MS[toast.kind]) : undefined}
-        >
-          <span className="ui-toast-icon">{TOAST_GLYPH[toast.kind]}</span>
-          <span className="ui-toast-text">{toast.text}</span>
-          {onDismiss ? (
-            <button
-              type="button"
-              className="ui-toast-close"
-              onClick={() => onDismiss(toast.id)}
-              aria-label={t("common.close")}
-              title={t("common.close")}
-            >
-              ×
-            </button>
-          ) : null}
-        </div>
-      ))}
+      {/* 退出动画（动画调研 P0）: AnimatePresence 在 setState 移除后仍挂载
+          退场中的 toast，exit 反向淡出+上滑。 */}
+      <AnimatePresence initial={false}>
+        {toasts.map((toast) => (
+          <m.div
+            key={toast.id}
+            className={`ui-toast ui-toast--${toast.kind}`}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+            onMouseEnter={onPause ? () => onPause(toast.id) : undefined}
+            onMouseLeave={onResume ? () => onResume(toast.id, TOAST_DURATION_MS[toast.kind]) : undefined}
+          >
+            <span className="ui-toast-icon">{TOAST_GLYPH[toast.kind]}</span>
+            <span className="ui-toast-text">{toast.text}</span>
+            {onDismiss ? (
+              <button
+                type="button"
+                className="ui-toast-close"
+                onClick={() => onDismiss(toast.id)}
+                aria-label={t("common.close")}
+                title={t("common.close")}
+              >
+                ×
+              </button>
+            ) : null}
+          </m.div>
+        ))}
+      </AnimatePresence>
     </div>
   );
 }

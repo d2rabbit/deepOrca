@@ -53,6 +53,9 @@ import type { ToolCallExecution, ToolExecutionHooks } from "./tools/executor";
 import type { BashSandboxSpawner } from "./common/tool-types";
 import type { PermissionSettings } from "./settings";
 import type { SandboxBackend, SandboxProbeResult } from "./sandbox/backend/interface";
+import type { ComplexityVerdict } from "./routing/gate/gate";
+import { evaluateL1Rules } from "./routing/gate/gate";
+import { withTimeoutNull } from "./common/timeout";
 import type {
   BashTimeoutAdjustment,
   SessionEntry,
@@ -62,6 +65,25 @@ import type {
 } from "./session-types";
 
 export abstract class SessionManagerLifecycle extends SessionManagerPersistence {
+  /**
+   * Complexity-gate verdict details per session (specs/depth-lane): backs the
+   * transient Gate Directive tail and the staged flow. Written by
+   * createSession at the skill-matching point; only the lane value itself is
+   * persisted (SessionEntry.lane).
+   */
+  protected readonly laneContexts = new Map<string, ComplexityVerdict | null>();
+
+  /**
+   * Depth-lane hook: overidden by the depth layer (session-manager-depth.ts)
+   * to run the staged deliberation flow for deep sessions. The base no-op
+   * keeps the byte-level status-quo path for every other build/configuration.
+   */
+  protected async maybeRunDepthLane(sessionId: string, controller?: AbortController): Promise<boolean> {
+    void sessionId;
+    void controller;
+    return false;
+  }
+
   getActiveSessionId(): string | null {
     return this.activeSessionId;
   }
@@ -195,12 +217,11 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
     // Uses a 2s race: if the Gateway responds fast, memories are injected
     // synchronously before the LLM sees the first message. If it's slow,
     // we proceed without memories rather than blocking session creation.
+    // withTimeoutNull also swallows a rejecting recall and clears the timer
+    // on the fast path (common/timeout — shared with the action seams).
     if (this.memoryProvider?.isAvailable() && userPrompt.text) {
       try {
-        const recall = await Promise.race([
-          this.memoryProvider.recall(userPrompt.text, sessionId),
-          new Promise<null>((r) => setTimeout(() => r(null), 2000)),
-        ]);
+        const recall = await withTimeoutNull(this.memoryProvider.recall(userPrompt.text, sessionId), 2000);
         if (recall) {
           const memoryPrompt = getMemoryPrompt(recall);
           if (memoryPrompt) {
@@ -222,14 +243,37 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
 
     if (userPrompt.text) {
       const skills = await this.listSkills();
-      const skillNames = await this.identifyMatchingSkillNames(skills, userPrompt.text, { signal, sessionId });
+      // depth-lane P0.2/P0.4: the complexity verdict rides the SAME flash
+      // call as skill matching. Silent subagent sessions skip the gate (no
+      // extra calls, no lane) — they are pipeline internals, not user turns.
+      const gateOn = this.getComplexityGate().enabled && !this.silentSubagentActive;
+      const { skillNames, verdict } = await this.matchSkillsWithVerdict(skills, userPrompt.text, {
+        signal,
+        sessionId,
+        laneGateEnabled: gateOn,
+        planMode: Boolean(userPrompt.planMode),
+      });
       this.throwIfAborted(signal);
+      if (gateOn && verdict) {
+        this.recordLaneVerdict(sessionId, verdict);
+      }
       const skillSet = new Set(skillNames);
       const matchedSkill = skills.filter((skill) => skillSet.has(skill.name));
       if (Array.isArray(userPrompt.skills)) {
         userPrompt.skills.push(...matchedSkill);
       } else if (matchedSkill.length > 0) {
         userPrompt.skills = matchedSkill;
+      }
+    } else if (this.getComplexityGate().enabled && !this.silentSubagentActive) {
+      // Image-only / empty first frame: skill matching is skipped, but the L1
+      // image-only rule still decides the lane for observation (P0.1 rule 2).
+      const l1 = evaluateL1Rules({
+        planMode: Boolean(userPrompt.planMode),
+        text: userPrompt.text,
+        imageUrls: userPrompt.imageUrls,
+      });
+      if (l1) {
+        this.recordLaneVerdict(sessionId, { lane: l1.lane, tpcr: null, reason: l1.reason, source: l1.source });
       }
     }
     userPrompt.skills = await this.normalizeSkills(userPrompt.skills);
@@ -238,8 +282,26 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
     await this.appendSkillMessages(sessionId, userPrompt.skills, userPrompt.text);
 
     this.activeSessionId = sessionId;
+    // depth-lane: deep sessions with the staged flow enabled diverge here;
+    // every other configuration takes the byte-identical status-quo path.
+    if (await this.maybeRunDepthLane(sessionId, controller)) {
+      return sessionId;
+    }
     await this.activateSession(sessionId, controller);
     return sessionId;
+  }
+
+  /**
+   * Stamp a complexity-gate verdict onto a session (P0.4): persists only the
+   * lane value (backward-compatible optional field) and keeps the full
+   * verdict (TPCR + reason) in memory for the transient tail / staged flow.
+   */
+  protected recordLaneVerdict(sessionId: string, verdict: ComplexityVerdict): void {
+    this.laneContexts.set(sessionId, verdict);
+    this.updateSessionEntry(sessionId, (entry) => ({
+      ...entry,
+      lane: verdict.lane,
+    }));
   }
 
   async replySession(sessionId: string, userPrompt: UserPromptContent, controller?: AbortController): Promise<void> {

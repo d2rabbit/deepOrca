@@ -18,6 +18,10 @@ import {
   resolveModernNode,
   getUserConfigRoot,
   getProjectCode,
+  collectLaneRateSessions,
+  computeLaneRates,
+  evaluateL1Rules,
+  type LaneRatesReport,
   configureCrgVersionRoot,
   hasCrgProject,
   resolveUvBinary,
@@ -27,6 +31,7 @@ import {
   runCrgResetWithOutput,
   configureSerenaController,
   configureSkillSpectorController,
+  configureLspBridgeController,
   configureCrgController,
   configureRoutingModelDir,
   configureRoutingLogger,
@@ -80,6 +85,9 @@ import type {
   WorkspaceTrustLevel,
 } from "../shared/ipc.js";
 import { SessionBridge } from "./session-bridge.js";
+import { registerEditorAgentRunIpc } from "./tools/editor-agent-run.js";
+import { registerLspRelayIpc, shutdownLspRelay } from "./tools/lsp-relay-ipc.js";
+import { listEditorRuns } from "./tools/editor-runs-store.js";
 import { applyAppIcon } from "./app-icon.js";
 import { PluginManager, type PluginEventCallback } from "./plugin-manager.js";
 import { scanFiles } from "./file-scanner.js";
@@ -93,6 +101,7 @@ import { BINDING_LIMIT, buildRiskGraphData, getRiskOverviewCached } from "./tool
 import { buildTaskHub } from "./tools/task-hub.js";
 import { normalizeSessionTrace, readSessionTraceSource } from "./tools/session-trace.js";
 import {
+  buildModelDetail,
   buildTokenSummary,
   emptyTokenSummary,
   migrateLegacyUsageIntoLedger,
@@ -105,26 +114,14 @@ import { WIKI_STORE_DIR } from "./tools/wiki-staging.js";
 import { ensureGeneratedLayout } from "./tools/generated-layout.js";
 import { buildVisionServer } from "./tools/vision-mcp.js";
 import { SerenaCliController } from "./tools/serena-cli.js";
+import { BundledLspBridgeController } from "./tools/lsp-bridge/controller.js";
 import { cleanupLeakedSubagentSessions } from "./subagent-cleanup.js";
 import type { DatabaseSync as DatabaseSyncType } from "node:sqlite";
 import { BuildJobManager } from "./build-job-manager.js";
 import { SkillSpectorCliController } from "./tools/skill-spector-cli.js";
 import { CrgCliController } from "./tools/crg-cli.js";
-import {
-  listDesignArtifacts,
-  onDesignStoreChange,
-  readDesignArtifact,
-  deleteDesignArtifact,
-  saveFormState,
-  readFormState,
-  type DesignPipeline,
-} from "./tools/design-store.js";
-// Dependency-free renderer modules reused by the main-process `.ddu` export
-// (P4-1): parsing/compiling is pure string logic with no browser API touch,
-// so bundling them into main.js is safe.
-import { parseDdFile } from "../renderer/dd/parser.js";
-import { compileDdToHtml } from "../renderer/dd/compiler.js";
-import { buildDdpPackage, buildDduPackage } from "./tools/dd-package.js";
+import { registerDesignIpc as registerDesignStoreIpc } from "./design-ipc.js";
+import { listDesignArtifacts } from "./tools/design-store.js";
 import { a2uiServerBuilder } from "./tools/a2ui/index.js";
 import { buildActivityFramesServer } from "./tools/activity-frames/index.js";
 import { handleEditorReadFile, handleEditorWriteFile, handleEditorListFiles } from "./editor-handlers.js";
@@ -487,6 +484,11 @@ configureSerenaController(
   })
 );
 
+// LSP diagnostics bridge (specs/lsp-diagnostics P0-5): the bundled bridge
+// server next to main.js; buildMcpServerConfig returns null unless
+// settings.lspDiagnostics.enabled — default OFF, trusted-project opt-in.
+configureLspBridgeController(new BundledLspBridgeController({ serverEntry: join(__dirname, "lsp-bridge-server.cjs") }));
+
 /**
  * Aggregate the status of every knowledge source for the dashboard. Each probe
  * is best-effort and independent — a failing source degrades to "empty" rather
@@ -599,6 +601,26 @@ function emit(channel: string, payload?: unknown): void {
     }
   }
 }
+
+/**
+ * Audit 5.1 root fix: targeted emit for payload channels ONLY the main window
+ * consumes — LSP frames carry document content and editor-agent progress
+ * carries streamed code; broadcasting those into popout windows (prototype,
+ * arch preview, app-icon) violates the minimal-surface principle. The main
+ * window is tracked by identity (M1) — a URL regex can never tell the app
+ * window apart from `index.html?view=prototype` popouts, and window creation
+ * order is not a contract.
+ */
+function emitToMain(channel: string, payload?: unknown): void {
+  const win = mainWindow;
+  if (win && !win.isDestroyed()) {
+    win.webContents.send(channel, payload);
+  }
+}
+
+// (The editor-agent run handler + its ledger accounting live in
+// ./tools/editor-agent-run.ts; the LSP relay IPC in ./tools/lsp-relay-ipc.ts
+// — file-length split, deps injected.)
 
 // The initial project root: the most recently active known workspace. Home is
 // only a last-resort fallback for a truly fresh install — it must never surface
@@ -1482,31 +1504,25 @@ function registerEndpointTestIpc({ handle }: IpcHelpers): void {
   });
 }
 
-/**
- * Vendored Tailwind JIT script for the standalone HTML export — same layout
- * the renderer's generated module uses (vendor/tailwind/tailwind.js), read
- * best-effort: a missing vendored tree simply exports without Tailwind (seed
- * CSS + tokens still render the layout).
- */
-function readTailwindScript(): string | null {
-  try {
-    return readFileSync(join(__dirname, "..", "vendor", "tailwind", "tailwind.js"), "utf-8") || null;
-  } catch {
-    return null;
-  }
-}
+/** Designer artifact management — root-pinned handlers live in design-ipc.ts. */
+function registerDesignIpc(helpers: IpcHelpers): void {
+  const { handle, handlePrivileged } = helpers;
+  registerDesignStoreIpc(helpers, {
+    resolveRegisteredRoot,
+    emit,
+    savePackage: async (data, options) => {
+      if (!mainWindow) return { ok: false, error: "no window" };
+      const result = await dialog.showSaveDialog(mainWindow, options);
+      if (result.canceled || !result.filePath) return { ok: false };
+      try {
+        await writeFile(result.filePath, data);
+        return { ok: true, path: result.filePath };
+      } catch (error) {
+        return { ok: false, error: error instanceof Error ? error.message : String(error) };
+      }
+    },
+  });
 
-/** Designer artifact management — bridges the renderer to design-store. */
-function registerDesignIpc({ handle, handlePrivileged }: IpcHelpers): void {
-  // design-store change events → renderer: artifacts are written by the a2ui
-  // MCP tools mid-agent-run; without this the panels show a stale list until a
-  // manual reload (chain-integrity fix, same class as the knowledge panel).
-  onDesignStoreChange((root) => {
-    emit(IpcEvent.DesignChanged, { root });
-  });
-  handle(IpcRequest.DesignList, async () => {
-    return listDesignArtifacts(getBridge().projectRoot);
-  });
   // Background build jobs (R2-1): manager owns jobs in the MAIN process —
   // renderer row state is a read-only subscription, so switching rows/tabs
   // never drops a running build.
@@ -1611,75 +1627,6 @@ function registerDesignIpc({ handle, handlePrivileged }: IpcHelpers): void {
       return { ok: false as const, error: "AGENTS.md not found" };
     }
   });
-
-  handle(IpcRequest.DesignRead, async (id: string) => {
-    return readDesignArtifact(getBridge().projectRoot, id);
-  });
-
-  handle(IpcRequest.DesignDelete, async (id: string) => {
-    return deleteDesignArtifact(getBridge().projectRoot, id);
-  });
-
-  // P4-1 package export (specs/pm-design-v2, format decision 2026-08-18):
-  // pm-design (openui) → `.ddp`, ui-design (`.dd`) → `.ddu` — both special ZIP
-  // archives (zero-dependency writer in main/tools/dd-package.ts). The `.ddu`
-  // embeds a STANDALONE compiled render (parser/compiler are dependency-free
-  // renderer modules bundled into main; vendored Tailwind JIT inlined). The
-  // `.ddp` carries the OpenUI source + a viewer stub (OpenUI renders via the
-  // in-app React runtime — no standalone compiler exists). Privileged: native
-  // save dialog writing an arbitrary user-chosen path.
-  handlePrivileged(IpcRequest.DesignExportPackage, async (id: string) => {
-    if (!mainWindow) return { ok: false, error: "no window" };
-    const artifact = readDesignArtifact(getBridge().projectRoot, id);
-    if (!artifact) {
-      return { ok: false, error: "design artifact not found" };
-    }
-    const isDesign = artifact.pipeline === "design";
-    let pkg: Buffer;
-    try {
-      pkg = isDesign
-        ? buildDduPackage(
-            artifact,
-            artifact.content,
-            compileDdToHtml(parseDdFile(artifact.content), readTailwindScript() ?? undefined),
-            new Date().toISOString()
-          )
-        : buildDdpPackage(artifact, artifact.content, new Date().toISOString());
-    } catch (err) {
-      return { ok: false, error: `package build failed: ${err instanceof Error ? err.message : String(err)}` };
-    }
-    const ext = isDesign ? "ddu" : "ddp";
-    const safeTitle = artifact.title.replace(/[^a-zA-Z0-9_\-\u4e00-\u9fff]/g, "_").slice(0, 60) || "design";
-    const result = await dialog.showSaveDialog(mainWindow, {
-      title: isDesign ? "Export UI-Design package (.ddu)" : "Export PM-Design package (.ddp)",
-      defaultPath: `${safeTitle}.${ext}`,
-      filters: [{ name: isDesign ? "UI-Design Package (.ddu)" : "PM-Design Package (.ddp)", extensions: [ext] }],
-    });
-    if (result.canceled || !result.filePath) return { ok: false };
-    try {
-      await writeFile(result.filePath, pkg);
-      return { ok: true, path: result.filePath };
-    } catch (err) {
-      return { ok: false, error: err instanceof Error ? err.message : String(err) };
-    }
-  });
-
-  // Form-state persistence targets the LATEST artifact of the pipeline — the
-  // live preview always shows the most recent prototype/document, so the
-  // renderer never needs to know artifact ids.
-  const latestArtifactId = (pipeline: DesignPipeline): string | null => {
-    return listDesignArtifacts(getBridge().projectRoot).find((a) => a.pipeline === pipeline)?.id ?? null;
-  };
-
-  handle(IpcRequest.DesignSaveFormState, async (pipeline: DesignPipeline, state: Record<string, unknown>) => {
-    const id = latestArtifactId(pipeline);
-    return id ? saveFormState(getBridge().projectRoot, id, state) : false;
-  });
-
-  handle(IpcRequest.DesignReadFormState, async (pipeline: DesignPipeline) => {
-    const id = latestArtifactId(pipeline);
-    return id ? readFormState(getBridge().projectRoot, id) : null;
-  });
 }
 
 /**
@@ -1755,6 +1702,8 @@ function registerTaskTreeIpc({ handle, handlePrivileged }: IpcHelpers): void {
       listReviews: () => listReviewReports(pinned),
       listDesigns: () => listDesignArtifacts(pinned),
       listJobs: () => listIndexJobs(pinned),
+      // Editor pair runs (specs/editor-copilot 链路 D): read the JSONL store.
+      listEditorRuns: () => listEditorRuns(pinned),
       // git binding badge: the tree's file-history repo HEAD (a git record
       // exists only if the tree ever checkpointed artifacts).
       treeGitHash: (treeId) => {
@@ -1839,6 +1788,16 @@ function registerTaskTreeIpc({ handle, handlePrivileged }: IpcHelpers): void {
     // migrateLegacyUsageIntoLedger) so exact time windows cover old data too.
     migrateLegacyUsageIntoLedger(indexPath);
     return buildTokenSummary(pinned, indexPath);
+  });
+  // Model-detail popup (specs/token-model-charts): heatmap + speed medians.
+  // Same registered-root pinning as TokensSummary — unregistered → empty.
+  handle(IpcRequest.TokensModelDetail, (workspaceRoot?: string, days?: number) => {
+    const active = getBridge()?.projectRoot ?? "";
+    const pinned = workspaceRoot ? resolveRegisteredRoot(workspaceRoot) : active;
+    if (!pinned) return { days: [], heat: [], speeds: [] };
+    const indexPath = projectSessionsIndexPath(getUserConfigRoot(), pinned);
+    migrateLegacyUsageIntoLedger(indexPath);
+    return buildModelDetail(indexPath, typeof days === "number" && days > 0 ? Math.min(14, Math.floor(days)) : 7);
   });
   handle(IpcRequest.TaskTreeGet, async (treeId: string, workspaceRoot?: string) => {
     if (!validTreeId(treeId)) return null;
@@ -2049,37 +2008,9 @@ function registerTaskTreeIpc({ handle, handlePrivileged }: IpcHelpers): void {
       : { ok: false, error: "merge rejected" };
   });
 
-  // Editor digital entity (specs/editor-agent S2): run the editor-agent
-  // background entity on the ACTIVE workspace's manager — sessionless, zero
-  // residue; the final text returns for the editor panel to render.
-  handlePrivileged(
-    IpcRequest.EditorAgentRun,
-    async (input?: {
-      filePath?: string;
-      startLine?: number;
-      endLine?: number;
-      selection?: string;
-      instruction?: string;
-      lang?: string;
-    }) => {
-      if (!input?.filePath || !input.instruction?.trim() || !input.selection?.trim()) {
-        return { ok: false as const, error: "filePath, selection and instruction are required" };
-      }
-      try {
-        const result = await getBridge().runEditorAgent({
-          filePath: input.filePath,
-          startLine: Number(input.startLine) || 1,
-          endLine: Number(input.endLine) || Number(input.startLine) || 1,
-          selection: input.selection,
-          instruction: input.instruction.trim(),
-          lang: typeof input.lang === "string" ? input.lang : undefined,
-        });
-        return { ok: true as const, content: result.content ?? "", iterations: result.iterations };
-      } catch (error) {
-        return { ok: false as const, error: error instanceof Error ? error.message : String(error) };
-      }
-    }
-  );
+  // Editor digital entity (EditorAgentRun) lives in ./tools/editor-agent-run.ts
+  // (file-length split) — registered right after this function in the wiring
+  // section via registerEditorAgentRunIpc.
 }
 
 function registerA2uiIpc({ handleShared }: IpcHelpers): void {
@@ -2353,6 +2284,47 @@ function registerWikiIpc({ handle, handlePrivileged }: IpcHelpers): void {
     return fallback.charAt(0).toUpperCase() + fallback.slice(1);
   }
 
+  handle(IpcRequest.LaneRatesGet, async (rootArg?: string): Promise<LaneRatesReport | null> => {
+    // Root PINNED (same invariant as every knowledge channel): unregistered
+    // root → null, never an arbitrary path's session storage.
+    const pinned = resolveRegisteredRoot(rootArg);
+    if (!pinned) return null;
+    try {
+      const projectDir = join(getUserConfigRoot(), "projects", getProjectCode(pinned));
+      const readIndex = () => {
+        try {
+          return (
+            (
+              JSON.parse(readFileSync(join(projectDir, "sessions-index.json"), "utf8")) as {
+                entries?: Array<{ id: string; isSilentSubagent?: boolean; lane?: "express" | "deep" }>;
+              }
+            ).entries ?? []
+          );
+        } catch {
+          return [];
+        }
+      };
+      const readTranscript = (sessionId: string) => {
+        try {
+          return readFileSync(join(projectDir, `${sessionId}.jsonl`), "utf8")
+            .split("\n")
+            .filter((l) => l.trim())
+            .map((l) => JSON.parse(l) as never);
+        } catch {
+          return [];
+        }
+      };
+      const sessions = collectLaneRateSessions({
+        readIndex,
+        readTranscript,
+        evaluateL1: (text: string) => evaluateL1Rules({ planMode: false, text }),
+      });
+      return computeLaneRates(sessions) as LaneRatesReport;
+    } catch {
+      return null; // fail-open: the panel shows "no data" instead of erroring
+    }
+  });
+
   handle(IpcRequest.WikiListPages, async (rootArg?: string): Promise<WikiPageEntry[]> => {
     // Root PINNED like every other knowledge channel (review round 6): the
     // raw join let a semi-trusted renderer enumerate any path's deepwiki/
@@ -2453,10 +2425,21 @@ function registerEditorIpc({ handle, handlePrivileged }: IpcHelpers): void {
   // ── Editor module ───────────────────────────────────────────────────────
   handle(IpcRequest.EditorReadFile, (filePath: string) => handleEditorReadFile(getBridge().projectRoot, filePath));
   handlePrivileged(IpcRequest.EditorWriteFile, (filePath: string, content: string) =>
-    handleEditorWriteFile(getBridge().projectRoot, filePath, content)
+    handleEditorWriteFile(getBridge().projectRoot, filePath, content).then((res) => {
+      // 链路 D 最小修 (audit D-b): editor writes must reach the workspace
+      // knowledge loop exactly like agent writes — mark the file dirty for
+      // codegraph incremental sync + freshness. Agent writes do this via
+      // recordFileMutationCheckpoint; the editor path goes through the
+      // bridge's external-mutation seam (fail-open, non-blocking).
+      if (res.ok) getBridge().recordExternalMutation();
+      return res;
+    })
   );
   handle(IpcRequest.EditorListFiles, (dirPath: string) => handleEditorListFiles(getBridge().projectRoot, dirPath));
 }
+
+// (registerLspRelayIpc + the relay singleton live in ./tools/lsp-relay-ipc.ts
+// — file-length split; wiring passes emitToMain and the npx settings gate.)
 
 function registerAgentChangesIpc({ handle }: IpcHelpers): void {
   // ── Agent changes ─────────────────────────────────────────────────────────
@@ -2516,12 +2499,22 @@ function registerIpc(): void {
   registerEndpointQuotaIpc(helpers);
   registerEndpointTestIpc(helpers);
   registerTaskTreeIpc(helpers);
+  registerEditorAgentRunIpc({
+    handlePrivileged: helpers.handlePrivileged,
+    getBridge,
+    emitToMain,
+  });
   registerDesignIpc(helpers);
   registerA2uiIpc(helpers);
   registerA2uiPrototypeWindowIpc(helpers);
   registerWikiIpc(helpers);
   registerMcpManagementIpc(helpers);
   registerGitmcpIpc(helpers);
+  registerLspRelayIpc({
+    handlePrivileged: helpers.handlePrivileged,
+    emitToMain,
+    allowNpxFallback: () => getBridge().getRawSettings().lspRelayNpxFallback !== false,
+  });
   registerEditorIpc(helpers);
   registerAgentChangesIpc(helpers);
   registerCoordChainIpc(helpers, () => mainWindow);
@@ -2621,6 +2614,10 @@ app.on("before-quit", (event) => {
   event.preventDefault();
   isQuitting = true;
   killHelperProcesses();
+  // LSP relay servers are child processes outside the helper registry —
+  // shut them down explicitly (audit 1.2: process.on("exit") alone does not
+  // cover watchdog-forced exits and crash paths on every platform).
+  shutdownLspRelay();
   // Hard-exit watchdog: if the async cleanup below hangs (e.g. a wedged memory
   // pipeline or an unkillable helper), force-quit anyway. Without this, the
   // blocked quit leaves a zombie instance whose window never paints — the

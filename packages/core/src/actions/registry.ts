@@ -82,6 +82,18 @@ export interface RegistryHost {
     sessionId: string
   ) => { treeId: string; branch: string; nodeId: string } | null | undefined;
   readonly appendSessionSystemMessage?: (sessionId: string, text: string) => void;
+  /**
+   * Read-only L1 memory search (specs/sop-extraction P2.1) — injected by
+   * SessionManager from the memory provider. Actions read it via
+   * {@link ActionContext.searchKnownMemories} and must fail open on null.
+   */
+  readonly searchKnownMemories?: (query: string, limit?: number) => Promise<string | null>;
+  /**
+   * Behavioral profile block (specs/sop-extraction P2.2) — injected by
+   * SessionManager behind the settings.behaviorContext opt-in gate. Actions
+   * read it via {@link ActionContext.collectBehaviorContext} and fail open.
+   */
+  readonly collectBehaviorContext?: () => string | null;
 }
 
 /** Options passed to {@link ActionRegistry.execute}. */
@@ -136,6 +148,8 @@ export class ActionRegistry {
     sessionId: string
   ) => { treeId: string; branch: string; nodeId: string } | null | undefined;
   private readonly appendSysMessage?: (sessionId: string, text: string) => void;
+  private readonly searchKnownMemoriesFn?: (query: string, limit?: number) => Promise<string | null>;
+  private readonly collectBehaviorContextFn?: () => string | null;
 
   constructor(host: RegistryHost) {
     this.projectRoot = host.projectRoot;
@@ -150,6 +164,8 @@ export class ActionRegistry {
     this.setTaskRef = host.setSessionTaskRef;
     this.getTaskRef = host.getSessionTaskRef;
     this.appendSysMessage = host.appendSessionSystemMessage;
+    this.searchKnownMemoriesFn = host.searchKnownMemories;
+    this.collectBehaviorContextFn = host.collectBehaviorContext;
   }
 
   /**
@@ -255,6 +271,8 @@ export class ActionRegistry {
         setSessionTaskRef: this.setTaskRef,
         getSessionTaskRef: this.getTaskRef,
         appendSessionSystemMessage: this.appendSysMessage,
+        searchKnownMemories: this.searchKnownMemoriesFn,
+        collectBehaviorContext: this.collectBehaviorContextFn,
       };
       try {
         return (await entry.run(input, ctx)) as O;

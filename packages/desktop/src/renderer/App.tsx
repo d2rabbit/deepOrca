@@ -1,8 +1,18 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type JSX } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type JSX,
+} from "react";
 import { api } from "./api";
 import { useTreeRefresh } from "./hooks/use-tree-refresh";
 import { useDocumentTitle } from "./hooks/use-document-title";
 import { useComposerDockHeight } from "./hooks/use-composer-dock-height";
+import { useEditorWorkspace } from "./hooks/use-editor-workspace";
 import type { SidebarView } from "./hooks/use-panel-layout";
 import { usePanelLayout } from "./hooks/use-panel-layout";
 import { useCompanionWidth } from "./hooks/use-companion-width";
@@ -14,6 +24,7 @@ import { useGit } from "./hooks/use-git";
 import { useGlobalShortcuts } from "./hooks/use-global-shortcuts";
 import { useCommandItems } from "./hooks/use-command-items";
 import { useSettingsData } from "./hooks/use-settings-data";
+import { useDesignWorkspaceTabs } from "./hooks/use-design-workspace-tabs";
 import type {
   ActionProgressEvent,
   AskPermissionRequest,
@@ -26,6 +37,8 @@ import type {
 import { TopBar } from "./components/TopBar";
 import { Sidebar } from "./components/Sidebar";
 import { MessageList } from "./components/MessageList";
+import { DepthLaneProgressStrip } from "./components/DepthLaneProgressStrip";
+import { AnimatePresence, m, springToken } from "./ui/motion";
 import { Composer } from "./components/Composer";
 import { PermissionCard } from "./components/PermissionCard";
 import { QuestionCard } from "./components/QuestionCard";
@@ -37,8 +50,14 @@ import { PluginMcpPanel } from "./components/PluginMcpPanel";
 import { PluginDetail, type PluginSelection } from "./components/PluginDetail";
 import { ContextProgress } from "./components/ContextProgress";
 import { TokenStatsPanel } from "./components/TokenStatsPanel";
+import { TokenHeatmapModal } from "./components/TokenHeatmapModal";
 import { IndexLibraryPanel } from "./components/IndexLibraryPanel";
-import { BuildQuickContent, ReportQuickContent, TaskQuickSheet } from "./components/TaskQuickSheet";
+import {
+  BuildQuickContent,
+  ReportQuickContent,
+  StepDetailQuickContent,
+  TaskQuickSheet,
+} from "./components/TaskQuickSheet";
 import { InstructionToc } from "./components/InstructionToc";
 import { ActivityRail } from "./components/ActivityRail";
 import { PinnedPlan } from "./components/PinnedPlan";
@@ -47,19 +66,26 @@ import { lazy, Suspense } from "react";
 
 // Lazy-load heavy components that are only shown when the user navigates to
 // specific views. This keeps the initial bundle small and defers ~5MB+ of
-// code (Monaco + markdown renderers) until actually needed.
+// code (markdown renderers, mermaid, review surfaces) until actually needed;
+// the editor below is also lazy (CodeMirror 6 kernel — far lighter than the
+// retired Monaco).
 const CodeReviewPanel = lazy(() =>
   import("./components/CodeReviewPanel").then((m) => ({ default: m.CodeReviewPanel }))
 );
 const DiffOverlay = lazy(() => import("./components/DiffOverlay").then((m) => ({ default: m.DiffOverlay })));
 import type { DiffTarget } from "./components/DiffOverlay";
-const EditorOverlay = lazy(() => import("./components/EditorOverlay").then((m) => ({ default: m.EditorOverlay })));
+const EditorWorkspaceLazy = lazy(() =>
+  import("./components/editor/EditorWorkspace").then((m) => ({ default: m.EditorWorkspace }))
+);
 const PrototypePanel = lazy(() => import("./components/PrototypePanel").then((m) => ({ default: m.PrototypePanel })));
 const DesignPreview = lazy(() => import("./components/DesignPreview").then((m) => ({ default: m.DesignPreview })));
 const PrototypeDesignPanel = lazy(() =>
   import("./components/PrototypeDesignPanel").then((m) => ({ default: m.PrototypeDesignPanel }))
 );
 const DesignPanel = lazy(() => import("./components/DesignPanel").then((m) => ({ default: m.DesignPanel })));
+const DesignWorkspaceSurface = lazy(() =>
+  import("./components/design-workspace/DesignWorkspaceSurface").then((m) => ({ default: m.DesignWorkspaceSurface }))
+);
 const KnowledgePanel = lazy(() => import("./components/KnowledgePanel").then((m) => ({ default: m.KnowledgePanel })));
 const ReviewWorkspace = lazy(() =>
   import("./components/ReviewWorkspace").then((m) => ({ default: m.ReviewWorkspace }))
@@ -73,16 +99,13 @@ const TaskHubWorkspace = lazy(() =>
 );
 import { GitMcpPanel } from "./components/GitMcpPanel";
 import { EditorPanel } from "./components/EditorPanel";
-import { UndoModal } from "./components/UndoModal";
-import { ShortcutsModal } from "./components/ShortcutsModal";
-import { WorkspaceTrustDialog } from "./components/WorkspaceTrustDialog";
+import { AppModals } from "./components/AppModals";
 import { ToastContainer, useToasts } from "./components/Toast";
 import { BuildConsolePanel } from "./components/BuildConsolePanel";
 import { StreamdownView } from "./components/StreamdownView";
 import { buildReviewFixPrompt, type ReviewFinding } from "./lib/review-fix";
 import { reviewStorePath, wikiStorePath } from "./lib/generated-paths";
 import { looksLikeLlmTransportError } from "./lib/llm-error";
-import { formatBuildError } from "./lib/build-error";
 import { BackgroundTaskBadge } from "./components/BackgroundTaskBadge";
 import { SerenaPanel } from "./components/SerenaPanel";
 import { scanSerenaEvents } from "./lib/serena-extract";
@@ -103,94 +126,31 @@ import {
   GlobalTooltip,
   IconChat,
   IconCommand,
+  IconEditor,
   IconFile,
   IconIndex,
   IconReview,
+  IconPrototype,
+  IconDesign,
   IconPlugins,
   IconTaskTree,
   IconTaskHub,
   IconSparkle,
-  IconMoon,
-  IconSun,
-  IconUndo,
   IconSettings,
-  Modal,
-  Button,
 } from "./ui/index";
 import { cx } from "./ui/class-names";
 import { HubOrb, HubSheet } from "./components/HubSheet";
 import { CoordChainPane } from "./components/CoordChainPane";
 import { QuickDock } from "./components/QuickDock";
+import { CockpitActions } from "./components/CockpitActions";
 import { FailureBanner } from "./components/FailureBanner";
-
-type PendingPermissionReply = {
-  sessionId: string;
-  permissions: PermissionResult["permissions"];
-  alwaysAllows: PermissionResult["alwaysAllows"];
-  alwaysAllowPaths: PermissionResult["alwaysAllowPaths"];
-};
-
-/**
- * Picture-in-picture entry (real-machine ask 2026-08-27): a workspace whose
- * conversation is parked because the user switched to ANOTHER workspace. The
- * transcript is frozen at capture time (events for background roots are not
- * streamed into the view); returning re-selects the root and history reloads
- * fresh from disk, so freezing never loses anything.
- */
-type PipEntry = {
-  root: string;
-  label: string;
-  sessionId: string | null;
-  title: string | null;
-  /** Last turns at capture time, oldest→newest, capped slice. */
-  frozen: SessionMessage[];
-  /**
-   * Gate status AT CAPTURE TIME (ask_permission / waiting_for_user). Live
-   * flips for background roots are not streamed to this renderer, so this
-   * is a snapshot signal by design — returning to the root gives the live,
-   * full-fidelity state.
-   */
-  blockedAtCapture: boolean;
-};
-
-/** Extract the markdown plan from the newest UpdatePlan tool message, if any. */
-function findLatestPlan(messages: SessionMessage[]): string | null {
-  for (let i = messages.length - 1; i >= 0; i -= 1) {
-    const message = messages[i];
-    if (!message || message.role !== "tool") continue;
-    const lines = getPlanLines(buildToolSummary(message));
-    if (lines.length > 0) return lines.join("\n");
-  }
-  return null;
-}
-
-/** The main-area tab model — module-level so the extracted ⌘K palette hook
- *  (use-command-items) can type its setActiveTab dep. */
-export type MainTab =
-  | { kind: "chat" }
-  | { kind: "settings" }
-  | { kind: "plugins" }
-  | { kind: "editor"; file: string }
-  | { kind: "knowledge"; root: string }
-  | { kind: "review"; root: string }
-  | { kind: "task"; treeId: string }
-  | { kind: "taskhub"; root: string };
-
-function syntheticUserMessage(sessionId: string, content: string): SessionMessage {
-  const now = new Date().toISOString();
-  return {
-    id: `synthetic-${Date.now()}`,
-    sessionId,
-    role: "user",
-    content,
-    contentParams: null,
-    messageParams: null,
-    compacted: false,
-    visible: true,
-    createTime: now,
-    updateTime: now,
-  };
-}
+import {
+  findLatestPlan,
+  syntheticUserMessage,
+  type MainTab,
+  type PendingPermissionReply,
+  type PipEntry,
+} from "./lib/app-models";
 
 export function App(): JSX.Element {
   const { t } = useI18n();
@@ -231,7 +191,9 @@ export function App(): JSX.Element {
   const [pendingPlan, setPendingPlan] = useState<string | null>(null);
   const [dismissedQuestionIds, setDismissedQuestionIds] = useState<Set<string>>(() => new Set());
 
-  const [modal, setModal] = useState<"undo" | "shortcuts" | "discard-settings" | null>(null);
+  const [modal, setModal] = useState<"undo" | "shortcuts" | "discard-settings" | "discard-editor" | null>(null);
+  /** Editor sub-tab pending a dirty-close confirm (per-file guard, B-line E2). */
+  const [editorFileClose, setEditorFileClose] = useState<string | null>(null);
   /** Settings tab has unsaved edits — every settings close path asks first. */
   const [settingsDirty, setSettingsDirty] = useState(false);
   // Branch the user tried to switch to while the working tree had blocking local changes.
@@ -245,10 +207,25 @@ export function App(): JSX.Element {
   // settings/plugins filled the main area, opening another panel added a tab
   // underneath that could never be reached.
   const [activeTab, setActiveTab] = useState<MainTab>({ kind: "chat" });
-  /** Bar entries beyond task/knowledge: one settings tab, one plugins tab, one per editor file. */
+  /** Bar entries beyond task/knowledge: one settings tab, one plugins tab, ONE editor workspace tab. */
   const [auxTabs, setAuxTabs] = useState<
     Array<{ key: string; kind: "settings" | "plugins" | "editor"; file?: string }>
   >([]);
+  // Editor workspace (B-line E1): one top chip, many files as sub-tabs inside
+  // the editor sheet — multi-file state lives in the hook, not in the tab model.
+  const editorWorkspace = useEditorWorkspace();
+  // Stable members pulled out so callbacks can depend on identifiers, not
+  // property paths (the hook's methods are useCallback-stable).
+  const {
+    openFile: workspaceOpenFile,
+    closeFile: workspaceCloseFile,
+    closeWorkspace: workspaceCloseAll,
+    setDraft: workspaceSetDraft,
+    markSaved: workspaceMarkSaved,
+    openFiles: editorOpenFiles,
+    dirtyFiles: editorDirtyFiles,
+    anyDirty: editorDirty,
+  } = editorWorkspace;
   // Back-compat view for consumers keyed on the old tri-state (composer dock,
   // rail active state) and the settings hook's dispatcher.
   const mainView: "chat" | "settings" | "plugins" =
@@ -261,11 +238,16 @@ export function App(): JSX.Element {
       setActiveTab({ kind: "chat" });
     }
   }, []);
-  const openEditorTab = useCallback((file: string) => {
-    const key = `editor:${file}`;
-    setAuxTabs((tabs) => (tabs.some((tab) => tab.key === key) ? tabs : [...tabs, { key, kind: "editor", file }]));
-    setActiveTab({ kind: "editor", file });
-  }, []);
+  const openEditorTab = useCallback(
+    (file: string) => {
+      workspaceOpenFile(file);
+      setAuxTabs((tabs) =>
+        tabs.some((tab) => tab.key === "editor") ? tabs : [...tabs, { key: "editor", kind: "editor" }]
+      );
+      setActiveTab({ kind: "editor" });
+    },
+    [workspaceOpenFile]
+  );
   const handleCloseAuxTab = useCallback((key: string) => {
     setAuxTabs((tabs) => tabs.filter((tab) => tab.key !== key));
     setActiveTab((current) => {
@@ -273,7 +255,7 @@ export function App(): JSX.Element {
         current.kind === "chat"
           ? null
           : current.kind === "editor"
-            ? `editor:${current.file}`
+            ? "editor"
             : current.kind === "knowledge"
               ? `knowledge:${current.root}`
               : current.kind === "task"
@@ -282,6 +264,38 @@ export function App(): JSX.Element {
       return currentKey === key ? { kind: "chat" } : current;
     });
   }, []);
+  /** Workspace-level close: dirty drafts raise the confirm; clean closes drop
+   *  the chip AND the workspace state (drafts would otherwise zombie on). */
+  const closeEditorWorkspace = useCallback(() => {
+    workspaceCloseAll();
+    handleCloseAuxTab("editor");
+  }, [workspaceCloseAll, handleCloseAuxTab]);
+  const requestCloseEditor = useCallback(() => {
+    if (editorDirty) {
+      setModal("discard-editor");
+      return;
+    }
+    closeEditorWorkspace();
+  }, [editorDirty, closeEditorWorkspace]);
+  /** Per-file close (sub-tab ✕): the dirty guard lives HERE, not in the tab
+   *  bar — the last file closing also drops the workspace chip. */
+  const closeEditorFile = useCallback(
+    (file: string) => {
+      workspaceCloseFile(file);
+      if (editorOpenFiles.length <= 1) handleCloseAuxTab("editor");
+    },
+    [workspaceCloseFile, editorOpenFiles, handleCloseAuxTab]
+  );
+  const requestCloseEditorFile = useCallback(
+    (file: string) => {
+      if (editorDirtyFiles.includes(file)) {
+        setEditorFileClose(file);
+        return;
+      }
+      closeEditorFile(file);
+    },
+    [editorDirtyFiles, closeEditorFile]
+  );
   /** The ONE guarded close for the settings tab: dirty edits raise the
    *  discard-confirm no matter which path fired (panel button, tab-strip ✕,
    *  Esc, scrim click) — previously only the button asked. */
@@ -329,10 +343,21 @@ export function App(): JSX.Element {
   // ONE right slot shared with the design preview: opening either closes the
   // other. Content is read-only; full workbenches stay in the main area.
   const [taskQuick, setTaskQuick] = useState<TaskHubQuickView | null>(null);
+  /** Global heatmap modal (specs/token-model-charts) — hosted at shell level. */
+  const [heatMapOpen, setHeatMapOpen] = useState(false);
   const handleCloseTaskQuick = useCallback(() => setTaskQuick(null), []);
   useEffect(() => {
     if (previewOpen) setTaskQuick(null);
   }, [previewOpen]);
+  // Editor open-speed warmup (user ask 2026-09-05, CM6 era): pre-import the
+  // editor chunk during idle so the first open renders at speed. The ~2MB
+  // CM6 family ships in the workspace chunk — no worker bootstrap needed.
+  useEffect(() => {
+    const warmTimer = window.setTimeout(() => {
+      void import("./components/editor/EditorWorkspace").catch(() => undefined);
+    }, 1500);
+    return () => window.clearTimeout(warmTimer);
+  }, []);
   // Workspace task tabs (specs/task-tree session→task cross-reference entry):
   // opened from session badges, one tree per tab in the main area.
   const [taskTabs, setTaskTabs] = useState<Array<{ treeId: string; title: string; root?: string }>>([]);
@@ -412,6 +437,15 @@ export function App(): JSX.Element {
     setReviewTabs((tabs) => tabs.filter((tab) => tab.root !== root));
     setActiveTab((tab) => (tab.kind === "review" && tab.root === root ? { kind: "chat" } : tab));
   }, []);
+  const {
+    prototypeTabs,
+    designTabs,
+    openPrototypeTab: handleOpenPrototypeTab,
+    closePrototypeTab: handleClosePrototypeTab,
+    openDesignTab: handleOpenDesignTab,
+    closeDesignTab: handleCloseDesignTab,
+    resetDesignTabs,
+  } = useDesignWorkspaceTabs(setActiveTab);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const {
     runningProcesses,
@@ -685,6 +719,7 @@ export function App(): JSX.Element {
     });
     const offRoot = api.onProjectRootChanged((root) => {
       setProjectRoot(root);
+      resetDesignTabs();
       // We are now LIVE in this workspace: a stale frozen snapshot of it may
       // still sit in the pip stack (parked earlier, returned to via the
       // cross-workspace sidebar or a re-picked folder). Leaving it would layer
@@ -738,6 +773,7 @@ export function App(): JSX.Element {
     pushToast,
     refreshGit,
     refreshMcp,
+    resetDesignTabs,
     refreshSessions,
     refreshSettings,
     refreshSkills,
@@ -1243,13 +1279,16 @@ export function App(): JSX.Element {
   // Flow bridge (wiki → chat): quote a Wiki page into the composer as an
   // @-mention so the agent reads the exact page, then land the user back in
   // the conversation — knowledge becomes usable inside the chat without a
-  // manual copy-paste round-trip.
+  // manual copy-paste round-trip. Whitespace-bearing roots wrap in the quoted
+  // chip form (the \S chip grammar can't span spaces, 2026-09-06).
   const handleQuoteWikiToChat = useCallback(
     (root: string, path: string, title: string) => {
       setActiveTab({ kind: "chat" });
       setDraft((current) => {
         const prefix = current.trim().length > 0 ? `${current.trimEnd()}\n\n` : "";
-        return `${prefix}${t("index.quoteWikiPrompt", { title })} @${wikiStorePath(root, path)}\n`;
+        const ref = wikiStorePath(root, path);
+        const token = /\s/.test(ref) ? `@"${ref}"` : `@${ref}`;
+        return `${prefix}${t("index.quoteWikiPrompt", { title })} ${token}\n`;
       });
     },
     [t]
@@ -1258,13 +1297,16 @@ export function App(): JSX.Element {
   // Flow bridge (review → chat), wiki parity: quote a saved report into the
   // composer as an @-mention of its structured JSON (full findings, scope,
   // status — NOT the lossy 8-finding text copy of handleReviewAskInChat) so
-  // the agent reads the exact run and can act on it in the session.
+  // the agent reads the exact run and can act on it in the session. Quoted
+  // chip form for whitespace-bearing roots (2026-09-06).
   const handleQuoteReviewToChat = useCallback(
     (root: string, reportId: string) => {
       setActiveTab({ kind: "chat" });
       setDraft((current) => {
         const prefix = current.trim().length > 0 ? `${current.trimEnd()}\n\n` : "";
-        return `${prefix}${t("review.quotePrompt")} @${reviewStorePath(root, reportId)}\n`;
+        const ref = reviewStorePath(root, reportId);
+        const token = /\s/.test(ref) ? `@"${ref}"` : `@${ref}`;
+        return `${prefix}${t("review.quotePrompt")} ${token}\n`;
       });
     },
     [t]
@@ -1410,6 +1452,14 @@ export function App(): JSX.Element {
     handleToggleLineVariant,
     handleSelectTheme,
     openTokensView,
+    openPrototypeWorkspace: () => {
+      selectView("prototype");
+      if (projectRoot) handleOpenPrototypeTab(projectRoot);
+    },
+    openDesignWorkspace: () => {
+      selectView("design");
+      if (projectRoot) handleOpenDesignTab(projectRoot);
+    },
     setPlanMode,
     setModal,
     setActiveTab,
@@ -1615,6 +1665,7 @@ export function App(): JSX.Element {
         onRetry={(text) => void runPrompt({ text }, { showUser: false })}
         onOpenSettings={() => setActiveTab({ kind: "settings" })}
       />
+      <DepthLaneProgressStrip sessionId={activeId} />
       <MessageList
         messages={messages}
         hasActiveSession={!welcomeMode}
@@ -1666,6 +1717,7 @@ export function App(): JSX.Element {
           </div>
         ) : null}
         <Composer
+          root={projectRoot}
           value={draft}
           onChange={setDraft}
           onSend={handleSend}
@@ -1700,19 +1752,16 @@ export function App(): JSX.Element {
   );
 
   // ── Surface chips (cockpit center) ────────────────────────────────────────
-  // Successor of the editor-style tab strip: one glowing chip per open
-  // surface plus the always-first conversation chip. Rendered only when at
-  // least one auxiliary surface exists — a lone conversation keeps the
-  // cockpit clean. Chip = container div + two SIBLING buttons (switch +
-  // close) — nested interactive elements are an a11y/HTML anti-pattern.
-  // user ask 2026-09-03 十轮：标签过多不再横向堆叠 —— 主会话与活动标签
-  // 常驻可见，其余按可用宽度收进「+N ▾」下拉快速切换（隐藏量按真实
-  // chip 宽度测量，ResizeObserver 自适应窗口伸缩）。
+  // One chip per open surface + the always-first conversation chip; chip = two
+  // SIBLING buttons (nested interactive elements are an a11y anti-pattern).
+  // Overflow collapses into「+N ▾」(real chip widths, ResizeObserver-driven).
   const hasAuxSurfaces =
     auxTabs.length > 0 ||
     taskTabs.length > 0 ||
     knowledgeTabs.length > 0 ||
     reviewTabs.length > 0 ||
+    prototypeTabs.length > 0 ||
+    designTabs.length > 0 ||
     taskhubTabs.length > 0;
 
   type SurfaceChipItem = {
@@ -1728,25 +1777,40 @@ export function App(): JSX.Element {
   const chipItems = useMemo<SurfaceChipItem[]>(() => {
     const items: SurfaceChipItem[] = [];
     for (const tab of auxTabs) {
-      const active =
-        tab.kind === "editor"
-          ? activeTab.kind === "editor" && activeTab.file === tab.file
-          : activeTab.kind === tab.kind;
+      const active = tab.kind === "editor" ? activeTab.kind === "editor" : activeTab.kind === tab.kind;
       const title =
         tab.kind === "settings"
           ? t("settings.title")
           : tab.kind === "plugins"
             ? t("plugins.title")
-            : ((tab.file ?? "").split(/[\\/]/).pop() ?? "");
+            : tab.kind === "editor"
+              ? t("rail.editor")
+              : "";
       items.push({
         key: tab.key,
-        icon: tab.kind === "settings" ? <IconSettings /> : tab.kind === "plugins" ? <IconPlugins /> : <IconFile />,
+        icon:
+          tab.kind === "settings" ? (
+            <IconSettings />
+          ) : tab.kind === "plugins" ? (
+            <IconPlugins />
+          ) : tab.kind === "editor" ? (
+            <IconEditor />
+          ) : (
+            <IconFile />
+          ),
         title,
-        tip: tab.kind === "editor" ? tab.file : title,
+        tip:
+          tab.kind === "editor"
+            ? editorWorkspace.openFiles.map((f) => f.split(/[\\/]/).pop()).join(" · ") || title
+            : title,
         active,
-        onSelect: () =>
-          setActiveTab(tab.kind === "editor" ? { kind: "editor", file: tab.file ?? "" } : { kind: tab.kind }),
-        onClose: tab.kind === "settings" ? requestCloseSettings : () => handleCloseAuxTab(tab.key),
+        onSelect: () => setActiveTab({ kind: tab.kind }),
+        onClose:
+          tab.kind === "settings"
+            ? requestCloseSettings
+            : tab.kind === "editor"
+              ? requestCloseEditor
+              : () => handleCloseAuxTab(tab.key),
       });
     }
     for (const tab of taskTabs) {
@@ -1782,6 +1846,30 @@ export function App(): JSX.Element {
         onClose: () => handleCloseReviewTab(tab.root),
       });
     }
+    for (const tab of prototypeTabs) {
+      items.push({
+        key: `prototype:${tab.root}`,
+        icon: <IconPrototype />,
+        title: `${t("rail.prototype")} · ${tab.label}`,
+        tip: tab.root,
+        active: activeTab.kind === "prototype" && activeTab.root === tab.root,
+        onSelect: () =>
+          setActiveTab({ kind: "prototype", root: tab.root, ...(tab.suiteId ? { suiteId: tab.suiteId } : {}) }),
+        onClose: () => handleClosePrototypeTab(tab.root),
+      });
+    }
+    for (const tab of designTabs) {
+      items.push({
+        key: `design:${tab.root}`,
+        icon: <IconDesign />,
+        title: `${t("rail.design")} · ${tab.label}`,
+        tip: tab.root,
+        active: activeTab.kind === "design" && activeTab.root === tab.root,
+        onSelect: () =>
+          setActiveTab({ kind: "design", root: tab.root, ...(tab.suiteId ? { suiteId: tab.suiteId } : {}) }),
+        onClose: () => handleCloseDesignTab(tab.root),
+      });
+    }
     for (const tab of taskhubTabs) {
       items.push({
         key: `hub:${tab.root}`,
@@ -1798,31 +1886,56 @@ export function App(): JSX.Element {
     activeTab,
     auxTabs,
     t,
+    editorWorkspace.openFiles,
     handleCloseAuxTab,
     handleCloseKnowledgeTab,
     handleCloseReviewTab,
+    handleClosePrototypeTab,
+    handleCloseDesignTab,
     handleCloseTaskTab,
     handleCloseTaskHubTab,
     knowledgeTabs,
+    requestCloseEditor,
     requestCloseSettings,
     reviewTabs,
+    prototypeTabs,
+    designTabs,
     taskTabs,
     taskhubTabs,
   ]);
 
   // 溢出收敛：隐藏测量行取真实 chip 宽度，贪心装填可见区（预留 +N 位）。
+  // 基准宽度绝不能取条自身：.ui-surface-chips 是 shrink-to-fit，渲染结果会
+  // 改变它自己的 clientWidth——拿它当可用空间就形成 RO→setState→重渲染→
+  // 宽度再变→RO 的自激振荡（最后一个标签在「显示↔+N」间无限横跳的闪烁根因）。
+  // 这里量的是外层 spacer 的稳定车道宽：spacer 减去同级元素（流式指示/
+  // 会话标题），再与 56vw 上限取小。
   const chipStripRef = useRef<HTMLDivElement | null>(null);
   const chipMeasureRef = useRef<HTMLDivElement | null>(null);
   const [chipVisible, setChipVisible] = useState(999);
   const [chipMenu, setChipMenu] = useState<{ x: number; y: number } | null>(null);
-  const chipItemsKey = `${chipItems.length}:${activeTab.kind}`;
-  useEffect(() => {
+  const chipItemsKey = `${chipItems.length}:${activeTab.kind}:${chipItems.map((i) => `${i.key}=${i.title}`).join("|")}`;
+  useLayoutEffect(() => {
     const strip = chipStripRef.current;
     const measurer = chipMeasureRef.current;
     if (!strip || !measurer) return;
     const OVERFLOW_W = 56;
+    const STRIP_PAD = 6; // .ui-surface-chips 自身 padding 3px × 2
+    const spacer = strip.parentElement;
     const compute = () => {
-      const avail = strip.clientWidth - OVERFLOW_W;
+      let lane = window.innerWidth * 0.56;
+      if (spacer) {
+        let others = 0;
+        let count = 0;
+        for (const el of Array.from(spacer.children)) {
+          if (el === strip || el.classList.contains("ui-surface-chips-measure")) continue;
+          others += (el as HTMLElement).offsetWidth;
+          count += 1;
+        }
+        const gap = Number.parseFloat(getComputedStyle(spacer).columnGap) || 0;
+        lane = Math.min(lane, spacer.clientWidth - others - gap * Math.max(0, count - 1));
+      }
+      const avail = lane - STRIP_PAD - OVERFLOW_W;
       let w = 0;
       let n = 0;
       const kids = Array.from(measurer.children).slice(1); // [0] = 主会话，恒显示
@@ -1836,7 +1949,17 @@ export function App(): JSX.Element {
     };
     compute();
     const ro = new ResizeObserver(compute);
-    ro.observe(strip);
+    if (spacer) {
+      ro.observe(spacer);
+      // 流式指示/会话标题的挂载与卸载会改变车道占用，childList 变化即重算
+      //（MO 只看 spacer 直接子级，条内 chip 增删不会触发，回路无从建立）。
+      const mo = new MutationObserver(compute);
+      mo.observe(spacer, { childList: true });
+      return () => {
+        ro.disconnect();
+        mo.disconnect();
+      };
+    }
     return () => ro.disconnect();
   }, [chipItemsKey]);
   useEffect(() => {
@@ -1921,7 +2044,6 @@ export function App(): JSX.Element {
             </button>
           ) : null}
         </div>
-        {/* 隐藏测量行：取每个 chip 的真实宽度供贪心装填计算。 */}
         <div className="ui-surface-chips ui-surface-chips-measure" aria-hidden ref={chipMeasureRef}>
           <button type="button" className="ui-surface-chip">
             <IconChat />
@@ -1938,64 +2060,21 @@ export function App(): JSX.Element {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- renderSurfaceChip closes over transient menu state
   }, [chipItems, chipVisible, chipMenu, activeTab.kind, hasAuxSurfaces, t]);
 
-  // Cockpit right cluster — the old rail's bottom icons (commands / undo /
-  // appearance / settings) live here now, floating with the other cockpit
-  // pills. The ⌘K button keeps the palette reachable for mouse-only users —
-  // its only discoverable entry died with the rail. Memoized so TopBar
-  // (React.memo) isn't defeated by an unstable prop identity.
-  const cockpitActions = useMemo(
-    () => (
-      <div className="ui-cockpit-actions">
-        <button
-          type="button"
-          className="ui-cockpit-icon-btn"
-          onClick={() => setPaletteOpen(true)}
-          data-tip={`${t("rail.commands")} (${modKey}K)`}
-          aria-label={t("rail.commands")}
-        >
-          <IconCommand />
-        </button>
-        <button
-          type="button"
-          className="ui-cockpit-icon-btn"
-          onClick={handleToggleAppearance}
-          disabled={theme === "orca"}
-          data-tip={appearanceTitle}
-          aria-label={appearanceTitle}
-        >
-          {appearance === "dark" ? <IconMoon /> : <IconSun />}
-        </button>
-        <button
-          type="button"
-          className="ui-cockpit-icon-btn"
-          onClick={() => setModal("undo")}
-          data-tip={`${t("rail.undo")} (${modKey}Z)`}
-          aria-label={t("rail.undo")}
-        >
-          <IconUndo />
-        </button>
-        <button
-          type="button"
-          className={cx("ui-cockpit-icon-btn", mainView === "settings" && "active")}
-          onClick={() => void handleOpenSettings()}
-          data-tip={`${t("rail.settings")} (${modKey},)`}
-          aria-label={t("rail.settings")}
-        >
-          <IconSettings />
-        </button>
-      </div>
-    ),
-    [
-      appearance,
-      appearanceTitle,
-      handleOpenSettings,
-      handleToggleAppearance,
-      mainView,
-      modKey,
-      setPaletteOpen,
-      t,
-      theme,
-    ]
+  const cockpitActions = (
+    <CockpitActions
+      appearance={appearance}
+      appearanceTitle={appearanceTitle}
+      theme={theme}
+      mainView={mainView}
+      modKey={modKey}
+      commandsLabel={t("rail.commands")}
+      undoLabel={t("rail.undo")}
+      settingsLabel={t("rail.settings")}
+      onOpenPalette={() => setPaletteOpen(true)}
+      onToggleAppearance={handleToggleAppearance}
+      onUndo={() => setModal("undo")}
+      onOpenSettings={() => void handleOpenSettings()}
+    />
   );
 
   // Esc unwinds the hub level by level — flyout first, then the rail itself.
@@ -2028,13 +2107,6 @@ export function App(): JSX.Element {
     requestCloseSettings,
   ]);
 
-  // The conversation is the stage's base layer; auxiliary surfaces
-  // (settings / plugin detail / editor files / task records / knowledge)
-  // render as the stage's flat workspace pane — same plane as the chat view,
-  // and DOCKED beside the hub rail/flyout when those are open (shell.css
-  // docking rules), so the hub keeps serving until the user collapses it.
-
-  // ── Picture-in-picture derivations ────────────────────────────────────────
   /** Live gate check: session entries are workspace-scoped, so this only sees
    *  the CURRENT root; parked roots rely on the capture-time flag instead. */
   const isPipBlocked = useCallback(
@@ -2070,15 +2142,16 @@ export function App(): JSX.Element {
       {/* Global [data-tip] hover tooltip — portal-rendered, fixed-position. */}
       <GlobalTooltip />
 
-      {/* Hub sheet — floating glass island (launcher tiles + sidebar views),
-          the successor of the activity rail + docked sidebar. The stage
-          reflows its centered column instead of being occluded. */}
       {panelOpen ? (
         <HubSheet
           view={sidebarView}
           expanded={viewExtended}
           disabledViews={hasPlan ? [] : ["tasks"]}
-          onSelectView={selectViewBase}
+          onSelectView={(view) => {
+            selectViewBase(view);
+            if (view === "prototype" && projectRoot) handleOpenPrototypeTab(projectRoot);
+            if (view === "design" && projectRoot) handleOpenDesignTab(projectRoot);
+          }}
           onCollapseFlyout={() => setViewExtended(false)}
           onClose={handleCollapsePanel}
           onResizeStart={handleResizeStart}
@@ -2114,6 +2187,7 @@ export function App(): JSX.Element {
           ) : sidebarView === "tokens" ? (
             <TokenStatsPanel
               root={projectRoot}
+              onOpenHeatmap={() => setHeatMapOpen(true)}
               // Count alone freezes while the ACTIVE session grows — folding
               // usage totals into the key makes the panel refetch as the
               // numbers it displays actually move.
@@ -2131,11 +2205,11 @@ export function App(): JSX.Element {
             </Suspense>
           ) : sidebarView === "prototype" ? (
             <Suspense fallback={<div className="ui-side-panel-empty">{t("common.loading")}</div>}>
-              <PrototypeDesignPanel onOpenArtifact={handleOpenDesignArtifact} />
+              <PrototypeDesignPanel activeRoot={projectRoot} onOpenWorkspace={handleOpenPrototypeTab} />
             </Suspense>
           ) : sidebarView === "design" ? (
             <Suspense fallback={<div className="ui-side-panel-empty">{t("common.loading")}</div>}>
-              <DesignPanel onOpenArtifact={handleOpenDesignArtifact} />
+              <DesignPanel activeRoot={projectRoot} onOpenWorkspace={handleOpenDesignTab} />
             </Suspense>
           ) : sidebarView === "taskhub" ? (
             <Suspense fallback={<div className="ui-side-panel-empty">{t("common.loading")}</div>}>
@@ -2193,150 +2267,216 @@ export function App(): JSX.Element {
       <div className="ui-main">
         {/* Settings renders at SHELL level (modal family) — here the chain
             falls through to the conversation, which stays visible (dimmed by
-            the scrim) instead of being covered by a full-stage sheet. */}
-        {activeTab.kind === "plugins" ? (
-          <div className="ui-sheet">
-            <PluginDetail
-              selection={selectedPlugin}
-              skills={skills}
-              selectedSkills={selectedSkills}
-              onToggleSkill={handleToggleSkill}
-              onBack={() => handleCloseAuxTab("plugins")}
-            />
-          </div>
-        ) : activeTab.kind === "editor" && activeTab.file ? (
-          <div className="ui-sheet">
-            <Suspense
-              fallback={
-                <div className="ui-editor-empty">
-                  <span className="ui-spinner" /> {t("editor.loading")}
-                </div>
-              }
+            the scrim) instead of being covered by a full-stage sheet.
+            动画编排（2026-09-04 动画调研 P0）: sheet 分支全部 m.div —
+            AnimatePresence 接管进出场（CSS 入场 keyframes 已从 .ui-sheet 移除），
+            chat 兜底保持普通 div 即时切换（exit 仅在 sheet 侧声明，避免
+            chat↔sheet 双向等待）。 */}
+        <AnimatePresence initial={false}>
+          {activeTab.kind === "plugins" ? (
+            <m.div
+              key="tab-plugins"
+              className="ui-sheet"
+              initial={{ opacity: 0, y: 8, scale: 0.985 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 8, scale: 0.985 }}
+              transition={springToken}
             >
-              <EditorOverlay
-                filePath={activeTab.file}
-                onClose={() => handleCloseAuxTab(`editor:${activeTab.file}`)}
-                appearance={appearance}
-                inline
-                onAskAgent={(prompt) => {
-                  // B3c-3 第一切片：编辑器选区指令注入主会话流式执行 ——
-                  // 切回会话主视图让用户看到实时输出。
-                  setActiveTab({ kind: "chat" });
-                  setMainView("chat");
-                  void runPrompt({ text: prompt });
-                }}
+              <PluginDetail
+                selection={selectedPlugin}
+                skills={skills}
+                selectedSkills={selectedSkills}
+                onToggleSkill={handleToggleSkill}
+                onBack={() => handleCloseAuxTab("plugins")}
               />
-            </Suspense>
-          </div>
-        ) : activeTab.kind === "knowledge" ? (
-          <div className="ui-sheet">
-            <button
-              type="button"
-              className="ui-sheet-close"
-              onClick={() => handleCloseKnowledgeTab(activeTab.root)}
-              aria-label={t("sheet.backToChat")}
+            </m.div>
+          ) : activeTab.kind === "editor" && editorOpenFiles.length > 0 ? (
+            <m.div
+              key="tab-editor"
+              className="ui-sheet"
+              initial={{ opacity: 0, y: 8, scale: 0.985 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 8, scale: 0.985 }}
+              transition={springToken}
             >
-              ✕ {t("sheet.backToChat")}
-            </button>
-            <KnowledgePanel
-              root={activeTab.root}
-              appearance={appearance}
-              onOpenFile={handleOpenEditor}
-              onQuoteToChat={handleQuoteWikiToChat}
-            />
-          </div>
-        ) : activeTab.kind === "review" ? (
-          <div className="ui-sheet">
-            <button
-              type="button"
-              className="ui-sheet-close"
-              onClick={() => handleCloseReviewTab(activeTab.root)}
-              aria-label={t("sheet.backToChat")}
+              <Suspense
+                fallback={
+                  <div className="ui-editor-empty">
+                    <span className="ui-spinner" /> {t("editor.loading")}
+                  </div>
+                }
+              >
+                <EditorWorkspaceLazy
+                  store={editorWorkspace}
+                  appearance={appearance}
+                  onRequestCloseFile={requestCloseEditorFile}
+                  onContentChange={workspaceSetDraft}
+                  onSaved={workspaceMarkSaved}
+                  onAskAgent={(prompt) => {
+                    // B3c-3 第一切片：编辑器选区指令注入主会话流式执行 ——
+                    // 切回会话主视图让用户看到实时输出。
+                    setActiveTab({ kind: "chat" });
+                    setMainView("chat");
+                    void runPrompt({ text: prompt });
+                  }}
+                />
+              </Suspense>
+            </m.div>
+          ) : activeTab.kind === "knowledge" ? (
+            <m.div
+              key={`tab-knowledge:${activeTab.root}`}
+              className="ui-sheet"
+              initial={{ opacity: 0, y: 8, scale: 0.985 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 8, scale: 0.985 }}
+              transition={springToken}
             >
-              ✕ {t("sheet.backToChat")}
-            </button>
-            <Suspense fallback={<div className="ui-side-panel-empty">{t("common.loading")}</div>}>
-              {/* key={root}: without it, switching between two review tabs
+              <button
+                type="button"
+                className="ui-sheet-close"
+                onClick={() => handleCloseKnowledgeTab(activeTab.root)}
+                aria-label={t("sheet.backToChat")}
+              >
+                ✕ {t("sheet.backToChat")}
+              </button>
+              <KnowledgePanel
+                root={activeTab.root}
+                appearance={appearance}
+                onOpenFile={handleOpenEditor}
+                onQuoteToChat={handleQuoteWikiToChat}
+              />
+            </m.div>
+          ) : activeTab.kind === "review" ? (
+            <m.div
+              key={`tab-review:${activeTab.root}`}
+              className="ui-sheet"
+              initial={{ opacity: 0, y: 8, scale: 0.985 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 8, scale: 0.985 }}
+              transition={springToken}
+            >
+              <button
+                type="button"
+                className="ui-sheet-close"
+                onClick={() => handleCloseReviewTab(activeTab.root)}
+                aria-label={t("sheet.backToChat")}
+              >
+                ✕ {t("sheet.backToChat")}
+              </button>
+              <Suspense fallback={<div className="ui-side-panel-empty">{t("common.loading")}</div>}>
+                {/* key={root}: without it, switching between two review tabs
                   REUSED the component instance — the risk map (and error state)
                   from workspace A stayed visible under workspace B's tab, and
                   openGraph's cache guard short-circuited the refetch
                   (review round 2026-09-01). */}
-              <ReviewWorkspace
-                key={activeTab.root}
-                root={activeTab.root}
-                initialReportId={reviewTabs.find((tab) => tab.root === activeTab.root)?.reportId}
-                onQuoteToChat={handleQuoteReviewToChat}
-              />
-            </Suspense>
-          </div>
-        ) : activeTab.kind === "taskhub" ? (
-          <div className="ui-sheet">
-            <button
-              type="button"
-              className="ui-sheet-close"
-              onClick={() => handleCloseTaskHubTab(activeTab.root)}
-              aria-label={t("sheet.backToChat")}
+                <ReviewWorkspace
+                  key={activeTab.root}
+                  root={activeTab.root}
+                  initialReportId={reviewTabs.find((tab) => tab.root === activeTab.root)?.reportId}
+                  onQuoteToChat={handleQuoteReviewToChat}
+                />
+              </Suspense>
+            </m.div>
+          ) : activeTab.kind === "prototype" || activeTab.kind === "design" ? (
+            <DesignWorkspaceSurface
+              tab={activeTab}
+              onClose={(kind, root) =>
+                kind === "prototype" ? handleClosePrototypeTab(root) : handleCloseDesignTab(root)
+              }
+            />
+          ) : activeTab.kind === "taskhub" ? (
+            <m.div
+              key={`tab-taskhub:${activeTab.root}`}
+              className="ui-sheet"
+              initial={{ opacity: 0, y: 8, scale: 0.985 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 8, scale: 0.985 }}
+              transition={springToken}
             >
-              ✕ {t("sheet.backToChat")}
-            </button>
-            <Suspense fallback={<div className="ui-side-panel-empty">{t("common.loading")}</div>}>
-              <TaskHubWorkspace
-                key={activeTab.root}
-                root={activeTab.root}
-                onOpenQuick={(quick) => handleOpenTaskQuick(quick)}
-                onOpenKnowledge={handleOpenKnowledgeTab}
-                onOpenSession={handleSelectSession}
-                onOpenWorkspace={(wtRoot) => {
-                  // 分支独立 fork（九轮）：切进 git worktree 临时工作区 ——
-                  // 停泊当前会话 → 切 root → 会话主视图（结构性隔离）。
-                  if (!wtRoot || wtRoot === projectRootRef.current) return;
-                  pushPipSnapshot(wtRoot);
-                  pendingSelectRef.current = null;
-                  setActiveTab({ kind: "chat" });
-                  setMainView("chat");
-                  void api.setProjectRoot(wtRoot);
-                }}
-                onOpenDesign={(artifactId, pipeline) =>
-                  void handleOpenDesignArtifact({
-                    id: artifactId,
-                    title: artifactId,
-                    pipeline: pipeline === "spec" ? "spec" : "openui",
-                    createdAt: "",
-                    updatedAt: "",
-                  })
-                }
-              />
-            </Suspense>
-          </div>
-        ) : activeTab.kind === "task" ? (
-          <div className="ui-sheet">
-            <button
-              type="button"
-              className="ui-sheet-close"
-              onClick={() => handleCloseTaskTab(activeTab.treeId)}
-              aria-label={t("sheet.backToChat")}
+              <button
+                type="button"
+                className="ui-sheet-close"
+                onClick={() => handleCloseTaskHubTab(activeTab.root)}
+                aria-label={t("sheet.backToChat")}
+              >
+                ✕ {t("sheet.backToChat")}
+              </button>
+              <Suspense fallback={<div className="ui-side-panel-empty">{t("common.loading")}</div>}>
+                <TaskHubWorkspace
+                  key={activeTab.root}
+                  root={activeTab.root}
+                  onOpenQuick={(quick) => handleOpenTaskQuick(quick)}
+                  onOpenKnowledge={handleOpenKnowledgeTab}
+                  onOpenSession={handleSelectSession}
+                  onOpenEditorFile={(_root, file) => handleOpenEditor(file)}
+                  onOpenWorkspace={(wtRoot) => {
+                    // 分支独立 fork（九轮）：切进 git worktree 临时工作区 ——
+                    // 停泊当前会话 → 切 root → 会话主视图（结构性隔离）。
+                    if (!wtRoot || wtRoot === projectRootRef.current) return;
+                    pushPipSnapshot(wtRoot);
+                    pendingSelectRef.current = null;
+                    setActiveTab({ kind: "chat" });
+                    setMainView("chat");
+                    void api.setProjectRoot(wtRoot);
+                  }}
+                  onOpenDesign={(artifactId, pipeline) =>
+                    void handleOpenDesignArtifact({
+                      id: artifactId,
+                      title: artifactId,
+                      pipeline: pipeline === "spec" ? "spec" : "openui",
+                      createdAt: "",
+                      updatedAt: "",
+                    })
+                  }
+                />
+              </Suspense>
+            </m.div>
+          ) : activeTab.kind === "task" ? (
+            <m.div
+              key={`tab-task:${activeTab.treeId}`}
+              className="ui-sheet"
+              initial={{ opacity: 0, y: 8, scale: 0.985 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 8, scale: 0.985 }}
+              transition={springToken}
             >
-              ✕ {t("sheet.backToChat")}
-            </button>
-            <Suspense fallback={<div className="ui-side-panel-empty">{t("diff.loading")}</div>}>
-              <TaskRecordPanel
-                treeId={activeTab.treeId}
-                workspaceRoot={taskTabs.find((tab) => tab.treeId === activeTab.treeId)?.root ?? undefined}
-              />
-            </Suspense>
-          </div>
-        ) : (
-          <div className={`ui-chat-stage${hasLive ? " has-live" : ""}${welcomeMode ? " welcome-mode" : ""}`}>
-            <InstructionToc messages={messages} />
-            <div className="ui-chat-main">
-              {planProgress ? (
-                <PinnedPlan lines={planProgress.lines} done={planProgress.done} total={planProgress.total} />
-              ) : null}
-              {chatContent}
+              <button
+                type="button"
+                className="ui-sheet-close"
+                onClick={() => handleCloseTaskTab(activeTab.treeId)}
+                aria-label={t("sheet.backToChat")}
+              >
+                ✕ {t("sheet.backToChat")}
+              </button>
+              <Suspense fallback={<div className="ui-side-panel-empty">{t("diff.loading")}</div>}>
+                <TaskRecordPanel
+                  treeId={activeTab.treeId}
+                  workspaceRoot={taskTabs.find((tab) => tab.treeId === activeTab.treeId)?.root ?? undefined}
+                  onOpenDetail={(op) => {
+                    closePreview();
+                    setTaskQuick({
+                      kind: "timeline",
+                      root: taskTabs.find((tab) => tab.treeId === activeTab.treeId)?.root ?? projectRoot,
+                      treeId: activeTab.treeId,
+                      title: `${op.tool} · ${op.at.slice(11, 19)}`,
+                    });
+                  }}
+                />
+              </Suspense>
+            </m.div>
+          ) : (
+            <div className={`ui-chat-stage${hasLive ? " has-live" : ""}${welcomeMode ? " welcome-mode" : ""}`}>
+              <InstructionToc messages={messages} />
+              <div className="ui-chat-main">
+                {planProgress ? (
+                  <PinnedPlan lines={planProgress.lines} done={planProgress.done} total={planProgress.total} />
+                ) : null}
+                {chatContent}
+              </div>
+              {hasLive ? <ActivityRail messages={messages} busy={busy} collapsed={companionOpen} /> : null}
             </div>
-            {hasLive ? <ActivityRail messages={messages} busy={busy} collapsed={companionOpen} /> : null}
-          </div>
-        )}
+          )}
+        </AnimatePresence>
       </div>
 
       {/* Settings — centered modal card (shell level, modal family): settings
@@ -2344,23 +2484,40 @@ export function App(): JSX.Element {
           click-to-dismiss scrim; the conversation stage stays visible behind.
           scrim 98 · card 99 — above the floating islands, below the app's
           .ui-modal-overlay (100) / palette (120) / toasts (200). */}
-      {activeTab.kind === "settings" && editable ? (
-        <>
-          <div className="ui-settings-scrim" onClick={requestCloseSettings} aria-hidden />
-          <div className="ui-settings-modal">
-            <SettingsPanel
-              initial={editable}
-              initialTab={settingsInitialTab}
-              onSave={handleSaveSettings}
-              onClose={requestCloseSettings}
-              onDirtyChange={setSettingsDirty}
-              platform={platform}
-              theme={theme}
-              onSelectTheme={handleSelectTheme}
+      <AnimatePresence>
+        {activeTab.kind === "settings" && editable ? (
+          <>
+            <m.div
+              className="ui-settings-scrim"
+              onClick={requestCloseSettings}
+              aria-hidden
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.18 }}
             />
-          </div>
-        </>
-      ) : null}
+            <m.div
+              className="ui-settings-modal"
+              initial={{ opacity: 0, y: 10, scale: 0.99 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 10, scale: 0.99 }}
+              transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+            >
+              <SettingsPanel
+                root={projectRoot}
+                initial={editable}
+                initialTab={settingsInitialTab}
+                onSave={handleSaveSettings}
+                onClose={requestCloseSettings}
+                onDirtyChange={setSettingsDirty}
+                platform={platform}
+                theme={theme}
+                onSelectTheme={handleSelectTheme}
+              />
+            </m.div>
+          </>
+        ) : null}
+      </AnimatePresence>
 
       {/* Right-side companion card — PM-Design / DeepDesign output */}
       {previewOpen && (prototypeJson || prototypeMode === "openui" || designContent) ? (
@@ -2436,6 +2593,8 @@ export function App(): JSX.Element {
           <TaskQuickSheet title={taskQuick.title} onClose={handleCloseTaskQuick}>
             {taskQuick.kind === "report" ? (
               <ReportQuickContent root={taskQuick.root} reportId={taskQuick.reportId} />
+            ) : taskQuick.kind === "step-detail" ? (
+              <StepDetailQuickContent step={taskQuick.step} />
             ) : taskQuick.kind === "timeline" ? (
               <TaskRecordPanel treeId={taskQuick.treeId} workspaceRoot={taskQuick.root} />
             ) : (
@@ -2448,16 +2607,18 @@ export function App(): JSX.Element {
       {/* Quick dock — the everyday trio (sessions / new / workspace) pulled
           out of the hub into a persistent top-left capsule. Hidden while the
           hub rail is up: same corner, and browsing belongs to the rail. */}
-      {!panelOpen ? (
-        <QuickDock
-          sessionTitle={activeSessionTitle}
-          busy={busy}
-          modKey={modKey}
-          onOpenSessions={() => selectView("explorer")}
-          onNewSession={handleNewSession}
-          onNewWorkspace={() => void handleNewWorkspace()}
-        />
-      ) : null}
+      <AnimatePresence>
+        {!panelOpen ? (
+          <QuickDock
+            sessionTitle={activeSessionTitle}
+            busy={busy}
+            modKey={modKey}
+            onOpenSessions={() => selectView("explorer")}
+            onNewSession={handleNewSession}
+            onNewWorkspace={() => void handleNewWorkspace()}
+          />
+        ) : null}
+      </AnimatePresence>
 
       {/* Tide orb — the stage's idle-state navigation affordance: summons the
           hub sheet. Merged into the rail while it is open (the rail's bottom
@@ -2540,73 +2701,40 @@ export function App(): JSX.Element {
         </Suspense>
       ) : null}
 
-      {modal === "undo" ? (
-        <UndoModal sessionId={activeId} onClose={() => setModal(null)} onRestored={() => void handleUndoRestored()} />
-      ) : null}
-
-      {/* Model-transport fault dialog — the build console keeps the full
-          detail; this exists so a broken endpoint is impossible to miss. */}
-      {modelFault ? (
-        <Modal
-          title={t("build.modelFaultTitle")}
-          subtitle={t("build.modelFaultBody")}
-          onClose={() => setModelFault(null)}
-          actions={
-            <Button variant="primary" onClick={() => setModelFault(null)}>
-              {t("build.modelFaultOk")}
-            </Button>
-          }
-        >
-          <div className="ui-model-fault-detail">{formatBuildError(modelFault, t)}</div>
-        </Modal>
-      ) : null}
-
-      {modal === "shortcuts" ? <ShortcutsModal platform={platform} onClose={() => setModal(null)} /> : null}
-
-      {/* Settings close confirmed by Esc / scrim / tab ✕ while edits are
-          unsaved — same dialog the panel's old close button used to show. */}
-      {modal === "discard-settings" ? (
-        <Modal
-          title={t("settings.unsavedTitle")}
-          subtitle={t("settings.unsavedBody")}
-          onClose={() => setModal(null)}
-          actions={
-            <>
-              <Button onClick={() => setModal(null)}>{t("common.cancel")}</Button>
-              <Button
-                variant="primary"
-                onClick={() => {
-                  setSettingsDirty(false);
-                  setModal(null);
-                  handleCloseAuxTab("settings");
-                }}
-              >
-                {t("settings.unsavedDiscard")}
-              </Button>
-            </>
-          }
-        />
-      ) : null}
-
-      {trustAskOpen ? (
-        <WorkspaceTrustDialog busy={trustBusy} onSelect={(level) => void handleTrustSelect(level)} />
-      ) : null}
-
-      {branchConflict ? (
-        <Modal
-          title={t("scm.dirtySwitchTitle")}
-          subtitle={t("scm.dirtySwitchBody", { branch: branchConflict })}
-          onClose={() => setBranchConflict(null)}
-          actions={
-            <>
-              <Button onClick={() => setBranchConflict(null)}>{t("common.cancel")}</Button>
-              <Button variant="primary" disabled={stashSwitching} onClick={() => void handleStashAndSwitch()}>
-                {stashSwitching ? t("scm.stashSwitchBusy") : t("scm.stashAndSwitch")}
-              </Button>
-            </>
-          }
-        />
-      ) : null}
+      {/* Fault / discard / trust / branch-conflict dialogs — extracted so the
+          shell stays under the file-length ceiling (AppModals holds the
+          markup; state + confirm handlers stay here). */}
+      <AppModals
+        modal={modal}
+        onCloseModal={() => setModal(null)}
+        activeId={activeId}
+        onUndoRestored={() => void handleUndoRestored()}
+        platform={platform}
+        modelFault={modelFault}
+        onDismissModelFault={() => setModelFault(null)}
+        onDiscardSettings={() => {
+          setSettingsDirty(false);
+          setModal(null);
+          handleCloseAuxTab("settings");
+        }}
+        onDiscardEditorWorkspace={() => {
+          setModal(null);
+          closeEditorWorkspace();
+        }}
+        editorFileClose={editorFileClose}
+        onDismissFileClose={() => setEditorFileClose(null)}
+        onConfirmCloseFile={(file) => {
+          setEditorFileClose(null);
+          closeEditorFile(file);
+        }}
+        trustAskOpen={trustAskOpen}
+        trustBusy={trustBusy}
+        onTrustSelect={(level) => void handleTrustSelect(level)}
+        branchConflict={branchConflict}
+        onDismissBranchConflict={() => setBranchConflict(null)}
+        stashSwitching={stashSwitching}
+        onStashAndSwitch={() => void handleStashAndSwitch()}
+      />
 
       <CommandPalette
         open={paletteOpen}
@@ -2616,6 +2744,8 @@ export function App(): JSX.Element {
         onClose={() => setPaletteOpen(false)}
       />
 
+      {/* Global heatmap modal (specs/token-model-charts) — shell level overlay. */}
+      {heatMapOpen ? <TokenHeatmapModal root={projectRoot} onClose={() => setHeatMapOpen(false)} /> : null}
       <ToastContainer toasts={toasts} onDismiss={dismissToast} onPause={pauseToast} onResume={resumeToast} />
     </div>
   );

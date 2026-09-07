@@ -146,6 +146,7 @@ export const IpcRequest = {
   WikiInit: "wiki:init",
   WikiUpdate: "wiki:update",
   WikiListPages: "wiki:listPages",
+  LaneRatesGet: "laneRates:get",
   WikiReadPage: "wiki:readPage",
 
   // MCP management (moved out of settings into the plugin module)
@@ -193,6 +194,14 @@ export const IpcRequest = {
   DesignSaveFormState: "design:saveFormState",
   DesignReadFormState: "design:readFormState",
   DesignExportPackage: "design:exportPackage",
+  DesignSuiteList: "design:suiteList",
+  DesignSuiteRead: "design:suiteRead",
+  DesignSuiteReadVersion: "design:suiteReadVersion",
+  DesignSuiteDelete: "design:suiteDelete",
+  DesignSuiteExport: "design:suiteExport",
+  DesignSuiteSaveFormState: "design:suiteSaveFormState",
+  DesignSuiteReadFormState: "design:suiteReadFormState",
+  DesignSystemCatalog: "design:systemCatalog",
 
   // Task trajectory (specs/task-tree) — panel surface (workspace-scoped)
   TaskTreeList: "tasktree:list",
@@ -206,6 +215,8 @@ export const IpcRequest = {
    *  .deeporca, or a git-linked independent branch + temp worktree. */
   TaskTreeForkWorkspace: "tasktree:forkWorkspace",
   TokensSummary: "tokens:summary",
+  /** Model-detail popup (specs/token-model-charts): heatmap + speed window. */
+  TokensModelDetail: "tokens:modelDetail",
   TaskTreeReflog: "tasktree:reflog",
   TaskTreeTrajectory: "tasktree:trajectory",
   TaskTreeArchive: "tasktree:archive",
@@ -219,6 +230,10 @@ export const IpcRequest = {
   /** Editor digital entity (specs/editor-agent S2): run the editor-agent
    *  background entity on a selection — sessionless, zero residue. */
   EditorAgentRun: "editor:agentRun",
+  // LSP bare-frame relay (specs/editor-copilot D2)
+  LspRelayAttach: "lsp:relayAttach",
+  LspRelaySend: "lsp:relaySend",
+  LspRelayDetach: "lsp:relayDetach",
 
   // A2UI (Surface user interaction → agent)
   A2uiAction: "a2ui:action",
@@ -245,13 +260,19 @@ export const IpcEvent = {
   PluginEvent: "event:pluginEvent",
   CrgProgress: "event:crgProgress",
   WikiProgress: "event:wikiProgress",
+  DepthLaneProgress: "event:depthLaneProgress",
   A2uiSurfaceUpdate: "event:a2uiSurfaceUpdate",
   A2uiWindowPayload: "event:a2uiWindowPayload",
   /** defineAction progress stream (unified; payload carries actionId). */
   ActionProgress: "event:actionProgress",
+  /** Editor agent run progress (specs/editor-copilot C2): chunk-level
+   *  streaming + iteration milestones + guaranteed terminal event. */
+  EditorAgentProgress: "event:editorAgentProgress",
+  /** LSP relay server→client frames (specs/editor-copilot D2). */
+  LspRelayMessage: "event:lspRelayMessage",
   /** Sandbox backend selection outcome per session (degradation is never silent). */
   SandboxStatusChanged: "event:sandboxStatusChanged",
-  /** design-store artifact saved/deleted (payload: { root }) — panels refresh live. */
+  /** design-store artifact/suite changed — panels refresh the pinned workspace. */
   DesignChanged: "event:designChanged",
   /** Coord Chain node lifecycle/state changed (payload: ChainStatePayload). */
   ChainStateChanged: "event:chainStateChanged",
@@ -388,7 +409,7 @@ export type RiskGraphData = {
 
 // ── Workspace task hub (task-tree-hub design, 2026-09-01) ──────────────────
 /** The four record domains aggregated into one workspace task tree. */
-export type TaskHubDomain = "session" | "index" | "review" | "prototype";
+export type TaskHubDomain = "session" | "index" | "review" | "prototype" | "editor";
 
 /** One unified task node of the workspace task tree (meta-level only — the
  *  payloads stay in their home stores; `source` locates them). */
@@ -408,7 +429,9 @@ export type TaskHubNode = {
     | { kind: "session-chat"; sessionId: string }
     | { kind: "review-report"; reportId: string }
     | { kind: "design-artifact"; artifactId: string; pipeline: string }
-    | { kind: "index-job"; jobId: string };
+    | { kind: "index-job"; jobId: string }
+    /** Editor pair run (specs/editor-copilot 链路 D): click opens the file. */
+    | { kind: "editor-run"; runId: string; file: string };
   /** Domain extras (findings count, scope label, build stages…). */
   meta?: Record<string, unknown>;
 };
@@ -432,6 +455,10 @@ export type TaskTraceStep = {
   fail?: boolean;
   ms?: string;
   mcp?: string;
+  /** Truncated result markdown for the detail panel. */
+  resultMd?: string;
+  /** Assistant call start time (ISO). */
+  at?: string;
   nested?: TaskTraceStep[];
 };
 
@@ -479,6 +506,29 @@ export type WorkspaceTokenSummary = {
   costUsd: number | null;
 };
 
+/** One heatmap cell of the model-detail popup (specs/token-model-charts). */
+export type ModelHeatCell = {
+  /** Local calendar day key, yyyy-MM-dd ascending. */
+  day: string;
+  /** Local hour 0–23. */
+  hour: number;
+  model: string;
+  tokens: number;
+  reqs: number;
+};
+
+/** Per-model median completion speed over the model's recent samples. */
+export type ModelSpeed = { model: string; tokS: number; samples: number };
+
+/** Payload of `tokens:modelDetail` — 7-day × 24h heatmap + speed medians. */
+export type WorkspaceModelDetail = {
+  /** Local day keys covering the window, ascending. */
+  days: string[];
+  heat: ModelHeatCell[];
+  /** Per-model median tok/s, fastest first. */
+  speeds: ModelSpeed[];
+};
+
 /** Settled index/knowledge build job (`.deeporca/jobs/<id>.json`). */
 export type IndexJobRecord = {
   id: string;
@@ -517,6 +567,27 @@ export type SerializableSessionEntry = Omit<SessionEntry, "processes"> & {
   archived?: boolean;
   /** Desktop-only: the workspace root this session belongs to. */
   workspaceRoot?: string;
+};
+
+/** Depth-lane stage progress (specs/depth-lane X.3) — core payload + root. */
+export type DepthLaneProgressEvent = {
+  root: string;
+  sessionId: string;
+  stage: "s1" | "s1.5" | "s2" | "s3" | "s4" | "s5" | "done";
+  round?: number;
+  totalRounds?: number;
+  detail?: string;
+  done?: boolean;
+};
+
+/** Lane observation rates for the settings panel (P2.3, read-only). */
+export type LaneRatesReport = {
+  expressSessions: number;
+  deepSessions: number;
+  retroProxied: number;
+  expressFollowUpRate: number | null;
+  deepNegativeFeedbackRate: number | null;
+  samples: { followUps: number; negatives: number };
 };
 
 /** A workspace directory node grouping its (non-archived) sessions. */
@@ -760,9 +831,12 @@ export type KnowledgeBuildJobSnapshot = {
 
 /**
  * Persisted architecture-map artifacts under `.deeporca/prototypes/`:
- * - legacy A2UI surface JSON (`arch-*.json`)
- * - Mermaid diagram documents (`arch-*.md`) — the current arch-scan output
- *   format (diagram-first; the A2UI variant rendered as a flat document).
+ * - current (since 2026-08-29): archify typed-IR pairs —
+ *   `arch-*.<type>.json` + delivered `arch-*.<type>.html` (the five typed
+ *   suffixes, see ARCHIFY_TYPES in main/tools/archify-cli.ts);
+ * - legacy, retired 2026-08-29 and invisible to the current pipeline:
+ *   A2UI surface JSON (`arch-*.json`) and Mermaid diagram documents
+ *   (`arch-*.md`).
  */
 
 /** Git state of a workspace root, checked before a build: the wiki generator
@@ -851,6 +925,11 @@ export type { TaskNode, TaskReflogEntry, TaskTreeIndex, TaskTreeSummary } from "
 /** Designer artifact pipeline: openui = PM-Design prototype, design = UI-Design .dd document. */
 export type DesignPipeline = "openui" | "design" | "spec";
 
+export type DesignArtifactVersion = {
+  savedAt: string;
+  content: string;
+};
+
 /** A stored design artifact's metadata (index entry). */
 export type DesignArtifactMeta = {
   id: string;
@@ -858,11 +937,156 @@ export type DesignArtifactMeta = {
   pipeline: DesignPipeline;
   createdAt: string;
   updatedAt: string;
+  versions?: DesignArtifactVersion[];
 };
 
 /** A design artifact with full content. */
 export type DesignArtifact = DesignArtifactMeta & {
   content: string;
+  requirement?: string;
+};
+
+export type DesignSuiteKind = "prototype" | "ui";
+export type DesignSuiteStatus = "draft" | "ready" | "verified";
+export type DesignCheckStatus = "pending" | "passed" | "failed" | "healed";
+
+export type DesignArtifactRef = {
+  suiteId: string;
+  versionId: string;
+  kind: DesignSuiteKind;
+};
+
+export type PrototypeVerificationCheck = {
+  id: string;
+  label: string;
+  status: DesignCheckStatus;
+  action?: string;
+  observation?: string;
+};
+
+export type PrototypeVerificationResult = {
+  status: "pending" | "passed" | "failed";
+  checks: PrototypeVerificationCheck[];
+  generatedAt?: string;
+  healingRounds?: number;
+};
+
+export type DesignLintFinding = {
+  id: string;
+  preset: string;
+  ruleId: string;
+  severity: "info" | "warning" | "error";
+  nodePath: string;
+  message: string;
+  suggestion?: string;
+};
+
+export type DesignRuntimeCheck = {
+  id: string;
+  label: string;
+  status: "pending" | "passed" | "failed";
+  value?: unknown;
+};
+
+export type DesignQualityReview = {
+  status: "pending" | "passed" | "failed";
+  composite: number;
+  rounds: number;
+  evidence: Record<string, unknown>;
+};
+
+export type DesignQualityResult = {
+  lintFindings: DesignLintFinding[];
+  runtimeChecks: DesignRuntimeCheck[];
+  review?: DesignQualityReview;
+};
+
+export type PrototypeSuiteContent = {
+  requirement?: string;
+  spec?: string;
+  openui?: string;
+  verification?: PrototypeVerificationResult;
+};
+
+export type UiSuiteContent = {
+  requirement?: string;
+  openui?: string;
+  tokens?: unknown;
+  components?: unknown;
+  quality?: DesignQualityResult;
+  sourcePrototype?: Pick<DesignArtifactRef, "suiteId" | "versionId">;
+  designSystemId?: string;
+};
+
+export type DesignSuiteContent = PrototypeSuiteContent | UiSuiteContent;
+
+export type DesignSuiteVersionSummary = {
+  versionId: string;
+  savedAt: string;
+  note?: string;
+  status: DesignSuiteStatus;
+};
+
+export type DesignSuiteVersion = DesignSuiteVersionSummary & {
+  content: DesignSuiteContent;
+};
+
+export type DesignSuiteMeta = {
+  schemaVersion: 2;
+  id: string;
+  title: string;
+  kind: DesignSuiteKind;
+  status: DesignSuiteStatus;
+  createdAt: string;
+  updatedAt: string;
+  currentVersionId: string;
+  versions: DesignSuiteVersionSummary[];
+};
+
+export type DesignSuiteSummary = {
+  schemaVersion: 2;
+  id: string;
+  title: string;
+  kind: DesignSuiteKind;
+  status: DesignSuiteStatus;
+  createdAt: string;
+  updatedAt: string;
+  currentVersionId: string;
+  versionCount: number;
+  partial?: boolean;
+  sourcePipeline?: DesignPipeline;
+};
+
+export type DesignSuite = Omit<DesignSuiteMeta, "versions"> & {
+  versions: DesignSuiteVersion[];
+  currentVersion: DesignSuiteVersion;
+  currentContent: DesignSuiteContent;
+  partial?: boolean;
+  sourcePipeline?: DesignPipeline;
+};
+
+export type DesignSuiteChangeEvent = {
+  root: string;
+  suiteId: string;
+  versionId?: string;
+  change: "create" | "update" | "delete";
+};
+
+/** IPC payload remains compatible with legacy artifact root-only notifications. */
+export type DesignChangedEvent =
+  | DesignSuiteChangeEvent
+  | {
+      root: string;
+      suiteId?: undefined;
+      versionId?: undefined;
+      change?: undefined;
+    };
+
+export type DesignSystemCatalogItem = {
+  id: string;
+  title: string;
+  description: string;
+  content?: string;
 };
 
 /** Workspace trust level (specs/sandbox/design.md §10.3), project-level setting. */
@@ -978,6 +1202,12 @@ export type EditorFileEntry = {
 export type FileMatch = {
   path: string;
   type: "file" | "directory";
+  /** Store-reference semantic kind — wiki/review items are injected by the
+   *  mention menu from the stores (not filesystem scan results) and insert
+   *  as absolute store paths so the deep reference regex chips them. */
+  kind?: "wiki" | "review";
+  /** Human display title (wiki page title / formatted report stamp). */
+  title?: string;
 };
 
 /** defineAction surface (spec §六). A registered action's introspection entry. */
@@ -989,6 +1219,31 @@ export type ActionListItem = {
 
 /** Result of an ActionRun IPC call — success carries the action's output. */
 export type ActionRunResult = { ok: true; output: unknown } | { ok: false; error: string; code: string };
+
+/** LSP relay attach result (specs/editor-copilot D2). */
+export type LspRelayAttachResult =
+  | { ok: true; sessionId: string; root: string; languageId: string }
+  | { ok: false; error: string };
+
+/** One server→client frame pushed over the relay. */
+export type LspRelayMessageEvent = {
+  sessionId: string;
+  frame: string;
+};
+
+/** One editor-agent run progress event (specs/editor-copilot C2). */
+export type EditorAgentProgressEvent = {
+  /** Correlates renderer subscriptions with a single run. */
+  runId: string;
+  phase: "delta" | "iteration" | "done" | "error";
+  /** Streamed text chunk (phase "delta"). */
+  text?: string;
+  /** Iteration milestone message (phase "iteration"). */
+  message?: string;
+  /** Terminal fields (phase "done" | "error"). */
+  iterations?: number;
+  error?: string;
+};
 
 /** Unified action progress event (replaces the per-tool event:*Progress family). */
 export type ActionProgressEvent = {
@@ -1117,6 +1372,9 @@ export type DesktopApi = {
   onAssistantMessage(cb: (message: SessionMessage) => void): () => void;
   onSessionEntryUpdated(cb: (entry: SerializableSessionEntry) => void): () => void;
   onLlmStreamProgress(cb: (progress: unknown) => void): () => void;
+  onDepthLaneProgress(cb: (progress: DepthLaneProgressEvent) => void): () => void;
+  /** Read-only lane observation rates for the settings panel (P2.3). */
+  laneRates(root: string): Promise<LaneRatesReport | null>;
   onMcpStatusChanged(cb: () => void): () => void;
   onProcessStdout(cb: (event: ProcessStdoutEvent) => void): () => void;
   onProjectRootChanged(cb: (root: string) => void): () => void;
@@ -1219,6 +1477,8 @@ export type DesktopApi = {
   >;
   /** Whole-workspace LLM token accounting (silent subagents included). */
   tokensSummary(root: string): Promise<WorkspaceTokenSummary>;
+  /** Model-detail popup payload (specs/token-model-charts): heatmap + speeds. */
+  tokensModelDetail(root: string, days?: number): Promise<WorkspaceModelDetail>;
   /** Subscribe to streaming CRG build output. Returns unsubscribe fn. */
   onCrgProgress(cb: (event: CrgProgressEvent) => void): () => void;
 
@@ -1308,24 +1568,27 @@ export type DesktopApi = {
   memoryRoutingStatus(): Promise<MemoryRoutingStatus>;
 
   // ── Designer (design artifacts) ────────────────────────────────────────
-  /** List all design artifacts (PM-Design prototypes + UI-Design documents). */
-  designList(): Promise<DesignArtifactMeta[]>;
-  /** Read a single design artifact's full content. */
-  designRead(id: string): Promise<DesignArtifact | null>;
-  /** Delete a design artifact. */
-  designDelete(id: string): Promise<boolean>;
-  /** Persist the live prototype's form state (caller throttles). Main resolves the latest artifact of the pipeline. */
-  designSaveFormState(pipeline: "openui" | "design", state: Record<string, unknown>): Promise<boolean>;
-  /** Read the persisted form state for hydration; null when none. */
-  designReadFormState(pipeline: "openui" | "design"): Promise<Record<string, unknown> | null>;
-  /**
-   * Export an artifact as a `.ddp` / `.ddu` package (P4-1 format decision
-   * 2026-08-18): special ZIP archives — pm-design prototypes → `.ddp`
-   * (manifest + OpenUI source + viewer stub), ui-design documents → `.ddu`
-   * (manifest + `.dd` source + standalone compiled HTML). Native save dialog;
-   * `ok:false` without `error` = user canceled.
-   */
-  designExportPackage(id: string): Promise<{ ok: boolean; path?: string; error?: string }>;
+  /** Legacy artifact surface. Omitted root remains pinned to the active workspace. */
+  designList(root?: string): Promise<DesignArtifactMeta[]>;
+  designRead(id: string, root?: string): Promise<DesignArtifact | null>;
+  designDelete(id: string, root?: string): Promise<boolean>;
+  designSaveFormState(pipeline: "openui" | "design", state: Record<string, unknown>, root?: string): Promise<boolean>;
+  designReadFormState(pipeline: "openui" | "design", root?: string): Promise<Record<string, unknown> | null>;
+  designExportPackage(id: string, root?: string): Promise<{ ok: boolean; path?: string; error?: string }>;
+
+  /** Versioned design suite surface. All workspace operations require an explicit registered root. */
+  designSuiteList(root: string, kind?: DesignSuiteKind): Promise<DesignSuiteSummary[]>;
+  designSuiteRead(root: string, id: string): Promise<DesignSuite | null>;
+  designSuiteReadVersion(root: string, id: string, versionId: string): Promise<DesignSuiteVersion | null>;
+  designSuiteDelete(root: string, id: string): Promise<boolean>;
+  designSuiteExportPackage(
+    root: string,
+    id: string,
+    versionId?: string
+  ): Promise<{ ok: boolean; path?: string; error?: string }>;
+  designSuiteSaveFormState(root: string, id: string, state: Record<string, unknown>): Promise<boolean>;
+  designSuiteReadFormState(root: string, id: string): Promise<Record<string, unknown> | null>;
+  designSystemCatalog(): Promise<DesignSystemCatalogItem[]>;
 
   // ── Task trajectory (read-only panel surface) ────────────────────────────
   /** List task trees (id, title, active branch, counts). */
@@ -1385,7 +1648,16 @@ export type DesktopApi = {
     selection: string;
     instruction: string;
     lang?: string;
+    /** D11 context chips: appended to the prompt as extra context. */
+    extraContext?: string;
+    /** Renderer-minted run identity — main echoes it on every progress
+     * event so concurrent runs (explain + pair) can be told apart. */
+    runId?: string;
   }): Promise<{ ok: true; content: string; iterations: number } | { ok: false; error: string }>;
+  lspRelayAttach(root: string, languageId: string): Promise<LspRelayAttachResult>;
+  lspRelaySend(sessionId: string, frame: string): Promise<{ ok: true } | { ok: false; error: string }>;
+  lspRelayDetach(sessionId: string): Promise<{ ok: true } | { ok: false; error: string }>;
+  onLspRelayMessage(cb: (event: LspRelayMessageEvent) => void): () => void;
 
   // ── A2UI (Surface interaction) ─────────────────────────────────────────
   /** Send a user interaction from an AUI Surface back to the agent.
@@ -1407,8 +1679,10 @@ export type DesktopApi = {
   actionRun(id: string, input?: unknown): Promise<ActionRunResult>;
   /** Subscribe to the unified action progress stream. Returns unsubscribe fn. */
   onActionProgress(cb: (event: ActionProgressEvent) => void): () => void;
-  /** Design artifacts changed (a2ui tool saved mid-run / deleted) — live refresh. */
-  onDesignChanged(cb: (event: { root: string }) => void): () => void;
+  /** Editor agent run progress subscription (chunk streaming + terminal). */
+  onEditorAgentProgress(cb: (event: EditorAgentProgressEvent) => void): () => void;
+  /** Design artifacts or suites changed; suite fields are absent for legacy artifact changes. */
+  onDesignChanged(cb: (event: DesignChangedEvent) => void): () => void;
   /** Subscribe to the initial payload sent to a popout prototype window. */
   onA2uiWindowPayload(cb: (event: A2uiWindowPayloadEvent) => void): () => void;
   /** Pull the initial prototype-window payload by token (race-free handshake,

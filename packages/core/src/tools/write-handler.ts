@@ -13,6 +13,7 @@ import {
 } from "../common/file-utils";
 import { executeValidatedTool } from "../common/validate";
 import { gateWrite } from "../common/path-boundary";
+import { appendDiagnosticHint } from "./code-extensions";
 import { getFileState, isAbsoluteFilePath, isFullFileView, normalizeFilePath, recordFileState } from "../common/state";
 
 const writeSchema = z.strictObject({
@@ -137,7 +138,7 @@ export async function handleWriteTool(
         return {
           ok: true,
           name: "write",
-          output: existingMetadata ? "Updated file." : "Created file.",
+          output: appendDiagnosticHint(existingMetadata ? "Updated file." : "Created file.", filePath),
           metadata: {
             type: existingMetadata ? "update" : "create",
             file_path: filePath,

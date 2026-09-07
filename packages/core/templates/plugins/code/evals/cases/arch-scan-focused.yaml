@@ -1,0 +1,25 @@
+# format mirrors knowledge/evals/cases/*.yaml (Workstream A, skill-up CI)
+id: arch-scan-focused
+title: Conversational explain-X request routes through the focused arch-scan entry
+description: >
+  specs/arch-map-reinforce R3: a conversational "explain subsystem X with a
+  diagram" request must trigger arch-scan.run carrying the focus parameter
+  (one focused map — NOT a full-repository sweep), still authoring an
+  archify typed-IR artifact through the same write-tool + host deliver-gate
+  contract.
+input:
+  prompt: |
+    画个图解释一下编辑器模块的 IPC 体系吧，不用扫全仓库，就讲这一块。
+constraints:
+  timeout_seconds: 600
+  max_turns: 15
+expect:
+  must_contain:
+    - "arch-scan"
+    - "focus"
+    - "write"
+  must_not_contain:
+    - "save_archmap"
+    - "render_surface"
+judge:
+  type: rule_based

@@ -1,7 +1,12 @@
 // Wraps a DeepOrca core `SessionManager` for a single project root and forwards
 // its callbacks to the renderer via the provided `emit` function.
 
-import { collectProfile, formatContextBlock } from "./tools/activity-frames/collectors/aggregator";
+import {
+  collectProfile,
+  collectSopContextSources,
+  formatContextBlock,
+  formatSopContextBlock,
+} from "./tools/activity-frames/collectors/aggregator";
 import {
   buildGitmcpMaintenanceCommand,
   buildGitmcpPlaceholderConfig,
@@ -267,6 +272,14 @@ export function toSettingsSummary(root: string): SettingsSummary {
   };
 }
 
+// TTL cache for the SOP-oriented behavior context (specs/sop-extraction
+// P2.2): the collectors behind formatSopContextBlock are synchronous disk/git
+// scans on the main process — memory.distill calls must not re-pay them
+// within the cache window. Keyed by project root (bridge instances are
+// per-project; a stale entry for another root is simply never read).
+const SOP_CACHE_TTL_MS = 60_000;
+let sopContextCache: { root: string; at: number; value: string | null } | null = null;
+
 export class SessionBridge {
   private manager: SessionManager;
 
@@ -310,6 +323,25 @@ export class SessionBridge {
           return null; // fail-open
         }
       },
+      // SOP-oriented twin (specs/sop-extraction P2.2): workflow-shaped view of
+      // the same collectors, PREFERRED by the action-facing seam for SOP
+      // synthesis (procedure > persona). Blank → core falls back to the
+      // profile block above; same settings.behaviorContext gate applies.
+      // TTL-cached: the collectors are synchronous disk/git scans on the main
+      // process, and memory.distill must not re-pay them on every call.
+      buildBehaviorPatterns: () => {
+        try {
+          const now = Date.now();
+          if (sopContextCache && sopContextCache.root === projectRoot && now - sopContextCache.at < SOP_CACHE_TTL_MS) {
+            return sopContextCache.value;
+          }
+          const value = formatSopContextBlock(collectSopContextSources(projectRoot));
+          sopContextCache = { root: projectRoot, at: now, value };
+          return value;
+        } catch {
+          return null; // fail-open
+        }
+      },
       renderMarkdown: (text) => text,
       onAssistantMessage: (message: SessionMessage) => {
         // Silent subagents (index.build-all arch-scan) never stream into the
@@ -329,6 +361,9 @@ export class SessionBridge {
           return;
         }
         this.emit(IpcEvent.SessionEntryUpdated, toSerializableEntry(entry));
+      },
+      onDepthLaneProgress: (event) => {
+        this.emit(IpcEvent.DepthLaneProgress, { root: this.projectRoot, ...event });
       },
       onLlmStreamProgress: (progress) => {
         this.emit(IpcEvent.LlmStreamProgress, progress);
@@ -782,6 +817,15 @@ export class SessionBridge {
    * range, exact selection, and the user's instruction — so the agent never
    * needs tool access to understand the request.
    */
+  /** 链路 D: editor write path → knowledge loop (freshness + codegraph sync). */
+  recordExternalMutation(): void {
+    try {
+      this.manager.recordExternalMutation();
+    } catch {
+      // fail-open: knowledge staleness marking is best-effort
+    }
+  }
+
   runEditorAgent(input: {
     filePath: string;
     startLine: number;
@@ -789,6 +833,12 @@ export class SessionBridge {
     selection: string;
     instruction: string;
     lang?: string;
+    /** D11 context chips payload — appended verbatim to the prompt. */
+    extraContext?: string;
+    /** Chunk-level text tap (specs/editor-copilot C2) — bridged to the renderer. */
+    onDelta?: (text: string) => void;
+    /** Iteration milestone tap (same bridge). */
+    onIteration?: (message: string) => void;
   }): Promise<{ content: string | null; iterations: number }> {
     const sel = input.selection.length > 8000 ? `${input.selection.slice(0, 8000)}\n…（截断）` : input.selection;
     const range = input.startLine === input.endLine ? `L${input.startLine}` : `L${input.startLine}-L${input.endLine}`;
@@ -798,12 +848,15 @@ export class SessionBridge {
       "Selected code:\n```" +
       `\n${sel}\n` +
       "```\n" +
-      `Instruction: ${input.instruction}`;
+      `Instruction: ${input.instruction}` +
+      (input.extraContext?.trim() ? `\n\n[extra context from the pair bar]\n${input.extraContext.trim()}` : "");
     return this.manager.runBackgroundLlmTask({
       skill: "editor-agent",
       prompt,
       profile: "editor", // read-only mechanics + human-facing preamble (specs/editor-agent)
       root: this.projectRoot,
+      onDelta: input.onDelta,
+      onProgress: input.onIteration,
     });
   }
 

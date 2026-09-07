@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
 import { I18nProvider, useI18n } from "./i18n";
+import { MotionProvider } from "./ui/motion";
 import { api } from "./api";
 import { lazy, Suspense } from "react";
 import { ErrorBoundary } from "./components/ErrorBoundary";
@@ -84,9 +85,11 @@ async function bootstrap(): Promise<void> {
     createRoot(container!).render(
       <StrictMode>
         <I18nProvider>
-          <Suspense fallback={<PrototypeLoading />}>
-            <PrototypeWindow />
-          </Suspense>
+          <MotionProvider>
+            <Suspense fallback={<PrototypeLoading />}>
+              <PrototypeWindow />
+            </Suspense>
+          </MotionProvider>
         </I18nProvider>
       </StrictMode>
     );
@@ -98,7 +101,9 @@ async function bootstrap(): Promise<void> {
               entire tree (black window + manual restart). Contain it to the
               built-in error card with retry instead. */}
           <ErrorBoundary>
-            <App />
+            <MotionProvider>
+              <App />
+            </MotionProvider>
           </ErrorBoundary>
         </I18nProvider>
       </StrictMode>

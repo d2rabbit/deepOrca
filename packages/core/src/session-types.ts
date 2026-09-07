@@ -8,7 +8,13 @@ import {
 } from "./common/permissions";
 import { type CreateOpenAIClient, type CreateSecondaryClient } from "./tools/executor";
 import { type ToolDefinition } from "./prompt";
-import type { McpServerConfig, PermissionScope, PermissionSettings, RoutingSettings } from "./settings";
+import type {
+  ComplexityGateSettings,
+  McpServerConfig,
+  PermissionScope,
+  PermissionSettings,
+  RoutingSettings,
+} from "./settings";
 import type { SandboxBackendStatus } from "./sandbox/backend/interface";
 import type { WebPageFetcher } from "./common/tool-types";
 
@@ -103,6 +109,13 @@ export type SessionEntry = {
   processes: Map<string, SessionProcessEntry> | null; // {pid: process info}
   askPermissions?: AskPermissionRequest[];
   planMode?: boolean;
+  /**
+   * Complexity-routing verdict (specs/depth-lane): "express" (status-quo
+   * single loop) or "deep" (staged deliberation). Persisted at session
+   * creation when the gate is enabled; undefined = gate disabled or the
+   * session predates the feature (backward compatible, never migrates).
+   */
+  lane?: "express" | "deep";
   /** Task trajectory binding (specs/task-tree P1): reverse pointer to the branch this session executes. */
   taskRef?: { treeId: string; branch: string; nodeId: string };
   /**
@@ -295,9 +308,14 @@ export type SessionResolvedSettings = {
   workspaceTrust?: "trusted" | "quarantine";
   enabledSkills?: Record<string, boolean>;
   routing?: RoutingSettings;
+  /** Complexity gate / depth-lane routing (specs/depth-lane); absent = defaults (all off). */
+  complexityGate?: ComplexityGateSettings;
   visionModel?: string;
   visionApiKey?: string;
   streamIdleTimeoutMs?: number;
+  /** Activity-frames opt-in: boot-context injection AND the action-facing
+   * collectBehaviorContext seam (specs/sop-extraction P2.2); absent = off. */
+  behaviorContext?: boolean;
 };
 
 export type SessionManagerOptions = {
@@ -318,10 +336,38 @@ export type SessionManagerOptions = {
   onLlmStreamProgress?: (progress: LlmStreamProgress) => void;
   /** Behavioral-memory provider (activity-frames pipeline B, host-injected). Returns a compact context block or null. */
   buildBehaviorContext?: () => string | null;
+  /**
+   * SOP-oriented behavioral builder (specs/sop-extraction P2.2 enhancement,
+   * host-injected): workflow-shaped view of the same collectors — recurring
+   * tool sequences / command bigrams / session openings. When present it is
+   * PREFERRED over {@link buildBehaviorContext} for the action-facing
+   * collectBehaviorContext seam (procedure > persona for SOP synthesis); the
+   * profile block stays the fallback. Boot injection is unaffected.
+   */
+  buildBehaviorPatterns?: () => string | null;
   onMcpStatusChanged?: () => void;
   /** Sandbox backend selection outcome per session (active or degraded). */
   onSandboxStatusChanged?: (status: SandboxBackendStatus) => void;
   onProcessStdout?: (pid: number, chunk: string) => void;
+  /**
+   * Depth-lane stage progress (specs/depth-lane X.3): fired at every staged
+   * transition (S1 compile → S1.5 evidence gate → S2 rounds → S3 red-team →
+   * S4 fusion → S5 report done). Host relays it over IPC; core stays
+   * transport-free. Never throws into the lane (observability is best-effort).
+   */
+  onDepthLaneProgress?: (event: DepthLaneProgressPayload) => void;
+};
+
+/** Stage progress payload for the depth lane (X.3). */
+export type DepthLaneProgressPayload = {
+  sessionId: string;
+  stage: "s1" | "s1.5" | "s2" | "s3" | "s4" | "s5" | "done";
+  /** 1-based divergence/fusion round when the stage loops (S2/S4). */
+  round?: number;
+  totalRounds?: number;
+  /** Short human detail (already localized-neutral English/Chinese mix ok). */
+  detail?: string;
+  done?: boolean;
 };
 
 export type LlmStreamProgress = {

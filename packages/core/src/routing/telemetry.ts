@@ -10,7 +10,9 @@
  * (configureRoutingLogger wires both sinks).
  */
 
-export type RoutingStage = "embedding" | "G1" | "G2" | "G3" | "SAD" | "server";
+// "G0" = the complexity gate (specs/depth-lane): emits hit (deep) / skip
+// (express) / fallback (fail-open) with the TPCR totals in `counts`.
+export type RoutingStage = "embedding" | "G0" | "G1" | "G2" | "G3" | "SAD" | "server";
 export type RoutingOutcome = "hit" | "fallback" | "skip";
 
 export interface RoutingEvent {

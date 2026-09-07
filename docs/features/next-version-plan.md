@@ -119,15 +119,17 @@
 
 ## 储备 spec（specs/next-version/ 内的非主线项，2026-09-03 对齐增补）
 
-> 以下 8 个 spec 与 A–E 主线同存于 `specs/next-version/`（第二阶段规划区），但**不属于本计划 A–E 主线**——按既定口径不裁撤，保留于储备区，立项时点随各自功能域规划（移动域重启统一走 `next/*`）。目录总览见 [`specs/README.md`](../../specs/README.md) 与 [`specs/next-version/README.md`](../../specs/next-version/README.md)。
+> 以下 10 个 spec 与 A–E 主线同存于 `specs/next-version/`（第二阶段规划区），但**不属于本计划 A–E 主线**——按既定口径不裁撤，保留于储备区，立项时点随各自功能域规划（移动域重启统一走 `next/*`）。目录总览见 [`specs/README.md`](../../specs/README.md) 与 [`specs/next-version/README.md`](../../specs/next-version/README.md)。
 
 | spec | 一句话 | 当前状态 |
 | --- | --- | --- |
 | [android-dev-kit](../../specs/next-version/android-dev-kit/design.md) | 内核驱动的安卓开发套件（A1–A5） | ⬜ 设计稿（移动域重启向） |
 | [cad-3d-generation](../../specs/next-version/cad-3d-generation/design.md) | 3D 与制造：text-to-cad / img2threejs 三阶段 | ⬜ 规划中 |
 | [content-translation](../../specs/next-version/content-translation/design.md) | 第三方内容翻译引擎（Apple 系统引擎优先 + Argos 兜底） | ⬜ 设计定稿待实现 |
+| [depth-lane](../../specs/next-version/depth-lane/design.md) | 复杂性路由双轨制（智能网关 × 轻轨/重轨） | ⬜ 设计定稿待实现（P0 纯观察先行，数据决策门定 P1；归档于 [research-adoption-plan](./research-adoption-plan.md)，2026-09-04 补登记） |
 | [desktop-pet](../../specs/next-version/desktop-pet/design.md) | 桌宠小助手 P1–P10 | ⬜ 调研定稿（P1 悬浮窗按 spec 另立项） |
 | [harmonyos-dev-kit](../../specs/next-version/harmonyos-dev-kit/design.md) | 鸿蒙开发套件 | ❌ 曾落地后整体下线；重启属 `next/*` |
 | [in-process-multi-driver](../../specs/next-version/in-process-multi-driver/design.md) | 进程内多驱动并行（agent-relay 编排） | ⬜ 立稿未实施（S0 质量验证 + 锁版起步） |
 | [model-fleet-adaptation](../../specs/next-version/model-fleet-adaptation/design.md) | GLM5 / Kimi-K3 / MiniMax-M3 / Qwen-3.8 收官适配 | 🟡 G0+S0 落地（16/34），S1–S4 系列核填待做 |
 | [sandbox-next](../../specs/next-version/sandbox-next/design.md) | 沙箱延伸：bwrap / WSL2 / 能力矩阵对账 / WASI 预研 | ⬜ 独立任务规划（自 sandbox 收官延伸，2026-09-03） |
+| [ts-native-migration](../../specs/next-version/ts-native-migration/design.md) | TS 原生化迁移排期 | ⬜ 移入本区（2026-09-04，随 8e21b465 调研批次；此前误列于 specs/ 活跃区，索引本次补记） |

@@ -38,6 +38,7 @@ export {
   IconSun,
   IconUndo,
   IconSettings,
+  IconRedo,
 } from "./rail";
 
 // Welcome-screen quick-start chips.
@@ -100,6 +101,8 @@ export {
   IconRefresh,
   IconPulse,
   IconBrain,
+  IconLaneExpress,
+  IconLaneDeep,
 } from "./common";
 
 // Window caption controls.

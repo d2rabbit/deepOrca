@@ -496,3 +496,24 @@ export function IconBrain(): JSX.Element {
     </svg>
   );
 }
+
+/** Lane badge — express lane (solid bolt, fat shaft + short tail: the 14px
+ *  critique from the mmx design round killed gradients/frames/thin tails;
+ *  cool cyan pairs against the deep badge's warm amber). 16×16 at 12px. */
+export function IconLaneExpress(): JSX.Element {
+  return (
+    <svg {...C}>
+      <path d="M9 1.5 3.2 9.4h3.1L5.2 14.5l7.6-8.2H9.6l1.3-4.8Z" fill="currentColor" />
+    </svg>
+  );
+}
+
+/** Lane badge — deep lane (three thick bars with a depth taper; bar + gap
+ *  ≥1px at 12px per the same critique — the "layered/deliberate" read). */
+export function IconLaneDeep(): JSX.Element {
+  return (
+    <svg {...C}>
+      <path d="M3.5 4.5h9M3.5 8h9M3.5 11.5h5.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}

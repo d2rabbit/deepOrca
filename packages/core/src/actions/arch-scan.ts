@@ -22,6 +22,14 @@ import { getArchRenderer, getArchifyPaths } from "./archify-controller";
 export interface ArchScanInput {
   /** Optional focus perspective (e.g. "data-flow", "dependency-map"). Omit = all. */
   readonly perspective?: string;
+  /**
+   * Optional free-text subsystem focus (specs/arch-map-reinforce R3): when
+   * set, the scan produces EXACTLY ONE map about the named subsystem instead
+   * of a full-repository sweep — the "画个图解释 X" conversational entry.
+   * Orthogonal to `perspective` (which picks the diagram lens); `focus`
+   * picks the scope.
+   */
+  readonly focus?: string;
 }
 
 export interface ArchScanOutput {
@@ -38,7 +46,7 @@ export interface ArchScanOutput {
 export const archScanRunDefinition: ActionDefinition<ArchScanInput> = {
   id: "arch-scan.run",
   description:
-    "Scan the codebase architecture and generate architecture maps (perspective-driven: overall/data-flow/dependency/...). Authors archify typed-IR artifacts (.deeporca/prototypes/arch-*.<type>.json); the host renders them through archify's validated delivery pipeline into self-contained interactive HTML shown in the Knowledge panel. This is a non-deterministic, agent-driven action (it spawns a subagent that reads code and reasons about structure). Complements CodeGraph (symbol-level) and OpenWiki (document-level) as the architecture-level index.",
+    "Scan the codebase architecture and generate architecture maps (perspective-driven: overall/data-flow/dependency/...; optional `focus` narrows the scan to ONE subsystem and ONE map). Authors archify typed-IR artifacts (.deeporca/prototypes/arch-*.<type>.json); the host renders them through archify's validated delivery pipeline into self-contained interactive HTML shown in the Knowledge panel. This is a non-deterministic, agent-driven action (it spawns a subagent that reads code and reasons about structure). Complements CodeGraph (symbol-level) and OpenWiki (document-level) as the architecture-level index.",
   category: "index",
   parameters: {
     type: "object",
@@ -46,6 +54,12 @@ export const archScanRunDefinition: ActionDefinition<ArchScanInput> = {
       perspective: {
         type: "string",
         description: "Optional focus perspective (e.g. 'data-flow'). Omit for full scan.",
+      },
+      focus: {
+        type: "string",
+        description:
+          "Optional free-text subsystem to explain (e.g. 'the renderer IPC surface'). " +
+          "When set, produce exactly ONE focused map of that subsystem instead of a full scan.",
       },
     },
     additionalProperties: false,
@@ -86,16 +100,20 @@ export const archScanRunRun: ActionRun<ArchScanInput, ArchScanOutput> = async (i
         "rebuild the desktop app (desktop:build runs scripts/vendor-archify.js) and restart",
     };
   }
-  ctx.emit({ message: `arch-scan${input?.perspective ? ` (${input.perspective})` : ""} started`, percent: 10 });
+  const focusInput = input?.focus?.trim() || undefined;
+  ctx.emit({
+    message: focusInput
+      ? `架构图聚焦扫描启动（${focusInput}）/ arch-scan focused on: ${focusInput}`
+      : `arch-scan${input?.perspective ? ` (${input.perspective})` : ""} started`,
+    percent: 10,
+  });
+  const taskInput = {
+    ...(input?.perspective ? { perspective: input.perspective } : {}),
+    ...(focusInput ? { focus: focusInput } : {}),
+  };
   const result = ctx.runBackgroundTask
-    ? await ctx.runBackgroundTask({
-        skill: "arch-scan",
-        input: input?.perspective ? { perspective: input.perspective } : undefined,
-      })
-    : await ctx.runSubagent!({
-        skill: "arch-scan",
-        input: input?.perspective ? { perspective: input.perspective } : undefined,
-      });
+    ? await ctx.runBackgroundTask({ skill: "arch-scan", input: taskInput })
+    : await ctx.runSubagent!({ skill: "arch-scan", input: taskInput });
   // Same deterministic deliver gate as index.build-all's arch stage: the
   // background task only AUTHORS typed-IR files; rendering + validation is
   // the host's archify pipeline. A standalone arch-scan.run must not leave

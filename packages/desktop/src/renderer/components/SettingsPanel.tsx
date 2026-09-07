@@ -20,6 +20,7 @@ import {
 import type { ModelFamilyId } from "@deeporca/core/capabilities";
 import { api } from "../api";
 import { useI18n, type Locale, type MessageKey, type Translate } from "../i18n";
+import { LaneObservationSection } from "./LaneObservationSection";
 import {
   Button,
   Checkbox,
@@ -28,6 +29,7 @@ import {
   IconBook,
   IconBot,
   IconCheck,
+  IconEditor,
   IconExternal,
   IconInfo,
   IconLock,
@@ -39,12 +41,15 @@ import {
   Input,
   Modal,
   Select,
+  IconLaneDeep,
 } from "../ui/index";
 import { availableThemes, type Theme } from "../lib/appearance";
 import { ActionsPanel } from "./ActionsPanel";
 
 type Props = {
   initial: EditableSettings;
+  /** Workspace root for the read-only lane-observation section (P2.3). */
+  root: string;
   initialTab?: string;
   onSave: (next: EditableSettings) => void | Promise<void>;
   onClose: () => void;
@@ -60,7 +65,7 @@ type Props = {
   onDirtyChange?: (dirty: boolean) => void;
 };
 
-type Tab = "endpoints" | "model" | "entities" | "appearance" | "memory" | "permissions" | "actions" | "about";
+type Tab = "endpoints" | "model" | "entities" | "appearance" | "memory" | "permissions" | "actions" | "lane" | "about";
 
 const TABS: { id: Tab; labelKey: MessageKey }[] = [
   { id: "endpoints", labelKey: "settings.tab.endpoints" },
@@ -70,6 +75,7 @@ const TABS: { id: Tab; labelKey: MessageKey }[] = [
   { id: "memory", labelKey: "settings.tab.memory" },
   { id: "permissions", labelKey: "settings.tab.permissions" },
   { id: "actions", labelKey: "settings.tab.actions" },
+  { id: "lane", labelKey: "settings.tab.lane" },
   { id: "about", labelKey: "settings.tab.about" },
 ];
 
@@ -81,6 +87,7 @@ const TAB_ICONS: Record<Tab, JSX.Element> = {
   memory: <IconBook />,
   permissions: <IconLock />,
   actions: <IconSettings />,
+  lane: <IconLaneDeep />,
   about: <IconInfo />,
 };
 
@@ -517,6 +524,7 @@ function EndpointQuotaLine({
 }
 
 export function SettingsPanel({
+  root,
   initial,
   initialTab,
   onSave,
@@ -1606,6 +1614,7 @@ export function SettingsPanel({
                         { icon: <IconBook />, key: "wiki" },
                         { icon: <IconWarn />, key: "risk" },
                         { icon: <IconExternal />, key: "web" },
+                        { icon: <IconEditor />, key: "editor" },
                       ] as const
                     ).map((agent) => (
                       <div key={agent.key} className="ui-opt entities-agent">
@@ -1630,6 +1639,7 @@ export function SettingsPanel({
                 </section>
               </>
             ) : null}
+            {tab === "lane" ? <LaneObservationSection root={root} /> : null}
             {tab === "about" ? (
               <>
                 <section className="ui-settings-section">

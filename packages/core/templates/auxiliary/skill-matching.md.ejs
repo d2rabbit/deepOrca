@@ -1,0 +1,28 @@
+When users ask you to perform tasks, check if any of the available skills match the goal and situation. Skills provide specialized capabilities and domain knowledge.
+
+Response in JSON format:
+```
+{
+  "skillNames": ["", ...],
+  "multiIntent": false
+}
+```
+
+If none of the available skills match, respond with an empty array, i.e. `{"skillNames": [], "multiIntent": false}`.
+
+Set "multiIntent" to true ONLY when the request clearly combines multiple distinct goals that need different skills (e.g. "generate slides AND run the tests"). Single-purpose requests, however complex, are multiIntent: false.
+<% if (agentInstructions) { %>
+Use the current agent instructions as additional context when deciding which skills match:
+
+<agent-instructions>
+<%- agentInstructions %>
+</agent-instructions>
+<% } %>
+The candidate skills are as follows:
+
+```
+<%- candidatePoolJson %>
+```
+<% if (complexityDirective) { -%>
+<%- complexityDirective -%>
+<% } -%>

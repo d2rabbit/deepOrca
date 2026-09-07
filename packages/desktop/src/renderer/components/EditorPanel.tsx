@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type JSX } from "react";
 import type { EditorFileEntry } from "../../shared/ipc";
 import { api } from "../api";
 import { useI18n } from "../i18n";
-import { DirIcon, FileIcon, IconFile, IconFolder, IconButton } from "../ui/index";
+import { DirIcon, FileIcon, IconFile, IconButton } from "../ui/index";
 
 type Props = {
   /** Called when the user picks a file to open in the editor. */
@@ -196,7 +196,7 @@ export function EditorPanel({ onOpenFile, root }: Props): JSX.Element {
                       <span className={`ui-tree-chev${node.expanded ? " open" : ""}`} aria-hidden>
                         ›
                       </span>
-                      <DirIcon name={node.entry.name} fallback={<IconFolder />} />
+                      <DirIcon name={node.entry.name} />
                     </>
                   ) : (
                     <FileIcon name={node.entry.name} fallback={<IconFile />} />

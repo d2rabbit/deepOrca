@@ -38,11 +38,13 @@ test("guard ②: DesignPipeline excludes a2ui — designs/ never stores interact
 });
 
 test("guard ③: the split modules route only through the design sub-domain tools", () => {
-  // design.materialize (UI-design module) routes ONLY the .dd pipeline —
-  // render_openui moved to the prototype module (actions/prototype.ts).
+  // UI-design module (design.*) materializes UI suites as OpenUI Lang via
+  // render_openui (suite kind="ui") and revises via update_openui — same
+  // generation pipeline as prototypes, distinct suite lineage. .dd is legacy-only.
   const design = read("packages/core/src/actions/design.ts");
-  assert.match(design, /render_design/, "design.materialize should reference render_design");
-  assert.doesNotMatch(design, /render_openui/, "design.materialize must not route prototypes (module split)");
+  assert.match(design, /render_openui/, "design.materialize should reference render_openui");
+  assert.match(design, /update_openui/, "design.revise should reference update_openui");
+  assert.doesNotMatch(design, /render_design|update_design/, "design module must not write .dd suites");
   const proto = read("packages/core/src/actions/prototype.ts");
   assert.match(proto, /render_openui/, "prototype.materialize should reference render_openui");
   assert.match(proto, /render_spec/, "prototype.spec should reference render_spec");

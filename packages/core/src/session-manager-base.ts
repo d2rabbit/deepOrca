@@ -48,16 +48,30 @@ import {
   bentoCreateRun,
   designMaterializeDefinition,
   designMaterializeRun,
+  designLintDefinition,
+  designLintRun,
+  designReviewDefinition,
+  designReviewRun,
+  designReviseDefinition,
+  designReviseRun,
   designExtractDefinition,
   designExtractRun,
   designDriftDefinition,
   designDriftRun,
   designAuditDefinition,
   designAuditRun,
+  memoryAuditDefinition,
+  memoryAuditRun,
+  memoryDistillDefinition,
+  memoryDistillRun,
   prototypeSpecDefinition,
   prototypeSpecRun,
   prototypeMaterializeDefinition,
   prototypeMaterializeRun,
+  prototypeVerifyDefinition,
+  prototypeVerifyRun,
+  prototypeReviseDefinition,
+  prototypeReviseRun,
   taskCreateDefinition,
   taskCreateRun,
   taskStepDefinition,
@@ -77,6 +91,7 @@ import {
 } from "./actions";
 import type { AuditLog } from "./sandbox/audit";
 import { buildThinkingRequestOptions } from "./common/openai-thinking";
+import { applyAuxSchema, auxEnumSchema, AUX_CONTENT_RETRY_BUDGET, type AuxSchema } from "./common/aux-llm-contract";
 import { configureCrgGraphQuery, createCrgGraphQuery } from "./actions/crg-query";
 import { createSecondaryClient as defaultCreateSecondaryClient, createEndpointClient } from "./common/openai-client";
 import { DEFAULT_STREAM_IDLE_TIMEOUT_MS } from "./settings";
@@ -90,6 +105,7 @@ import {
 import { appendUsageRecord, usageLedgerPath, type UsageRecord, type UsageSource } from "./common/usage-ledger";
 import { getUserConfigRoot } from "./common/app-dirs";
 import { getLlmErrorDetails } from "./common/llm-error";
+import { bindBehaviorContextCollector, bindKnownMemorySearch } from "./common/memory-seam";
 import { getSnippet } from "./common/state";
 import { isUsageRecord } from "./session-usage";
 import { logApiError } from "./common/error-logger";
@@ -118,7 +134,7 @@ import { type ToolDefinition, getCurrentTurnTail, getTools } from "./prompt";
 import { withStreamIdleTimeout } from "./session-stream";
 import type { BackgroundLlmTaskOptions, BackgroundLlmTaskResult, RunSubagentOptions } from "./actions";
 import type { McpServerConfig, PermissionSettings } from "./settings";
-import type { MessageMeta, SkillInfo, UserPromptContent } from "./session-types";
+import type { DepthLaneProgressPayload, MessageMeta, SkillInfo, UserPromptContent } from "./session-types";
 import type { BashSandboxSpawner, WebPageFetcher } from "./common/tool-types";
 import type { SandboxBackend, SandboxBackendStatus, SandboxProbeResult } from "./sandbox/backend/interface";
 import type {
@@ -187,12 +203,17 @@ export abstract class SessionManagerBase {
   protected readonly getResolvedSettings: () => SessionResolvedSettings;
 
   protected readonly onAssistantMessage: (message: SessionMessage, shouldConnect: boolean) => void;
+  /** Depth-lane stage progress seam (specs/depth-lane X.3) — best-effort. */
+  protected readonly onDepthLaneProgress?: (event: DepthLaneProgressPayload) => void;
 
   protected readonly onSessionEntryUpdated?: (entry: SessionEntry) => void;
 
   protected readonly onLlmStreamProgress?: (progress: LlmStreamProgress) => void;
 
   protected readonly buildBehaviorContext?: () => string | null;
+
+  /** SOP-oriented builder (sop-extraction P2.2); preferred over the profile block for the action seam. */
+  protected readonly buildBehaviorPatterns?: () => string | null;
 
   protected readonly onMcpStatusChanged?: () => void;
 
@@ -354,11 +375,13 @@ export abstract class SessionManagerBase {
     this.toolExecutionGate.register("permissions", this.permissionGateListener);
     this.getResolvedSettings = options.getResolvedSettings;
     this.onAssistantMessage = options.onAssistantMessage;
+    this.onDepthLaneProgress = options.onDepthLaneProgress;
     this.onSessionEntryUpdated = options.onSessionEntryUpdated;
     this.onLlmStreamProgress = options.onLlmStreamProgress;
     this.onMcpStatusChanged = options.onMcpStatusChanged;
     this.onSandboxStatusChanged = options.onSandboxStatusChanged;
     this.buildBehaviorContext = options.buildBehaviorContext;
+    this.buildBehaviorPatterns = options.buildBehaviorPatterns;
     this.onProcessStdout = options.onProcessStdout;
     // ActionRegistry must be constructed before ToolExecutor (which dispatches
     // action tool calls through it). Uses the host-injected Spawner so core
@@ -387,6 +410,18 @@ export abstract class SessionManagerBase {
       setSessionTaskRef: (sessionId, ref) => this.setSessionTaskRef(sessionId, ref),
       getSessionTaskRef: (sessionId) => this.getSession(sessionId)?.taskRef ?? null,
       appendSessionSystemMessage: (sessionId, text) => this.appendSessionSystemMessage(sessionId, text),
+      // Read-only memory / behavior seams (specs/sop-extraction P2.1/P2.2):
+      // actions get an L1 lookup and the activity-frames context behind the
+      // same opt-in gate as the boot injection. Both legs fail open to null
+      // (binders in common/memory-seam, unit-tested there). The seam prefers
+      // the workflow-oriented builder (procedure > persona for SOP synthesis)
+      // with the profile block as fallback.
+      searchKnownMemories: bindKnownMemorySearch(() => this.memoryProvider),
+      collectBehaviorContext: bindBehaviorContextCollector(
+        () => this.getResolvedSettings().behaviorContext === true,
+        () => this.buildBehaviorPatterns?.() ?? null,
+        () => this.buildBehaviorContext?.() ?? null
+      ),
     });
     this.actionRegistry.register(pingDefinition, pingRun);
     // ── Phase 1: code review actions ──────────────────────────────────────
@@ -419,6 +454,9 @@ export abstract class SessionManagerBase {
     this.actionRegistry.register(bentoCreateDefinition, bentoCreateRun);
     // ── Designer — one-click requirement materialization ────────────────────
     this.actionRegistry.register(designMaterializeDefinition, designMaterializeRun);
+    this.actionRegistry.register(designLintDefinition, designLintRun);
+    this.actionRegistry.register(designReviewDefinition, designReviewRun);
+    this.actionRegistry.register(designReviseDefinition, designReviseRun);
     // ── Designer — dembrandt brand ingestion (design.extract / design.drift;
     // pinned npx CLI via ctx.spawner, deterministic, no LLM) ────────────────
     this.actionRegistry.register(designExtractDefinition, designExtractRun);
@@ -426,10 +464,18 @@ export abstract class SessionManagerBase {
     // ── Designer — deterministic anti-slop audit (design.audit; taste #11
     // three-axis machine check + gate subset, zero LLM, changes nothing) ────
     this.actionRegistry.register(designAuditDefinition, designAuditRun);
+    // ── Memory audit P0 (specs/memory-audit): deterministic evidence scan over
+    // own session history — read-only, no LLM, gates whether P1 gets built ──
+    this.actionRegistry.register(memoryAuditDefinition, memoryAuditRun);
+    // ── SOP extraction (specs/sop-extraction): the success-driven twin —
+    // distills reusable SOPs from what sessions did; shared review store ────
+    this.actionRegistry.register(memoryDistillDefinition, memoryDistillRun);
     // ── Prototype module (design-module split): 需求 → 需求文档 → 原型图 —
     // two explicit steps, no auto-routing (real-machine feedback) ──────────
     this.actionRegistry.register(prototypeSpecDefinition, prototypeSpecRun);
     this.actionRegistry.register(prototypeMaterializeDefinition, prototypeMaterializeRun);
+    this.actionRegistry.register(prototypeVerifyDefinition, prototypeVerifyRun);
+    this.actionRegistry.register(prototypeReviseDefinition, prototypeReviseRun);
     // ── Phase 3: task trajectory actions (specs/task-tree P0) ────────────────
     // The tree service is the single writer of .deeporca/task-trees/** and is
     // exposed to actions via the context (accept-dependencies rule).
@@ -477,14 +523,25 @@ export abstract class SessionManagerBase {
       // Inject the current date + active model as a transient user-message tail
       // per request, never into the persisted prefix — keeps the DeepSeek prefix
       // cache warm across days/model switches (the date no longer lives in the
-      // system-prompt prefix).
-      buildTurnTail: (model) => getCurrentTurnTail(model),
+      // system-prompt prefix). The depth-lane layer extends this hook with the
+      // lane directive (specs/depth-lane P0.6); with the gate disabled the
+      // extension is byte-identically absent.
+      buildTurnTail: (model) => this.buildCurrentTurnTail(model),
     });
 
     // Must run after every field is initialized and BEFORE any consumer can
     // observe sessions (no activation loop can exist yet — controllers are
     // empty, so nothing live can be swept by accident).
     this.sweepStaleRunsAfterRestart();
+  }
+
+  /**
+   * Transient per-turn tail: date/model line + (depth-lane) the lane
+   * directive for the ACTIVE session. Overridden by the depth layer; this
+   * base implementation returns the legacy tail untouched.
+   */
+  protected buildCurrentTurnTail(model: string): string {
+    return getCurrentTurnTail(model);
   }
 
   /**
@@ -634,90 +691,151 @@ export abstract class SessionManagerBase {
 
   /**
    * LLM single-choice judgment for classification-shaped actions (flash
-   * model, JSON mode). Returns one of `choices` or null on any failure —
-   * callers must fail open to their deterministic fallback.
+   * model, JSON mode).
+   *
+   * Contract (specs/cmb-adoption CMB-4, `common/aux-llm-contract.ts`):
+   *   - input budget: flash-class model, temperature 0, max_tokens 64, thinking off;
+   *   - output contract: built-in enum schema over `choices` (or a custom
+   *     `opts.schema` for structured verdicts — parsed as JSON, validated by a
+   *     pure function);
+   *   - content-level failures (unparseable JSON / schema violation) retry at
+   *     most AUX_CONTENT_RETRY_BUDGET times; transport-level failures are NOT
+   *     retried here (classification lives in `common/llm-error.ts`);
+   *   - fail-open: any exhaustion returns null — callers MUST have a
+   *     deterministic fallback;
+   *   - every attempt is billed via the usage ledger as source "auxiliary".
    */
-  protected async judgeViaLlm(prompt: string, choices: readonly string[]): Promise<string | null> {
+  protected async judgeViaLlm<T = string>(
+    prompt: string,
+    choices: readonly string[],
+    opts?: { schema?: AuxSchema<T> }
+  ): Promise<T | null> {
     if (choices.length === 0) return null;
     const { client, baseURL, debugLogEnabled, model } = this.createBackgroundLlm();
     if (!client) return null;
-    try {
-      const response = await this.createChatCompletionStream(
-        client,
-        {
-          model,
-          temperature: 0,
-          max_tokens: 64,
-          messages: [
-            {
-              role: "system",
-              content:
-                "You classify requests. Respond with JSON only: " +
-                `{"choice": "<exactly one of the allowed choices>"}. No other keys.`,
-            },
-            { role: "user", content: `${prompt}\n\nAllowed choices: ${choices.join(", ")}` },
-          ],
-          response_format: { type: "json_object" },
-          ...buildThinkingRequestOptions(false, baseURL, "max", model),
-        },
-        undefined,
-        undefined,
-        {
-          enabled: debugLogEnabled,
-          location: "SessionManager.judgeViaLlm",
-          baseURL,
-          params: { purpose: "action-judgment", model, temperature: 0 },
-        },
-        // Auxiliary helper call — never bill it as chat traffic in the ledger.
-        { source: "auxiliary" }
-      );
-      const rawContent = response.choices?.[0]?.message?.content;
-      const parsed = typeof rawContent === "string" ? (JSON.parse(rawContent) as { choice?: unknown }) : null;
-      const choice = parsed?.choice;
-      return typeof choice === "string" && choices.includes(choice) ? choice : null;
-    } catch {
-      return null;
+    const builtIn = auxEnumSchema(choices);
+
+    const systemInstruction = opts?.schema
+      ? `Respond with a single JSON object matching this contract: ${opts.schema.describe}. No other keys, no prose.`
+      : "You classify requests. Respond with JSON only: " +
+        `{"choice": "<exactly one of the allowed choices>"}. No other keys.`;
+
+    for (let attempt = 0; attempt <= AUX_CONTENT_RETRY_BUDGET; attempt++) {
+      try {
+        const response = await this.createChatCompletionStream(
+          client,
+          {
+            model,
+            temperature: 0,
+            max_tokens: 64,
+            messages: [
+              { role: "system", content: systemInstruction },
+              { role: "user", content: `${prompt}\n\nAllowed choices: ${choices.join(", ")}` },
+            ],
+            response_format: { type: "json_object" },
+            ...buildThinkingRequestOptions(false, baseURL, "max", model),
+          },
+          undefined,
+          undefined,
+          {
+            enabled: debugLogEnabled,
+            location: "SessionManager.judgeViaLlm",
+            baseURL,
+            params: { purpose: "action-judgment", model, temperature: 0, attempt },
+          },
+          // Auxiliary helper call — never bill it as chat traffic in the ledger.
+          { source: "auxiliary" }
+        );
+        const rawContent = response.choices?.[0]?.message?.content;
+        if (typeof rawContent !== "string" || !rawContent) continue; // content-level — retry
+        if (opts?.schema) {
+          let applied: { ok: true; value: unknown } | { ok: false };
+          try {
+            applied = applyAuxSchema(rawContent, opts.schema);
+          } catch {
+            applied = { ok: false }; // throwing validator → content-level
+          }
+          if (applied.ok) return applied.value as T;
+          continue; // content-level — retry within budget
+        }
+        let parsedJson: unknown;
+        try {
+          parsedJson = JSON.parse(rawContent);
+        } catch {
+          continue; // unparseable JSON — content-level, retry within budget
+        }
+        const rawChoice = (parsedJson as { choice?: unknown })?.choice;
+        const choice = builtIn.validate(typeof rawChoice === "string" ? rawChoice : undefined);
+        if (choice !== null) return choice as T;
+        // invalid choice — content-level, retry within budget
+      } catch {
+        return null; // transport-level — no retry here (llm-error.ts governs)
+      }
     }
+    return null; // content budget exhausted — fail open
   }
 
   /**
    * Free-form backend text completion on the PRIMARY (settings) model — the
    * content-work counterpart of judgeViaLlm's flash-class classification.
    * Translation-grade output: no JSON mode, no max_tokens cap, thinking off
-   * (cost/latency), temperature pinned low for fidelity. Returns null on any
-   * failure so callers can fail open.
+   * (cost/latency), temperature pinned low for fidelity.
+   *
+   * Contract (specs/cmb-adoption CMB-4, `common/aux-llm-contract.ts`):
+   *   - without `opts.schema` the raw string (or null) is returned as before;
+   *   - with `opts.schema` the output must parse as JSON and validate —
+   *     content-level failures retry at most AUX_CONTENT_RETRY_BUDGET times,
+   *     transport-level failures never retry here, exhaustion returns null;
+   *   - fail-open: callers MUST have a deterministic fallback;
+   *   - every attempt is billed via the usage ledger as source "auxiliary".
    */
-  protected async completeTextViaLlm(
+  protected async completeTextViaLlm<T = string>(
     messages: Array<{ role: "system" | "user"; content: string }>,
-    opts?: { signal?: AbortSignal }
-  ): Promise<string | null> {
+    opts?: { signal?: AbortSignal; schema?: AuxSchema<T> }
+  ): Promise<T | null> {
     const { client, model, baseURL, debugLogEnabled } = this.createOpenAIClient();
     if (!client) return null;
-    try {
-      const response = await this.createChatCompletionStream(
-        client,
-        {
-          model,
-          temperature: 0.2,
-          messages,
-          ...buildThinkingRequestOptions(false, baseURL, "max", model),
-        },
-        opts?.signal ? { signal: opts.signal } : undefined,
-        undefined,
-        {
-          enabled: debugLogEnabled,
-          location: "SessionManager.completeTextViaLlm",
-          baseURL,
-          params: { purpose: "backend-completion", model },
-        },
-        // Auxiliary helper call — never bill it as chat traffic in the ledger.
-        { source: "auxiliary" }
-      );
-      const content = response.choices?.[0]?.message?.content;
-      return typeof content === "string" && content.trim() ? content : null;
-    } catch {
-      return null;
+
+    const attempts = opts?.schema ? AUX_CONTENT_RETRY_BUDGET + 1 : 1;
+    for (let attempt = 0; attempt < attempts; attempt++) {
+      try {
+        const response = await this.createChatCompletionStream(
+          client,
+          {
+            model,
+            temperature: 0.2,
+            messages,
+            ...buildThinkingRequestOptions(false, baseURL, "max", model),
+          },
+          opts?.signal ? { signal: opts.signal } : undefined,
+          undefined,
+          {
+            enabled: debugLogEnabled,
+            location: "SessionManager.completeTextViaLlm",
+            baseURL,
+            params: { purpose: "backend-completion", model, attempt },
+          },
+          // Auxiliary helper call — never bill it as chat traffic in the ledger.
+          { source: "auxiliary" }
+        );
+        const content = response.choices?.[0]?.message?.content;
+        if (typeof content !== "string" || !content.trim()) continue; // content-level
+        if (opts?.schema) {
+          let applied: { ok: true; value: unknown } | { ok: false };
+          try {
+            applied = applyAuxSchema(content, opts.schema);
+          } catch {
+            applied = { ok: false }; // throwing validator → content-level
+          }
+          if (applied.ok) return applied.value as T;
+          continue; // content-level — retry within budget
+        }
+        return content as T;
+      } catch {
+        return null; // transport-level — no retry here (llm-error.ts governs)
+      }
     }
+    return null; // content budget exhausted (or empty output) — fail open
   }
 
   protected formatEstimatedTokens(tokens: number): string {
@@ -798,7 +916,13 @@ export abstract class SessionManagerBase {
       source?: UsageSource;
       /** Pre-counted prompt size (pre-flight budget) — skips recounting here. */
       promptTokens?: number;
-    }
+    },
+    /**
+     * Optional text-delta tap (specs/editor-copilot C1): fires per streamed
+     * content chunk as it accumulates. Pure observer — no behavior change
+     * when omitted; used by the editor agent stream bridge to the renderer.
+     */
+    onDelta?: (text: string) => void
   ): Promise<{
     choices?: Array<{ message?: Record<string, unknown> }>;
     usage?: ModelUsage | null;
@@ -876,6 +1000,9 @@ export abstract class SessionManagerBase {
         model: requestModel || "unknown",
         prompt: promptTokens,
         completion: completionTokens,
+        // Request start → accounting moment: feeds the model speed chart
+        // (specs/token-model-charts). Records without it are excluded there.
+        elapsedMs: Date.now() - startedAtMs,
         source,
         ...(sessionId ? { sessionId } : {}),
         estimated: true,
@@ -1006,6 +1133,7 @@ export abstract class SessionManagerBase {
           if (typeof contentDelta === "string") {
             content += contentDelta;
             trackText(contentDelta);
+            if (onDelta) onDelta(contentDelta);
           }
 
           // Nullish-coalescing chain over the family's reasoning read fields

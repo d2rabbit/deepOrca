@@ -39,10 +39,15 @@
 @import url("./ui-css/skill-cards.css");
 /* Editor file tree · symbol tree · search cards · wiki list · knowledge tab */
 @import url("./ui-css/editor-panel.css");
+/* Editor pair canvas — CM6 kernel surfaces + AI decoration domain (editor-copilot) */
+@import url("./ui-css/editor-pair.css");
 /* Knowledge deep views: mermaid · master–detail · symbol flow board · bilingual toggle */
 @import url("./ui-css/knowledge-views.css");
 /* Wiki reading shell & typography · arch maps · artifact pager · drill rail */
 @import url("./ui-css/wiki-reading.css");
+
+/* Prototype and UI design workspaces: directory, version rail, preview selection, reports */
+@import url("./ui-css/design-workspaces.css");
 
 /* Risk board — the review tab's flat risk map (chips, groups, popover) */
 @import url("./ui-css/risk-board.css");
@@ -50,3 +55,6 @@
 /* Task hub — the workspace task tree (domain pills, tree column, detail card) */
 @import url("./ui-css/task-hub.css");
 @import url("./ui-css/activity-rail.css");
+
+/* Token model-detail popup — pixel heatmap + live speed bars (token-model-charts) */
+@import url("./ui-css/token-detail.css");

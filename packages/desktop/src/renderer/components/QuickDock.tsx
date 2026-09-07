@@ -1,5 +1,6 @@
 import type { JSX } from "react";
 import { useI18n } from "../i18n";
+import { m } from "../ui/motion";
 import { cx } from "../ui/class-names";
 import { IconChat, IconFolder, IconPlus } from "../ui/index";
 
@@ -36,7 +37,15 @@ export function QuickDock({
 }: QuickDockProps): JSX.Element {
   const { t } = useI18n();
   return (
-    <div className="ui-quickdock" role="toolbar" aria-label={t("quickdock.title")}>
+    <m.div
+      className="ui-quickdock"
+      role="toolbar"
+      aria-label={t("quickdock.title")}
+      initial={{ opacity: 0, y: -8 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -8 }}
+      transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+    >
       <button
         type="button"
         className="ui-quickdock-btn ui-quickdock-sessions"
@@ -68,6 +77,6 @@ export function QuickDock({
       >
         <IconFolder />
       </button>
-    </div>
+    </m.div>
   );
 }

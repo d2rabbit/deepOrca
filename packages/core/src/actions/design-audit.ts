@@ -64,6 +64,12 @@ export interface DesignAuditOutput {
   readonly error?: string;
 }
 
+export interface DesignLintResult {
+  readonly ok: boolean;
+  readonly findings: readonly DesignAuditFinding[];
+  readonly axes?: DesignAuditAxes;
+}
+
 // ── Color / type math ────────────────────────────────────────────────────────
 
 const BANNED_IDENTITY_FONTS = new Set(["inter", "roboto", "open sans", "poppins", "lato"]);
@@ -250,6 +256,100 @@ function listRecentDd(projectRoot: string, exclude: string, count: number): stri
       .slice(0, count);
   } catch {
     return [];
+  }
+}
+
+function lintParsedDd(parsed: ParsedDd): DesignLintResult {
+  const findings: DesignAuditFinding[] = [];
+  const { tokens, html, frontmatter } = parsed;
+  const displayFirst = firstFamily(typeof tokens?.fontDisplay === "string" ? tokens.fontDisplay : undefined);
+  const bodyFirst = firstFamily(typeof tokens?.fontBody === "string" ? tokens.fontBody : undefined);
+  if (displayFirst && BANNED_IDENTITY_FONTS.has(displayFirst)) {
+    findings.push({
+      id: "font-banned-display",
+      severity: "auto-fail",
+      rule: "identity-font",
+      message: `fontDisplay identity font "${displayFirst}" is on the banned list; replace the display stack.`,
+    });
+  }
+  if (bodyFirst && BANNED_IDENTITY_FONTS.has(bodyFirst)) {
+    findings.push({
+      id: "font-banned-body",
+      severity: "high",
+      rule: "identity-font",
+      message: `fontBody identity font "${bodyFirst}" is on the banned list; replace the body stack.`,
+    });
+  }
+  const axes = computeDesignAxes(tokens);
+  if (!axes) {
+    findings.push({
+      id: "tokens-incomplete",
+      severity: "medium",
+      rule: "tokens",
+      message: "front-matter tokens must include bg, accent, and fontDisplay for deterministic checks.",
+    });
+  }
+  if (/<img[^>]+src\s*=\s*["']https?:\/\//i.test(html)) {
+    findings.push({
+      id: "external-images",
+      severity: "high",
+      rule: "image-placeholders",
+      message: "external image URLs make the .dd artifact non-self-contained.",
+    });
+  }
+  if (/transition[^;"']*?\ball\b/i.test(html)) {
+    findings.push({
+      id: "transition-all",
+      severity: "medium",
+      rule: "motion-discipline",
+      message: "transition-all is forbidden; name the transitioned properties.",
+    });
+  }
+  for (const match of html.matchAll(/grid-template-columns:\s*([^;}"]+)/gi)) {
+    const value = match[1];
+    if (/\b1fr\b/.test(value) && !value.includes("minmax(0,")) {
+      const around = html.slice(Math.max(0, match.index - 600), match.index + 600);
+      if (/<img|ph-img/.test(around)) {
+        findings.push({
+          id: `grid-1fr-image:${match.index}`,
+          severity: "medium",
+          rule: "grid-math",
+          message: "image-bearing grid uses bare 1fr tracks without minmax(0, 1fr).",
+        });
+      }
+    }
+  }
+  const markerCount = (html.match(/<!--\s*dd:section/g) || []).length;
+  const sectionCount = (html.match(/data-dd-id=/g) || []).length;
+  if (markerCount !== sectionCount) {
+    findings.push({
+      id: "section-markers",
+      severity: "medium",
+      rule: "dd-contract",
+      message: `section markers (${markerCount}) and data-dd-id sections (${sectionCount}) disagree.`,
+    });
+  }
+  if (!frontmatter.macrostructure) {
+    findings.push({
+      id: "no-macrostructure",
+      severity: "low",
+      rule: "macrostructure",
+      message: "front-matter has no macrostructure declaration.",
+    });
+  }
+  const order: Record<DesignAuditSeverity, number> = { "auto-fail": 0, high: 1, medium: 2, low: 3 };
+  findings.sort((a, b) => order[a.severity] - order[b.severity]);
+  return { ok: findings.every((finding) => finding.severity !== "auto-fail"), findings, axes: axes ?? undefined };
+}
+
+export function lintDesignDocument(raw: string): DesignLintResult {
+  try {
+    return lintParsedDd(parseDd(raw));
+  } catch {
+    return {
+      ok: false,
+      findings: [{ id: "dd-parse", severity: "auto-fail", rule: "dd-contract", message: "invalid .dd document" }],
+    };
   }
 }
 

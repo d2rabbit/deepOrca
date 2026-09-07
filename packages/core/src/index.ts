@@ -254,6 +254,19 @@ export {
 
 // Serena controller seam — desktop injects SerenaCliController at boot.
 export { type SerenaController, configureSerenaController, getSerenaController } from "./actions/serena-controller";
+// LSP diagnostics bridge seam (specs/lsp-diagnostics) — desktop injects the
+// bundled bridge controller at boot; disabled unless settings.lspDiagnostics.enabled.
+export {
+  type LspBridgeController,
+  configureLspBridgeController,
+  getLspBridgeController,
+} from "./actions/lsp-bridge-controller";
+export { LSP_BRIDGE_MCP_SERVER_NAME } from "./common/lsp-bridge-mcp";
+export {
+  DEFAULT_LSP_DIAGNOSTICS_SETTINGS,
+  resolveLspDiagnosticsSettings,
+  type LspDiagnosticsSettings,
+} from "./settings";
 export { SKILL_SPECTOR_MCP_SERVER_NAME, setSkillSpectorDisabled, isSkillSpectorDisabled } from "./common/skill-spector";
 export {
   type SkillSpectorController,
@@ -291,6 +304,12 @@ export {
   configureRoutingLogger,
   closeEmbeddingService,
   getEmbeddingLoadError,
+  computeLaneRates,
+  autoTuneThreshold,
+  collectLaneRateSessions,
+  evaluateL1Rules,
+  type LaneRateSession,
+  type LaneRatesReport,
 } from "./routing";
 
 // A2UI MCP seam — desktop injects the server builder + lifecycle at boot.

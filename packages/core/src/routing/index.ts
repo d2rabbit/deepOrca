@@ -17,6 +17,35 @@
  */
 
 export { VectorIndex, type VectorIndexEntry, type VectorIndexHit } from "./vector-index";
+
+// Complexity gate (specs/depth-lane): pure lane computation + L1 rule table +
+// strict TPCR parsing. The L2 flash scoring itself lives in
+// session-manager-skills.ts (merged into the skill-matching call).
+export {
+  computeLane,
+  evaluateL1Rules,
+  expressFailOpen,
+  parseTpcrScores,
+  parseVerdictReason,
+  summarizeLaneTelemetry,
+  L1_FOLLOW_UP_RATE_THRESHOLD,
+  type ComplexityVerdict,
+  type LaneSource,
+  type LaneTelemetrySummary,
+  type LaneVerdict,
+  type L1GateInput,
+  type L1GateResult,
+  type TpcrScores,
+} from "./gate/gate";
+export { COMPLEXITY_SCORING_DIRECTIVE, TPCR_FULL_SCORES } from "./gate/gate-prompt";
+export {
+  computeLaneRates,
+  autoTuneThreshold,
+  collectLaneRateSessions,
+  NEGATIVE_FEEDBACK_RE,
+  type LaneRateSession,
+  type LaneRatesReport,
+} from "./gate/lane-rates";
 export { SkillRouterImpl } from "./skill-router";
 export { ToolRouterImpl } from "./tool-router";
 export { RoutingFacade, type ToolRouteDecision, type ToolRouteRequest } from "./routing-facade";

@@ -15,8 +15,9 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { getProjectCode } from "./app-dirs";
 
-/** Which engine path issued the request. */
-export type UsageSource = "chat" | "compaction" | "background" | "auxiliary" | "backfill";
+/** Which engine path issued the request. "depth-lane" = the staged
+ *  deliberation flow's orchestration calls (specs/depth-lane §2.5). */
+export type UsageSource = "chat" | "compaction" | "background" | "auxiliary" | "depth-lane" | "backfill";
 
 export type UsageRecord = {
   /** Request start timestamp — the anchor for exact time-window reporting. */
@@ -26,6 +27,12 @@ export type UsageRecord = {
   prompt: number;
   /** Locally counted completion side (content + reasoning + tool calls). */
   completion: number;
+  /**
+   * Wall-clock elapsed for the request (request start → accounting moment,
+   * milliseconds). Optional: records predating the speed chart (specs/
+   * token-model-charts P1) don't carry it and are excluded from tok/s stats.
+   */
+  elapsedMs?: number;
   source: UsageSource;
   sessionId?: string;
   /** Local counts are estimates by construction — UI surfaces a "≈". */

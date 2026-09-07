@@ -24,6 +24,8 @@ import { DEMBRANDT_MCP_SERVER_NAME, buildDembrandtMcpServerConfig } from "./comm
 import { getGitmcpConfigBuilder } from "./mcp/gitmcp-seam";
 import { getSerenaController } from "./actions/serena-controller";
 import { getSkillSpectorController } from "./actions/skill-spector-controller";
+import { getLspBridgeController } from "./actions/lsp-bridge-controller";
+import { LSP_BRIDGE_MCP_SERVER_NAME } from "./common/lsp-bridge-mcp";
 import { gitmcpSlugFromServerName, isGitmcpPlaceholderConfig, isGitmcpServerName } from "./gitmcp/resolve";
 import { logRoutingEvent } from "./routing";
 import { ROUTING_LOAD_RETRY_BACKOFF_MS } from "./session-constants";
@@ -423,6 +425,21 @@ If the query is simple (single intent), respond with a single-element array.`;
             [SKILL_SPECTOR_MCP_SERVER_NAME]: skillSpectorConfig,
           };
         }
+      }
+    }
+
+    // LSP diagnostics bridge (specs/lsp-diagnostics P0-5) — type-level
+    // diagnostics via real language servers behind ONE `get_diagnostics` tool.
+    // The controller's buildMcpServerConfig returns null unless the bridge
+    // entry resolves AND settings.lspDiagnostics.enabled is true (default off,
+    // trusted-project opt-in; fail-open to Serena-only otherwise).
+    if (!(result && Object.prototype.hasOwnProperty.call(result, LSP_BRIDGE_MCP_SERVER_NAME))) {
+      const lspConfig = getLspBridgeController()?.buildMcpServerConfig(this.projectRoot) ?? null;
+      if (lspConfig) {
+        result = {
+          ...(result ?? {}),
+          [LSP_BRIDGE_MCP_SERVER_NAME]: lspConfig,
+        };
       }
     }
 

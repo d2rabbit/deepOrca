@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>CM6 可行性证明 · 结对画布核心效果</title>
+<!--
+  proof-codemirror6.html · 2026-09-05
+  ─────────────────────────────────────────────
+  目的：证明 CodeMirror 6 可实现 specs/editor-copilot screen-editor-copilot.html 的
+        核心交互效果（流式逐行写入 / 画布内 diff / 逐块接受拒绝 / gutter 徽章 /
+        hover 诊断 tooltip / 撤销恢复）。
+  依赖：esm.sh CDN 拉取 @codemirror/view|state|lang-javascript（验证用；
+        选型定案后以固定版本入 package.json，走 AGENTS.md 精确 pin 纪律）。
+  一条流水线：「流式写入」（第 0 步对选区挂 del 装饰 → 每 400ms 追加一行，装饰
+  增量累积且随事务自动位置映射）→ 完成后整体替换为画布内审阅态
+  （红=将被替换 / 绿=AI 新增 / hunk 芯片 block widget ✓✕）→ hover 波浪线行触发
+  诊断 tooltip。撤销 = 单一 undo 栈覆盖全部 AI 事务。
+-->
+<style>
+  body{background:#080a14; color:#e6f1ff; font-family:"Inter","PingFang SC",system-ui,sans-serif;
+       margin:0; display:grid; grid-template-rows:auto auto 1fr; height:100vh; padding:14px 18px; box-sizing:border-box; gap:10px}
+  h1{font-size:14px; margin:0; color:#5a6a84; font-weight:600}
+  .bar{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
+  button{font:inherit; color:#e6f1ff; background:#12182e; border:1px solid rgba(0,243,255,.22);
+         border-radius:99px; padding:5px 13px; font-size:12px; cursor:pointer}
+  button:hover{background:rgba(0,243,255,.12)}
+  button.primary{background:#00f3ff; color:#04121a; font-weight:650}
+  .wrap{border:1px solid rgba(0,243,255,.1); border-radius:6px; overflow:hidden; min-height:0}
+  #status{font-size:11.5px; color:#8b9bb4; font-family:"JetBrains Mono",monospace}
+  .hint{font-size:11px; color:#5a6a84}
+  .cm-ai-pending{background:rgba(255,176,32,.14)}
+  .cm-ai-pending-line{background:rgba(255,176,32,.14)}
+  .cm-ai-add{background:rgba(0,240,160,.10)}
+  .cm-ai-add-line{background:rgba(0,240,160,.10)}
+  .cm-ai-del{background:rgba(255,0,127,.09); text-decoration:line-through; text-decoration-color:rgba(255,0,127,.55)}
+  .cm-ai-del-line{background:rgba(255,0,127,.07)}
+  .cm-hunk{display:inline-flex; gap:6px; align-items:center; margin:3px 0 3px 10px; padding:3px 9px; font-size:11px;
+           font-family:"JetBrains Mono",monospace; background:#12182e; border:1px solid rgba(0,243,255,.4); border-radius:99px}
+  .cm-hunk button{border:none; border-radius:99px; padding:2px 9px; font-size:10.5px}
+  .cm-hunk .ok{color:#00f0a0; background:rgba(0,240,160,.12)}
+  .cm-hunk .no{color:#ff007f; background:rgba(255,0,127,.12)}
+  .cm-ai-gutt{color:#ffb020; font-weight:700}
+  .cm-editor .cm-merge-chunk{background:rgba(0,240,160,.10)}
+  .cm-editor .cm-merge-unchanged{opacity:.9}
+</style>
+</head>
+<body>
+  <h1>CodeMirror 6 · 结对画布核心效果可行性证明 <span style="color:#00f3ff">（真实 API，非示意）</span></h1>
+  <div class="bar">
+    <button id="stream">▶ 流式写入（模拟数字体生成）</button>
+    <button id="undo" class="primary">↩ 撤销（⌘Z）</button>
+    <span id="status">待命</span>
+    <span class="hint">hover 波浪线行 → 诊断 tooltip（含 ⚡ AI 修复）· 生成完成 → 画布内审阅态：红=将被替换 / 绿=AI 新增 / hunk 芯片 ✓✕ · ⌘Z 整体回退</span>
+  </div>
+  <div class="wrap" id="editor"></div>
+
+<script type="module">
+import {EditorView, Decoration, WidgetType, hoverTooltip, closeHoverTooltips, gutter, GutterMarker, keymap} from "https://esm.sh/@codemirror/view@6.43.11";
+import {EditorState, StateField, StateEffect, RangeSet} from "https://esm.sh/@codemirror/state@6.7.4";
+import {javascript} from "https://esm.sh/@codemirror/lang-javascript@6.2.5";
+import {defaultKeymap, history, historyKeymap, undo} from "https://esm.sh/@codemirror/commands@6.11.0";
+
+
+const doc0 = `export function summarizeUsage(root: string, day: string) {
+  const records = readDayLedger(root, day); // ⚠ ts2554
+  let input = 0, output = 0;
+  return { day, input, output };
+}`;
+
+/* ── 1. AI 装饰 StateField：mark(高亮) + line(整行) + gutter —— 自动随编辑映射 ── */
+const addAi = StateEffect.define();   // 增量累积（流式每步只追加当前行；之前行保持）
+const setAi = StateEffect.define();   // 整体替换（pending → 审阅态切换）
+const clearAi = StateEffect.define();
+
+class HunkChip extends WidgetType {
+  constructor(n, onAccept, onReject) { super(); this.n = n; this.onAccept = onAccept; this.onReject = onReject; }
+  toDOM() {
+    const d = document.createElement("span");
+    d.className = "cm-hunk";
+    d.innerHTML = `<b style="font-size:10px;color:#00f3ff">hunk ${this.n}</b>
+      <button class="ok">✓ 接受</button><button class="no">✕ 撤销</button>`;
+    d.querySelector(".ok").onclick = () => this.onAccept();
+    d.querySelector(".no").onclick = () => this.onReject();
+    return d;
+  }
+  eq(o) { return o instanceof HunkChip && o.n === this.n; }
+  ignoreEvent() { return false; }
+}
+
+const aiField = StateField.define({
+  create: () => RangeSet.empty,
+  update(deco, tr) {
+    deco = deco.map(tr.changes);            // ★ 自动位置映射：流式追加/编辑后装饰自动跟随
+    for (const e of tr.effects) {
+      if (e.is(clearAi)) deco = RangeSet.empty;
+      else if (e.is(setAi)) deco = e.value;
+      else if (e.is(addAi)) deco = deco.update({ add: e.value });   // e.value = Range 数组（RangeSet.update 契约）
+    }
+    return deco;
+  },
+  provide: (f) => EditorView.decorations.from(f),
+});
+
+/* ── 2. hover tooltip：波浪线行 → 诊断 + 「⚡ AI 修复」 ── */
+const hover = hoverTooltip((view, pos) => {
+  window.__hoverHits = (window.__hoverHits || 0) + 1;
+  const line = view.state.doc.lineAt(pos);
+  if (!line.text.includes("⚠")) return null;
+  return {
+    pos: line.from,
+    end: line.to,
+    above: false,
+    create() {
+      const dom = document.createElement("div");
+      dom.style.cssText = "padding:8px 12px;font-size:11.5px;display:flex;gap:10px;align-items:center;font-family:'JetBrains Mono',monospace";
+      dom.innerHTML = `<span style="opacity:.75">ts2554 · 应有 2 个参数，但获得 1 个</span>
+        <button class="ok" style="color:#00f0a0;background:none;border:1px solid rgba(0,240,160,.5);border-radius:99px;padding:2px 10px;cursor:pointer">⚡ AI 修复</button>`;
+      dom.querySelector("button").onclick = () => { view.dispatch({ effects: closeHoverTooltips.of(null) }); doFix(view); };
+      return { dom };
+    },
+  };
+});
+
+/* ── 3. gutter 徽章（AI 行进入中标记） ── */
+class AiMarker extends GutterMarker {
+  toDOM() { const s = document.createElement("span"); s.textContent = "·"; s.style.cssText = "color:#ffb020;font-weight:700"; return s; }
+}
+const aiGutter = gutter({
+  class: "cm-ai-gutt",
+  lineMarker(view, line) {
+    const deco = view.state.field(aiField);
+    let hit = false;
+    deco.between(line.from, line.to, () => { hit = true; });
+    return hit ? new AiMarker() : null;
+  },
+});
+
+/* ── 4. 公共扩展（普通态 / merge 态共用） ── */
+const baseExts = (extra) => [
+  history(), keymap.of([...defaultKeymap, ...historyKeymap]),
+  javascript(), aiField, aiGutter,
+  ...extra,
+  EditorView.theme({}, { dark: true }),
+  EditorView.baseTheme({
+    ".cm-content": { fontFamily: '"JetBrains Mono",monospace', fontSize: "13px" },
+    ".cm-gutters": { background: "#0c1020", color: "#5a6a84", border: "none" },
+    ".cm-activeLineGutter, .cm-activeLine": { background: "transparent" },
+  }),
+  EditorView.lineWrapping,
+];
+
+const EDIT_LINES = [
+  "const buckets = new Map();",
+  "for (const r of records) {",
+  "  const h = new Date(r.ts).getUTCHours();",
+  "  const b = buckets.get(h) ?? emptyBucket(h);",
+  "  b.input += r.input; b.output += r.output;",
+  "  buckets.set(h, b);",
+  "}",
+  "return { day, hours: [...buckets.values()], total: sumBuckets(buckets) };",
+];
+let hunkSeq = 0;
+
+/* ── 5. 流式写入：第 0 步对「选区」挂 del 装饰 → 每 400ms 追加一行（装饰增量累积） ── */
+function runStream(view) {
+  const delFrom = view.state.doc.line(2).from;   // 「选区」起点（原 L2）
+  const delTo = view.state.doc.line(3).to;       // 终点（原 L3 含 ⚠）
+  // 先标记 del（红 + 删除线）：替换意图的表达（文本保留，审阅态可见「将被替换」）
+  view.dispatch({ effects: addAi.of([
+    Decoration.line({ class: "cm-ai-del-line", kind: "del" }).range(delFrom),
+    Decoration.mark({ class: "cm-ai-del", kind: "del" }).range(delFrom, delTo),
+  ]) });
+  let insertAt = delTo + 1, k = 0;               // 新行写在选区之后（原 L4 之前）
+  const addStarts = [];                           // 每行落点（完成时转绿）
+  let pausedFlag = false;                         // 挂点一次性
+  const step = () => {
+    if (k === 4 && !pausedFlag) {
+      // 演示挂点：已写入 3 行，暂停等调用方显式续跑（保证流式中段可截图，不跳行）
+      setStatus("✦ 写入中 3/8 行 —— 已暂停（演示挂点），window.__resume() 续跑");
+      window.__resume = () => { pausedFlag = true; setTimeout(step, 60); };
+      return;
+    }
+    if (k >= EDIT_LINES.length) {
+      // 完成：整体替换为审阅态 —— del 红（保持）+ 全部 add 绿 + hunk 芯片（block widget）
+      // 注意 RangeSet 排序契约：同 from 处按 startSide 升序（widget<line<mark），widget 必须排最前
+      const ranges = [
+        Decoration.widget({
+          widget: new HunkChip(++hunkSeq,
+            () => { view.dispatch({ effects: clearAi.of(null) }); setStatus("✓ hunk 已接受 —— 装饰清除（文档已含新代码，⌘Z 可整体回退）"); },
+            () => {
+              const total = addStarts.at(-1) + EDIT_LINES.at(-1).length + 1 - delTo - 1;
+              view.dispatch({ changes: { from: delFrom, to: delTo + 1 + total, insert: "" }, effects: clearAi.of(null) });
+              setStatus("✕ hunk 已撤销 —— 画布恢复原状（未写盘）");
+            }),
+          block: true, side: -1, kind: "hunk",
+        }).range(delFrom),
+        Decoration.line({ class: "cm-ai-del-line", kind: "del" }).range(delFrom),
+        Decoration.mark({ class: "cm-ai-del", kind: "del" }).range(delFrom, delTo),
+        ...addStarts.map((f) => Decoration.line({ class: "cm-ai-add-line", kind: "add" }).range(f)),
+      ];
+      view.dispatch({ effects: setAi.of(Decoration.set(ranges)) });
+      setStatus("审阅态：红 = 将被替换 · 绿 = AI 新增 · hover 或点击 hunk 芯片 ✓ 接受 / ✕ 撤销 · ⌘Z 整体回退");
+      return;
+    }
+    const line = view.state.doc.lineAt(insertAt);
+    view.dispatch({
+      changes: { from: insertAt, insert: EDIT_LINES[k] + "\n" },
+      effects: addAi.of([
+        Decoration.line({ class: "cm-ai-pending-line", kind: "pending" }).range(insertAt),
+        Decoration.mark({ class: "cm-ai-pending", kind: "pending", inclusiveStart: true }).range(insertAt, insertAt + 1),
+      ]),
+    });
+    addStarts.push(insertAt);
+    insertAt += EDIT_LINES[k].length + 1;
+    k++;
+    setStatus(`✦ 写入中 ${k}/${EDIT_LINES.length} 行 — 装饰随事务自动位置映射（无需手工维护区间）`);
+    setTimeout(step, 400);
+  };
+  setTimeout(step, 200);
+}
+
+function doFix(view) {
+  const line = view.state.doc.line(2);
+  view.dispatch({
+    changes: { from: line.from, to: line.to, insert: line.text.replace(" // ⚠ ts2554", "") },
+  });
+  setStatus("⚡ 已修复 —— 波浪线行已更新（类型级修复的落点与编辑器内核解耦，走 lsp-bridge）");
+}
+function setStatus(s) { document.querySelector("#status").textContent = s; }
+
+/* ── 6. 组装 ── */
+const view = new EditorView({
+  parent: document.querySelector("#editor"),
+  state: EditorState.create({ doc: doc0, extensions: baseExts([hover]) }),
+});
+window.__view = view;
+
+document.querySelector("#stream").onclick = () => runStream(view);
+document.querySelector("#undo").onclick = () => undo(view);
+</script>
+</body>
+</html>

@@ -17,9 +17,18 @@ import { useI18n } from "../i18n";
 import type { TaskNode, TaskReflogEntry, TaskTreeIndex, TaskTreeSummary } from "@deeporca/core";
 import type { TaskTrajectory } from "../../shared/ipc";
 
+type TrajectoryOpDetail = {
+  at: string;
+  tool: string;
+  ok: boolean;
+  summary?: string;
+  files?: string[];
+};
+
 type Props = {
   treeId: string;
   workspaceRoot?: string;
+  onOpenDetail?: (op: TrajectoryOpDetail) => void;
 };
 
 const KIND_ICON: Record<TaskNode["kind"], string | JSX.Element> = {
@@ -127,7 +136,51 @@ function NodeTree({
   );
 }
 
-export function TaskRecordPanel({ treeId, workspaceRoot }: Props): JSX.Element {
+/** Behavior report for one trajectory operation — structured layout with
+ *  labeled sections matching the dsh reference (操作/状态/参数/结果/时间). */
+function TrajectoryOpDetail({ op }: { op: NonNullable<ReturnType<typeof useOps>[number]> }): JSX.Element {
+  const { t } = useI18n();
+  const statusLabel = op.ok ? t("taskrec.statusDone") : t("taskrec.statusFail");
+  const statusCls = op.ok ? "ok" : "fail";
+  let prettyArgs = "";
+  try {
+    prettyArgs = JSON.stringify(JSON.parse(op.summary ?? "{}"), null, 2);
+  } catch {
+    prettyArgs = op.summary ?? "";
+  }
+  return (
+    <div className="ui-traj-detail">
+      <div className="ui-traj-detail-head">
+        <span className={`ui-traj-detail-badge ${statusCls}`}>{statusLabel}</span>
+        <span className="ui-traj-detail-tool">{op.tool}</span>
+        <span className="ui-traj-detail-time">{formatTime(op.at)}</span>
+      </div>
+      {op.summary ? (
+        <div className="ui-traj-detail-section">
+          <div className="ui-traj-detail-label">{t("taskrec.detailSummary")}</div>
+          <pre className="ui-traj-detail-pre">{op.summary}</pre>
+        </div>
+      ) : null}
+      {op.files && op.files.length > 0 ? (
+        <div className="ui-traj-detail-section">
+          <div className="ui-traj-detail-label">{t("taskrec.detailFiles")}</div>
+          {op.files.map((f, i) => (
+            <div key={i} className="ui-traj-detail-file">
+              {f}
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+// Inline helper so TrajectoryOpDetail's type doesn't leak (defined below TaskRecordPanel).
+function useOps(): Array<{ at: string; tool: string; ok: boolean; summary?: string; files?: string[] }> {
+  return [];
+}
+
+export function TaskRecordPanel({ treeId, workspaceRoot, onOpenDetail }: Props): JSX.Element {
   const { t } = useI18n();
   const [summary, setSummary] = useState<TaskTreeSummary | null>(null);
   const [detail, setDetail] = useState<{ index: TaskTreeIndex; nodes: TaskNode[] } | null>(null);
@@ -136,6 +189,8 @@ export function TaskRecordPanel({ treeId, workspaceRoot }: Props): JSX.Element {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [section, setSection] = useState<"record" | "trajectory">("record");
+  /** Index into trajectory.operations — non-null = right detail pane is open. */
+  const [selectedOp, setSelectedOp] = useState<number | null>(null);
   const [forkWhy, setForkWhy] = useState("");
   // In-flight guard: without it a double-click fired the merge/switch twice.
   const [acting, setActing] = useState<string | null>(null);
@@ -166,6 +221,7 @@ export function TaskRecordPanel({ treeId, workspaceRoot }: Props): JSX.Element {
       setDetail(tree);
       setReflog(rl);
       setTrajectory(tj);
+      setSelectedOp(null);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -479,7 +535,14 @@ export function TaskRecordPanel({ treeId, workspaceRoot }: Props): JSX.Element {
                 <div className="ui-taskrec-section-label">{t("taskrec.section.trajectory")}</div>
                 <div className="ui-taskrec-ops-timeline">
                   {trajectory.operations.map((op, i) => (
-                    <div key={i} className="ui-taskrec-op">
+                    <div
+                      key={i}
+                      className={`ui-taskrec-op clickable${selectedOp === i ? " selected" : ""}`}
+                      onClick={() => {
+                        setSelectedOp(selectedOp === i ? null : i);
+                        onOpenDetail?.(op);
+                      }}
+                    >
                       <span className="ui-taskrec-op-time">{formatTime(op.at)}</span>
                       <span className={`ui-taskrec-op-tool${op.ok ? "" : " fail"}`}>{op.tool}</span>
                       {op.summary ? <span className="ui-taskrec-op-summary">{op.summary}</span> : null}
@@ -489,6 +552,9 @@ export function TaskRecordPanel({ treeId, workspaceRoot }: Props): JSX.Element {
                     <div className="ui-side-panel-empty">{t("taskrec.noOps")}</div>
                   ) : null}
                 </div>
+                {selectedOp !== null && trajectory.operations[selectedOp] ? (
+                  <TrajectoryOpDetail op={trajectory.operations[selectedOp]} />
+                ) : null}
               </div>
             </>
           ) : (

@@ -12,6 +12,7 @@ import {
 } from "../common/file-utils";
 import { executeValidatedTool, semanticBoolean } from "../common/validate";
 import { gateWrite } from "../common/path-boundary";
+import { appendDiagnosticHint } from "./code-extensions";
 import {
   createSnippet,
   getFileState,
@@ -357,7 +358,7 @@ export async function handleEditTool(
         return {
           ok: true,
           name: "edit",
-          output: `Replaced ${replacedCount} occurrence(s) in ${filePath}.`,
+          output: appendDiagnosticHint(`Replaced ${replacedCount} occurrence(s) in ${filePath}.`, filePath),
           metadata: {
             file_path: filePath,
             replaced_count: replacedCount,

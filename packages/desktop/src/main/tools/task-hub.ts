@@ -34,6 +34,21 @@ export interface TaskHubDeps {
    *  taskRef-bound sessions (those surface as their tree) are excluded, sorted
    *  newest-first. `status` is the raw core SessionStatus string. */
   listChats?(): Array<{ id: string; title: string; status: string; updatedAt: string }>;
+  /** Editor pair runs (specs/editor-copilot 链路 D) — newest-first. Mirrors
+   *  editor-runs-store's EditorRunRecord (behavior + token fields included). */
+  listEditorRuns?(): Array<{
+    runId: string;
+    file: string;
+    instruction: string;
+    status: "done" | "error";
+    startedAt: string;
+    endedAt?: string;
+    added?: number;
+    removed?: number;
+    iterations?: number;
+    durationMs?: number;
+    tokens?: { prompt: number; completion: number };
+  }>;
 }
 
 /** Core SessionStatus → hub node status. Everything still alive reads as
@@ -50,7 +65,7 @@ const CHAT_STATUS: Record<string, TaskHubNode["status"]> = {
   waiting_for_user: "warning",
 };
 
-const DOMAIN_ORDER: TaskHubDomain[] = ["session", "index", "review", "prototype"];
+const DOMAIN_ORDER: TaskHubDomain[] = ["session", "index", "review", "prototype", "editor"];
 
 /**
  * Build one workspace's aggregated task tree. Per-domain fail-open: a reader
@@ -173,6 +188,37 @@ export function buildTaskHub(deps: TaskHubDeps): WorkspaceTaskHub {
     // fail-open
   }
 
+  // ── editor domain — pair runs from the editor-runs store (链路 D) ─────
+  try {
+    for (const r of deps.listEditorRuns?.() ?? []) {
+      group("editor").push({
+        id: r.runId,
+        domain: "editor",
+        title: r.instruction.slice(0, 80) || "pair run",
+        status: r.status === "error" ? "error" : "done",
+        startedAt: r.startedAt,
+        endedAt: r.endedAt,
+        source: { kind: "editor-run", runId: r.runId, file: r.file },
+        // added/removed ride only when the settlement knew them (editor-run
+        // records currently settle without diff stats — display stays honest
+        // instead of showing a permanent +0 −0).
+        meta: {
+          file: r.file,
+          ...((r.added ?? 0) > 0 || (r.removed ?? 0) > 0 ? { added: r.added, removed: r.removed } : {}),
+          // Behavior + cost (2026-09-06 user ask: token 消耗与 agent 行为记录进任务树)
+          ...(r.tokens ? { tokens: { ...r.tokens, total: r.tokens.prompt + r.tokens.completion } } : {}),
+          ...(r.iterations !== undefined ? { iterations: r.iterations } : {}),
+          ...(r.durationMs !== undefined ? { durationMs: r.durationMs } : {}),
+        },
+      });
+    }
+  } catch {
+    // fail-open: an unreadable store costs only the editor group
+  }
+
+  // Sorted LAST so the editor domain joins the same ordering contract as
+  // every other group (previously editor nodes relied on the store being
+  // newest-first — an implicit contract any store change would silently break).
   for (const g of groups) g.nodes.sort((a, b) => b.startedAt.localeCompare(a.startedAt));
 
   return { root: deps.root, generatedAt: new Date().toISOString(), groups };

@@ -21,6 +21,8 @@ import { buildFtsQuery } from "../store/sqlite.js";
 import type { EmbeddingService, EmbeddingCallOptions } from "../store/embedding.js";
 import { sanitizeText } from "../../utils/sanitize.js";
 import { buildRecallQueryVariants, fuseByRrf, RRF_K } from "./query-variants.js";
+import { resolveRelativeTimes } from "./relative-time.js";
+import { applySufficiencyFollowUp } from "./recall-sufficiency.js";
 
 const TAG = "[memory-tdai] [recall]";
 const RECALL_TRUNCATION_SUFFIX = "…（已截断）";
@@ -131,6 +133,45 @@ async function performAutoRecallInner(params: {
     memoryLines = searchResult.lines;
     searchTiming = searchResult.timing;
     memoryLines = applyRecallBudget(memoryLines, cfg.recall, logger);
+
+    // CMB-8: sparse first round → ONE bounded follow-up round on the unused
+    // deterministic variants (zero LLM, fail-open). CMB-10: the rounds/hits
+    // telemetry line below feeds the depth-lane P0 observation surface.
+    let recallRounds = 1;
+    if (memoryLines.length > 0 || userText) {
+      const sufficiency = await applySufficiencyFollowUp({
+        userText,
+        primaryQuery: userText,
+        lines: memoryLines,
+        minResults: cfg.recall.sufficiencyMinResults ?? 2,
+        maxFollowUpQueries: 2,
+        enabled: cfg.recall.sufficiencyFollowUp !== false,
+        runQuery: async (query) => {
+          const round = await searchMemories(
+            query,
+            pluginDataDir,
+            cfg,
+            logger,
+            effectiveStrategy as "keyword" | "embedding" | "hybrid",
+            vectorStore,
+            embeddingService
+          );
+          searchTiming = {
+            ftsMs: searchTiming.ftsMs + round.timing.ftsMs,
+            embeddingMs: searchTiming.embeddingMs + round.timing.embeddingMs,
+            ftsHits: searchTiming.ftsHits + round.timing.ftsHits,
+            embeddingHits: searchTiming.embeddingHits + round.timing.embeddingHits,
+          };
+          return applyRecallBudget(round.lines, cfg.recall, logger);
+        },
+      });
+      recallRounds = sufficiency.rounds;
+      memoryLines = sufficiency.lines;
+    }
+    logger?.info?.(
+      `${TAG} telemetry: recall rounds=${recallRounds} hits=${memoryLines.length} ` +
+        `strategy=${effectiveStrategy} ftsHits=${searchTiming.ftsHits} vecHits=${searchTiming.embeddingHits}`
+    );
 
     // Extract structured RecalledMemory from formatted lines for metric reporting
     recalledL1Memories = memoryLines.map((line) => {
@@ -743,14 +784,16 @@ interface FormatableMemory {
   timestamp?: string;
 }
 
-function formatMemoryLine(m: FormatableMemory): string {
+export function formatMemoryLine(m: FormatableMemory): string {
   // 1. Type tag + optional scene name
   const tag = m.scene_name ? `${m.type}|${m.scene_name}` : m.type;
 
-  // 2. Content (core)
-  let line = `- [${tag}] ${m.content}`;
+  // 2. Content (core) — CMB-7: known relative phrases resolve against the
+  //    record's own timestamp (learned-at); the phrase stays, the absolute
+  //    window rides along as an in-place annotation.
+  let line = `- [${tag}] ${resolveRelativeTimes(m.content, m.timestamp)}`;
 
-  // 3. Time info — prefer activity_start/end range; fall back to timestamp as point-in-time
+  // 3. Time info — prefer activity_start/end range; fall back to timestamp
   const start = formatTimestamp(m.activity_start_time);
   const end = formatTimestamp(m.activity_end_time);
   const point = formatTimestamp(m.timestamp);
@@ -765,8 +808,10 @@ function formatMemoryLine(m: FormatableMemory): string {
     // 段时间: only end
     line += ` (活动时间: 至${end})`;
   } else if (point) {
-    // 点时间: single timestamp
-    line += ` (活动时间: ${point})`;
+    // CMB-7 event/known-at separation: with no explicit activity window the
+    // timestamp is when we LEARNED this, not when it happened — label it as
+    // such (date only) so the reader never mistakes mention-time for event-time.
+    line += ` (记录于 ${point.split(" ")[0]})`;
   }
   // If all three are empty → no time info appended (graceful)
 

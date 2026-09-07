@@ -1,155 +1,232 @@
-/**
- * Design-module split action tests (real-machine feedback: the auto-routed
- * "一句话→原型" flow was retired):
- *   - design.materialize is the UI-DESIGN entry: requirement (a single
- *     sentence is fine) and/or a prototype artifact as the interaction basis;
- *     no routing, no judgeViaLlm.
- *   - prototype.spec / prototype.materialize are the prototype module's two
- *     explicit steps (需求 → 需求文档 → 原型图), run silent (no session residue).
- */
-
-import { test, beforeEach } from "node:test";
+import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as fs from "node:fs";
-import * as os from "node:os";
 import * as path from "node:path";
-import { designMaterializeRun } from "../actions/design";
-import { prototypeSpecRun, prototypeMaterializeRun } from "../actions/prototype";
-import type { ActionContext, ActionRunOptions } from "../actions/types";
+import * as url from "node:url";
+import {
+  designLintDefinition,
+  designLintRun,
+  designMaterializeDefinition,
+  designMaterializeRun,
+  designReviewDefinition,
+  designReviewRun,
+  designReviseDefinition,
+  prototypeMaterializeDefinition,
+  prototypeMaterializeRun,
+  prototypeReviseDefinition,
+  prototypeSpecDefinition,
+  prototypeSpecRun,
+  prototypeVerifyDefinition,
+  prototypeVerifyRun,
+} from "../actions";
+import { NULL_SPAWNER } from "../actions/types";
+import type { ActionContext, RunSubagentOptions } from "../actions/types";
 
-type SubagentCall = { skill: string; prompt: string; silent?: boolean };
+const PROTOTYPE_REF = { suiteId: "proto-suite", versionId: "proto-v1", kind: "prototype" as const };
+const UI_REF = { suiteId: "ui-suite", versionId: "ui-v1", kind: "ui" as const };
 
-function makeCtx(overrides?: {
-  projectRoot?: string;
-  calls?: SubagentCall[];
-  runSubagent?: ActionContext["runSubagent"];
-}): ActionContext {
-  const calls = overrides?.calls ?? [];
-  const defaultSubagent = async (opts: ActionRunOptions) => {
-    calls.push({ skill: opts.skill, prompt: opts.prompt, silent: opts.silent });
-    return { sessionId: "sub-1", content: "ok" };
-  };
-  // Spread LAST so an explicit runSubagent: undefined removes the channel.
+type McpCall = { name: string; args: Record<string, unknown> };
+type SubagentCall = RunSubagentOptions;
+
+function payload(ref: typeof PROTOTYPE_REF | typeof UI_REF, content: Record<string, unknown>): string {
+  return JSON.stringify({ artifactRef: ref, title: "Suite", status: "ready", content });
+}
+
+function makeCtx(
+  options: {
+    prototype?: Record<string, unknown>;
+    ui?: Record<string, unknown>;
+    generated?: string;
+    mcpCalls?: McpCall[];
+    subagentCalls?: SubagentCall[];
+  } = {}
+): ActionContext {
+  const mcpCalls = options.mcpCalls ?? [];
+  const subagentCalls = options.subagentCalls ?? [];
   return {
-    projectRoot: overrides?.projectRoot ?? "/tmp/design-action-test",
+    projectRoot: path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), "../.."),
     signal: new AbortController().signal,
     emit: () => {},
-    runSubagent: defaultSubagent,
-    ...(overrides as { runSubagent?: ActionContext["runSubagent"] } | undefined),
+    spawner: NULL_SPAWNER,
+    runSubagent: async (call) => {
+      subagentCalls.push(call);
+      return { sessionId: "sub", content: options.generated ?? "```\nok\n```" };
+    },
+    executeMcpTool: async (name, args) => {
+      mcpCalls.push({ name, args });
+      if (name.endsWith("read_suite_version")) {
+        const ref = args.suiteId === UI_REF.suiteId ? UI_REF : PROTOTYPE_REF;
+        const content = ref.kind === "ui" ? (options.ui ?? {}) : (options.prototype ?? {});
+        return { ok: true, output: payload(ref, content) };
+      }
+      const ref = name.includes("design") || args.quality || args.tokens || args.components ? UI_REF : PROTOTYPE_REF;
+      return { ok: true, output: `saved\nArtifactRef: ${JSON.stringify(ref)}` };
+    },
   };
 }
 
-let tmpRoot: string;
-beforeEach(() => {
-  tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "deeporca-design-split-"));
-});
-
-// ── design.materialize (UI-design module) ────────────────────────────────────
-
-test("requirement-only run goes straight to deep-design, silent, no routing", async () => {
-  const calls: SubagentCall[] = [];
-  const ctx = makeCtx({ calls, projectRoot: tmpRoot });
-  const result = await designMaterializeRun({ requirement: "品牌落地页" }, ctx);
-  assert.equal(result.ok, true);
-  assert.equal(result.pipeline, "design");
-  assert.equal(result.artifactId, null);
-  assert.equal(calls.length, 1);
-  assert.equal(calls[0].skill, "deep-design");
-  assert.equal(calls[0].silent, true, "panel runs must leave no session residue");
-  assert.ok(calls[0].prompt.includes("品牌落地页"));
-  assert.ok(calls[0].prompt.includes("render_design"));
-});
-
-test("prototype basis: the design prompt embeds the prototype program", async () => {
-  const dir = path.join(tmpRoot, ".deeporca", "designs", "proto-1");
-  fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(path.join(dir, "prototype.openui.txt"), "root = Column([loginForm])");
-  const calls: SubagentCall[] = [];
-  const ctx = makeCtx({ calls, projectRoot: tmpRoot });
-
-  const result = await designMaterializeRun({ requirement: "电商后台", prototypeArtifactId: "proto-1" }, ctx);
-  assert.equal(result.ok, true);
-  assert.ok(calls[0].prompt.includes("root = Column([loginForm])"), "prototype program must reach the designer");
-  assert.ok(calls[0].prompt.includes("电商后台"));
-
-  // Prototype-only run (no requirement) is valid: elevate the prototype.
-  const result2 = await designMaterializeRun({ prototypeArtifactId: "proto-1" }, makeCtx({ projectRoot: tmpRoot }));
-  assert.equal(result2.ok, true);
-});
-
-test("missing prototype artifact fails with a clear error", async () => {
-  const ctx = makeCtx({ projectRoot: tmpRoot });
-  const result = await designMaterializeRun({ prototypeArtifactId: "nope-404" }, ctx);
-  assert.equal(result.ok, false);
-  assert.match(result.error ?? "", /prototype artifact not found/);
-});
-
-test("empty input and missing subagent channel are rejected", async () => {
-  assert.equal((await designMaterializeRun({}, makeCtx({ projectRoot: tmpRoot }))).ok, false);
-  assert.equal(
-    (await designMaterializeRun({ requirement: "x" }, makeCtx({ projectRoot: tmpRoot, runSubagent: undefined }))).ok,
-    false
+test("suite v2 action schemas expose the renderer contract", () => {
+  assert.deepEqual(
+    [
+      prototypeSpecDefinition.id,
+      prototypeMaterializeDefinition.id,
+      prototypeVerifyDefinition.id,
+      prototypeReviseDefinition.id,
+      designMaterializeDefinition.id,
+      designLintDefinition.id,
+      designReviewDefinition.id,
+      designReviseDefinition.id,
+    ],
+    [
+      "prototype.spec",
+      "prototype.materialize",
+      "prototype.verify",
+      "prototype.revise",
+      "design.materialize",
+      "design.lint",
+      "design.review",
+      "design.revise",
+    ]
   );
+  assert.ok("suiteId" in prototypeSpecDefinition.parameters.properties);
+  assert.ok("baseVersionId" in prototypeSpecDefinition.parameters.properties);
+  assert.ok("versionId" in prototypeMaterializeDefinition.parameters.properties);
+  assert.ok("prototypeSuiteId" in designMaterializeDefinition.parameters.properties);
+  assert.ok("designSystemId" in designMaterializeDefinition.parameters.properties);
 });
 
-// ── prototype.spec (step 1: requirement → requirements document) ─────────────
+test("SessionManager registers every suite v2 action", () => {
+  const source = fs.readFileSync(
+    path.join(path.dirname(url.fileURLToPath(import.meta.url)), "../session-manager-base.ts"),
+    "utf8"
+  );
+  for (const symbol of [
+    "prototypeVerifyDefinition",
+    "prototypeReviseDefinition",
+    "designLintDefinition",
+    "designReviewDefinition",
+    "designReviseDefinition",
+  ]) {
+    assert.match(source, new RegExp(`actionRegistry\\.register\\(${symbol}`));
+  }
+});
 
-test("spec step: routes to the spec-writer skill with the requirement, silent", async () => {
-  const calls: SubagentCall[] = [];
-  const ctx = makeCtx({ calls, projectRoot: tmpRoot });
-  const result = await prototypeSpecRun({ requirement: "一个任务看板" }, ctx);
+test("prototype.spec creates a real suite through render_spec and returns ArtifactRef", async () => {
+  const mcpCalls: McpCall[] = [];
+  const result = await prototypeSpecRun(
+    { requirement: "Task board" },
+    makeCtx({ generated: "```markdown\n# Tasks\n\n## Page list\n- Board\n```", mcpCalls })
+  );
   assert.equal(result.ok, true);
-  assert.equal(calls.length, 1);
-  assert.equal(calls[0].skill, "spec-writer");
-  assert.equal(calls[0].silent, true);
-  assert.ok(calls[0].prompt.includes("一个任务看板"));
-  assert.ok(calls[0].prompt.includes("render_spec"));
+  assert.deepEqual(result.artifactRef, PROTOTYPE_REF);
+  const save = mcpCalls.find((call) => call.name.endsWith("render_spec"));
+  assert.equal(save?.args.requirement, "Task board");
+  assert.equal(typeof save?.args.note, "string", "initial generation must force suite persistence");
 });
 
-test("spec step rejects empty requirement / missing channel / subagent failure", async () => {
-  assert.equal((await prototypeSpecRun({ requirement: "  " }, makeCtx())).ok, false);
-  assert.equal((await prototypeSpecRun({}, makeCtx())).ok, false);
-  const noChannel = makeCtx({ runSubagent: undefined });
-  assert.equal((await prototypeSpecRun({ requirement: "x" }, noChannel)).ok, false);
-  const failing = makeCtx({
-    runSubagent: (async () => {
-      throw new Error("skill boom");
-    }) as ActionContext["runSubagent"],
+test("prototype.materialize reads an immutable suite version and resets verification through render_openui", async () => {
+  const mcpCalls: McpCall[] = [];
+  const result = await prototypeMaterializeRun(
+    { suiteId: PROTOTYPE_REF.suiteId, versionId: PROTOTYPE_REF.versionId },
+    makeCtx({
+      prototype: { requirement: "Task board", spec: "# Tasks\n\n## Page list\n- Board" },
+      generated: "```openui\nroot = Column([board])\nboard = Card([])\n```",
+      mcpCalls,
+    })
+  );
+  assert.equal(result.ok, true);
+  const save = mcpCalls.find((call) => call.name.endsWith("render_openui"));
+  assert.equal(save?.args.suiteId, PROTOTYPE_REF.suiteId);
+  assert.equal(save?.args.versionId, PROTOTYPE_REF.versionId);
+});
+
+test("prototype.verify runs deterministic structure checks and persists verification", async () => {
+  const mcpCalls: McpCall[] = [];
+  const result = await prototypeVerifyRun(
+    { suiteId: PROTOTYPE_REF.suiteId, versionId: PROTOTYPE_REF.versionId },
+    makeCtx({
+      prototype: { spec: "# Tasks\n\n## Page list\n- Board", openui: "root = Column([board])" },
+      mcpCalls,
+    })
+  );
+  assert.equal(result.ok, true);
+  assert.equal(result.verification?.status, "passed");
+  const save = mcpCalls.find((call) => call.name.endsWith("save_suite_result"));
+  assert.equal((save?.args.verification as { status: string }).status, "passed");
+});
+
+test("design.materialize injects the selected bundled system and source prototype", async () => {
+  const mcpCalls: McpCall[] = [];
+  const subagentCalls: SubagentCall[] = [];
+  const result = await designMaterializeRun(
+    {
+      prototypeSuiteId: PROTOTYPE_REF.suiteId,
+      prototypeVersionId: PROTOTYPE_REF.versionId,
+      designSystemId: "terminal-mono",
+    },
+    makeCtx({
+      prototype: { requirement: "Task board", openui: "root = Column([board])" },
+      generated: "```openui\nroot = Screen()\nboard = Card([])\n```",
+      mcpCalls,
+      subagentCalls,
+    })
+  );
+  assert.equal(result.ok, true);
+  assert.match(subagentCalls[0].prompt ?? "", /Design System: Terminal Mono/);
+  const save = mcpCalls.find((call) => call.name.endsWith("render_openui"));
+  assert.deepEqual(save?.args.sourcePrototype, {
+    suiteId: PROTOTYPE_REF.suiteId,
+    versionId: PROTOTYPE_REF.versionId,
   });
-  const result = await prototypeSpecRun({ requirement: "x" }, failing);
-  assert.equal(result.ok, false);
-  assert.match(result.error ?? "", /skill boom/);
+  assert.equal(save?.args.designSystemId, "terminal-mono");
 });
 
-// ── prototype.materialize (step 2: requirements document → prototype) ────────
-
-test("prototype step: embeds the spec document and designs strictly from it", async () => {
-  const dir = path.join(tmpRoot, ".deeporca", "designs", "spec-1");
-  fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(path.join(dir, "spec.md"), "# 任务看板 需求文档\n\n## 4. 页面清单\n- 看板视图\n");
-  const calls: SubagentCall[] = [];
-  const ctx = makeCtx({ calls, projectRoot: tmpRoot });
-
-  const result = await prototypeMaterializeRun({ specArtifactId: "spec-1" }, ctx);
+test("design.lint persists static OpenUI findings without runtime claims", async () => {
+  const mcpCalls: McpCall[] = [];
+  const result = await designLintRun(
+    { suiteId: UI_REF.suiteId, versionId: UI_REF.versionId },
+    makeCtx({
+      ui: {
+        openui:
+          'root = Screen("bad")\nhero = Card(style="background: #1c6fe0", data-sem="hero")\nhint = Text(style="font-size: 10px")',
+      },
+      mcpCalls,
+    })
+  );
   assert.equal(result.ok, true);
-  assert.equal(calls.length, 1);
-  assert.equal(calls[0].skill, "pm-designer-openui");
-  assert.equal(calls[0].silent, true);
-  assert.ok(calls[0].prompt.includes("页面清单"), "spec document must reach the designer");
-  assert.ok(calls[0].prompt.includes("render_openui"));
+  assert.ok(result.findings?.some((finding) => finding.ruleId === "hardcoded-color"));
+  assert.ok(result.findings?.some((finding) => finding.ruleId === "tiny-font"));
+  const save = mcpCalls.find((call) => call.name.endsWith("save_suite_result"));
+  assert.ok(Array.isArray((save?.args.quality as { lintFindings: unknown[] }).lintFindings));
 });
 
-test("prototype step fails clearly without a spec artifact", async () => {
-  const ctx = makeCtx({ projectRoot: tmpRoot });
-  assert.equal((await prototypeMaterializeRun({}, ctx)).ok, false);
-  const result = await prototypeMaterializeRun({ specArtifactId: "missing" }, ctx);
-  assert.equal(result.ok, false);
-  assert.match(result.error ?? "", /requirements document not found/);
-});
-
-test("unsafe spec ids are rejected before any filesystem access", async () => {
-  const ctx = makeCtx({ projectRoot: tmpRoot });
-  const result = await prototypeMaterializeRun({ specArtifactId: "../../etc" }, ctx);
-  assert.equal(result.ok, false);
-  assert.match(result.error ?? "", /requirements document not found/);
+test("design.review validates single-round JSON and quality revise only clears review", async () => {
+  const mcpCalls: McpCall[] = [];
+  const subagentCalls: SubagentCall[] = [];
+  const ctx = makeCtx({
+    ui: { openui: 'root = Screen("ui")\nhero = Card(data-sem="hero")', quality: {} },
+    generated: '```json\n{"status":"passed","composite":0.8,"evidence":{"section":"hero"}}\n```',
+    mcpCalls,
+    subagentCalls,
+  });
+  const reviewed = await designReviewRun({ suiteId: UI_REF.suiteId, versionId: UI_REF.versionId }, ctx);
+  assert.equal(reviewed.review?.rounds, 1);
+  const before = subagentCalls.length;
+  const revised = await designReviseDefinition;
+  void revised;
+  const qualityResult = await (
+    await import("../actions/design")
+  ).designReviseRun(
+    {
+      suiteId: UI_REF.suiteId,
+      versionId: UI_REF.versionId,
+      part: "quality",
+      target: "review",
+      instruction: "re-run later",
+    },
+    ctx
+  );
+  assert.equal(qualityResult.ok, true);
+  assert.equal(subagentCalls.length, before, "quality revision must not let the LLM manufacture a pass");
+  assert.equal(mcpCalls.at(-1)?.args.clearReview, true);
 });

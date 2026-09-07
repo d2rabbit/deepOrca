@@ -6,11 +6,11 @@
 
 | 位置 | 含义 | 现有内容 |
 | --- | --- | --- |
-| `specs/<name>/` | **活跃 spec**（当前版本实施中或待启动，不进第二阶段规划区） | [chat-redesign](./chat-redesign/design.md)（主会话重设计，实施中，含 `designs/` 视觉稿）· [design-systems-advance](./design-systems-advance/design.md)（设计系统进阶唯一方案；已并入 pm-design-v2 工件与 prototype-companion/ 子目录）· [ts-native-migration](./ts-native-migration/design.md)（TS 原生化迁移排期） |
-| `specs/next-version/` | **第二阶段规划区**：冻结期后随 `next/*` 启动的 spec（3 个主线上 + 9 个储备，路线见 `docs/features/next-version-plan.md`） | 主线：[module-system](./next-version/module-system/design.md)（B）· [doc-wiki](./next-version/doc-wiki/design.md)（D）· [zg-semantic-search](./next-version/zg-semantic-search/design.md)（E）。储备：android-dev-kit · cad-3d-generation · content-translation · depth-lane · desktop-pet · harmonyos-dev-kit · in-process-multi-driver · model-fleet-adaptation · sandbox-next（详见 [next-version/README.md](./next-version/README.md)） |
+| `specs/<name>/` | **活跃 spec**（当前版本实施中或待启动，不进第二阶段规划区） | [chat-redesign](./chat-redesign/design.md)（主会话重设计，实施中，含 `designs/` 视觉稿）· [design-systems-advance](./design-systems-advance/design.md)（设计系统进阶唯一方案；已并入 pm-design-v2 工件与 prototype-companion/ 子目录）· [lsp-diagnostics](./lsp-diagnostics/design.md)（LSP 类型级诊断桥，本阶段，P0+P1 已落地）· [depth-lane](./depth-lane/design.md)（复杂性路由双轨：P0+P1+P2.1/2.2+P2.3/2.4 公式已落地并经 GVGL 真机校准，X.* 桌面面待 enabled 开启；上游 `docs/research/2026-09-03-smart-gateway-dual-lane-adaptation.md`）· [sop-extraction](./sop-extraction/design.md)（SOP 萃取通道：memory-audit P3 延伸立项，memory.distill P0+P1 已落地，P2 连接器三件套 2026-09-06 落地）· [arch-map-reinforce](./arch-map-reinforce/design.md)（架构图强化层 v2：effective-html 调研承接——叙事用满/成品质感规约/聚焦单图入口/图板→编辑器跳转（CM6 换核后接线）/golden 自蒸馏，2026-09-06 P0+P1+P2 代码面落地，真机走查移交预生产清单）· [context-menu-interaction](./context-menu-interaction/design.md)（右键菜单与快捷交互体系：方案稿待实现；任务树保持现状不涉及；上游 `docs/research/2026-09-05-interaction-redesign.md`） |
+| `specs/next-version/` | **第二阶段规划区**：冻结期后随 `next/*` 启动的 spec（3 个主线上 + 10 个储备，路线见 `docs/features/next-version-plan.md`） | 主线：[module-system](./next-version/module-system/design.md)（B）· [doc-wiki](./next-version/doc-wiki/design.md)（D）· [zg-semantic-search](./next-version/zg-semantic-search/design.md)（E）。储备：ts-native-migration · android-dev-kit · cad-3d-generation · content-translation · depth-lane · desktop-pet · harmonyos-dev-kit · in-process-multi-driver · model-fleet-adaptation · sandbox-next（详见 [next-version/README.md](./next-version/README.md)） |
 | `specs/review-ing/` | **审查归档**：主体落地但带待复核项，复核通过后移入 `archive/` 转正 | [task-tree-hub](./review-ing/task-tree-hub/design.md)（含 `screen-task-tree.html` 视觉稿）· [skill-eval](./review-ing/skill-eval/design.md) |
 | `specs/branch-implemented/` | **分支实现归档**：已在未合并的 `next/*` 分支实现，合并后转正式归档 | [coord-chain](./branch-implemented/coord-chain/design.md)（OC1–OC2 @ `next/coord-chain`） |
-| `specs/archive/` | **收官归档**：终判 ✅ 且无未决项，原样保留作为实现依据与历史记录 | 15 项（a2ui-integration · activity-frames · deep-design · define-action · task-tree · text-embedding · memory-remediation · skill-routing · token-local-accounting · mcp-sdk-migration · gitmcp-local-module · ui-domain-regroup · review-module · sandbox · index-knowledge-rework），另有 [`deprecated/pre-production/`](./archive/deprecated/README.md)（❌ 出口门槛毙掉）。见 [archive/README.md](./archive/README.md) |
+| `specs/archive/` | **收官归档**：终判 ✅ 且无未决项，原样保留作为实现依据与历史记录 | 17 项（…前 15 项见 [archive/README.md](./archive/README.md)… · [cmb-adoption](./archive/cmb-adoption/design.md) 2026-09-04 四批次同日落地收官 · [memory-audit](./archive/memory-audit/design.md) 2026-09-04 P0+P1+P2 同日落地收官，P3 泛化另行立项），另有 [`deprecated/pre-production/`](./archive/deprecated/README.md)（❌ 出口门槛毙掉）。见 [archive/README.md](./archive/README.md) |
 
 > **behavior-memory 已物理删除**（2026-09-03；❌ 2026-08-17 拍板作废，由 `@deeporca/memory` 承接，作废记录见 `docs/features/feature-roadmap.md` §0 与 `docs/spec-open-items-status.md` §五）。
 
@@ -30,6 +30,7 @@
 仓库根的 `designs/` 目录已取消，视觉稿与交互稿**随所属 spec 归档**：
 
 - `specs/chat-redesign/designs/` — 主会话重设计视觉稿（screen-chat / demo-flow / 全套预览截图）
+- `specs/design-systems-advance/designs/` — 设计系统进阶交互视觉稿（**按模块分稿，交互逻辑一致**：screen-prototype-design.html v2.2 原型设计——三段页签「需求文档→交互原型→验收报告」· 一版一套版本集 · 纯目录面板 · 需求输入卡/待确认定稿/逐页具现化/验收走查双触发/修复 + 悬浮智能体 + 选区悬浮修正；screen-ui-design.html v2.1 UI 设计——三段「视觉稿→设计系统→质量与评审」· 一版一套且每版标注「基于原型 vX」· 基底=原型版本历史 · 主题=设计模块九套内置设计系统 · 双栏设计系统页 · 从原型生成/质量评审触发链路 · Aqua 双板 · 预览截图 ×6）
 - `specs/archive/review-module/screen-review.html` — 审查模块视觉稿
 - `specs/review-ing/task-tree-hub/screen-task-tree.html` — 任务树 V2 视觉稿
 

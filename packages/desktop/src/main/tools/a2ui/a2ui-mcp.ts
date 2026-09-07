@@ -23,7 +23,24 @@ import * as fs from "node:fs";
 import * as nodePath from "node:path";
 import { generatePrototype, listTemplates } from "./a2ui-templates";
 import { BASIC_CATALOG_ID, convertLegacyComponents } from "../../../shared/a2ui-legacy";
-import { saveDesignArtifact, deriveTitle } from "../design-store.js";
+import {
+  appendDesignSuiteVersion,
+  createDesignSuite,
+  deriveTitle,
+  readDesignSuite,
+  readDesignSuiteVersion,
+  saveDesignArtifact,
+} from "../design-store.js";
+import type {
+  DesignArtifactRef,
+  DesignQualityResult,
+  DesignSuiteContent,
+  DesignSuiteKind,
+  DesignSuiteStatus,
+  PrototypeSuiteContent,
+  PrototypeVerificationResult,
+  UiSuiteContent,
+} from "../design-store.js";
 
 export const A2UI_MCP_SERVER_NAME = "a2ui";
 
@@ -416,6 +433,113 @@ type RegisterToolLoose = (
 
 const SERVER_INFO = { name: "deeporca-a2ui", version: "0.1.0" };
 
+const artifactRefSchema = z.object({
+  suiteId: z.string(),
+  versionId: z.string(),
+});
+
+const suiteLineageSchema = {
+  suiteId: z.string().optional().describe("Existing suite id. Omit to create a new suite."),
+  versionId: z.string().optional().describe("Immutable suite version to use as the update base."),
+  note: z.string().optional().describe("Optional note recorded on the appended suite version."),
+  sourcePrototype: artifactRefSchema.optional().describe("Prototype suite/version used as the UI design source."),
+  designSystemId: z.string().optional().describe("Design system template id used for this UI design."),
+};
+
+function stringArg(args: Record<string, unknown>, key: string): string | undefined {
+  const value = args[key];
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function sourcePrototypeArg(args: Record<string, unknown>): { suiteId: string; versionId: string } | undefined {
+  const value = args.sourcePrototype;
+  if (!value || typeof value !== "object") return undefined;
+  const record = value as Record<string, unknown>;
+  const suiteId = stringArg(record, "suiteId");
+  const versionId = stringArg(record, "versionId");
+  return suiteId && versionId ? { suiteId, versionId } : undefined;
+}
+
+function usesSuitePersistence(args: Record<string, unknown>): boolean {
+  return ["suiteId", "versionId", "note", "sourcePrototype", "designSystemId"].some((key) => args[key] !== undefined);
+}
+
+function suiteError(message: string): CallToolResult {
+  return { content: [{ type: "text", text: `Error: ${message}` }], isError: true };
+}
+
+function artifactResult(
+  ref: DesignArtifactRef,
+  message: string,
+  metadata: Record<string, unknown> = {}
+): CallToolResult {
+  const structuredContent = { artifactRef: ref };
+  return {
+    content: [{ type: "text", text: `${message}\nArtifactRef: ${JSON.stringify(ref)}` }],
+    structuredContent,
+    metadata: { ...metadata, artifactRef: ref, structuredContent },
+  } as CallToolResult;
+}
+
+function readSuiteBase(
+  root: string | undefined,
+  suiteId: string,
+  versionId: string | undefined,
+  kind: DesignSuiteKind
+): { content: DesignSuiteContent; title: string } | { error: string } {
+  if (!root) return { error: "suite persistence requires a project root" };
+  const suite = readDesignSuite(root, suiteId);
+  if (!suite) return { error: `suite "${suiteId}" not found` };
+  if (suite.kind !== kind) return { error: `suite "${suiteId}" is ${suite.kind}, expected ${kind}` };
+  const version = versionId ? readDesignSuiteVersion(root, suiteId, versionId) : suite.currentVersion;
+  if (!version) return { error: `version "${versionId}" not found in suite "${suiteId}"` };
+  return { content: version.content, title: suite.title };
+}
+
+function persistSuiteContent(
+  root: string | undefined,
+  args: Record<string, unknown>,
+  kind: DesignSuiteKind,
+  title: string,
+  build: (base: DesignSuiteContent | undefined) => DesignSuiteContent,
+  status: DesignSuiteStatus
+): DesignArtifactRef | null {
+  if (!root) return null;
+  const suiteId = stringArg(args, "suiteId");
+  const versionId = stringArg(args, "versionId");
+  if (versionId && !suiteId) return null;
+  const note = stringArg(args, "note");
+  if (!suiteId) {
+    const content = build(undefined);
+    const created =
+      kind === "prototype"
+        ? createDesignSuite(root, {
+            title,
+            kind,
+            content: content as PrototypeSuiteContent,
+            ...(note ? { note } : {}),
+            status,
+          })
+        : createDesignSuite(root, {
+            title,
+            kind,
+            content: content as UiSuiteContent,
+            ...(note ? { note } : {}),
+            status,
+          });
+    return created ? { suiteId: created.id, versionId: created.currentVersionId, kind } : null;
+  }
+  const base = readSuiteBase(root, suiteId, versionId, kind);
+  if ("error" in base) return null;
+  const updated = appendDesignSuiteVersion(root, {
+    suiteId,
+    content: build(base.content),
+    ...(note ? { note } : {}),
+    status,
+  });
+  return updated ? { suiteId: updated.id, versionId: updated.currentVersionId, kind } : null;
+}
+
 /**
  * Build the A2UI MCP server. Registers three tools:
  * - `render_surface`: create a new Surface with initial components + data model
@@ -732,6 +856,7 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
           .string()
           .optional()
           .describe("The user's original requirement text (persisted as requirement.md)."),
+        ...suiteLineageSchema,
       },
     },
     async (args) => {
@@ -741,6 +866,31 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
       }
       const requirement =
         typeof args.requirement === "string" && args.requirement.trim() ? args.requirement : undefined;
+      if (usesSuitePersistence(args)) {
+        if (stringArg(args, "versionId") && !stringArg(args, "suiteId")) {
+          return suiteError("versionId requires suiteId");
+        }
+        const ref = persistSuiteContent(
+          projectRoot,
+          args,
+          "prototype",
+          deriveTitle(document),
+          (base) => ({
+            ...((base ?? {}) as PrototypeSuiteContent),
+            ...(requirement ? { requirement } : {}),
+            spec: document,
+            openui: undefined,
+            verification: { status: "pending", checks: [] },
+          }),
+          "draft"
+        );
+        if (!ref) return suiteError("could not create or append the prototype suite");
+        return artifactResult(
+          ref,
+          "Requirements document saved as a prototype suite version. OpenUI and verification were reset.",
+          { spec: document }
+        );
+      }
       saveArtifactWithLineage(projectRoot, "spec", "render", {
         title: deriveTitle(document),
         content: document,
@@ -791,6 +941,7 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
           .string()
           .optional()
           .describe("The user's original requirement text (persisted as requirement.md; pass when known)."),
+        ...suiteLineageSchema,
       },
     },
     async (args) => {
@@ -801,9 +952,43 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
           isError: true,
         };
       }
-      // Persist as a design artifact (fire-and-forget, best-effort).
       const requirement =
         typeof args.requirement === "string" && args.requirement.trim() ? args.requirement : undefined;
+      if (usesSuitePersistence(args)) {
+        if (stringArg(args, "versionId") && !stringArg(args, "suiteId")) {
+          return suiteError("versionId requires suiteId");
+        }
+        const sourcePrototype = sourcePrototypeArg(args);
+        const designSystemId = stringArg(args, "designSystemId");
+        const kind: DesignSuiteKind = sourcePrototype || designSystemId ? "ui" : "prototype";
+        const ref = persistSuiteContent(
+          projectRoot,
+          args,
+          kind,
+          deriveTitle(code),
+          (base) =>
+            kind === "ui"
+              ? {
+                  ...((base ?? {}) as UiSuiteContent),
+                  ...(requirement ? { requirement } : {}),
+                  openui: code,
+                  ...(sourcePrototype ? { sourcePrototype } : {}),
+                  ...(designSystemId ? { designSystemId } : {}),
+                  quality: { lintFindings: [], runtimeChecks: [] },
+                }
+              : {
+                  ...((base ?? {}) as PrototypeSuiteContent),
+                  ...(requirement ? { requirement } : {}),
+                  openui: code,
+                  verification: { status: "pending", checks: [] },
+                },
+          "ready"
+        );
+        if (!ref) return suiteError("could not create or append the design suite");
+        return artifactResult(ref, `OpenUI rendered (${code.split("\n").length} statements).`, {
+          openui: code,
+        });
+      }
       saveArtifactWithLineage(projectRoot, "openui", "render", {
         title: deriveTitle(code),
         content: code,
@@ -833,10 +1018,45 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
         "To iterate efficiently, copy the previous code and modify only the parts that need changing.",
       inputSchema: {
         code: z.string().describe("Complete updated OpenUI Lang program (full replacement, not delta)."),
+        ...suiteLineageSchema,
       },
     },
     async (args) => {
       const code = String(args.code ?? "");
+      if (!code.trim()) return suiteError("empty OpenUI Lang code");
+      if (usesSuitePersistence(args)) {
+        const suiteId = stringArg(args, "suiteId");
+        if (!suiteId) return suiteError("update_openui suite mode requires suiteId");
+        const targetKind: DesignSuiteKind =
+          (projectRoot ? readDesignSuite(projectRoot, suiteId) : undefined)?.kind ?? "prototype";
+        const sourcePrototype = sourcePrototypeArg(args);
+        const designSystemId = stringArg(args, "designSystemId");
+        const ref = persistSuiteContent(
+          projectRoot,
+          args,
+          targetKind,
+          deriveTitle(code),
+          (base) =>
+            targetKind === "ui"
+              ? {
+                  ...((base ?? {}) as UiSuiteContent),
+                  openui: code,
+                  ...(sourcePrototype ? { sourcePrototype } : {}),
+                  ...(designSystemId ? { designSystemId } : {}),
+                  quality: { lintFindings: [], runtimeChecks: [] },
+                }
+              : {
+                  ...((base ?? {}) as PrototypeSuiteContent),
+                  openui: code,
+                  verification: { status: "pending", checks: [] },
+                },
+          "ready"
+        );
+        if (!ref) return suiteError("could not append the design suite");
+        return artifactResult(ref, `OpenUI updated (${code.split("\n").length} statements).`, {
+          openui: code,
+        });
+      }
       // Iterate on the same artifact (versions[] accumulate; render_openui
       // starts a fresh lineage for a brand-new prototype).
       saveArtifactWithLineage(projectRoot, "openui", "update", { title: deriveTitle(code), content: code });
@@ -849,6 +1069,101 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
         ],
         metadata: { openui: code },
       } as CallToolResult;
+    }
+  );
+
+  registerTool(
+    "read_suite_version",
+    {
+      description: "Read one immutable design-suite version for action orchestration.",
+      inputSchema: {
+        suiteId: z.string().describe("Suite id"),
+        versionId: z.string().optional().describe("Version id; omit for the current version"),
+      },
+    },
+    async (args) => {
+      if (!projectRoot) return suiteError("suite reads require a project root");
+      const suiteId = stringArg(args, "suiteId");
+      if (!suiteId) return suiteError("suiteId is required");
+      const suite = readDesignSuite(projectRoot, suiteId);
+      if (!suite) return suiteError(`suite "${suiteId}" not found`);
+      const versionId = stringArg(args, "versionId");
+      const version = versionId ? readDesignSuiteVersion(projectRoot, suiteId, versionId) : suite.currentVersion;
+      if (!version) return suiteError(`version "${versionId}" not found in suite "${suiteId}"`);
+      const ref: DesignArtifactRef = { suiteId, versionId: version.versionId, kind: suite.kind };
+      const payload = { artifactRef: ref, title: suite.title, status: version.status, content: version.content };
+      return {
+        content: [{ type: "text", text: JSON.stringify(payload) }],
+        structuredContent: payload,
+        metadata: { structuredContent: payload, artifactRef: ref },
+      } as CallToolResult;
+    }
+  );
+
+  registerTool(
+    "save_suite_result",
+    {
+      description:
+        "Append deterministic prototype verification or UI quality/tokens/components to a selected suite version.",
+      inputSchema: {
+        suiteId: z.string().describe("Suite id"),
+        versionId: z.string().describe("Immutable version used as the update base"),
+        note: z.string().optional().describe("Version note"),
+        verification: z.unknown().optional().describe("Prototype verification result"),
+        quality: z.unknown().optional().describe("UI quality result"),
+        tokens: z.unknown().optional().describe("UI design tokens"),
+        components: z.unknown().optional().describe("UI component inventory"),
+        clearReview: z.boolean().optional().describe("Remove UI quality.review and keep deterministic quality fields"),
+      },
+    },
+    async (args) => {
+      if (!projectRoot) return suiteError("suite writes require a project root");
+      const suiteId = stringArg(args, "suiteId");
+      const versionId = stringArg(args, "versionId");
+      if (!suiteId || !versionId) return suiteError("suiteId and versionId are required");
+      const suite = readDesignSuite(projectRoot, suiteId);
+      const version = readDesignSuiteVersion(projectRoot, suiteId, versionId);
+      if (!suite || !version) return suiteError("suite or version not found");
+      const note = stringArg(args, "note");
+      let content: DesignSuiteContent;
+      let status: DesignSuiteStatus;
+      if (suite.kind === "prototype") {
+        if (!args.verification || typeof args.verification !== "object") {
+          return suiteError("prototype suites require a verification result");
+        }
+        const verification = args.verification as PrototypeVerificationResult;
+        content = { ...(version.content as PrototypeSuiteContent), verification };
+        status =
+          verification.status === "passed"
+            ? "verified"
+            : version.content && (version.content as PrototypeSuiteContent).openui
+              ? "ready"
+              : "draft";
+      } else {
+        const base = version.content as UiSuiteContent;
+        let quality = base.quality;
+        if (args.quality && typeof args.quality === "object") quality = args.quality as DesignQualityResult;
+        if (args.clearReview === true) {
+          const previous = quality ?? { lintFindings: [], runtimeChecks: [] };
+          quality = { lintFindings: previous.lintFindings, runtimeChecks: previous.runtimeChecks };
+        }
+        content = {
+          ...base,
+          ...(args.tokens !== undefined ? { tokens: args.tokens } : {}),
+          ...(args.components !== undefined ? { components: args.components } : {}),
+          ...(quality ? { quality } : {}),
+        };
+        status = quality?.review?.status === "passed" ? "verified" : "ready";
+      }
+      const updated = appendDesignSuiteVersion(projectRoot, {
+        suiteId,
+        content,
+        ...(note ? { note } : {}),
+        status,
+      });
+      if (!updated) return suiteError("could not append suite result");
+      const ref: DesignArtifactRef = { suiteId, versionId: updated.currentVersionId, kind: suite.kind };
+      return artifactResult(ref, `Suite ${suite.kind} result saved.`);
     }
   );
 
@@ -887,6 +1202,8 @@ export function registerDesignTools(registerTool: RegisterToolLoose, projectRoot
               "HTML body uses `<!-- dd:section xxx -->` markers around each <section>.\n" +
               "Available CSS classes: container, section, grid, grid-2/3/4, topnav, eyebrow, display, lead, btn/btn-primary/btn-ghost, card/card-icon/card-title/card-desc, ph-img, footer."
           ),
+        requirement: z.string().optional().describe("Original UI requirement for suite provenance."),
+        ...suiteLineageSchema,
       },
     },
     async (args) => {
@@ -897,7 +1214,6 @@ export function registerDesignTools(registerTool: RegisterToolLoose, projectRoot
           isError: true,
         } as CallToolResult;
       }
-      // Persist as a design artifact (fire-and-forget, best-effort) + store for delta.
       lastDesignDoc = content;
       saveArtifactWithLineage(projectRoot, "design", "render", { title: deriveTitle(content), content });
       const sectionCount = (content.match(/<!--\s*dd:section\s/g) || []).length;
@@ -936,53 +1252,38 @@ export function registerDesignTools(registerTool: RegisterToolLoose, projectRoot
           )
           .optional()
           .describe("Section-level patches (delta mode). Only changed sections needed."),
+        ...suiteLineageSchema,
       },
     },
     async (args) => {
-      // Delta mode: merge section patches into the stored .dd.
-      if (Array.isArray(args.sections) && args.sections.length > 0 && lastDesignDoc) {
-        const merged = mergeDesignSections(lastDesignDoc, args.sections as Array<{ id: string; html: string }>);
-        if (merged) {
-          lastDesignDoc = merged;
-          saveArtifactWithLineage(projectRoot, "design", "update", { title: deriveTitle(merged), content: merged });
-          const sectionCount = (merged.match(/<!--\s*dd:section\s/g) || []).length;
-          return {
-            content: [
-              {
-                type: "text",
-                text: `DeepDesign updated via section delta (${args.sections.length} patched, ${sectionCount} total sections).`,
-              },
-            ],
-            metadata: { design: merged },
-          } as CallToolResult;
+      const baseDesign = lastDesignDoc;
+
+      let nextContent: string | null = null;
+      let deltaCount = 0;
+      if (Array.isArray(args.sections) && args.sections.length > 0 && baseDesign) {
+        nextContent = mergeDesignSections(baseDesign, args.sections as Array<{ id: string; html: string }>);
+        deltaCount = args.sections.length;
+      }
+      if (!nextContent) {
+        const full = String(args.content ?? "");
+        if (!full.trim()) {
+          return suiteError("provide valid `sections` for the selected version or `content` as a full replacement");
         }
+        nextContent = full;
+        deltaCount = 0;
       }
 
-      // Full replacement mode (or delta failed → fall back).
-      const content = String(args.content ?? "");
-      if (!content.trim()) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: "Error: provide either `sections` (delta) or `content` (full replacement).",
-            },
-          ],
-          isError: true,
-        } as CallToolResult;
-      }
-      lastDesignDoc = content;
-      saveArtifactWithLineage(projectRoot, "design", "update", { title: deriveTitle(content), content });
-      const sectionCount = (content.match(/<!--\s*dd:section\s/g) || []).length;
-      return {
-        content: [
-          {
-            type: "text",
-            text: `DeepDesign updated (${sectionCount} section(s)).`,
-          },
-        ],
-        metadata: { design: content },
-      } as CallToolResult;
+      lastDesignDoc = nextContent;
+      const sectionCount = (nextContent.match(/<!--\s*dd:section\s/g) || []).length;
+
+      saveArtifactWithLineage(projectRoot, "design", "update", {
+        title: deriveTitle(nextContent),
+        content: nextContent,
+      });
+      const message = deltaCount
+        ? `DeepDesign updated via section delta (${deltaCount} patched, ${sectionCount} total sections).`
+        : `DeepDesign updated (${sectionCount} section(s)).`;
+      return { content: [{ type: "text", text: message }], metadata: { design: nextContent } } as CallToolResult;
     }
   );
 }

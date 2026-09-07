@@ -9,6 +9,8 @@ type Props = {
   root: string;
   /** Bump to refetch (e.g. when the session list changes). */
   refreshKey?: string | number;
+  /** Opens the global heatmap modal (hosted at App shell level). */
+  onOpenHeatmap: () => void;
 };
 
 /**
@@ -17,8 +19,10 @@ type Props = {
  * renderer — one source for every surface, exact ledger-based time windows,
  * estimated cost. All numbers are LOCAL counts (the engine's accounting
  * source since the local-accounting rework), so they carry a "≈" character.
+ * The header「模型热力图」button opens the model-detail popup
+ * (specs/token-model-charts) — an overlay that never reflows this panel.
  */
-export function TokenStatsPanel({ root, refreshKey }: Props): JSX.Element {
+export function TokenStatsPanel({ root, refreshKey, onOpenHeatmap }: Props): JSX.Element {
   const { t } = useI18n();
   const [summary, setSummary] = useState<WorkspaceTokenSummary | null>(null);
 
@@ -42,6 +46,9 @@ export function TokenStatsPanel({ root, refreshKey }: Props): JSX.Element {
       <div className="ui-side-panel">
         <div className="ui-side-panel-head">
           <span>{t("tokens.title")}</span>
+          <button type="button" className="ui-token-heat-btn" onClick={onOpenHeatmap} title={t("tokens.heatmap")}>
+            ▦ {t("tokens.heatmap")}
+          </button>
         </div>
         <div className="ui-side-panel-body">
           <div className="ui-side-panel-empty">{t("common.loading")}</div>
@@ -73,6 +80,9 @@ export function TokenStatsPanel({ root, refreshKey }: Props): JSX.Element {
     <div className="ui-side-panel">
       <div className="ui-side-panel-head">
         <span>{t("tokens.title")}</span>
+        <button type="button" className="ui-token-heat-btn" onClick={onOpenHeatmap} title={t("tokens.heatmap")}>
+          ▦ {t("tokens.heatmap")}
+        </button>
       </div>
       <div className="ui-side-panel-body ui-token-stats">
         <div className="ui-token-hero">

@@ -79,7 +79,7 @@ test("task-hub: aggregates four domains, sorted desc within each", () => {
   assert.equal(hub.root, "/r");
   assert.deepEqual(
     hub.groups.map((g) => g.domain),
-    ["session", "index", "review", "prototype"]
+    ["session", "index", "review", "prototype", "editor"]
   );
   assert.equal(taskHubCount(hub), 2 + 1 + 2 + 1);
   const reviews = hub.groups.find((g) => g.domain === "review")!.nodes;

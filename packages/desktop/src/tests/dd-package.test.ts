@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { deflateRawSync, inflateRawSync } from "node:zlib";
-import { buildDdpPackage, buildDduPackage, zipEntries } from "../main/tools/dd-package";
+import { buildDdpPackage, buildDduOpenuiPackage, buildDduPackage, zipEntries } from "../main/tools/dd-package";
 
 /**
  * Minimal zip READER for structural round-trip assertions: locate the EOCD,
@@ -118,4 +118,19 @@ test("buildDdpPackage: manifest + source.openui.txt + escaped viewer stub", () =
   // The source is HTML-escaped inside the viewer stub.
   assert.ok(html.includes("Click &lt;me&gt;"));
   assert.equal(html.includes("Click <me>"), false);
+});
+
+test("buildDduOpenuiPackage: manifest + source.openui.txt + ui-design viewer stub", () => {
+  const source = 'root = Screen("Board")\nhero = Card(data-sem="hero")';
+  const zip = buildDduOpenuiPackage({ id: "ui-1", title: "Board <UI>" }, source, "2026-09-06T00:00:00.000Z");
+  const files = readZip(zip);
+  assert.deepEqual([...files.keys()].sort(), ["index.html", "manifest.json", "source.openui.txt"]);
+  const manifest = JSON.parse(files.get("manifest.json")!.toString("utf8"));
+  assert.equal(manifest.format, "ddu");
+  assert.equal(manifest.formatVersion, 1);
+  assert.equal(manifest.kind, "ui-design");
+  assert.equal(manifest.pipeline, "openui");
+  assert.equal(files.get("source.openui.txt")!.toString("utf8"), source);
+  assert.match(files.get("index.html")!.toString("utf8"), /Board &lt;UI&gt;/);
+  assert.match(files.get("index.html")!.toString("utf8"), /UI-Design document package/);
 });

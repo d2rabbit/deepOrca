@@ -19,6 +19,7 @@ import { useI18n } from "../i18n";
 import { IconShield, IconSparkle, IconWarn } from "../ui/index";
 import { FindingBody, parseFinding, SEV_CLASS, type ReportFinding } from "../lib/report-view";
 import { formatAbsolute } from "./task-hub-format";
+import type { TaskHubQuickView } from "./TaskHubWorkspace";
 
 /** Localized status line for a report's tri-state backend status — the raw
  *  `statusNote` is model-speak (English diagnostics for the agent) and must
@@ -198,6 +199,90 @@ export function BuildQuickContent({
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+/** One trajectory step as a structured report (2026-09-06 user ask: the
+ *  detail was a bare JSON dump — key/value params, local op time and the
+ *  tool's result markdown turn it into a real report). Extracted from
+ *  App.tsx at the file-length hard limit. */
+export function StepDetailQuickContent({
+  step,
+}: {
+  step: Extract<TaskHubQuickView, { kind: "step-detail" }>["step"];
+}): JSX.Element {
+  const { t } = useI18n();
+  let prettyArg = step.arg ?? "";
+  const paramRows: Array<{ k: string; v: string }> = [];
+  try {
+    const parsed = JSON.parse(step.arg) as Record<string, unknown>;
+    if (parsed && typeof parsed === "object") {
+      for (const [k, v] of Object.entries(parsed)) {
+        paramRows.push({ k, v: typeof v === "string" ? v : JSON.stringify(v) });
+      }
+      prettyArg = JSON.stringify(parsed, null, 2);
+    }
+  } catch {
+    /* non-JSON args stay raw */
+  }
+  // Local op time — reuse the shared formatter, but keep the row hidden for
+  // unparseable timestamps (formatAbsolute would render a bare "—").
+  const at = step.at ? new Date(step.at) : null;
+  const opTime = at && !Number.isNaN(at.getTime()) && step.at ? formatAbsolute(step.at) : "";
+  return (
+    <div className="ui-depth-op-report">
+      <div className="ui-depth-op-head">
+        <span className={`ui-depth-op-status ${step.fail ? "fail" : "ok"}`}>
+          {step.fail
+            ? `✗ ${t("msg.toolFail")}`
+            : step.ok
+              ? `✓ ${t("msg.taskDone")}`
+              : `◐ ${t("taskhub.status.running")}`}
+        </span>
+        <span className="ui-depth-op-tool">{step.tool}</span>
+        {step.mcp ? <span className="ui-depth-op-mcp">{step.mcp}</span> : null}
+      </div>
+      <div className="ui-depth-op-meta">
+        <div className="ui-depth-op-meta-item">
+          <span className="ui-depth-op-meta-label">{t("taskrec.detailDuration")}</span>
+          <span className="ui-depth-op-meta-value">{step.ms || "—"}</span>
+        </div>
+        {opTime ? (
+          <div className="ui-depth-op-meta-item">
+            <span className="ui-depth-op-meta-label">{t("taskrec.detailTime")}</span>
+            <span className="ui-depth-op-meta-value">{opTime}</span>
+          </div>
+        ) : null}
+        {step.mcp ? (
+          <div className="ui-depth-op-meta-item">
+            <span className="ui-depth-op-meta-label">MCP</span>
+            <span className="ui-depth-op-meta-value">{step.mcp}</span>
+          </div>
+        ) : null}
+      </div>
+      {paramRows.length > 0 ? (
+        <div className="ui-depth-op-section">
+          <div className="ui-depth-op-section-label">{t("taskrec.detailArgs")}</div>
+          {paramRows.map((row) => (
+            <div key={row.k} className="ui-depth-op-kv">
+              <span className="k mono">{row.k}</span>
+              <span className="v mono">{row.v}</span>
+            </div>
+          ))}
+        </div>
+      ) : step.arg ? (
+        <div className="ui-depth-op-section">
+          <div className="ui-depth-op-section-label">{t("taskrec.detailArgs")}</div>
+          <pre className="ui-depth-op-pre">{prettyArg}</pre>
+        </div>
+      ) : null}
+      {step.resultMd ? (
+        <div className="ui-depth-op-section">
+          <div className="ui-depth-op-section-label">{t("taskrec.detailResult")}</div>
+          <pre className="ui-depth-op-pre">{step.resultMd}</pre>
+        </div>
+      ) : null}
     </div>
   );
 }

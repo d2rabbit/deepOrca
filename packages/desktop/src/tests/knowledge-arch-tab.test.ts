@@ -43,14 +43,14 @@ const statusWith = (files: NonNullable<KnowledgeStatusResponse["archmaps"]["file
     files.length > 0 ? { state: "indexed", count: files.length, unit: "张", files } : { state: "empty", files: [] },
 });
 
-function mountPanel(): ReturnType<typeof rtl.render> {
+function mountPanel(onOpenFile: (path: string) => void = () => {}): ReturnType<typeof rtl.render> {
   return rtl.render(
     ReactPkg.createElement(
       I18nProvider,
       null,
       ReactPkg.createElement(KnowledgePanel, {
         root: "/tmp/proj",
-        onOpenFile: () => {},
+        onOpenFile,
         onQuoteToChat: () => {},
       })
     )
@@ -174,4 +174,79 @@ test("empty archmaps state shows the empty hint, no launcher", async () => {
     assert.ok(view.getByText("还没有架构图——请先构建"), "empty-state hint renders");
   });
   assert.equal(view.container.querySelector(".ui-arch-board-frame"), null, "no embed without artifacts");
+});
+
+/** Shared fixture for the node-anchor bridge tests (arch-map-reinforce R6):
+ *  a delivered architecture hero whose gate-verified IR anchors one
+ *  component to a repo-relative source path. */
+async function mountHeroWithAnchors(
+  onOpenFile: (path: string) => void,
+  irJson: string
+): Promise<ReturnType<typeof rtl.render>> {
+  const htmlPath = "/tmp/proj/.deeporca/prototypes/arch-demo.architecture.html";
+  Object.assign(holder, {
+    knowledgeStatus: async () =>
+      statusWith([
+        {
+          name: "arch-demo.architecture",
+          path: "/tmp/proj/.deeporca/prototypes/arch-demo.architecture.json",
+          mtime: new Date().toISOString(),
+          type: "architecture",
+          htmlPath,
+        },
+      ]),
+    wikiListPages: async () => [],
+    knowledgeSymbols: async () => [],
+    agentsRead: async () => "",
+    knowledgeArchRender: async () => ({ ok: true, htmlPath }),
+    knowledgeArchReadJson: async () => ({ ok: true, json: irJson }),
+  });
+  const view = mountPanel(onOpenFile);
+  rtl.fireEvent.click(view.getByText("架构图"));
+  await rtl.waitFor(() => {
+    assert.ok(view.container.querySelector(".ui-arch-board-frame"), "hero embeds before messaging");
+  });
+  // The anchor map loads asynchronously after the gate — settle before
+  // dispatching focus messages (no DOM signal exists for the map itself).
+  await new Promise((r) => setTimeout(r, 20));
+  return view;
+}
+
+const ANCHORED_IR = JSON.stringify({
+  components: [
+    { id: "core", type: "backend", label: "Core", sources: [{ path: "src/core/engine.ts", line: 1 }] },
+    { id: "bare", type: "frontend", label: "Bare" },
+  ],
+  connections: [],
+  meta: {},
+});
+
+/** jsdom-realm MessageEvent — the panel listens on the jsdom window, so the
+ *  event must come from jsdom's own constructor (dom-harness does not mirror
+ *  it onto globalThis; Node's built-in one dispatches cross-realm and fails). */
+const jsdomMessageEvent = (data: unknown): MessageEvent =>
+  new (window as unknown as { MessageEvent: typeof MessageEvent }).MessageEvent("message", { data });
+
+test("node-anchor bridge: focused nodeId with a source opens the file in the editor (R6)", async () => {
+  const opened: string[] = [];
+  await mountHeroWithAnchors((p) => opened.push(p), ANCHORED_IR);
+  window.dispatchEvent(jsdomMessageEvent({ type: "deeporca-node-focus", nodeId: "core" }));
+  assert.deepEqual(
+    opened,
+    ["/tmp/proj/src/core/engine.ts"],
+    "root is derived from the IR path, source joined relative"
+  );
+});
+
+test("node-anchor bridge: no-anchor or malformed payloads are silently ignored (R6)", async () => {
+  const opened: string[] = [];
+  await mountHeroWithAnchors((p) => opened.push(p), ANCHORED_IR);
+  // Node without sources / unknown id / wrong shape / hostile type — none may open.
+  window.dispatchEvent(jsdomMessageEvent({ type: "deeporca-node-focus", nodeId: "bare" }));
+  window.dispatchEvent(jsdomMessageEvent({ type: "deeporca-node-focus", nodeId: "nope" }));
+  window.dispatchEvent(jsdomMessageEvent({ type: "deeporca-node-focus", nodeId: 42 }));
+  window.dispatchEvent(jsdomMessageEvent({ type: "other", nodeId: "core" }));
+  window.dispatchEvent(jsdomMessageEvent("deeporca-node-focus"));
+  await new Promise((r) => setTimeout(r, 10));
+  assert.deepEqual(opened, [], "no anchor, no open");
 });

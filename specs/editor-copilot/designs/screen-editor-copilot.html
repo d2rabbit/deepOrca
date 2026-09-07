@@ -1,0 +1,1720 @@
+<!doctype html>
+<html lang="zh-CN" data-appearance="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>DeepOrca · 编辑器结对画布 · 视觉交互稿</title>
+<!--
+  screen-editor-copilot.html · v1（2026-09-05）
+  ─────────────────────────────────────────────────────────────
+  所属: specs/editor-copilot（编辑器模块重构「结对画布」——唯一方案见 ../design.md，
+        本稿为其交互视觉稿，只涉及编辑器模块）
+  上游: ../design.md（2026-09-05 技术设计：CM6 内核替换 + @codemirror/lsp-client 深入化）
+        docs/research/2026-09-05-editor-kernel-selection.md（内核选型调研）
+        ../designs/proof-codemirror6.html（CM6 可行性实验：流式/审阅红绿/hunk 芯片真实 API 跑通）
+        packages/desktop/src/renderer/components/editor/*（现状：Monaco + 选区浮窗「问数字体」）
+        specs/editor-agent/design.md + implementation.md（S1–S4 已落地的第一切片）
+        docs/research/2026-08-19-ui-ux-redesign-vision.md（Orca Deck：五主张 / Inspector / 权限队列 / 浮层归栈）
+        specs/design-systems-advance/designs/screen-design-workbench.html（视觉稿格式先例 + 令牌板同源）
+  格式: 单文件 HTML · 零依赖 · 无图片（图标全部 CSS/SVG/字符）· orca 旗舰暗色默认 + 亮色板切换
+        示例代码为演示用假体（usage-ledger.ts），语法高亮为手写 span，非真实解析
+  ── 现状问题（诊断，对应画布中的交互区） ──
+   P1  AI 与画布物理分离：结果是浮窗里的一段 diff，代码画布上只有一块淡黄 pending 装饰；
+       「应用到选区」是唯一落点，无 hunk 级、无画布内审阅。
+   P2  聊天式指令：浮窗 = textarea + 发送 + busy 转圈；非流式、无计划步骤、无工具可见性，
+       用户在"盯着等"和"回来一看一个结果"之间二选一。
+   P3  只有一条触发路径：选中 → 点 FAB → 打字；无 ⌘I 行内、无 ⌘K 命令、无快捷意图、
+       无诊断灯泡一键修复——VSCode 的肌肉记忆在这里失灵。
+   P4  上下文黑盒：数字体只看到 选区+文件路径；用户不知道它看到了什么、漏了什么，
+       没有上下文编排（@file / #符号 / 诊断）。
+   P5  无留存表达：file-history 有基建但编辑器内无 AI 改动检查点；自动保存 800ms 使 AI
+       应用后直接写盘，AI 与人共用同一个 undo 栈，风险敞口不透明。
+   P6  「到会话」旁路把用户扔回聊天流——编辑器让位于聊天，恰是 Orca Deck 愿景批判的
+       "编辑器旁边挂个聊天"反模式。
+  ── 设计哲学：结对画布 Pair Canvas ──
+   命题：代码画布是唯一真相源，AI 的一切动作都「发生在画布上」，人始终握着笔。
+   四原则:
+    ① 入画 In-buffer   —— AI 输出直接渲染进画布（画布内 diff 装饰 / 逐行流入 / hunk 芯片），
+                          不再有"结果浮窗"；看 diff = 看代码本身。
+    ② 意图 Intent      —— 选中即意图、诊断即意图、悬停即意图；快捷意图卡（解释/重构/补测试/写文档）
+                          替代"打指令"；含糊意图用 A2UI 结构化反问就地澄清。
+    ③ 流痕 Stream      —— 生成逐行流入画布（pending 高亮跟随），计划步骤与工具活动实时推进；
+                          没有转圈黑盒。
+    ④ 护栏 Guardrail   —— 小改动行内直批（hunk 级 ✓/✕，Tab/Esc），大任务进「结对栏」多步执行：
+                          计划 → 改动 → 验证，检查点可回滚，写盘前可审，跨文件走审批队列。
+   （键盘为第五原则的载体：⌘I 行内 · ⌘K 命令 · Tab 接受 · Esc 丢弃 · ⌘⏎ 应用 · ⌘⌫ 整体回滚）
+  交互演示清单（可直接点击）:
+   D1  主题切换        稿头 ☀/☾ —— data-appearance 双板
+   D2  标注层          稿头「标注」—— 编号说明各交互区（①-⑦）
+   D3  行内协作        选中代码（L21-30 预置选区）点击它 / ⌘I —— 锚定选区的行内协作条展开
+   D4  流式生成        协作条发送（⌘⏎）—— pending 行逐行流入 + 计划步骤推进 + 结对栏工具活动流
+                       → 完成后切换为画布内 diff（+绿 / −红 ghost + hunk 芯片）
+   D5  hunk 级审阅     画布底部审阅工具条：全部应用 ⌘⏎ / 逐 hunk ✓✕（hover hunk 出现）/ 导航 / 丢弃 Esc
+   D6  快捷意图        协作条内意图芯片（解释/重构/补测试/写文档）一键预填发起；
+                       悬停选区浮出迷你意图条
+   D7  诊断驱动修复    L34 波浪线（ts2554）→ 行尾 ⚡ 灯泡 → 「AI 修复此诊断」→ 流式小 diff → 应用
+   D8  跨文件任务      结对栏「跨文件任务」—— 三文件计划 + 变更文件列表 + 审批队列（允许/拒绝）
+   D9  变更文件        结对栏变更文件行：+N/−M 与状态徽章，点击行 → 对应 tab 高亮（示意 buffer diff）
+   D10 检查点回滚      应用后检查点轨追加节点；点击旧节点 → 预览 / 回滚（画布恢复）
+   D11 上下文编排      协作条「+ 上下文」菜单 —— @文件 / #符号 / 诊断 chips，显示数字体将注入什么
+   D12 A2UI 澄清      意图芯片「优化它」（故意含糊）→ 数字体反问结构化表单（radio+input）→ 续跑
+   D13 命令面板        ⌘K / 稿头按钮 —— 编辑器命令面板（AI: 修复诊断 / 解释 / 重构 / 补测试…）
+   D14 快速定位         ⌘P(@ 文件) / ⌘T(# 工作区符号) / ⌘⇧O(. 当前文件符号) —— 索引假体
+                       复用同一 fzf 面板：fuzzy 子序列 + kind 徽章 + 路径:行号 + Tab 预览语义；
+                       ⏎ 定位到行（画布滚动 + 高亮闪烁）；数据源对应 design.md §6（codegraph nodes）
+   D15 定位即意图       结果行尾 ✦ 按钮 —— 定位符号后一键「问数字体」（解释该符号），
+                       快速定位与 AI 协作首尾相连
+   Esc = 按优先级关最上层（灯泡菜单/命令面板/上下文菜单 → 协作条 → 审阅=丢弃）
+   ▶ 全流程演示 = D3→D4→D5 自动连播
+-->
+<style>
+/* ═══════════ 令牌板（暗 = orca 旗舰 / 亮 = tokens.css 亮色值，与 design-workbench 同源） ═══════════ */
+:root{
+  --ui-bg:#080a14; --ui-surface:#0c1020; --ui-surface-raised:#12182e; --ui-surface-sunken:#05060d;
+  --ui-surface-hover:rgba(0,243,255,.06);
+  --ui-text:#e6f1ff; --ui-text-dim:#8b9bb4; --ui-text-faint:#5a6a84; --ui-text-on-accent:#04121a;
+  --ui-accent:#00f3ff; --ui-accent-strong:#00c4d6; --ui-accent-soft:rgba(0,243,255,.12); --ui-focus-ring:rgba(0,243,255,.6);
+  --ui-border:rgba(0,243,255,.22); --ui-border-soft:rgba(0,243,255,.1);
+  --ui-success:#00f0a0; --ui-danger:#ff007f; --ui-warning:#ffb020; --ui-info:#7b9dff;
+  --ui-radius-sm:2px; --ui-radius-md:3px; --ui-radius-lg:4px; --ui-radius-pill:999px;
+  --ui-shadow-sm:0 1px 3px rgba(0,0,0,.5);
+  --ui-shadow-card:0 4px 24px rgba(0,0,0,.45), 0 0 0 1px rgba(0,243,255,.04);
+  --ui-shadow-modal:0 18px 60px rgba(0,0,0,.7), 0 0 40px rgba(0,243,255,.08);
+  --ui-space-1:4px; --ui-space-2:8px; --ui-space-3:12px; --ui-space-4:16px; --ui-space-5:24px; --ui-space-6:32px;
+  --ui-ease:cubic-bezier(0.22,0.61,0.36,1);
+  --ui-font-sans:"Inter","PingFang SC","Hiragino Sans GB","Microsoft YaHei",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  --ui-font-mono:"JetBrains Mono",ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+  --orca-cyan-dim:rgba(0,243,255,.55); --orca-cyan-line:rgba(0,243,255,.35);
+  --diff-add-bg:rgba(0,240,160,.09); --diff-add-line:rgba(0,240,160,.5); --diff-add-text:#a9ffd9;
+  --diff-del-bg:rgba(255,0,127,.09); --diff-del-line:rgba(255,0,127,.5); --diff-del-text:#ffb3d3;
+  --pend-bg:rgba(255,176,32,.10); --pend-line:rgba(255,176,32,.55); --pend-text:#ffd9a0;
+  --sel-bg:rgba(0,243,255,.09); --sel-rail:var(--ui-accent);
+  /* 代码语法（暗） */
+  --sy-kw:#b197fc; --sy-str:#63e6be; --sy-cm:#5a6a84; --sy-fn:#74c0fc; --sy-num:#ffa94d; --sy-typ:#ffd43b; --sy-tx:#d5e3f5;
+  /* 工具点色 */
+  --c-bash:#ffa94d; --c-read:#74c0fc; --c-edit:#f783ac; --c-lint:#ffd43b; --c-plan:#b197fc;
+}
+:root[data-appearance="light"]{
+  --ui-bg:#f4f6fa; --ui-surface:#ffffff; --ui-surface-raised:#ffffff; --ui-surface-sunken:#eef1f6;
+  --ui-surface-hover:rgba(0,0,0,.05);
+  --ui-text:#1b2129; --ui-text-dim:#55606d; --ui-text-faint:#8590a0; --ui-text-on-accent:#ffffff;
+  --ui-accent:#1c6fe0; --ui-accent-strong:#0f52bd; --ui-accent-soft:rgba(28,111,224,.14); --ui-focus-ring:rgba(60,132,235,.9);
+  --ui-border:#9aa7b6; --ui-border-soft:#c3cdd9;
+  --ui-success:#2f9e44; --ui-danger:#d1453b; --ui-warning:#cf9310; --ui-info:#7b4fe0;
+  --ui-radius-sm:6px; --ui-radius-md:9px; --ui-radius-lg:12px;
+  --ui-shadow-sm:0 1px 2px rgba(0,0,0,.16);
+  --ui-shadow-card:0 1px 2px rgba(0,0,0,.2), 0 6px 20px rgba(20,50,100,.14);
+  --ui-shadow-modal:0 18px 60px rgba(0,0,0,.32);
+  --orca-cyan-dim:rgba(28,111,224,.65); --orca-cyan-line:rgba(28,111,224,.35);
+  --diff-add-bg:rgba(47,158,68,.10); --diff-add-line:rgba(47,158,68,.45); --diff-add-text:#1d7a33;
+  --diff-del-bg:rgba(209,69,59,.10); --diff-del-line:rgba(209,69,59,.45); --diff-del-text:#b04a41;
+  --pend-bg:rgba(207,147,16,.12); --pend-line:rgba(207,147,16,.5); --pend-text:#8a6200;
+  --sel-bg:rgba(28,111,224,.10); --sel-rail:var(--ui-accent);
+  --sy-kw:#9a36b8; --sy-str:#0ca678; --sy-cm:#8590a0; --sy-fn:#1c6fe0; --sy-num:#e8590c; --sy-typ:#b08c00; --sy-tx:#2b3542;
+  --c-bash:#e8590c; --c-read:#1c6fe0; --c-edit:#d6386c; --c-lint:#b08c00; --c-plan:#9a36b8;
+}
+
+/* ═══════════ 基础 ═══════════ */
+*{box-sizing:border-box; margin:0; padding:0}
+html,body{height:100%}
+body{
+  font-family:var(--ui-font-sans); font-size:13px; line-height:1.5; color:var(--ui-text);
+  background:var(--ui-bg); overflow:hidden; -webkit-font-smoothing:antialiased;
+}
+button{font:inherit; color:inherit; background:none; border:none; cursor:pointer}
+button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--ui-focus-ring); outline-offset:1px}
+input,select,textarea{font:inherit; color:inherit}
+.mono{font-family:var(--ui-font-mono)}
+::-webkit-scrollbar{width:8px; height:8px}
+::-webkit-scrollbar-thumb{background:var(--ui-border-soft); border-radius:99px}
+::-webkit-scrollbar-track{background:transparent}
+@media (prefers-reduced-motion: reduce){ *,*::before,*::after{animation:none!important; transition:none!important} }
+
+/* ═══════════ 应用骨架：稿头 / 编辑器 chrome / 三列 / 检查点轨 / 状态栏 ═══════════ */
+.app{height:100vh; display:grid; position:relative;
+  grid-template-rows:30px 40px 1fr 34px 26px;
+  grid-template-columns:200px 1fr 304px;
+  grid-template-areas:"doc doc doc" "chrome chrome chrome" "tree canvas dock" "cp cp cp" "status status status";
+}
+.app.no-dock{grid-template-columns:200px 1fr 0}
+
+/* ── 稿头（视觉稿控制条，非产品 UI） ── */
+.docbar{grid-area:doc; display:flex; align-items:center; gap:10px; padding:0 12px;
+  background:var(--ui-surface-sunken); border-bottom:1px solid var(--ui-border-soft); font-size:11px; color:var(--ui-text-dim); z-index:40}
+.docbar .t{font-weight:650; color:var(--ui-text)}
+.docbar .sep{opacity:.4}
+.docbar .grow{flex:1}
+.dbtn{height:22px; padding:0 10px; display:inline-flex; align-items:center; gap:5px;
+  border:1px solid var(--ui-border-soft); border-radius:var(--ui-radius-pill); background:var(--ui-surface);
+  font-size:11px; color:var(--ui-text-dim); transition:all .15s var(--ui-ease)}
+.dbtn:hover{color:var(--ui-text); border-color:var(--ui-border); background:var(--ui-surface-hover)}
+.dbtn.on{color:var(--ui-accent); border-color:var(--ui-border)}
+.dbtn kbd{font-family:var(--ui-font-mono); font-size:10px; color:var(--ui-text-faint)}
+.dbtn.play{color:var(--ui-success); border-color:color-mix(in srgb, var(--ui-success) 45%, transparent)}
+
+/* ── 编辑器 chrome（tabs + 面包屑 + 动作） ── */
+.chrome{grid-area:chrome; display:flex; align-items:stretch; background:var(--ui-surface);
+  border-bottom:1px solid var(--ui-border-soft); z-index:30; position:relative}
+.tabs{display:flex; align-items:flex-end; min-width:0; overflow:hidden}
+.tab{height:40px; display:flex; align-items:center; gap:7px; padding:0 14px; font-size:12px; color:var(--ui-text-dim);
+  border-right:1px solid var(--ui-border-soft); position:relative; cursor:pointer; white-space:nowrap; transition:color .15s}
+.tab:hover{color:var(--ui-text); background:var(--ui-surface-hover)}
+.tab.active{color:var(--ui-text); background:var(--ui-bg)}
+.tab.active::before{content:""; position:absolute; left:0; right:0; top:0; height:2px; background:var(--ui-accent);
+  box-shadow:0 0 10px var(--orca-cyan-dim)}
+.tab .f-ic{width:13px; height:13px; border-radius:3px; flex:none}
+.tab .dirty{width:7px; height:7px; border-radius:50%; background:var(--ui-text-faint); flex:none}
+.tab .ai{width:7px; height:7px; border-radius:50%; background:var(--ui-warning); flex:none; display:none;
+  box-shadow:0 0 8px rgba(255,176,32,.7)}
+.tab.has-ai .ai{display:block; animation:aiblink 1.6s ease-in-out infinite}
+.tab.has-dirty .dirty{background:var(--ui-warning)}
+@keyframes aiblink{0%,100%{opacity:.55}50%{opacity:1}}
+.chrome-actions{margin-left:auto; display:flex; align-items:center; gap:8px; padding:0 12px}
+.cbtn{height:26px; padding:0 11px; display:inline-flex; align-items:center; gap:6px;
+  border:1px solid var(--ui-border-soft); border-radius:var(--ui-radius-pill); background:var(--ui-surface-raised);
+  font-size:11.5px; color:var(--ui-text-dim); transition:all .15s var(--ui-ease); white-space:nowrap}
+.cbtn:hover{color:var(--ui-text); border-color:var(--ui-border); background:var(--ui-surface-hover)}
+.cbtn kbd{font-family:var(--ui-font-mono); font-size:10px; color:var(--ui-text-faint)}
+.cbtn.on{color:var(--ui-accent); border-color:var(--ui-border)}
+.cbtn.pair-cta{color:var(--ui-accent)}
+.cbtn.pair-cta:hover{background:var(--ui-accent-soft)}
+
+/* ── 文件树（窄轨，示意） ── */
+.tree{grid-area:tree; background:var(--ui-surface); border-right:1px solid var(--ui-border-soft);
+  overflow:auto; padding:8px 0; font-size:12px}
+.tree .h{padding:2px 12px 6px; font-size:10.5px; letter-spacing:.08em; color:var(--ui-text-faint); text-transform:uppercase}
+.tnode{display:flex; align-items:center; gap:6px; padding:3px 10px 3px 12px; color:var(--ui-text-dim); cursor:pointer; white-space:nowrap}
+.tnode:hover{color:var(--ui-text); background:var(--ui-surface-hover)}
+.tnode.d1{padding-left:24px}.tnode.d2{padding-left:36px}
+.tnode .f-ic{width:13px; height:13px; border-radius:3px; flex:none}
+.tnode.chev::before{content:"▸"; font-size:9px; color:var(--ui-text-faint); width:10px; flex:none}
+.tnode.chev.open::before{content:"▾"}
+.tnode.active{color:var(--ui-accent); background:var(--ui-accent-soft)}
+.tnode .badge-new{font-size:9.5px; padding:1px 6px; border-radius:99px; background:var(--ui-accent-soft); color:var(--ui-accent); margin-left:auto}
+.tnode .ai{width:6px; height:6px; border-radius:50%; background:var(--ui-warning); margin-left:auto; display:none}
+.tnode.has-ai .ai{display:block}
+
+/* ── 画布 ── */
+.canvas{grid-area:canvas; display:flex; flex-direction:column; min-width:0; min-height:0; background:var(--ui-bg); position:relative}
+.crumb{height:26px; flex:none; display:flex; align-items:center; gap:4px; padding:0 14px; font-size:11.5px; color:var(--ui-text-faint);
+  border-bottom:1px solid var(--ui-border-soft); white-space:nowrap; overflow:hidden}
+.crumb .c{cursor:pointer; color:var(--ui-text-dim)} .crumb .c:hover{color:var(--ui-text); text-decoration:underline}
+.crumb .c.sym{color:var(--ui-text)} .crumb .sep{opacity:.5}
+.code-scroll{flex:1; min-height:0; overflow:auto; position:relative}
+.code{font-family:var(--ui-font-mono); font-size:12.5px; line-height:21px; padding:10px 0 200px; min-width:720px}
+.ln{display:flex; align-items:stretch; position:relative}
+.ln .gut{width:52px; flex:none; text-align:right; padding-right:14px; color:var(--ui-text-faint);
+  user-select:none; font-size:11px; line-height:21px; position:relative}
+.ln .tx{white-space:pre; padding-right:24px}
+/* 语法 */
+.kw{color:var(--sy-kw)} .str{color:var(--sy-str)} .cm{color:var(--sy-cm); font-style:italic}
+.fn{color:var(--sy-fn)} .num{color:var(--sy-num)} .typ{color:var(--sy-typ)}
+.ln .tx{color:var(--sy-tx)}
+/* 选区（预置） */
+.ln.sel{background:var(--sel-bg); cursor:pointer}
+.ln.sel .gut{color:var(--sel-rail)}
+.ln.sel::before{content:""; position:absolute; left:0; top:0; bottom:0; width:2px; background:var(--sel-rail); opacity:.8}
+.ln.sel:hover{background:color-mix(in srgb, var(--sel-bg) 65%, var(--ui-surface-hover))}
+.ln.jump{box-shadow:inset 0 0 0 2px var(--ui-accent), inset 0 0 14px var(--ui-accent-soft); animation:jump 1.2s var(--ui-ease)}
+@keyframes jump{0%,100%{box-shadow:inset 0 0 0 2px var(--ui-accent)}50%{box-shadow:inset 0 0 0 2px var(--ui-accent), 0 0 18px var(--orca-cyan-dim)}}
+/* 诊断波浪线 */
+.ln .sq{position:relative}
+.ln.diag .tx .fn-call{
+  text-decoration-line:underline; text-decoration-style:wavy; text-decoration-color:var(--ui-danger);
+  text-decoration-thickness:2px; text-underline-offset:5px;
+  background:color-mix(in srgb, var(--ui-danger) 8%, transparent); border-radius:2px;
+}
+/* ── 画布内 diff 装饰 ── */
+.ln.add{background:var(--diff-add-bg)}
+.ln.add .gut{color:var(--diff-add-text)}
+.ln.add::before{content:""; position:absolute; left:0; top:0; bottom:0; width:2px; background:var(--diff-add-line)}
+.ln.del{background:var(--diff-del-bg); opacity:.85}
+.ln.del .gut{color:var(--diff-del-text)}
+.ln.del .tx{text-decoration:line-through; text-decoration-color:color-mix(in srgb, var(--diff-del-line) 70%, transparent); color:var(--diff-del-text)}
+.ln.del::before{content:""; position:absolute; left:0; top:0; bottom:0; width:2px; background:var(--diff-del-line)}
+.ln.pending{background:var(--pend-bg)}
+.ln.pending .gut{color:var(--pend-text)}
+.ln.pending::before{content:""; position:absolute; left:0; top:0; bottom:0; width:2px; background:var(--pend-line);
+  box-shadow:0 0 10px color-mix(in srgb, var(--pend-line) 60%, transparent)}
+.ln.settle{transition:background .6s var(--ui-ease)}
+/* hunk 组边界（虚线上缘） */
+.ln.hunk-first::after{content:""; position:absolute; left:0; right:0; top:-1px; border-top:1px dashed var(--ui-border-soft)}
+/* 悬停 hunk 出现的操作浮钮 */
+.hunk-tools{position:absolute; right:18px; top:0; display:flex; gap:6px; z-index:6; opacity:0; pointer-events:none; transition:opacity .12s}
+.ln:hover .hunk-tools, .hunk-tools.pinned{opacity:1; pointer-events:auto}
+.htbtn{height:22px; padding:0 9px; display:inline-flex; align-items:center; gap:4px; font-size:11px;
+  border-radius:var(--ui-radius-pill); border:1px solid; background:var(--ui-surface-raised); box-shadow:var(--ui-shadow-sm)}
+.htbtn.ok{color:var(--ui-success); border-color:color-mix(in srgb, var(--ui-success) 45%, transparent)}
+.htbtn.no{color:var(--ui-text-dim); border-color:var(--ui-border-soft)}
+.htbtn:hover{background:var(--ui-surface-hover)}
+/* hunk 徽章（行号沟） */
+.hunk-badge{position:absolute; left:4px; top:1px; font-size:9px; padding:0 5px; border-radius:99px;
+  background:var(--ui-accent-soft); color:var(--ui-accent); letter-spacing:.04em}
+/* 诊断灯泡 */
+.bulb{position:absolute; right:10px; top:0; height:21px; display:flex; align-items:center; font-size:13px;
+  color:var(--ui-warning); opacity:0; transition:opacity .15s; cursor:pointer; z-index:6}
+.ln.diag:hover .bulb, .bulb.pinned{opacity:1}
+.bulb:hover{filter:drop-shadow(0 0 6px rgba(255,176,32,.8))}
+/* 选区悬停迷你意图条 */
+.mini-intent{position:absolute; right:16px; top:-24px; display:flex; gap:6px; opacity:0; transition:opacity .15s; z-index:6}
+.ln.sel:hover .mini-intent, .mini-intent.pinned{opacity:1}
+.mbtn{height:20px; padding:0 8px; font-size:10.5px; border-radius:99px; border:1px solid var(--ui-border-soft);
+  background:var(--ui-surface-raised); color:var(--ui-text-dim); box-shadow:var(--ui-shadow-sm)}
+.mbtn:hover{color:var(--ui-accent); border-color:var(--ui-border)}
+
+/* ═══════════ 行内协作条（锚定选区下方 · D3/D4/D11/D12） ═══════════ */
+.pairbar{position:absolute; width:min(600px, calc(100% - 60px)); z-index:25;
+  background:var(--ui-surface-raised); border:1px solid var(--ui-border); border-radius:var(--ui-radius-lg);
+  box-shadow:var(--ui-shadow-modal); overflow:hidden;
+  animation:pairin .18s var(--ui-ease)}
+@keyframes pairin{from{opacity:0; transform:translateY(6px)} to{opacity:1; transform:none}}
+.pairbar.closing{animation:pairout .14s var(--ui-ease) forwards}
+@keyframes pairout{to{opacity:0; transform:translateY(4px)}}
+.pb-head{display:flex; align-items:center; gap:8px; padding:8px 12px 6px; font-size:11.5px; color:var(--ui-text-dim)}
+.pb-head .spark{color:var(--ui-accent); font-size:13px}
+.pb-head b{color:var(--ui-text); font-weight:600}
+.pb-head .x{margin-left:auto; width:22px; height:22px; border-radius:6px; color:var(--ui-text-faint); display:flex; align-items:center; justify-content:center}
+.pb-head .x:hover{background:var(--ui-surface-hover); color:var(--ui-text)}
+.pb-chips{display:flex; align-items:center; gap:6px; padding:0 12px 8px; flex-wrap:wrap}
+.chip{display:inline-flex; align-items:center; gap:5px; height:22px; padding:0 9px; font-size:11px; font-family:var(--ui-font-mono);
+  border:1px solid var(--ui-border-soft); border-radius:99px; background:var(--ui-surface); color:var(--ui-text-dim)}
+.chip .cd{width:6px; height:6px; border-radius:50%; flex:none}
+.chip b{color:var(--ui-text); font-weight:600}
+.chip .rm{color:var(--ui-text-faint); cursor:pointer; font-size:11px} .chip .rm:hover{color:var(--ui-danger)}
+.chip.add-ctx{cursor:pointer; color:var(--ui-text-faint); border-style:dashed}
+.chip.add-ctx:hover{color:var(--ui-accent); border-color:var(--ui-border)}
+.pb-input{display:block; width:calc(100% - 24px); margin:0 12px 8px; padding:9px 11px; font-size:12.5px; line-height:1.55;
+  background:var(--ui-surface); border:1px solid var(--ui-border-soft); border-radius:var(--ui-radius-md); color:var(--ui-text);
+  resize:none; outline:none; font-family:var(--ui-font-sans)}
+.pb-input:focus{border-color:var(--ui-border); box-shadow:0 0 0 2px var(--ui-accent-soft)}
+.pb-foot{display:flex; align-items:center; gap:6px; padding:0 12px 10px}
+.intents{display:flex; gap:6px; flex-wrap:wrap}
+.ichip{height:22px; padding:0 10px; font-size:11px; border-radius:99px; border:1px solid var(--ui-border-soft);
+  background:var(--ui-surface); color:var(--ui-text-dim)}
+.ichip:hover{color:var(--ui-accent); border-color:var(--ui-border); background:var(--ui-accent-soft)}
+.pb-foot .grow{flex:1}
+.pb-send{height:26px; padding:0 13px; display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:650;
+  border-radius:var(--ui-radius-pill); background:var(--ui-accent); color:var(--ui-text-on-accent)}
+.pb-send:hover{background:var(--ui-accent-strong)}
+.pb-send:disabled{opacity:.45; cursor:default}
+.pb-send kbd{font-family:var(--ui-font-mono); font-size:10px; opacity:.75; font-weight:400}
+.pb-ghost{font-size:11px; color:var(--ui-text-faint)} .pb-ghost:hover{color:var(--ui-text)}
+/* 流式态 */
+.pb-plan{display:flex; align-items:center; gap:8px; padding:2px 12px 10px; font-size:11.5px; color:var(--ui-text-dim)}
+.pstep{display:inline-flex; align-items:center; gap:5px}
+.pstep .dot{width:14px; height:14px; border-radius:50%; border:1.5px solid var(--ui-border); display:flex; align-items:center; justify-content:center; font-size:9px; flex:none}
+.pstep.done{color:var(--ui-text)} .pstep.done .dot{border-color:var(--ui-success); color:var(--ui-success)}
+.pstep.doing{color:var(--ui-accent)} .pstep.doing .dot{border-color:var(--ui-accent); animation:pulse 1.2s ease-in-out infinite}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 var(--ui-accent-soft)}50%{box-shadow:0 0 0 4px var(--ui-accent-soft)}}
+.pstep .lnk{width:14px; height:1px; background:var(--ui-border-soft)}
+.pb-live{font-family:var(--ui-font-mono); font-size:11px; color:var(--ui-text-faint)}
+.pb-live b{color:var(--pend-text); font-weight:600}
+/* 结果态 */
+.pb-done{display:flex; align-items:center; gap:8px; padding:4px 12px 10px; font-size:12px}
+.pb-done .ok{color:var(--ui-success); font-size:14px}
+.pb-done .stat{font-family:var(--ui-font-mono); font-size:11px; color:var(--ui-text-dim)}
+.pb-done .stat .a{color:var(--ui-success)} .pb-done .stat .d{color:var(--ui-danger)}
+.pb-review{height:26px; padding:0 12px; display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:650;
+  border-radius:var(--ui-radius-pill); background:var(--ui-accent-soft); color:var(--ui-accent); border:1px solid var(--ui-border)}
+.pb-review:hover{background:var(--ui-accent); color:var(--ui-text-on-accent)}
+.pb-review kbd{font-family:var(--ui-font-mono); font-size:10px; font-weight:400; opacity:.7}
+/* A2UI 澄清表单（D12） */
+.pb-clarify{margin:0 12px 10px; border:1px solid var(--ui-border-soft); border-radius:var(--ui-radius-md); background:var(--ui-surface); padding:10px 12px}
+.pb-clarify .q{font-size:12.5px; color:var(--ui-text); margin-bottom:8px; display:flex; gap:7px; align-items:flex-start}
+.pb-clarify .q .ic{color:var(--ui-info)}
+.cl-radio{display:flex; flex-direction:column; gap:6px; margin-bottom:8px}
+.cl-opt{display:flex; align-items:center; gap:8px; font-size:12px; color:var(--ui-text-dim); padding:6px 9px;
+  border:1px solid var(--ui-border-soft); border-radius:var(--ui-radius-md); cursor:pointer; transition:all .12s}
+.cl-opt:hover{color:var(--ui-text); background:var(--ui-surface-hover)}
+.cl-opt.sel{color:var(--ui-text); border-color:var(--ui-accent); background:var(--ui-accent-soft)}
+.cl-opt .rd{width:13px; height:13px; border-radius:50%; border:1.5px solid var(--ui-border); flex:none; position:relative}
+.cl-opt.sel .rd{border-color:var(--ui-accent)} .cl-opt.sel .rd::after{content:""; position:absolute; inset:2.5px; border-radius:50%; background:var(--ui-accent)}
+.pb-clarify input[type=text]{width:100%; padding:7px 10px; font-size:12px; background:var(--ui-surface-raised);
+  border:1px solid var(--ui-border-soft); border-radius:var(--ui-radius-md); color:var(--ui-text); outline:none; margin-bottom:9px}
+.pb-clarify input[type=text]:focus{border-color:var(--ui-border)}
+.cl-submit{height:25px; padding:0 14px; font-size:11.5px; font-weight:650; border-radius:99px;
+  background:var(--ui-accent); color:var(--ui-text-on-accent)}
+
+/* ═══════════ 画布审阅工具条（D5） ═══════════ */
+.reviewbar{position:absolute; right:18px; bottom:16px; z-index:24; display:none; align-items:center; gap:8px;
+  background:var(--ui-surface-raised); border:1px solid var(--ui-border); border-radius:var(--ui-radius-lg);
+  padding:7px 10px; box-shadow:var(--ui-shadow-modal); animation:pairin .2s var(--ui-ease)}
+.reviewbar.show{display:flex}
+.reviewbar .stat{font-family:var(--ui-font-mono); font-size:11.5px; color:var(--ui-text-dim); display:flex; gap:10px}
+.reviewbar .stat .a{color:var(--ui-success)} .reviewbar .stat .d{color:var(--ui-danger)}
+.reviewbar .stat .h{color:var(--ui-accent)}
+.rbtn{height:25px; padding:0 11px; display:inline-flex; align-items:center; gap:5px; font-size:11.5px;
+  border-radius:var(--ui-radius-pill); border:1px solid var(--ui-border-soft); color:var(--ui-text-dim); background:var(--ui-surface)}
+.rbtn:hover{color:var(--ui-text); border-color:var(--ui-border); background:var(--ui-surface-hover)}
+.rbtn kbd{font-family:var(--ui-font-mono); font-size:10px; color:var(--ui-text-faint)}
+.rbtn.primary{background:var(--ui-accent); color:var(--ui-text-on-accent); border-color:transparent; font-weight:650}
+.rbtn.primary:hover{background:var(--ui-accent-strong)}
+.rbtn.danger:hover{color:var(--ui-danger); border-color:color-mix(in srgb, var(--ui-danger) 50%, transparent)}
+.reviewbar.applied .stat{color:var(--ui-success)}
+
+/* ═══════════ 结对栏（右栏 · D8/D9） ═══════════ */
+.dock{grid-area:dock; background:var(--ui-surface); border-left:1px solid var(--ui-border-soft);
+  display:flex; flex-direction:column; overflow:hidden; min-height:0; z-index:20}
+.dock.off{visibility:hidden}
+.dk-head{display:flex; align-items:center; gap:8px; padding:9px 12px; border-bottom:1px solid var(--ui-border-soft)}
+.dk-head .t{font-size:12px; font-weight:650; display:flex; align-items:center; gap:7px}
+.dk-head .t .spark{color:var(--ui-accent)}
+.dk-head .file{font-family:var(--ui-font-mono); font-size:10.5px; color:var(--ui-text-faint); overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.dk-head .x{margin-left:auto; width:22px; height:22px; border-radius:6px; color:var(--ui-text-faint); display:flex; align-items:center; justify-content:center}
+.dk-head .x:hover{background:var(--ui-surface-hover); color:var(--ui-text)}
+.dk-status{display:flex; align-items:center; gap:7px; margin:9px 12px 0; padding:7px 10px; font-size:11.5px;
+  border:1px solid var(--ui-border-soft); border-radius:var(--ui-radius-md); background:var(--ui-surface-sunken); color:var(--ui-text-dim)}
+.dk-status .lamp{width:8px; height:8px; border-radius:50%; background:var(--ui-text-faint); flex:none}
+.dk-status.live .lamp{background:var(--ui-accent); animation:pulse 1.3s ease-in-out infinite}
+.dk-status.wait .lamp{background:var(--ui-warning)}
+.dk-status b{color:var(--ui-text); font-weight:600}
+.dk-body{flex:1; min-height:0; overflow:auto; padding:4px 12px 12px}
+.dk-sec{margin-top:12px}
+.dk-sec .h{display:flex; align-items:center; gap:6px; font-size:10.5px; letter-spacing:.08em; text-transform:uppercase;
+  color:var(--ui-text-faint); margin-bottom:7px}
+.dk-sec .h .n{margin-left:auto; font-family:var(--ui-font-mono); letter-spacing:0}
+.dk-chip{height:22px; padding:0 10px; font-size:11px; border-radius:99px; border:1px dashed var(--ui-border-soft);
+  color:var(--ui-text-faint); display:inline-flex; align-items:center; gap:5px}
+.dk-chip:hover{color:var(--ui-accent); border-color:var(--ui-border)}
+/* 计划步骤 */
+.plan{display:flex; flex-direction:column; gap:2px}
+.pl-row{display:flex; align-items:center; gap:8px; font-size:12px; color:var(--ui-text-dim); padding:4px 2px}
+.pl-row .dot{width:15px; height:15px; border-radius:50%; border:1.5px solid var(--ui-border); font-size:9px;
+  display:flex; align-items:center; justify-content:center; flex:none}
+.pl-row.done{color:var(--ui-text)} .pl-row.done .dot{border-color:var(--ui-success); color:var(--ui-success)}
+.pl-row.doing{color:var(--ui-accent)} .pl-row.doing .dot{border-color:var(--ui-accent); animation:pulse 1.2s ease-in-out infinite}
+.pl-row .meta{margin-left:auto; font-family:var(--ui-font-mono); font-size:10px; color:var(--ui-text-faint)}
+/* 工具活动流 */
+.tools{display:flex; flex-direction:column; gap:3px; font-family:var(--ui-font-mono); font-size:10.5px}
+.tl-row{display:flex; align-items:center; gap:7px; color:var(--ui-text-dim); padding:2.5px 0; animation:tlin .25s var(--ui-ease)}
+@keyframes tlin{from{opacity:0; transform:translateX(-4px)} to{opacity:1}}
+.tl-row .td{width:7px; height:7px; border-radius:2px; flex:none}
+.tl-row .tm{margin-left:auto; color:var(--ui-text-faint); font-size:9.5px}
+.tl-row.flash{color:var(--ui-text)}
+/* 变更文件（D9） */
+.flist{display:flex; flex-direction:column; gap:3px}
+.frow{display:flex; align-items:center; gap:8px; padding:6px 8px; border-radius:var(--ui-radius-md); cursor:pointer;
+  border:1px solid transparent; font-size:12px}
+.frow:hover{background:var(--ui-surface-hover); border-color:var(--ui-border-soft)}
+.frow .fn{font-family:var(--ui-font-mono); font-size:11px; color:var(--ui-text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.frow .st{margin-left:auto; flex:none}
+.st-pill{font-size:9.5px; padding:1px 7px; border-radius:99px; border:1px solid}
+.st-pill.pending{color:var(--ui-warning); border-color:color-mix(in srgb, var(--ui-warning) 45%, transparent)}
+.st-pill.applied{color:var(--ui-success); border-color:color-mix(in srgb, var(--ui-success) 45%, transparent)}
+.st-pill.new{color:var(--ui-accent); border-color:color-mix(in srgb, var(--ui-accent) 45%, transparent)}
+.frow .pm{font-family:var(--ui-font-mono); font-size:10px; flex:none}
+.frow .pm .a{color:var(--ui-success)} .frow .pm .d{color:var(--ui-danger)}
+/* 审批队列（D8，Orca Deck §3.3 权限队列化） */
+.approval{border:1px solid color-mix(in srgb, var(--ui-warning) 40%, transparent); border-radius:var(--ui-radius-md);
+  background:color-mix(in srgb, var(--ui-warning) 6%, var(--ui-surface-sunken)); padding:9px 10px}
+.approval .h{display:flex; align-items:center; gap:7px; font-size:11.5px; font-weight:650; margin-bottom:8px}
+.approval .h .ic{color:var(--ui-warning)}
+.approval .h .n{margin-left:auto; font-family:var(--ui-font-mono); font-size:10px; color:var(--ui-text-faint)}
+.ap-row{display:flex; align-items:center; gap:8px; padding:7px 8px; border-radius:var(--ui-radius-md);
+  background:var(--ui-surface); border:1px solid var(--ui-border-soft); margin-bottom:6px; font-size:11.5px}
+.ap-row .tind{width:8px; height:8px; border-radius:2px; flex:none}
+.ap-row .desc{font-family:var(--ui-font-mono); font-size:10.5px; color:var(--ui-text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.ap-row .acts{margin-left:auto; display:flex; gap:5px; flex:none}
+.abtn{height:22px; padding:0 9px; font-size:10.5px; border-radius:99px; border:1px solid var(--ui-border-soft); color:var(--ui-text-dim)}
+.abtn.ok:hover{color:var(--ui-success); border-color:color-mix(in srgb, var(--ui-success) 50%, transparent)}
+.abtn.no:hover{color:var(--ui-danger); border-color:color-mix(in srgb, var(--ui-danger) 50%, transparent)}
+.approval .all-row{display:flex; gap:6px; margin-top:2px}
+.ap-done{font-size:11.5px; color:var(--ui-success); display:flex; align-items:center; gap:6px; padding:4px 2px}
+/* 澄清徽标 / 会话接续 */
+.dk-note{font-size:11px; color:var(--ui-text-faint); padding:10px 2px 8px; line-height:1.6}
+.dk-note b{color:var(--ui-text-dim)}
+.dk-foot{display:flex; gap:6px; padding:9px 12px; border-top:1px solid var(--ui-border-soft)}
+.dk-foot .grow{flex:1}
+.dk-cont{flex:1; height:28px; padding:0 10px; font-size:11.5px; background:var(--ui-surface-sunken);
+  border:1px solid var(--ui-border-soft); border-radius:var(--ui-radius-md); color:var(--ui-text); outline:none}
+.dk-cont:focus{border-color:var(--ui-border)}
+
+/* ═══════════ 检查点轨（D10） ═══════════ */
+.cps{grid-area:cp; display:flex; align-items:center; gap:10px; padding:0 16px; background:var(--ui-surface);
+  border-top:1px solid var(--ui-border-soft); font-size:11.5px; color:var(--ui-text-dim); overflow-x:auto; position:relative; z-index:25}
+.cps .h{font-size:10.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--ui-text-faint); flex:none}
+.cps .rail{flex:1; height:1px; background:var(--ui-border-soft); min-width:20px}
+.cp{display:inline-flex; align-items:center; gap:6px; padding:3px 10px; border-radius:99px; border:1px solid var(--ui-border-soft);
+  background:var(--ui-surface-sunken); cursor:pointer; white-space:nowrap; flex:none; transition:all .15s}
+.cp:hover{border-color:var(--ui-border); color:var(--ui-text)}
+.cp .nd{width:8px; height:8px; border-radius:50%; background:var(--ui-text-faint)}
+.cp.cur{border-color:var(--ui-accent); color:var(--ui-accent); background:var(--ui-accent-soft)}
+.cp.cur .nd{background:var(--ui-accent); box-shadow:0 0 8px var(--orca-cyan-dim)}
+.cp.ai .nd{background:var(--ui-warning)}
+.cp.rolled{opacity:.45; text-decoration:line-through}
+.cp .tm{font-family:var(--ui-font-mono); font-size:9.5px; color:var(--ui-text-faint)}
+.cp-pop{position:absolute; bottom:40px; z-index:60; background:var(--ui-surface-raised); border:1px solid var(--ui-border);
+  border-radius:var(--ui-radius-md); box-shadow:var(--ui-shadow-modal); padding:10px; font-size:11.5px; min-width:230px; animation:pairin .16s var(--ui-ease)}
+.cp-pop .t{font-weight:650; margin-bottom:3px}
+.cp-pop .m{color:var(--ui-text-dim); font-family:var(--ui-font-mono); font-size:10.5px; margin-bottom:8px}
+.cp-pop .acts{display:flex; gap:6px}
+.rbtn.sm{height:23px; padding:0 9px; font-size:10.5px}
+
+/* ═══════════ 状态栏 ═══════════ */
+.status{grid-area:status; display:flex; align-items:center; gap:14px; padding:0 14px; background:var(--ui-surface-raised);
+  border-top:1px solid var(--ui-border-soft); font-size:11px; color:var(--ui-text-dim); z-index:26; white-space:nowrap; overflow:hidden}
+.status .it{display:inline-flex; align-items:center; gap:5px; cursor:default}
+.status .it.click{cursor:pointer} .status .it.click:hover{color:var(--ui-text)}
+.status .grow{flex:1}
+.status .ai-pill{display:inline-flex; align-items:center; gap:6px; padding:1px 10px; border-radius:99px; border:1px solid var(--ui-border-soft)}
+.status .ai-pill .lamp{width:7px; height:7px; border-radius:50%; background:var(--ui-text-faint)}
+.status .ai-pill.live{color:var(--ui-accent); border-color:var(--ui-border)}
+.status .ai-pill.live .lamp{background:var(--ui-accent); animation:pulse 1.2s ease-in-out infinite}
+.status .ai-pill.wait{color:var(--ui-warning); border-color:color-mix(in srgb, var(--ui-warning) 45%, transparent)}
+.status .ai-pill.wait .lamp{background:var(--ui-warning)}
+.status kbd{font-family:var(--ui-font-mono); font-size:9.5px; color:var(--ui-text-faint)}
+.status .err{color:var(--ui-danger)} .status .warn{color:var(--ui-warning)}
+
+/* ═══════════ 浮层：灯泡菜单 / 上下文菜单 / 命令面板 / Toast / 标注 ═══════════ */
+.menu{position:absolute; z-index:70; background:var(--ui-surface-raised); border:1px solid var(--ui-border);
+  border-radius:var(--ui-radius-md); box-shadow:var(--ui-shadow-modal); padding:5px; min-width:210px; animation:pairin .14s var(--ui-ease)}
+.mi{display:flex; align-items:center; gap:8px; width:100%; text-align:left; padding:6px 9px; font-size:12px;
+  border-radius:var(--ui-radius-sm); color:var(--ui-text-dim)}
+.mi:hover{background:var(--ui-accent-soft); color:var(--ui-text)}
+.mi .ic{width:16px; text-align:center; flex:none}
+.mi kbd{margin-left:auto; font-family:var(--ui-font-mono); font-size:10px; color:var(--ui-text-faint)}
+.mi.divi{border-top:1px solid var(--ui-border-soft); border-radius:0; margin:4px 2px 0; padding-top:6px; pointer-events:none; font-size:10.5px; color:var(--ui-text-faint)}
+/* 命令面板 */
+.palette-veil{position:fixed; inset:0; z-index:80; background:color-mix(in srgb, var(--ui-bg) 55%, transparent); backdrop-filter:blur(2px); display:none}
+.palette-veil.show{display:block}
+.palette{position:fixed; top:16vh; left:50%; transform:translateX(-50%); width:min(560px, 92vw); z-index:81; display:none;
+  background:var(--ui-surface-raised); border:1px solid var(--ui-border); border-radius:var(--ui-radius-lg);
+  box-shadow:var(--ui-shadow-modal); overflow:hidden; animation:pairin .16s var(--ui-ease)}
+.palette.show{display:block}
+.palette input{width:100%; padding:12px 14px; font-size:13.5px; background:transparent; border:none; border-bottom:1px solid var(--ui-border-soft); color:var(--ui-text); outline:none}
+.palette .list{max-height:320px; overflow:auto; padding:6px}
+.pi{display:flex; align-items:center; gap:10px; padding:8px 10px; font-size:12.5px; border-radius:var(--ui-radius-md); color:var(--ui-text-dim); cursor:pointer}
+.pi .ic{width:18px; text-align:center; flex:none; color:var(--ui-text-faint)}
+.pi.on, .pi:hover{background:var(--ui-accent-soft); color:var(--ui-text)}
+.pi .hint{margin-left:auto; font-family:var(--ui-font-mono); font-size:10px; color:var(--ui-text-faint)}
+.pi .grp{font-size:10px; color:var(--ui-text-faint); border:1px solid var(--ui-border-soft); border-radius:4px; padding:0 5px; flex:none}
+/* 快速定位结果行（D14/D15）：kind 徽章 + 名称 + 路径:行号 + 定位即意图 */
+.pi.pi-mode{cursor:default; font-size:11px; color:var(--ui-accent); background:var(--ui-accent-soft); margin-bottom:4px}
+.pi.qs .qs-ic{width:16px; height:16px; border-radius:4px; display:flex; align-items:center; justify-content:center; font-size:10px; color:var(--ui-text-on-accent); flex:none}
+.pi.qs[data-q="0"] .qs-ic{background:#74c0fc}
+.pi.qs .qs-name{font-family:var(--ui-font-mono); font-size:12px; color:var(--ui-text)}
+.pi.qs .qs-pos{margin-left:auto; font-family:var(--ui-font-mono); font-size:10px; color:var(--ui-text-faint); white-space:nowrap}
+.pi.qs .qs-ask{width:20px; height:20px; border-radius:50%; border:1px solid var(--ui-border-soft); color:var(--ui-accent); font-size:12px; flex:none; display:flex; align-items:center; justify-content:center}
+.pi.qs .qs-ask:hover{background:var(--ui-accent); color:var(--ui-text-on-accent)}
+.palette .foot{display:flex; gap:14px; padding:7px 12px; border-top:1px solid var(--ui-border-soft); font-size:10.5px; color:var(--ui-text-faint)}
+.palette .foot kbd{font-family:var(--ui-font-mono)}
+/* Toast */
+.toasts{position:fixed; left:50%; bottom:44px; transform:translateX(-50%); z-index:90; display:flex; flex-direction:column; gap:8px; align-items:center; pointer-events:none}
+.toast{display:flex; align-items:center; gap:9px; padding:9px 16px; font-size:12.5px; border-radius:var(--ui-radius-pill);
+  background:var(--ui-surface-raised); border:1px solid var(--ui-border); box-shadow:var(--ui-shadow-modal); animation:pairin .2s var(--ui-ease)}
+.toast .ic{color:var(--ui-success)}
+.toast.warn .ic{color:var(--ui-warning)}
+.toast.gone{opacity:0; transform:translateY(6px); transition:all .3s}
+/* 标注层 */
+.annot-tip{position:absolute; z-index:95; max-width:270px; background:var(--ui-surface-raised); border:1px solid var(--ui-accent);
+  border-radius:var(--ui-radius-md); box-shadow:var(--ui-shadow-modal); padding:10px 12px; font-size:11.5px; line-height:1.6; color:var(--ui-text-dim); animation:pairin .15s var(--ui-ease)}
+.annot-tip b{color:var(--ui-accent); display:block; margin-bottom:3px; font-size:12px}
+.anno-badge{position:absolute; z-index:94; width:20px; height:20px; border-radius:50%; background:var(--ui-accent); color:var(--ui-text-on-accent);
+  font-size:11px; font-weight:700; display:none; align-items:center; justify-content:center; cursor:pointer;
+  box-shadow:0 0 0 3px color-mix(in srgb, var(--ui-accent) 25%, transparent), var(--ui-shadow-card); animation:pulse 2s ease-in-out infinite}
+body.annotating .anno-badge{display:flex}
+.anno-note{position:fixed; left:12px; bottom:76px; z-index:94; display:none; max-width:300px;
+  background:var(--ui-surface-raised); border:1px solid var(--ui-accent); border-radius:var(--ui-radius-md);
+  box-shadow:var(--ui-shadow-modal); padding:10px 12px; font-size:11.5px; line-height:1.65; color:var(--ui-text-dim)}
+body.annotating .anno-note{display:block}
+.anno-note b{color:var(--ui-accent)}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+
+  <!-- ══ 稿头（视觉稿控制条） ══ -->
+  <div class="docbar">
+    <span class="t">编辑器 · 结对画布</span>
+    <span class="sep">·</span>
+    <span>specs/editor-copilot/designs · v1 · 视觉交互稿（示例代码为演示假体）</span>
+    <span class="grow"></span>
+    <button class="dbtn play" id="btnTour" title="D3→D4→D5 自动连播">▶ 全流程演示</button>
+    <button class="dbtn" id="btnAnnotate" title="D2 编号说明各交互区">⓵ 标注</button>
+    <button class="dbtn" id="btnTheme" title="D1 主题切换">☾ 亮色</button>
+  </div>
+
+  <!-- ══ 编辑器 chrome ══ -->
+  <header class="chrome">
+    <div class="tabs" id="tabs">
+      <div class="tab active has-ai" data-file="usage-ledger.ts" id="tabActive">
+        <span class="f-ic" style="background:var(--sy-kw); opacity:.75"></span>
+        usage-ledger.ts <span class="ai" title="有 AI 改动待审"></span>
+      </div>
+      <div class="tab has-dirty" data-file="tokens-summary.ts">
+        <span class="f-ic" style="background:var(--sy-fn); opacity:.75"></span>
+        tokens-summary.ts <span class="dirty"></span>
+      </div>
+      <div class="tab" data-file="selection-anchor.ts">
+        <span class="f-ic" style="background:var(--sy-str); opacity:.75"></span>
+        selection-anchor.ts
+      </div>
+    </div>
+    <div class="chrome-actions">
+      <button class="cbtn pair-cta" id="btnInline" title="D3 行内协作（锚定选区）">✦ 行内协作 <kbd>⌘I</kbd></button>
+      <button class="cbtn" id="btnPalette" title="D13 编辑器命令面板">⌘ 命令 <kbd>⌘K</kbd></button>
+      <button class="cbtn on" id="btnDock" title="结对栏开合">◧ 结对栏</button>
+    </div>
+  </header>
+
+  <!-- ══ 文件树 ══ -->
+  <aside class="tree">
+    <div class="h">工作区 · deeporca</div>
+    <div class="tnode chev open">packages</div>
+    <div class="tnode chev open d1">core / src / common</div>
+    <div class="tnode d2 active">usage-ledger.ts <span class="ai"></span></div>
+    <div class="tnode d2">token-counter.ts</div>
+    <div class="tnode chev d1">desktop / main / tools</div>
+    <div class="tnode d2">tokens-summary.ts <span class="ai" id="treeAi1"></span></div>
+    <div class="tnode d2" id="treeTest">usage-ledger.test.ts <span class="badge-new" id="treeNew" style="display:none">新建</span></div>
+    <div class="tnode d2">selection-anchor.ts</div>
+  </aside>
+
+  <!-- ══ 画布 ══ -->
+  <main class="canvas">
+    <div class="crumb">
+      <span class="c">packages</span><span class="sep">›</span>
+      <span class="c">core</span><span class="sep">›</span>
+      <span class="c">src</span><span class="sep">›</span>
+      <span class="c">common</span><span class="sep">›</span>
+      <span class="c">usage-ledger.ts</span><span class="sep">›</span>
+      <span class="c sym" id="crumbSym">summarizeUsage</span>
+      <span class="sep">·</span>
+      <span id="crumbAi" style="color:var(--ui-warning)"></span>
+    </div>
+    <div class="code-scroll" id="codeScroll">
+      <div class="code" id="code"></div>
+      <!-- 行内协作条（JS 定位锚定） -->
+      <div class="pairbar" id="pairbar" style="display:none">
+        <div class="pb-head">
+          <span class="spark">✦</span>
+          <b>行内结对</b>
+          <span class="mono" style="font-size:10.5px">usage-ledger.ts · L21–30</span>
+          <button class="x" id="pbClose" aria-label="关闭">✕</button>
+        </div>
+        <div class="pb-chips" id="pbChips">
+          <span class="chip"><span class="cd" style="background:var(--ui-accent)"></span><b>选中</b> L21–30 · 10 行</span>
+          <span class="chip"><span class="cd" style="background:var(--ui-danger)"></span><b>诊断</b> 1</span>
+          <span class="chip add-ctx" id="ctxAdd">＋ 上下文</span>
+        </div>
+        <textarea class="pb-input" id="pbInput" rows="2" placeholder="用一句话说意图…（@ 引用文件 · # 引用符号）">按小时分桶汇总用量，暴露每小时峰值与总量</textarea>
+        <div class="pb-foot">
+          <div class="intents" id="pbIntents">
+            <button class="ichip" data-intent="解释">解释</button>
+            <button class="ichip" data-intent="重构">重构</button>
+            <button class="ichip" data-intent="补测试">补测试</button>
+            <button class="ichip" data-intent="写文档">写文档</button>
+            <button class="ichip" data-intent="优化它" style="color:var(--ui-warning); border-style:dashed" title="D12 故意含糊的意图">优化它</button>
+          </div>
+          <span class="grow"></span>
+          <button class="pb-ghost" id="pbToChat" title="转入主会话（旁路保留）">到会话</button>
+          <button class="pb-send" id="pbSend">发送 <kbd>⌘⏎</kbd></button>
+        </div>
+        <div class="pb-plan" id="pbPlan" style="display:none">
+          <span class="pstep" id="ps1"><span class="dot">✓</span>理解选区</span><span class="lnk" style="width:14px;height:1px;background:var(--ui-border-soft)"></span>
+          <span class="pstep" id="ps2"><span class="dot">2</span>设计方案</span><span class="lnk" style="width:14px;height:1px;background:var(--ui-border-soft)"></span>
+          <span class="pstep" id="ps3"><span class="dot">3</span>写入画布</span>
+          <span class="pb-live" id="pbLive"></span>
+        </div>
+        <div class="pb-done" id="pbDone" style="display:none">
+          <span class="ok">✓</span>
+          <span>生成完成</span>
+          <span class="stat" id="pbStat"></span>
+          <button class="pb-review" id="pbReview">在画布中审阅 <kbd>Tab</kbd></button>
+        </div>
+        <div class="pb-clarify" id="pbClarify" style="display:none">
+          <div class="q"><span class="ic">◈</span><span><b>你希望优先哪个方向？</b><span style="color:var(--ui-text-faint)"> —— 「优化它」有多个合理解读，数字体需要一次澄清</span></span></div>
+          <div class="cl-radio" id="clOpts">
+            <div class="cl-opt sel" data-k="性能"><span class="rd"></span>性能 —— 消除逐行 JSON.parse 的重复开销，单遍扫描</div>
+            <div class="cl-opt" data-k="可读性"><span class="rd"></span>可读性 —— 拆分小函数，主流程一眼可读</div>
+            <div class="cl-opt" data-k="类型安全"><span class="rd"></span>类型安全 —— 引入 schema 校验，拒绝畸形记录</div>
+          </div>
+          <input type="text" id="clText" placeholder="补充说明（可留空）" />
+          <button class="cl-submit" id="clSubmit">就这样继续 ⏎</button>
+        </div>
+      </div>
+      <!-- 审阅工具条（固定在画布右下，不随代码滚动卷走） -->
+    </div>
+    <div class="reviewbar" id="reviewbar">
+      <span class="stat" id="rvStat"><span class="a">+24</span><span class="d">−11</span><span class="h">2 hunks</span></span>
+      <button class="rbtn" id="rvPrev" title="上一个 hunk">↑</button>
+      <button class="rbtn" id="rvNext" title="下一个 hunk">↓</button>
+      <button class="rbtn primary" id="rvApply">全部应用 <kbd>⌘⏎</kbd></button>
+      <button class="rbtn danger" id="rvDiscard">丢弃 <kbd>Esc</kbd></button>
+    </div>
+  </main>
+
+  <!-- ══ 结对栏 ══ -->
+  <aside class="dock" id="dock">
+    <div class="dk-head">
+      <span class="t"><span class="spark">✦</span> 结对栏</span>
+      <span class="file mono" id="dkFile">usage-ledger.ts</span>
+      <button class="x" id="dkClose" title="开合（⌘\）">✕</button>
+    </div>
+    <div class="dk-status" id="dkStatus"><span class="lamp"></span><span id="dkStatusText">待命中 —— 选中代码或 ⌘I 发起协作</span></div>
+    <div class="dk-body" id="dkBody">
+      <div class="dk-sec">
+        <div class="h">本文件协作 <span class="n mono" id="dkTurnN">2 轮</span></div>
+        <div class="tools" id="dkHistory">
+          <div class="tl-row"><span class="td" style="background:var(--c-edit)"></span><span>你 · 修复 summarizeUsage 的分桶缺失</span></div>
+          <div class="tl-row"><span class="td" style="background:var(--ui-success)"></span><span>✦ · 已应用 +19 −11 · 检查点 v1</span></div>
+        </div>
+      </div>
+      <div class="dk-sec" id="secPlan">
+        <div class="h">计划 <span class="n" id="dkPlanN"></span></div>
+        <div class="plan" id="dkPlan">
+          <div class="pl-row done" id="pl1"><span class="dot">✓</span>理解选区与引用<span class="meta">0.4s</span></div>
+          <div class="pl-row" id="pl2"><span class="dot">2</span>方案 · 小时分桶（无新依赖）</div>
+          <div class="pl-row" id="pl3"><span class="dot">3</span>改动 · usage-ledger.ts</div>
+          <div class="pl-row" id="pl4"><span class="dot">4</span>验证 · lint + 既有测试</div>
+        </div>
+      </div>
+      <div class="dk-sec">
+        <div class="h">工具活动 <span class="n mono" id="dkToolN">—</span></div>
+        <div class="tools" id="dkTools">
+          <div class="tl-row"><span class="td" style="background:var(--c-read)"></span><span>read token-counter.ts · UsageSummary</span><span class="tm">12:03</span></div>
+          <div class="tl-row"><span class="td" style="background:var(--c-read)"></span><span>rg "summarizeUsage" · 6 处引用</span><span class="tm">12:03</span></div>
+        </div>
+      </div>
+      <div class="dk-sec">
+        <div class="h">变更文件 <span class="n mono" id="dkFileN">1</span></div>
+        <div class="flist" id="dkFiles">
+          <div class="frow" data-tab="usage-ledger.ts">
+            <span class="fn">usage-ledger.ts</span><span class="pm"><span class="a">+24</span> <span class="d">−11</span></span>
+            <span class="st"><span class="st-pill pending" id="filePill">待审</span></span>
+          </div>
+          <div class="frow" id="dkFile2" style="display:none" data-tab="tokens-summary.ts">
+            <span class="fn">tokens-summary.ts</span><span class="pm"><span class="a">+6</span> <span class="d">−2</span></span>
+            <span class="st"><span class="st-pill pending">待审</span></span>
+          </div>
+          <div class="frow" id="dkFile3" style="display:none" data-tab="usage-ledger.test.ts">
+            <span class="fn">usage-ledger.test.ts</span><span class="pm"><span class="a">+22</span></span>
+            <span class="st"><span class="st-pill new">新建</span></span>
+          </div>
+        </div>
+        <button class="dk-chip" id="dkMulti" style="margin-top:6px" title="D8 跨文件任务">⊕ 跨文件任务（演示）</button>
+      </div>
+      <div class="dk-sec" id="secApproval" style="display:none">
+        <div class="h">审批队列 <span class="n mono">2 项</span></div>
+        <div class="approval" id="approval">
+          <div class="h"><span class="ic">◈</span>跨文件任务需要你的决定 <span class="n">进行中</span></div>
+          <div class="ap-row" id="ap1">
+            <span class="tind" style="background:var(--c-bash)"></span>
+            <span class="desc">bash · npm test -- usage-ledger</span>
+            <span class="acts"><button class="abtn ok" data-act="allow">允许</button><button class="abtn no" data-act="deny">拒绝</button></span>
+          </div>
+          <div class="ap-row" id="ap2">
+            <span class="tind" style="background:var(--c-edit)"></span>
+            <span class="desc">write · 新建 usage-ledger.test.ts</span>
+            <span class="acts"><button class="abtn ok" data-act="allow">允许</button><button class="abtn no" data-act="deny">拒绝</button></span>
+          </div>
+          <div class="all-row"><button class="abtn ok" id="apAll">✓ 全部允许本轮</button></div>
+        </div>
+      </div>
+      <div class="dk-note" id="dkNote">
+        大任务在此多步执行；小改动在行内直批。<br><b>写盘前必审</b>：hunk ✓/✕ 或「全部应用」，应用即建检查点，<b>⌘⌫</b> 整体回滚。
+      </div>
+    </div>
+    <div class="dk-foot">
+      <input class="dk-cont" id="dkCont" placeholder="继续补充 / 纠偏…" />
+      <button class="cbtn" id="dkToChat" title="整段协作转主会话">到会话</button>
+    </div>
+  </aside>
+
+  <!-- ══ 检查点轨 ══ -->
+  <div class="cps" id="cps">
+    <span class="h">检查点</span>
+    <button class="cp" data-cp="v0"><span class="nd"></span>基线 · 你最后一次手动保存<span class="tm">12:02</span></button>
+    <span class="rail"></span>
+    <span id="cpTail" style="display:inline-flex; align-items:center; gap:10px"></span>
+  </div>
+
+  <!-- ══ 状态栏 ══ -->
+  <footer class="status">
+    <span class="it">⑂ feat/modern-ui-redesign</span>
+    <span class="it click" id="stDiag" title="D7 点击跳到诊断行"><span class="err">⊗ 1</span> <span class="warn">△ 1</span></span>
+    <span class="it mono">Ln 34, Col 15</span>
+    <span class="grow"></span>
+    <span class="it ai-pill" id="stAi"><span class="lamp"></span><span id="stAiText">✦ 待命</span></span>
+    <span class="it mono" id="stCtx">上下文 12.4k / 512k</span>
+    <span class="it"><kbd>⌘I</kbd> 行内</span>
+    <span class="it"><kbd>⌘K</kbd> 命令</span>
+    <span class="it"><kbd>Tab</kbd> 接受</span>
+    <span class="it"><kbd>Esc</kbd> 丢弃</span>
+  </footer>
+</div>
+
+<!-- ══ 浮层 ══ -->
+<div class="palette-veil" id="paletteVeil"></div>
+<div class="palette" id="palette">
+  <input id="paletteInput" placeholder="⌘P 文件 / ⌘T 符号 / ⌘⇧O 文件内 / ⌘K 命令 —— 前缀 @ # . 切换模式" />
+  <div class="list" id="paletteList"></div>
+  <div class="foot"><span><kbd>↑↓</kbd> 选择</span><span><kbd>⏎</kbd> 打开 / 执行</span><span><kbd>Tab</kbd> 预览（光标定位不开 tab）</span><span><kbd>✦</kbd> 定位即意图</span><span><kbd>Esc</kbd> 关闭</span></div>
+</div>
+<div class="toasts" id="toasts"></div>
+<div class="anno-note" id="annoNote">
+  <b>结对画布 · 七个交互区</b> —— 点击编号徽章查看说明：<br>
+  ① 行内协作条（⌘I 锚定选区）　② 画布内 diff（AI 结果直接渲染进代码）<br>
+  ③ hunk 芯片（逐块 ✓/✕）　④ 结对栏（计划/工具流/审批队列）<br>
+  ⑤ 诊断灯泡（一键修复）　⑥ 检查点轨（AI 改动可整体回滚）<br>
+  ⑦ 状态栏（AI 在场感）
+</div>
+
+<script>
+"use strict";
+/* ═════════════════════════════════════════════════════════════
+   演示脚本（vanilla，无依赖）。示例代码为假体；所有 AI 行为均为
+   预排时序（setTimeout 链），用于呈现交互形态而非真实实现。
+   ═════════════════════════════════════════════════════════════ */
+const $ = (s) => document.querySelector(s);
+const $$ = (s) => Array.from(document.querySelectorAll(s));
+
+/* ── 语法高亮假体：usage-ledger.ts ── */
+const K = (s) => '<span class="kw">' + s + "</span>";
+const S = (s) => '<span class="str">' + s + "</span>";
+const C = (s) => '<span class="cm">' + s + "</span>";
+const F = (s) => '<span class="fn">' + s + "</span>";
+const T = (s) => '<span class="typ">' + s + "</span>";
+const NM = (s) => '<span class="num">' + s + "</span>";
+
+/* 原始 36 行（0 基）。sel: 预置选区（idx 20-29）；diag: 诊断行（idx 33）。 */
+const SRC = [
+  K("import") + " { appendFileSync, existsSync, readFileSync } " + K("from") + " " + S('"node:fs"') + ";",
+  K("import") + " { join } " + K("from") + " " + S('"node:path"') + ";",
+  K("import type") + " { UsageRecord, UsageSummary, HourBucket, Totals } " + K("from") + " " + S('"./token-counter"') + ";",
+  "",
+  K("const") + " LEDGER_FILE = " + S('"usage-ledger.jsonl"') + ";",
+  "",
+  C("/** 追加一条用量记录（append-only，失败静默——统计从不拖垮主流程）。 */"),
+  K("export function") + " " + F("appendUsageRecord") + "(root: " + K("string") + ", record: " + T("UsageRecord") + "): " + K("void") + " {",
+  "  " + K("try") + " {",
+  "    " + F("appendFileSync") + "(" + F("join") + "(root, LEDGER_FILE), " + F("JSON.stringify") + "(record) + " + S('"\\n"') + ", " + S('"utf8"') + ");",
+  "  } " + K("catch") + " { " + C("/* best-effort */") + " }",
+  "}",
+  "",
+  C("/** 读取当日账本。 */"),
+  K("export function") + " " + F("readDayLedger") + "(root: " + K("string") + ", day: " + K("string") + "): " + T("UsageRecord") + "[] {",
+  "  " + K("const") + " file = " + F("join") + "(root, day, LEDGER_FILE);",
+  "  " + K("if") + " (!" + F("existsSync") + "(file)) " + K("return") + " [];",
+  "  " + K("return") + " " + F("readFileSync") + "(file, " + S('"utf8"') + ")." + F("trim") + "()." + F("split") + "(" + S('"\\n"') + ")." + F("map") + "((l) =&gt; " + F("JSON.parse") + "(l) " + K("as") + " " + T("UsageRecord") + ");",
+  "}",
+  "",
+  C("/** 汇总当日用量 —— 平铺累加，无小时分桶。 */"),
+  K("export function") + " " + F("summarizeUsage") + "(root: " + K("string") + ", day: " + K("string") + "): " + T("UsageSummary") + " {",
+  "  " + K("const") + " records = " + F("readDayLedger") + "(root, day);",
+  "  " + K("let") + " input = " + NM("0") + ", output = " + NM("0") + ", cacheRead = " + NM("0") + ";",
+  "  " + K("for") + " (" + K("const") + " r " + K("of") + " records) {",
+  "    input += r.input;",
+  "    output += r.output;",
+  "    " + K("if") + " (r.cacheRead) cacheRead += r.cacheRead;",
+  "  }",
+  "  " + K("return") + " { day, input, output, cacheRead };",
+  "}",
+  "",
+  K("export function") + " " + F("usageTotalsForSession") + "(root: " + K("string") + ", day: " + K("string") + "): " + T("SessionTotals") + " {",
+  "  " + K("const") + " s = " + '<span class="fn fn-call">summarizeUsage</span>' + "(root);",   // diag idx 33
+  "  " + K("return") + " { day, peak: s.output / " + NM("60") + ", total: s.output };",
+  "}",
+];
+
+/* 数字体产出（hunk1 = 选区替换 15 行；hunk2 = 调用点适配 + 辅助函数 10 行） */
+const H1_ADD = [
+  C("/** 汇总当日用量 —— 按小时分桶，暴露每小时峰值与总量。 */"),
+  K("export function") + " " + F("summarizeUsage") + "(root: " + K("string") + ", day: " + K("string") + "): " + T("UsageSummary") + " {",
+  "  " + K("const") + " records = " + F("readDayLedger") + "(root, day);",
+  "  " + K("const") + " buckets = " + K("new") + " " + F("Map") + "&lt;" + T("number") + ", " + T("HourBucket") + "&gt;();",
+  "  " + K("for") + " (" + K("const") + " r " + K("of") + " records) {",
+  "    " + K("const") + " hour = " + K("new") + " " + F("Date") + "(r.ts)." + F("getUTCHours") + "();",
+  "    " + K("const") + " b = buckets." + F("get") + "(hour) ?? " + F("emptyBucket") + "(hour);",
+  "    b.input += r.input;",
+  "    b.output += r.output;",
+  "    b.calls += " + NM("1") + ";",
+  "    buckets." + F("set") + "(hour, b);",
+  "  }",
+  "  " + K("const") + " hours = [...buckets." + F("values") + "()]." + F("sort") + "((a, z) =&gt; a.hour - z.hour);",
+  "  " + K("return") + " { day, hours, total: " + F("sumBuckets") + "(hours) };",
+  "}",
+];
+const H2_CALL_ADD = ["  " + K("return") + " { day, peak: " + F("peakHour") + "(s.hours), total: s.total.output };"];
+const H2_HELPERS = [
+  "",
+  K("function") + " " + F("emptyBucket") + "(hour: " + K("number") + "): " + T("HourBucket") + " {",
+  "  " + K("return") + " { hour, input: " + NM("0") + ", output: " + NM("0") + ", cache: " + NM("0") + ", calls: " + NM("0") + " };",
+  "}",
+  "",
+  K("function") + " " + F("peakHour") + "(hours: " + T("HourBucket") + "[]): " + K("number") + " {",
+  "  " + K("return") + " hours." + F("length") + " ? " + F("Math.max") + "(...hours." + F("map") + "((b) =&gt; b.output)) : " + NM("0") + ";",
+  "}",
+];
+/* 诊断修复数据集（D7）：idx 33 一行替换 */
+const FIX_ADD = ["  " + K("const") + " s = " + F("summarizeUsage") + "(root, day);"];
+
+const SEL_A = 20, SEL_B = 29;   // 预置选区（含 0 基闭区间）
+const DIAG_I = 33;              // 诊断行
+const HUNK2_I = 34;             // 调用点行（0 基）
+
+/* ── 全局状态 ── */
+let WL = [];          // working lines: {h, kind: 'ctx'|'sel'|'add'|'del'|'pending'|'settle', hunk, diag}
+let phase = "idle";   // idle | clarify | streaming | review | applied
+let hunks = [];       // {id, title, at (首行 idx), els: []}
+let timers = [];
+let cpSeq = 1;
+let multiMode = false;
+
+function T_(fn, ms) { const t = setTimeout(fn, ms); timers.push(t); return t; }
+function clearTimers() { timers.forEach(clearTimeout); timers = []; }
+
+/* ── 渲染 ── */
+function renderCode() {
+  const box = $("#code");
+  box.innerHTML = "";
+  WL.forEach((l, i) => {
+    const div = document.createElement("div");
+    div.className = "ln" + (l.kind === "sel" ? " sel" : "") + (l.kind === "add" ? " add" : "") +
+      (l.kind === "del" ? " del" : "") + (l.kind === "pending" ? " pending" : "") +
+      (l.settle ? " settle" : "") + (l.diag ? " diag" : "") + (l.hunkFirst ? " hunk-first" : "");
+    div.dataset.i = i;
+    const gut = document.createElement("span");
+    gut.className = "gut";
+    gut.textContent = String(i + 1);
+    if (l.hunkFirst && l.hunk != null) {
+      const badge = document.createElement("span");
+      badge.className = "hunk-badge";
+      badge.textContent = "hunk " + l.hunk;
+      gut.appendChild(badge);
+    }
+    const tx = document.createElement("span");
+    tx.className = "tx" + (l.diag ? "" : "");
+    tx.innerHTML = l.h || "&nbsp;";
+    div.appendChild(gut);
+    div.appendChild(tx);
+    box.appendChild(div);
+  });
+  refreshOverlays();
+}
+
+/* 覆盖件：hunk 浮钮 / 灯泡 / 选区迷你意图条 —— 依附具体行 */
+function refreshOverlays() {
+  $$(".hunk-tools,.mini-intent").forEach((n) => n.remove());
+  $$(".bulb").forEach((n) => n.remove());
+  hunks.forEach((hk) => {
+    const row = $$("#code .ln")[hk.at];
+    if (!row) return;
+    const tools = document.createElement("span");
+    tools.className = "hunk-tools";
+    tools.innerHTML =
+      '<button class="htbtn ok" data-hk="' + hk.id + '" data-op="ok">✓ 接受</button>' +
+      '<button class="htbtn no" data-hk="' + hk.id + '" data-op="no">✕ 撤销此块</button>';
+    row.appendChild(tools);
+  });
+  // 诊断灯泡：按内容定位（编辑应用后行号会漂移，固定下标会失效）
+  const diagIdx = WL.findIndex((l) => l.diag);
+  const diagRow = diagIdx > -1 ? $$("#code .ln")[diagIdx] : null;
+  if (diagRow) {
+    const bulb = document.createElement("span");
+    bulb.className = "bulb pinned";
+    bulb.id = "bulb";
+    bulb.innerHTML = "⚡";
+    bulb.title = "快速修复";
+    diagRow.appendChild(bulb);
+  }
+  const selRow = $$("#code .ln.sel")[0];
+  if (selRow && phase === "idle") {
+    const mi = document.createElement("span");
+    mi.className = "mini-intent pinned";
+    mi.innerHTML = '<button class="mbtn" data-mi="explain">解释</button>' +
+      '<button class="mbtn" data-mi="refactor">重构</button>' +
+      '<button class="mbtn" data-mi="test">补测试</button>' +
+      '<button class="mbtn" data-mi="inline">✦ 行内结对</button>';
+    selRow.appendChild(mi);
+  }
+}
+
+function initLines() {
+  WL = SRC.map((h, i) => ({
+    h,
+    kind: i >= SEL_A && i <= SEL_B ? "sel" : "ctx",
+    diag: i === DIAG_I,
+  }));
+  hunks = [];
+}
+
+/* ── Toast ── */
+function toast(msg, ic, warn) {
+  const t = document.createElement("div");
+  t.className = "toast" + (warn ? " warn" : "");
+  t.innerHTML = '<span class="ic">' + (ic || "✓") + "</span><span>" + msg + "</span>";
+  $("#toasts").appendChild(t);
+  setTimeout(() => t.classList.add("gone"), 2600);
+  setTimeout(() => t.remove(), 3000);
+}
+
+/* ── 状态栏 / 结对栏状态 ── */
+function setAiState(mode, text) {
+  const pill = $("#stAi");
+  pill.className = "it ai-pill" + (mode === "live" ? " live" : "") + (mode === "wait" ? " wait" : "");
+  $("#stAiText").textContent = text;
+}
+function setDockStatus(mode, text) {
+  const el = $("#dkStatus");
+  el.className = "dk-status" + (mode === "live" ? " live" : "") + (mode === "wait" ? " wait" : "");
+  $("#dkStatusText").innerHTML = text;
+}
+
+/* ── 行内协作条（D3） ── */
+function openPair(anchorRowIdx) {
+  if (phase === "streaming") return;
+  const bar = $("#pairbar");
+  bar.style.display = "block";
+  $("#pbPlan").style.display = "none";
+  $("#pbDone").style.display = "none";
+  $("#pbClarify").style.display = "none";
+  $("#pbInput").parentElement.querySelectorAll(".pb-chips,.pb-input,.pb-foot").forEach((n) => (n.style.display = ""));
+  $("#pbChips").style.display = "flex";
+  const sc = $("#codeScroll");
+  const rows = $$("#code .ln");
+  const row = rows[anchorRowIdx != null ? anchorRowIdx : SEL_B];
+  if (row) {
+    requestAnimationFrame(() => {
+      bar.style.left = "64px";
+      const barH = bar.offsetHeight;
+      const selTop = rows[SEL_A].offsetTop;
+      // 优先锚定在选区上方（下方是调用点与诊断行，不能盖住）；
+      // 空间不足先滚动画布让位，仍不足再翻回下方。
+      let top = selTop - barH - 8;
+      if (top < 8) {
+        sc.scrollTop = Math.max(0, selTop - barH - 40);
+        top = selTop - barH - 8;
+      }
+      if (top < 8) top = row.offsetTop + 30;
+      bar.style.top = Math.max(8, top) + "px";
+      $("#pbInput").focus();
+      $("#pbInput").setSelectionRange($("#pbInput").value.length, $("#pbInput").value.length);
+    });
+  }
+}
+function closePair() {
+  const bar = $("#pairbar");
+  bar.classList.add("closing");
+  setTimeout(() => { bar.style.display = "none"; bar.classList.remove("closing"); }, 140);
+}
+
+/* ── D4：流式生成 ── */
+function toolLog(html, color, flash) {
+  const box = $("#dkTools");
+  const row = document.createElement("div");
+  row.className = "tl-row" + (flash ? " flash" : "");
+  const d = new Date();
+  const tm = String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+  row.innerHTML = '<span class="td" style="background:' + color + '"></span><span>' + html + '</span><span class="tm">' + tm + "</span>";
+  box.appendChild(row);
+  box.parentElement.scrollTop = 1e6;
+  const n = box.children.length;
+  $("#dkToolN").textContent = n;
+}
+function planRow(i, st) {
+  const el = $("#pl" + i);
+  el.className = "pl-row " + st;
+  el.querySelector(".dot").textContent = st === "done" ? "✓" : String(i);
+}
+function planChip(i, st) {
+  const el = $("#ps" + i);
+  el.className = "pstep " + st;
+  el.querySelector(".dot").textContent = st === "done" ? "✓" : String(i);
+}
+
+/* 发起一次编辑数据集流式写入。spec: {delAt, delLen, adds, hunk, title}；完成时回调 onDone（不自动收尾） */
+function streamEdit(spec, onDone) {
+  const removed = WL.splice(spec.delAt, spec.delLen).map((l) => ({ h: l.h, kind: "del", hunk: spec.hunk }));
+  WL.splice(spec.delAt, 0, ...removed);
+  const addStart = spec.delAt + removed.length;
+  const pendings = spec.adds.map(() => ({ h: "", kind: "pending", hunk: spec.hunk }));
+  WL.splice(addStart, 0, ...pendings);
+  hunks.push({ id: spec.hunk, title: spec.title, at: spec.delAt });
+  markHunkFirst();
+  renderCode();
+
+  let k = 0;
+  const step = () => {
+    if (k >= spec.adds.length) { onDone && onDone(); return; }
+    WL[addStart + k] = { h: spec.adds[k], kind: "pending", hunk: spec.hunk };
+    renderCode();
+    k += 1;
+    $("#pbLive").innerHTML = "写入 L" + (addStart + k) + " <b>" + k + "/" + spec.adds.length + "</b> 行";
+    T_(step, 150);
+  };
+  T_(step, 260);
+}
+
+function finishStream(spec, onDone) {
+  phase = "review";
+  clearTimers();
+  // pending → add；del 已带 hunk
+  WL.forEach((l) => { if (l.kind === "pending") l.kind = "add"; });
+  renderCode();
+  showReviewbar();
+  $("#pbLive").textContent = "";
+  $("#pbDone").style.display = "flex";
+  $("#pbPlan").style.display = "none";
+  const adds = WL.filter((l) => l.kind === "add").length;
+  const dels = WL.filter((l) => l.kind === "del").length;
+  $("#pbStat").innerHTML = '<span class="a">+' + adds + "</span> <span class='d'>−" + dels + "</span> · " + hunks.length + " hunks";
+  $("#pbInput").parentElement.querySelectorAll(".pb-chips,.pb-input,.pb-foot").forEach((n) => (n.style.display = "none"));
+  setAiState("wait", "✦ 待审 —— 画布内 +绿/−红，逐块 ✓/✕");
+  setDockStatus("wait", "<b>待审</b> —— 写盘前需要你的决定");
+  const pill = $("#filePill"); if (pill) pill.textContent = "待审";
+  const tab = $("#tabActive"); if (tab) tab.classList.add("has-ai");
+  onDone && onDone();
+  toast("生成完成 —— 结果直接在画布中审阅，不弹浮窗", "✦");
+  // 审阅工具条定位
+  const bar = $("#reviewbar");
+  bar.classList.add("show");
+  bar.classList.remove("applied");
+}
+
+/* 主编辑流程（D4/D12） */
+function startMainEdit(preNote) {
+  phase = "streaming";
+  clearTimers();
+  $("#pbDone").style.display = "none";
+  $("#pbPlan").style.display = "flex";
+  planChip(1, "done"); planChip(2, "doing"); planChip(3, "");
+  planRow(1, "done"); planRow(2, "doing"); planRow(3, ""); planRow(4, "");
+  setAiState("live", "✦ 生成中 —— 逐行流入画布");
+  setDockStatus("live", "<b>生成中</b> —— 计划与工具活动实时可见");
+  toolLog("plan · " + (preNote || "按小时分桶（无新依赖）"), "var(--c-plan)", true);
+  toolLog('rg "summarizeUsage" · 6 处引用', "var(--c-read)");
+  toolLog("read token-counter.ts · HourBucket", "var(--c-read)");
+  T_(() => {
+    planChip(2, "done"); planRow(2, "done"); planRow(3, "doing"); planChip(3, "doing");
+    streamEdit({ delAt: SEL_A, delLen: SEL_B - SEL_A + 1, adds: H1_ADD, hunk: 1, title: "聚合分桶" }, () => {
+      toolLog("edit usage-ledger.ts · hunk1 聚合分桶", "var(--c-edit)");
+      T_(() => {
+        // hunk2：调用点适配 + 辅助函数（内容定位，不受 hunk1 行数漂移影响）
+        const target = WL.findIndex((l) => l.kind === "ctx" && l.h.includes("s.output /"));
+        if (target > -1) {
+          const t2 = WL[target];
+          WL[target] = { h: t2.h, kind: "del", hunk: 2 };
+          WL.splice(target + 1, 0, ...H2_CALL_ADD.map((h) => ({ h, kind: "add", hunk: 2 })));
+          const closeIdx = WL.findIndex((l, i) => i > target && l.kind === "ctx" && l.h.trim() === "}");
+          if (closeIdx > -1) WL.splice(closeIdx + 1, 0, ...H2_HELPERS.map((h) => ({ h, kind: "add", hunk: 2 })));
+          hunks.push({ id: 2, title: "调用点适配", at: target });
+          markHunkFirst();
+          renderCode();
+        }
+        toolLog("edit usage-ledger.ts · hunk2 调用点适配 + 辅助函数", "var(--c-edit)");
+        T_(() => {
+          planRow(4, "doing");
+          toolLog("lint --dry-run usage-ledger.ts · 0 findings", "var(--c-lint)");
+          T_(() => {
+            planRow(4, "done");
+            planChip(3, "done");
+            finishStream();
+          }, 700);
+        }, 520);
+      }, 560);
+    });
+  }, 900);
+}
+
+/* 逐 hunk 操作（D5） */
+function acceptHunk(id) {
+  WL.forEach((l) => { if (l.hunk === id && (l.kind === "add" || l.kind === "del")) { l.kind = "ctx"; l.settle = true; delete l.hunk; } });
+  hunks = hunks.filter((h) => h.id !== id);
+  markHunkFirst();
+  renderCode();
+  updateRvStat();
+  if (!hunks.length) applyAll(true);
+  else toast("hunk " + id + " 已接受", "✓");
+}
+function rejectHunk(id) {
+  // del 行还原为 ctx（其原始文本保留在 h 上），add 行移除
+  WL = WL.filter((l) => !(l.hunk === id && l.kind === "add"));
+  WL.forEach((l) => { if (l.hunk === id && l.kind === "del") { l.kind = "ctx"; l.settle = true; delete l.hunk; } });
+  hunks = hunks.filter((h) => h.id !== id);
+  markHunkFirst();
+  renderCode();
+  updateRvStat();
+  if (!hunks.length) finishDiscard("hunk 已全部撤销");
+  else toast("hunk " + id + " 已撤销，原代码保留", "↩", true);
+}
+function markHunkFirst() {
+  WL.forEach((l) => (l.hunkFirst = false));
+  const seen = new Set();
+  WL.forEach((l) => {
+    if (l.hunk != null && !seen.has(l.hunk)) { seen.add(l.hunk); l.hunkFirst = true; }
+  });
+}
+
+function updateRvStat() {
+  const adds = WL.filter((l) => l.kind === "add").length;
+  const dels = WL.filter((l) => l.kind === "del").length;
+  $("#rvStat").innerHTML = '<span class="a">+' + adds + '</span> <span class="d">−' + dels + '</span> <span class="h">' + hunks.length + " hunks</span>";
+  const adds2 = WL.filter((l) => l.kind === "add").length, dels2 = WL.filter((l) => l.kind === "del").length;
+  $("#pbStat").innerHTML = '<span class="a">+' + adds2 + "</span> <span class='d'>−" + dels2 + "</span> · " + hunks.length + " hunks";
+}
+function showReviewbar() { updateRvStat(); $("#reviewbar").classList.add("show"); $("#reviewbar").classList.remove("applied"); }
+
+/* 全部应用（D5 完成态 + D10 检查点） */
+function applyAll(silentLast) {
+  WL.forEach((l) => { if (l.kind === "add" || l.kind === "del") { l.kind = "ctx"; l.settle = true; delete l.hunk; } });
+  WL.forEach((l) => (l.hunkFirst = false));
+  hunks = [];
+  renderCode();
+  phase = "applied";
+  setAiState("", "✦ 待命");
+  setDockStatus("", "待命中 —— 检查点已记录，⌘⌫ 可整体回滚");
+  $("#reviewbar").classList.add("applied");
+  $("#rvApply").textContent = "已应用 ✓";
+  const pill = $("#filePill"); if (pill) { pill.textContent = "已应用"; pill.className = "st-pill applied"; }
+  const tab = $("#tabActive"); if (tab) tab.classList.remove("has-ai");
+  $("#pbDone").style.display = "flex";
+  $("#pbStat").innerHTML = '<span style="color:var(--ui-success)">已应用</span> · 检查点 v' + cpSeq + " 已记录 · ⌘⌫ 整体回滚";
+  $("#pbInput").parentElement.querySelectorAll(".pb-chips,.pb-input,.pb-foot").forEach((n) => (n.style.display = "none"));
+  addCheckpoint();
+  T_(() => {
+    $("#reviewbar").classList.remove("show");
+    $("#pbDone").style.display = "none";
+    $("#pbInput").parentElement.querySelectorAll(".pb-chips,.pb-input,.pb-foot").forEach((n) => (n.style.display = ""));
+    $("#pbInput").value = "";
+    $("#pbInput").placeholder = "继续追加意图…（@ 引用 · # 符号）";
+    closePair();
+    phase = "idle";
+  }, 2200);
+  if (!silentLast) toast("已应用并写入检查点 —— 自动保存前写盘可撤，⌘⌫ 整体回滚", "✓");
+  toolLog("checkpoint v" + cpSeq + " · usage-ledger.ts", "var(--ui-accent)", true);
+}
+function finishDiscard(reason) {
+  initLines();
+  renderCode();
+  phase = "idle";
+  hunks = [];
+  $("#reviewbar").classList.remove("show");
+  setAiState("", "✦ 待命");
+  setDockStatus("", "待命中 —— 选中代码或 ⌘I 发起协作");
+  const tab = $("#tabActive"); if (tab) tab.classList.remove("has-ai");
+  const pill = $("#filePill"); if (pill) { pill.textContent = "待审"; pill.className = "st-pill pending"; }
+  closePair();
+  toast(reason || "已丢弃 —— 画布恢复原状，未写盘", "↩", true);
+}
+
+/* 检查点（D10） */
+function addCheckpoint(label) {
+  cpSeq += 1;
+  const name = label || "v" + (cpSeq - 1) + " · 数字体" + (multiMode ? "跨文件" : "改动");
+  const d = new Date();
+  const tm = String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+  const cp = document.createElement("button");
+  cp.className = "cp ai cur";
+  cp.innerHTML = '<span class="nd"></span>' + name + '<span class="tm">' + tm + "</span>";
+  cp.addEventListener("click", (e) => showCpPop(cp, name, tm));
+  $$("#cps .cp").forEach((n) => n.classList.remove("cur"));
+  $("#cpTail").appendChild(cp);
+}
+function showCpPop(cp, name, tm) {
+  $$(".cp-pop").forEach((n) => n.remove());
+  const pop = document.createElement("div");
+  pop.className = "cp-pop";
+  pop.style.left = Math.min(cp.getBoundingClientRect().left, window.innerWidth - 280) + "px";
+  pop.innerHTML = '<div class="t">' + name + '</div><div class="m">' + tm + " · +24 −11 · 来源：行内结对</div>" +
+    '<div class="acts"><button class="rbtn sm" data-a="preview">预览差异</button><button class="rbtn sm primary" data-a="rollback">回滚到此</button></div>';
+  document.body.appendChild(pop);
+  pop.querySelector('[data-a="preview"]').addEventListener("click", () => { pop.remove(); toast("检查点预览（示意）：+24 −11 · 按小时分桶", "◈"); });
+  pop.querySelector('[data-a="rollback"]').addEventListener("click", () => {
+    pop.remove();
+    initLines();
+    renderCode();
+    phase = "idle";
+    $("#reviewbar").classList.remove("show");
+    $$("#cps .cp").forEach((n, i, arr) => { if (i === arr.length - 1) n.classList.add("rolled"); });
+    toast("已回滚到基线 —— 画布恢复原状（检查点仍保留可再前进）", "↩", true);
+  });
+}
+
+/* 诊断修复（D7） */
+function startFix() {
+  if (phase === "streaming") return;
+  closePair();
+  phase = "streaming";
+  setAiState("live", "✦ 修复诊断 L34 —— ts(2554) 缺参");
+  setDockStatus("live", "<b>修复诊断</b> —— summarizeUsage 缺少 day 参数");
+  toolLog("diagnostics · ts2554 应有 2 个参数，但获得 1 个", "var(--ui-danger)", true);
+  T_(() => {
+    WL[DIAG_I] = { h: SRC[DIAG_I], kind: "del", hunk: 3 };
+    WL.splice(DIAG_I + 1, 0, ...FIX_ADD.map((h) => ({ h, kind: "pending", hunk: 3 })));
+    hunks.push({ id: 3, title: "补 day 实参", at: DIAG_I });
+    markHunkFirst();
+    renderCode();
+    let k = 0;
+    const step = () => {
+      WL[DIAG_I + 1 + k] = { h: FIX_ADD[k], kind: "add", hunk: 3 };
+      renderCode();
+      k += 1;
+      if (k < FIX_ADD.length) T_(step, 220);
+      else T_(() => {
+        phase = "review";
+        showReviewbar();
+        setAiState("wait", "✦ 待审 —— 诊断修复 1 hunk");
+        setDockStatus("wait", "<b>待审</b> —— 修复已入画布");
+        toast("诊断修复已入画布 —— ✓ 接受后诊断将转绿", "✦");
+      }, 300);
+    };
+    T_(step, 240);
+  }, 800);
+}
+
+/* A2UI 澄清（D12） */
+function startClarify() {
+  phase = "clarify";
+  setAiState("live", "✦ 澄清中 —— 「优化它」有多种解读");
+  setDockStatus("live", "<b>澄清中</b> —— 数字体以 A2UI 表单反问");
+  toolLog("clarify · 意图含糊 → A2UI 反问", "var(--ui-info)", true);
+  T_(() => {
+    $("#pbInput").parentElement.querySelectorAll(".pb-chips,.pb-input,.pb-foot").forEach((n) => (n.style.display = "none"));
+    $("#pbClarify").style.display = "block";
+  }, 1200);
+}
+$$("#clOpts .cl-opt").forEach((o) =>
+  o.addEventListener("click", () => {
+    $$("#clOpts .cl-opt").forEach((n) => n.classList.remove("sel"));
+    o.classList.add("sel");
+  })
+);
+$("#clSubmit").addEventListener("click", () => {
+  const pick = ($("#clOpts .cl-opt.sel") || {}).dataset ? $("#clOpts .cl-opt.sel").dataset.k : "性能";
+  $("#pbClarify").style.display = "none";
+  $("#pbChips").style.display = "flex";
+  $("#pbInput").parentElement.querySelectorAll(".pb-chips,.pb-input,.pb-foot").forEach((n) => (n.style.display = ""));
+  toolLog("answers · { 方向: " + pick + " } → 续跑", "var(--c-plan)");
+  toast("已澄清：" + pick + " —— 数字体续跑", "◈");
+  startMainEdit("按小时分桶 · 已澄清: " + pick);
+});
+
+/* 上下文编排（D11） */
+const CTX_MENU = [
+  { ic: "⌗", t: "# 符号 · usageTotalsForSession（调用方）" },
+  { ic: "◈", t: "相关文件 · token-counter.ts（类型来源）" },
+  { ic: "⊗", t: "诊断 · ts2554 缺参（1）" },
+  { ic: "⎇", t: "引用 · rg summarizeUsage → 6 处" },
+];
+function addCtxChip(label, color) {
+  const chip = document.createElement("span");
+  chip.className = "chip";
+  chip.innerHTML = '<span class="cd" style="background:' + color + '"></span>' + label + '<span class="rm">✕</span>';
+  chip.querySelector(".rm").addEventListener("click", () => chip.remove());
+  $("#ctxAdd").before(chip);
+}
+$("#ctxAdd").addEventListener("click", (e) => {
+  e.stopPropagation();
+  $$(".menu").forEach((n) => n.remove());
+  const m = document.createElement("div");
+  m.className = "menu";
+  const r = $("#ctxAdd").getBoundingClientRect();
+  m.style.left = r.left + "px";
+  m.style.top = r.bottom + 6 + "px";
+  m.innerHTML = CTX_MENU.map((x, i) => '<button class="mi" data-i="' + i + '"><span class="ic">' + x.ic + "</span>" + x.t + "</button>").join("");
+  document.body.appendChild(m);
+  m.querySelectorAll(".mi").forEach((b) =>
+    b.addEventListener("click", () => {
+      addCtxChip(CTX_MENU[+b.dataset.i].t.split(" · ")[0] + " " + CTX_MENU[+b.dataset.i].t.split(" · ")[1].split("（")[0], "var(--ui-info)");
+      m.remove();
+      toast("上下文已注入 —— 数字体将看到这条引用", "◈");
+    })
+  );
+});
+document.addEventListener("click", (e) => {
+  if (!e.target.closest(".menu") && !e.target.closest("#ctxAdd") && !e.target.closest(".bulb")) $$(".menu").forEach((n) => n.remove());
+  if (!e.target.closest(".cp-pop") && !e.target.closest(".cp")) $$(".cp-pop").forEach((n) => n.remove());
+});
+
+/* ── 命令面板 + 快速定位（D13 + D14 + D15，复用同一 fzf 面板） ── */
+/* 索引假体（真实数据源 = codegraph nodes 表：name/kind/file_path/start_line/signature，
+   IPC = 既有 knowledge:listSymbols，见 design.md §6） */
+const QP_FILES = [
+  { grp: "file", n: "usage-ledger.ts", p: "core/src/common", line: 1 },
+  { grp: "file", n: "token-counter.ts", p: "core/src/common", line: 1 },
+  { grp: "file", n: "tokens-summary.ts", p: "desktop/src/main/tools", line: 1 },
+  { grp: "file", n: "selection-anchor.ts", p: "desktop/src/renderer/lib", line: 1 },
+];
+const QP_SYMS = [
+  { grp: "class", ic: "C", n: "UsageSummary", p: "core/src/common/token-counter.ts", line: 58, sig: "interface UsageSummary { day; hours; total }" },
+  { grp: "fn", ic: "ƒ", n: "summarizeUsage", p: "core/src/common/usage-ledger.ts", line: 22, sig: "(root, day) → UsageSummary", ai: true },
+  { grp: "fn", ic: "ƒ", n: "appendUsageRecord", p: "core/src/common/usage-ledger.ts", line: 8, sig: "(root, record) → void · best-effort" },
+  { grp: "fn", ic: "ƒ", n: "readDayLedger", p: "core/src/common/usage-ledger.ts", line: 15, sig: "(root, day) → UsageRecord[]" },
+  { grp: "fn", ic: "ƒ", n: "peakHour", p: "core/src/common/usage-ledger.ts", line: 47, sig: "(hours) → number" },
+  { grp: "const", ic: "k", n: "LEDGER_FILE", p: "core/src/common/usage-ledger.ts", line: 5, sig: '"usage-ledger.jsonl"' },
+  { grp: "fn", ic: "ƒ", n: "withLedgerStats", p: "desktop/src/main/tools/tokens-summary.ts", line: 120, sig: "(root) → Stats", ai: true },
+  { grp: "fn", ic: "ƒ", n: "computeFloatPlacement", p: "desktop/src/renderer/lib/selection-anchor.ts", line: 41, sig: "(args) → FloatPlacement" },
+];
+const CMDS = [
+  { grp: "AI", ic: "✦", t: "修复此文件的诊断", run: () => { closePalette(); startFix(); } },
+  { grp: "AI", ic: "✦", t: "解释选中代码", run: () => { closePalette(); openPair(); $("#pbInput").value = "解释这段代码的职责与边界条件"; } },
+  { grp: "AI", ic: "✦", t: "重构选中代码", run: () => { closePalette(); openPair(); $("#pbInput").value = "重构这段：拆小函数，保持行为不变"; } },
+  { grp: "AI", ic: "✦", t: "为选中函数补测试", run: () => { closePalette(); openPair(); $("#pbInput").value = "为 summarizeUsage 补充单元测试（分桶边界）"; } },
+  { grp: "AI", ic: "✦", t: "生成提交信息（读当前 diff）", run: () => { closePalette(); toast("提交信息草稿已入协作条（示意）", "✦"); } },
+  { grp: "编辑", ic: "⌘", t: "保存全部文件", run: () => { closePalette(); toast("已保存 2 个脏文件", "✓"); } },
+];
+let palIdx = 0;
+function palMode(q) {
+  const head = (q || "").trim()[0];
+  if (head === "@") return "file";
+  if (head === "#") return "sym";
+  if (head === ".") return "cur";
+  return "cmd";
+}
+function fuzzy(term, text) {
+  // 子序列匹配（fzf 风格，零依赖；真实实现按驼峰/前缀加权，design.md §6.3）
+  let i = 0;
+  for (const ch of text) { if (ch.toLowerCase() === (term[i] || "").toLowerCase()) i++; }
+  return i >= term.length;
+}
+function palRows(q) {
+  const mode = palMode(q);
+  const term = (q || "").trim().slice(1).toLowerCase();
+  if (mode === "file") return QP_FILES.filter((f) => !term || fuzzy(term, f.n + f.p)).map((f) => ({ kind: "file", r: f }));
+  if (mode === "sym") return QP_SYMS.filter((s) => !term || fuzzy(term, s.n + s.p)).map((s) => ({ kind: "sym", r: s }));
+  if (mode === "cur") return QP_SYMS.filter((s) => s.p.includes("usage-ledger.ts")).filter((s) => !term || fuzzy(term, s.n)).map((s) => ({ kind: "cur", r: s }));
+  return null;
+}
+function renderPal(q) {
+  const rows = palRows(q);
+  if (!rows) {
+    const list = CMDS.filter((c) => !q.trim() || c.t.toLowerCase().includes(q.trim().toLowerCase()));
+    $("#paletteList").innerHTML = list
+      .map((c, i) => '<div class="pi' + (i === palIdx ? " on" : "") + '" data-i="c' + CMDS.indexOf(c) + '"><span class="ic">' + c.ic + '</span><span class="grp">' + c.grp + "</span>" + c.t + "</div>")
+      .join("");
+  } else {
+    const modeLabel = palMode(q) === "file" ? "文件 · 索引" : palMode(q) === "sym" ? "工作区符号 · 索引" : "当前文件符号";
+    const modeKey = palMode(q) === "file" ? "@" : palMode(q) === "sym" ? "#" : ".";
+    const modeRow = `<div class="pi pi-mode on"><span class="ic">⌕</span><span class="grp">${modeLabel}</span><span>键入 ${modeKey} 保留此模式</span></div>`;
+    const rowsHtml = rows
+      .map(({ kind, r }, i) => {
+        const on = i + 1 === palIdx ? " on" : "";
+        const ic = kind === "file" ? "⌗" : r.ic;
+        return `<div class="pi qs${on}" data-q="${i}"><span class="ic qs-ic">${ic}</span><span class="qs-name">${r.n}</span><span class="qs-pos">${r.p}:${r.line}</span><button class="qs-ask" title="定位即意图：问数字体">✦</button></div>`;
+      })
+      .join("");
+    $("#paletteList").innerHTML = modeRow + rowsHtml;
+  }
+  $$("#paletteList .pi").forEach((el) => {
+    if (el.classList.contains("pi-mode")) { el.addEventListener("click", () => { $("#paletteInput").value = palMode(q) === "file" ? "@" : palMode(q) === "sym" ? "#" : "."; $("#paletteInput").dispatchEvent(new Event("input")); }); return; }
+    el.addEventListener("click", () => runPalRow(q, el.dataset.q));
+  });
+}
+function runPalRow(q, qi) {
+  const rows = palRows(q);
+  const mode = palMode(q);
+  const row = rows && rows[+qi];
+  if (!row) return;
+  if (mode === "file") {
+    closePalette();
+    $$(".tab").forEach((t) => t.classList.toggle("active", t.dataset.file === row.r.n));
+    toast("打开 " + row.r.p + "/" + row.r.n + "（editor:readFile 既有链路）", "⌗");
+  } else {
+    closePalette();
+    jumpToLine(row.r.line);
+    toast("已定位 " + row.r.n + " L" + row.r.line + " —— 索引命中 · " + (row.r.sig || ""), "→");
+  }
+}
+function askSymbol(q, qi) {
+  const row = palRows(q) && palRows(q)[+qi];
+  if (!row) return;
+  closePalette();
+  openPair();
+  $("#pbInput").value = "解释 " + row.r.n + "（已由索引定位到 L" + row.r.line + "）";
+  $("#pbInput").focus();
+}
+function jumpToLine(line) {
+  const sc = $("#codeScroll");
+  const maxLine = $$("#code .ln").length;
+  const target = Math.max(1, Math.min(line, maxLine));   // 假体文档行数有限：越界钳制到末行
+  sc.scrollTop = Math.max(0, (target - 1) * 21 - 60);
+  const ln = $$("#code .ln")[target - 1];
+  if (ln) { ln.classList.remove("jump"); void ln.offsetWidth; ln.classList.add("jump"); setTimeout(() => ln.classList.remove("jump"), 1400); }
+}
+function openPalette(prefill) { $("#paletteVeil").classList.add("show"); $("#palette").classList.add("show"); $("#paletteInput").value = prefill || ""; renderPal(prefill || ""); palIdx = palRows(prefill || "") ? 1 : 0; $("#paletteInput").focus(); }
+function closePalette() { $("#paletteVeil").classList.remove("show"); $("#palette").classList.remove("show"); }
+$("#paletteInput").addEventListener("input", (e) => { palIdx = 1; renderPal(e.target.value); });
+$("#paletteInput").addEventListener("keydown", (e) => {
+  if (e.key === "ArrowDown") { palIdx = Math.min(palIdx + 1, $("#paletteList .pi").length - 1); renderPal($("#paletteInput").value); e.preventDefault(); }
+  if (e.key === "ArrowUp") { palIdx = Math.max(palIdx - 1, 1); renderPal($("#paletteInput").value); e.preventDefault(); }
+  if (e.key === "Enter") {
+    const q = $("#paletteInput").value;
+    if (palRows(q)) { runPalRow(q, palIdx - 1); return; }
+    const list = CMDS.filter((c) => !q.trim() || c.t.toLowerCase().includes(q.trim().toLowerCase()));
+    if (list[palIdx - 1] || list[palIdx]) (list[palIdx - 1] || list[palIdx]).run();
+    return;
+  }
+  if (e.key === "Escape") closePalette();
+});
+$("#paletteList").addEventListener("click", (e) => {
+  const ask = e.target.closest(".qs-ask");
+  if (!ask) return;
+  e.stopPropagation();
+  askSymbol($("#paletteInput").value, ask.closest(".pi").dataset.q);
+});
+$("#paletteVeil").addEventListener("click", closePalette);
+$("#btnPalette").addEventListener("click", () => openPalette());
+
+/* 快捷键：⌘P 文件 / ⌘T 工作区符号 / ⌘⇧O 当前文件符号 / ⌘K 命令 */
+document.addEventListener("keydown", (e) => {
+  const mod = e.metaKey || e.ctrlKey;
+  if (!mod) return;
+  if (e.key.toLowerCase() === "p") { e.preventDefault(); openPalette("@"); }
+  if (e.key.toLowerCase() === "t") { e.preventDefault(); openPalette("#"); }
+  if (e.shiftKey && e.key.toLowerCase() === "o") { e.preventDefault(); openPalette("."); }
+});
+
+/* 跨文件任务（D8/D9） */
+$("#dkMulti").addEventListener("click", () => {
+  multiMode = true;
+  $("#dkFile2").style.display = "";
+  $("#dkFile3").style.display = "";
+  $("#dkFileN").textContent = "3";
+  $("#secApproval").style.display = "";
+  $("#treeAi1").parentElement.classList.add("has-ai");
+  $("#dkNote").innerHTML = "<b>跨文件任务</b>：数字体按计划逐文件推进；每文件入画布为独立 hunk 组，审批队列收集全部特权动作，<b>允许后继续，拒绝则改道</b>。";
+  setDockStatus("live", "<b>跨文件任务进行中</b> —— 3 文件 · 2 项待你决定");
+  toolLog("task · 跨文件：usage-ledger → tokens-summary → 新建测试", "var(--c-plan)", true);
+  planRow(3, "done");
+  toast("跨文件任务展开 —— 审批队列与变更文件见结对栏", "⊕");
+});
+$$("#approval .abtn").forEach((b) =>
+  b.addEventListener("click", () => {
+    const row = b.closest(".ap-row");
+    if (b.id === "apAll") {
+      $("#approval").innerHTML = '<div class="ap-done">✓ 2 项已全部允许本轮 —— 任务继续</div>';
+      setDockStatus("live", "<b>跨文件任务进行中</b> —— 已获本轮授权");
+      toast("已允许本轮全部动作 —— 流不掐断，agent 继续执行", "✓");
+      T_(() => {
+        $("#dkFile2 .st-pill").textContent = "已应用";
+        $("#dkFile2 .st-pill").className = "st-pill applied";
+        $("#dkFile3 .st-pill").textContent = "已应用";
+        $("#dkFile3 .st-pill").className = "st-pill applied";
+        $("#treeNew").style.display = "";
+        addCheckpoint("v" + cpSeq + " · 跨文件 3 文件");
+        toast("跨文件任务完成 —— 3 文件已入检查点，逐文件可回滚", "✓");
+      }, 1400);
+      return;
+    }
+    if (!row) return;
+    const allow = b.dataset.act === "allow";
+    row.querySelector(".desc").innerHTML = (allow ? "✓ 已允许 · " : "✕ 已拒绝 · ") + row.querySelector(".desc").textContent;
+    row.querySelector(".acts").innerHTML = "";
+    if (!allow) toast("已拒绝 —— 数字体改道：改为手工步骤并说明", "↩", true);
+  })
+);
+$$("#dkFiles .frow").forEach((f) =>
+  f.addEventListener("click", () => {
+    $$(".tab").forEach((t) => t.classList.toggle("active", t.dataset.file === f.dataset.tab));
+    toast("预览 " + f.dataset.tab + " 的画布内 diff（示意）—— 每文件独立 hunk 组", "◈");
+  })
+);
+
+/* 结对栏开合 */
+function toggleDock() {
+  const app = $("#app"), dock = $("#dock");
+  app.classList.toggle("no-dock");
+  dock.classList.toggle("off");
+  $("#btnDock").classList.toggle("on", !app.classList.contains("no-dock"));
+}
+$("#dkClose").addEventListener("click", toggleDock);
+$("#btnDock").addEventListener("click", toggleDock);
+
+/* ── 事件接线 ── */
+$("#btnInline").addEventListener("click", () => openPair());
+$("#pbClose").addEventListener("click", closePair);
+$("#pbSend").addEventListener("click", () => {
+  const v = $("#pbInput").value.trim();
+  if (!v) return;
+  if (v === "优化它") { startClarify(); return; }
+  startMainEdit();
+});
+$("#pbInput").addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); $("#pbSend").click(); }
+});
+$$("#pbIntents .ichip").forEach((c) =>
+  c.addEventListener("click", () => {
+    const intent = c.dataset.intent;
+    const MAP = {
+      解释: "解释这段代码的职责与边界条件",
+      重构: "重构这段：按小时分桶汇总用量，暴露每小时峰值",
+      补测试: "为 summarizeUsage 补充单元测试（跨小时边界）",
+      写文档: "为这段补 JSDoc 与调用示例",
+      优化它: "优化它",
+    };
+    $("#pbInput").value = MAP[intent] || intent;
+    $("#pbInput").focus();
+    if (intent === "优化它") startClarify();
+  })
+);
+$("#pbReview").addEventListener("click", () => { closePair(); $("#codeScroll").scrollTop = 1e6; });
+$("#pbToChat").addEventListener("click", () => { closePair(); toast("已转入主会话（旁路保留）—— 编辑器内状态不变", "→"); });
+$("#dkToChat").addEventListener("click", () => toast("整段协作转入主会话 —— 结对栏保留只读摘要", "→"));
+$("#dkCont").addEventListener("keydown", (e) => { if (e.key === "Enter" && $("#dkCont").value.trim()) { toast("纠偏已注入 —— 数字体按新约束续跑", "◈"); $("#dkCont").value = ""; } });
+
+/* 画布点击：选区行 → 开协作条；灯泡 → 修复 */
+$("#code").addEventListener("click", (e) => {
+  const ln = e.target.closest(".ln");
+  if (!ln) return;
+  const i = +ln.dataset.i;
+  if (WL[i] && WL[i].diag && (e.target.closest(".bulb") || e.target.closest(".ln.diag"))) {
+    $$(".menu").forEach((n) => n.remove());
+    const m = document.createElement("div");
+    m.className = "menu";
+    const r = ln.getBoundingClientRect();
+    m.style.left = Math.min(r.right - 240, window.innerWidth - 260) + "px";
+    m.style.top = r.bottom + 4 + "px";
+    m.innerHTML =
+      '<button class="mi" data-a="fix"><span class="ic" style="color:var(--ui-accent)">✦</span>AI 修复此诊断<span class="mono" style="margin-left:auto;font-size:10px">补 day 实参</span></button>' +
+      '<button class="mi" data-a="why"><span class="ic">◈</span>解释这个错误</button>' +
+      '<button class="mi" data-a="ig"><span class="ic">◌</span>忽略</button>';
+    document.body.appendChild(m);
+    m.querySelector('[data-a="fix"]').addEventListener("click", () => { m.remove(); startFix(); });
+    m.querySelector('[data-a="why"]').addEventListener("click", () => { m.remove(); openPair(); $("#pbInput").value = "解释这个 ts2554：调用缺了哪个参数？"; });
+    m.querySelector('[data-a="ig"]').addEventListener("click", () => m.remove());
+    return;
+  }
+  if (WL[i] && WL[i].kind === "sel" && phase === "idle") openPair(i);
+});
+/* hunk 浮钮（事件委托） */
+document.addEventListener("click", (e) => {
+  const ht = e.target.closest(".htbtn");
+  if (!ht) return;
+  const id = +ht.dataset.hk;
+  if (ht.dataset.op === "ok") acceptHunk(id);
+  else rejectHunk(id);
+});
+/* 选区迷你意图条 */
+document.addEventListener("click", (e) => {
+  const mb = e.target.closest("[data-mi]");
+  if (!mb) return;
+  const k = mb.dataset.mi;
+  if (k === "inline") { openPair(); return; }
+  const MAP = { explain: "解释这段代码的职责与边界条件", refactor: "重构这段：按小时分桶汇总用量", test: "为 summarizeUsage 补充单元测试" };
+  openPair();
+  $("#pbInput").value = MAP[k];
+});
+
+/* 审阅工具条 */
+$("#rvApply").addEventListener("click", () => applyAll());
+$("#rvDiscard").addEventListener("click", () => finishDiscard());
+$("#rvNext").addEventListener("click", () => jumpHunk(1));
+$("#rvPrev").addEventListener("click", () => jumpHunk(-1));
+function jumpHunk(dir) {
+  if (!hunks.length) return;
+  const at = hunks.map((h) => h.at);
+  const cur = WL.findIndex((l) => l.hunkFirst && l.kind !== "ctx");
+  let best = at[0];
+  if (dir > 0) best = at.find((a) => a > (cur < 0 ? -1 : cur)) ?? at[0];
+  else best = [...at].reverse().find((a) => a < (cur < 0 ? 1e9 : cur)) ?? at[at.length - 1];
+  const row = $$("#code .ln")[best];
+  if (row) row.scrollIntoView({ block: "center", behavior: "smooth" });
+}
+
+/* ── 键盘 ── */
+document.addEventListener("keydown", (e) => {
+  const mod = e.metaKey || e.ctrlKey;
+  if (mod && e.key.toLowerCase() === "i") { e.preventDefault(); openPair(); return; }
+  if (mod && e.key.toLowerCase() === "k") { e.preventDefault(); openPalette(); return; }
+  if (mod && e.key === "\\") { e.preventDefault(); toggleDock(); return; }
+  if (e.key === "Escape") {
+    if ($$(".menu").length) { $$(".menu").forEach((n) => n.remove()); return; }
+    if ($("#palette").classList.contains("show")) { closePalette(); return; }
+    if ($$(".cp-pop").length) { $$(".cp-pop").forEach((n) => n.remove()); return; }
+    if (phase === "review") { finishDiscard(); return; }
+    if ($("#pairbar").style.display === "block") { closePair(); return; }
+  }
+  if (e.key === "Tab" && phase === "review") { e.preventDefault(); applyAll(); return; }
+  if (mod && e.key === "Enter" && phase === "review") { e.preventDefault(); applyAll(); return; }
+  if (mod && (e.key === "Backspace" || e.key === "Delete") && phase === "applied") {
+    e.preventDefault();
+    initLines();
+    renderCode();
+    phase = "idle";
+    $$("#cps .cp").forEach((n, i, arr) => { if (i === arr.length - 1) n.classList.add("rolled"); });
+    toast("已整体回滚本次数字体改动 —— 检查点保留可再前进", "↩", true);
+  }
+});
+
+/* ── 主题 / 标注 / tabs / 诊断跳转 ── */
+$("#btnTheme").addEventListener("click", () => {
+  const html = document.documentElement;
+  const dark = html.dataset.appearance === "dark";
+  html.dataset.appearance = dark ? "light" : "dark";
+  $("#btnTheme").textContent = dark ? "☀ 暗色" : "☾ 亮色";
+});
+$("#btnAnnotate").addEventListener("click", () => {
+  document.body.classList.toggle("annotating");
+  $("#btnAnnotate").classList.toggle("on");
+  if (document.body.classList.contains("annotating")) placeAnnos();
+  else $$(".anno-badge,.annot-tip").forEach((n) => n.remove());
+});
+const ANNOS = [
+  { n: 1, sel: "#pairbar", t: "行内协作条 · D3", d: "⌘I 锚定选区展开，不弹浮窗不遮画布。上下文 chips（D11）明示数字体将看到什么；意图芯片一键预填（D6）；含糊意图触发 A2UI 反问（D12）。发送后此处变为计划步骤 + 流式行数。" },
+  { n: 2, sel: "#code", off: { x: -140, y: 40 }, t: "画布内 diff · D4/D5", d: "AI 结果直接渲染进代码：pending 琥珀（流入中）→ +绿/−红 ghost（审阅中）→ 淡出（应用后）。看 diff = 看代码本身，不再有「结果浮窗」。" },
+  { n: 3, sel: "#code", off: { x: 60, y: -30 }, t: "hunk 级操作 · D5", d: "每个改动块独立 ✓接受 / ✕撤销；Tab=全部应用、Esc=丢弃、↑↓ 导航。写盘前必审，应用即建检查点。" },
+  { n: 4, sel: "#dock", t: "结对栏 · D8/D9", d: "大任务的多步执行舱：计划步骤、工具活动流、变更文件列表（逐文件 +/− 与状态）、跨文件审批队列（Orca Deck §3.3 权限队列化：允许/拒绝/全部允许本轮）。" },
+  { n: 5, sel: "#bulb", t: "诊断灯泡 · D7", d: "诊断即意图：波浪线行 hover 出灯泡，一键「AI 修复此诊断」→ 流式小 diff → hunk 审阅。VSCode 快速修复的 AI 化。" },
+  { n: 6, sel: "#cps", t: "检查点轨 · D10", d: "每次应用自动建检查点；点击旧节点可预览/回滚。AI 改动与人手动编辑分轨可追溯，file-history 的编辑器内表达。" },
+  { n: 7, sel: "#stAi", t: "状态栏 AI 在场感", d: "待命/生成中/待审 三态灯；诊断计数可点击跳转；上下文预算可见（12.4k/512k）。快捷键常驻提示。" },
+];
+function placeAnnos() {
+  $$(".anno-badge,.annot-tip").forEach((n) => n.remove());
+  ANNOS.forEach((a) => {
+    const el = $(a.sel);
+    if (!el || el.offsetParent === null && !el.getBoundingClientRect().width) return;
+    const r = el.getBoundingClientRect();
+    const b = document.createElement("div");
+    b.className = "anno-badge";
+    b.textContent = String(a.n);
+    let x = r.right + 10, y = r.top + 6;
+    if (a.off) { x = r.left + a.off.x; y = r.top + a.off.y; }
+    b.style.left = Math.max(8, Math.min(x, window.innerWidth - 30)) + "px";
+    b.style.top = Math.max(8, Math.min(y, window.innerHeight - 30)) + "px";
+    b.addEventListener("click", () => {
+      $$(".annot-tip").forEach((n) => n.remove());
+      const tip = document.createElement("div");
+      tip.className = "annot-tip";
+      tip.style.left = Math.min(b.offsetLeft - 20, window.innerWidth - 300) + "px";
+      tip.style.top = Math.min(b.offsetTop + 26, window.innerHeight - 170) + "px";
+      tip.innerHTML = "<b>" + a.n + " · " + a.t + "</b>" + a.d;
+      document.body.appendChild(tip);
+    });
+    document.body.appendChild(b);
+  });
+}
+
+$$(".tab").forEach((t) =>
+  t.addEventListener("click", () => {
+    $$(".tab").forEach((n) => n.classList.remove("active"));
+    t.classList.add("active");
+    toast("切换到 " + t.dataset.file + "（Monaco 单实例换模型，示意）", "→");
+  })
+);
+$("#stDiag").addEventListener("click", () => {
+  const row = $$("#code .ln.diag")[0];
+  if (row) { row.scrollIntoView({ block: "center", behavior: "smooth" }); row.classList.add("sel"); }
+  toast("L34 · ts(2554) 应有 2 个参数，但获得 1 个 —— 点击 ⚡ 一键修复", "⊗", true);
+});
+$("#crumbSym").textContent = "summarizeUsage";
+
+/* ── 全流程演示（D3→D4→D5 连播） ── */
+$("#btnTour").addEventListener("click", () => {
+  if (phase !== "idle") return;
+  openPair();
+  T_(() => { startMainEdit(); }, 900);
+});
+
+/* ── 初始化 ── */
+initLines();
+markHunkFirst();
+renderCode();
+/* 初始即展开行内协作条 + 预置选区，让核心组件在第一屏可见（评审友好） */
+T_(() => {
+  openPair();
+  toast("预置选区 L21–30 —— 点选区 / ⌘I 发起协作 · ▶ 全流程演示可连播", "✦");
+}, 500);
+</script>
+</body>
+</html>

@@ -13,6 +13,7 @@ import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import {
+  buildModelDetail,
   buildTokenSummary,
   migrateLegacyUsageIntoLedger,
   projectSessionsIndexPath,
@@ -30,6 +31,14 @@ async function makeIndex(root: string, entries: unknown[]): Promise<string> {
   const file = path.join(dir, "sessions-index.json");
   await fsp.writeFile(file, JSON.stringify({ version: 1, entries }), "utf-8");
   return file;
+}
+
+/** Mirrors the aggregation's local day key so tests stay timezone-agnostic. */
+function localDayKey(ms: number): string {
+  const d = new Date(ms);
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${mm}-${dd}`;
 }
 
 async function writeLedger(indexPath: string, records: unknown[]): Promise<void> {
@@ -218,7 +227,11 @@ test("tokens-summary: legacy migration backfills once, then is a no-op", async (
 test("tokens-summary: migration after a native request imports legacy without duplicating ledgered sessions", async () => {
   const root = await fsp.mkdtemp(path.join(os.tmpdir(), "toksum7-"));
   try {
-    const now = Date.now();
+    // Fixed mid-week instant (summary receives the same `now`): relative
+    // offsets stay inside the week window no matter when the suite runs —
+    // a real-clock Sunday-midnight run used to drop the 1h-old record into
+    // last week and under-count thisWeek.reqs.
+    const now = new Date("2026-09-02T12:00:00.000Z").getTime();
     const file = await makeIndex(root, [
       {
         // Pre-rework session: totals in the index, no ledger records of its own.
@@ -290,6 +303,124 @@ test("tokens-summary: cost estimate prices known models, null otherwise", async 
       },
     ]);
     assert.equal(buildTokenSummary("/r", unpriced).costUsd, null);
+  } finally {
+    await fsp.rm(root, { recursive: true, force: true });
+  }
+});
+
+// ── 模型详情（specs/token-model-charts）：热力图 + 速度窗口 ────────────────
+
+test("model-detail: buckets the 7-day window per day/hour/model, skips backfill", async () => {
+  const root = await fsp.mkdtemp(path.join(os.tmpdir(), "tokdetail-"));
+  try {
+    const now = Date.now();
+    const dayMs = 24 * 60 * 60 * 1000;
+    // Adaptive fixture hour (AGENTS.md time-boundary discipline): a fixed
+    // "today at 14:00" entry is in the FUTURE — and skipped by buildModelDetail's
+    // ts > now guard — whenever the suite runs before 14:00 local (observed
+    // 2026-09-05 01:21 after a green 23:xx run). Anchor to one hour in the past.
+    const todayHour = new Date(now).getHours();
+    const h = Math.max(0, todayHour - 1);
+    const hNext = Math.min(23, h + 1);
+    const inWindow = (daysAgo: number, hour: number): string => {
+      const d = new Date(now - daysAgo * dayMs);
+      d.setHours(hour, 0, 0, 0);
+      return d.toISOString();
+    };
+    const file = await makeIndex(root, []);
+    await writeLedger(file, [
+      { ts: inWindow(0, h), model: "m-a", prompt: 100, completion: 40, source: "chat", estimated: true },
+      { ts: inWindow(0, h), model: "m-a", prompt: 10, completion: 5, source: "chat", estimated: true },
+      { ts: inWindow(6, 9), model: "m-b", prompt: 50, completion: 20, source: "chat", estimated: true },
+      { ts: inWindow(9, 9), model: "m-a", prompt: 999, completion: 0, source: "chat", estimated: true }, // outside 7d
+      {
+        ts: inWindow(0, hNext),
+        model: "legacy-backfill",
+        prompt: 777,
+        completion: 0,
+        source: "backfill",
+        estimated: true,
+      },
+    ]);
+    const detail = buildModelDetail(file, 7, now);
+    assert.equal(detail.days.length, 7);
+    assert.ok(detail.days.every((day, i) => i === 0 || day > detail.days[i - 1]!));
+    const cell = detail.heat.find((c) => c.model === "m-a" && c.hour === h && c.day === detail.days[6]!);
+    assert.ok(cell);
+    assert.equal(cell.tokens, 155);
+    assert.equal(cell.reqs, 2);
+    assert.equal(detail.heat.filter((c) => c.model === "legacy-backfill").length, 0);
+    // The 9-days-ago record's calendar day falls outside the 7-day window keys.
+    const droppedDay = localDayKey(now - 9 * dayMs);
+    assert.equal(
+      detail.heat.some((c) => c.day === droppedDay),
+      false
+    );
+    assert.equal(
+      detail.heat.some((c) => c.day === detail.days[0]!),
+      true
+    ); // m-b lives here
+    const b = detail.heat.find((c) => c.model === "m-b");
+    assert.ok(b);
+    assert.equal(b.tokens, 70);
+  } finally {
+    await fsp.rm(root, { recursive: true, force: true });
+  }
+});
+
+test("model-detail: speeds are per-model medians of elapsedMs samples, fastest first", async () => {
+  const root = await fsp.mkdtemp(path.join(os.tmpdir(), "tokspeed-"));
+  try {
+    const now = Date.now();
+    const iso = (msAgo: number): string => new Date(now - msAgo).toISOString();
+    const file = await makeIndex(root, []);
+    await writeLedger(file, [
+      // m-slow: samples 100, 20 → median 60 … wait: completion/elapsed → 1000/1s=1000? keep units explicit:
+      {
+        ts: iso(60_000),
+        model: "m-slow",
+        prompt: 10,
+        completion: 100,
+        elapsedMs: 1000,
+        source: "chat",
+        estimated: true,
+      },
+      {
+        ts: iso(30_000),
+        model: "m-slow",
+        prompt: 10,
+        completion: 20,
+        elapsedMs: 1000,
+        source: "chat",
+        estimated: true,
+      },
+      {
+        ts: iso(10_000),
+        model: "m-fast",
+        prompt: 10,
+        completion: 300,
+        elapsedMs: 1000,
+        source: "chat",
+        estimated: true,
+      },
+      // no elapsedMs → excluded from speeds (legacy rows), still in heatmap
+      { ts: iso(5_000), model: "m-legacy", prompt: 10, completion: 900, source: "chat", estimated: true },
+      // zero completion → no tok/s sample
+      { ts: iso(4_000), model: "m-fast", prompt: 10, completion: 0, elapsedMs: 500, source: "chat", estimated: true },
+    ]);
+    const detail = buildModelDetail(file, 7, now);
+    assert.deepEqual(
+      detail.speeds.map((s) => s.model),
+      ["m-fast", "m-slow"]
+    );
+    assert.equal(detail.speeds[0]!.tokS, 300);
+    assert.equal(detail.speeds[0]!.samples, 1);
+    assert.equal(detail.speeds[1]!.tokS, 60); // median(100, 20) → lower-middle
+    assert.equal(detail.speeds[1]!.samples, 2);
+    assert.equal(
+      detail.speeds.some((s) => s.model === "m-legacy"),
+      false
+    );
   } finally {
     await fsp.rm(root, { recursive: true, force: true });
   }

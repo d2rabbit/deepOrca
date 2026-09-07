@@ -10,9 +10,11 @@
  *          manifest.json + source.openui.txt + index.html (viewer stub —
  *          OpenUI Lang renders via the in-app React runtime, so the stub
  *          shows the source and explains where to open the live preview).
- *   .ddu — UI-Design document export (pipeline "design", .dd artifacts):
- *          manifest.json + source.dd + index.html (STANDALONE compiled
- *          render: tokens + seed CSS + inlined Tailwind JIT).
+ *   .ddu — UI-Design document export: manifest.json + source + index.html.
+ *          The current generation stack stores OpenUI Lang, so UI suites
+ *          export source.openui.txt + viewer stub (buildDduOpenuiPackage);
+ *          legacy .dd artifacts keep the standalone compiled render
+ *          (source.dd, buildDduPackage).
  *
  * Pure logic only (no Electron imports) — unit-testable from the plain-Node
  * test runner, same as design-store.
@@ -86,6 +88,57 @@ export function buildDduPackage(
     { name: "source.dd", data: Buffer.from(ddSource, "utf8") },
     { name: "index.html", data: Buffer.from(standaloneHtml, "utf8") },
   ]);
+}
+
+/** Build the .ddu package for the current UI-Design generation stack
+ *  (OpenUI Lang source; viewer stub — same in-app runtime story as .ddp). */
+export function buildDduOpenuiPackage(
+  artifact: { id: string; title: string },
+  openuiSource: string,
+  exportedAt: string
+): Buffer {
+  const manifest: DdPackageManifest = {
+    format: "ddu",
+    formatVersion: 1,
+    kind: "ui-design",
+    title: artifact.title,
+    artifactId: artifact.id,
+    pipeline: "openui",
+    exportedAt,
+    generator: GENERATOR,
+  };
+  return zipEntries([
+    { name: "manifest.json", data: Buffer.from(JSON.stringify(manifest, null, 2), "utf8") },
+    { name: "source.openui.txt", data: Buffer.from(openuiSource, "utf8") },
+    { name: "index.html", data: Buffer.from(buildDduOpenuiViewerHtml(artifact.title, openuiSource), "utf8") },
+  ]);
+}
+
+/** Viewer stub for the OpenUI-sourced .ddu (UI-Design). */
+function buildDduOpenuiViewerHtml(title: string, source: string): string {
+  const safeTitle = escapeHtml(title);
+  const safeSource = escapeHtml(source);
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>${safeTitle} — UI-Design source</title>
+<style>
+body{font-family:system-ui,sans-serif;background:#111418;color:#e6e6e6;margin:0;padding:32px;line-height:1.6}
+h1{font-size:20px;margin:0 0 8px}
+p{color:#9aa3ad;font-size:13px;margin:0 0 20px}
+pre{background:#1b2027;border:1px solid #2a313a;border-radius:8px;padding:16px;font-size:12px;overflow:auto;white-space:pre-wrap}
+</style>
+</head>
+<body>
+<h1>${safeTitle}</h1>
+<p>UI-Design document package (.ddu). The OpenUI Lang source below renders
+interactively in DeepOrca (Designer → UI-Design preview); this file preserves
+the exact source. See manifest.json for package metadata.</p>
+<pre>${safeSource}</pre>
+</body>
+</html>`;
 }
 
 /**

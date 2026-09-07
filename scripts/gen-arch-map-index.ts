@@ -1,10 +1,12 @@
 /**
- * Generate the workspace architecture map DETERMINISTICALLY from the
- * CodeGraph index (R3-8): packages → key symbols → cross-package
- * relationship edges, composed as an official A2UI v0.9 surface
- * (`arch-root`) — the same artifact format the arch-scan LLM channel
- * produces, grounded in real index data instead of an LLM pass (the LLM
- * path stays available via scripts/gen-arch-map.ts when credits allow).
+ * LEGACY (output format retired 2026-08-29 — kept for the R3-8 experiment's
+ * traceability). Generates a workspace architecture map DETERMINISTICALLY
+ * from the CodeGraph index: packages → key symbols → cross-package
+ * relationship edges, composed as an A2UI v0.9 surface (`arch-root`).
+ * The desktop NO LONGER consumes this format (arch-*.json is invisible to
+ * the archify-era artifact listing); the live deterministic path is the
+ * arch-scan skill + archify deliver gate (scripts/gen-arch-map.ts runs the
+ * LLM channel; specs/arch-map-reinforce R3 adds focused runs).
  *
  * Usage: npx tsx scripts/gen-arch-map-index.ts [projectRoot]
  * Output: <root>/.deeporca/prototypes/arch-root.json (+ arch-xrefs.json)

@@ -6,6 +6,11 @@
 > （结论：backpass 不必须集成，其方法论值得借鉴）。本篇回答“**怎么抄**”：不引 external
 > CLI，而是让 DeepOrca 用自己的 session 证据、自己的记忆管线、自己的定制子智能体
 > 通道，把 backpass 那一套“记忆梯度下降”做进产品。**本方案只出设计，不写代码。**
+>
+> **spec 立项（2026-09-04）**：本方案已落 spec —— [`specs/memory-audit/`](../../specs/memory-audit/design.md)
+> （design + tasks，**活跃 spec 当前版本实施**——用户拍板非 next-version 储备；P0 纯观察先行、
+> 数据决策门定 P1）。归档于 [research-adoption-plan](../features/research-adoption-plan.md) 三线之一；
+> 实现一律以 spec 为准，本文仅作依据溯源。
 
 ## 命题映射
 

@@ -3,8 +3,8 @@
 
 // NOTE: SessionManager is a thin composition root. The implementation lives in
 // the session-manager-*.ts layer chain (fields+constructor+LLM core → mcp →
-// skills → persistence → lifecycle → tasks); this file keeps the module's
-// public surface (types, helpers, re-exports) stable for importers.
+// skills → persistence → lifecycle → tasks → depth-lane); this file keeps the
+// module's public surface (types, helpers, re-exports) stable for importers.
 
 export type { PermissionScope } from "./settings";
 export type {
@@ -43,9 +43,9 @@ export { isChineseLocale } from "./session-helpers";
 export { LlmStreamIdleTimeoutError, withStreamIdleTimeout } from "./session-stream";
 export { getLastPromptTokens, getFreshInputTokens } from "./session-usage";
 
-import { SessionManagerTasks } from "./session-manager-tasks";
+import { SessionManagerDepth } from "./session-manager-depth";
 
-export class SessionManager extends SessionManagerTasks {
+export class SessionManager extends SessionManagerDepth {
   dispose(): void {
     const controller = this.activePromptController;
     if (controller && !controller.signal.aborted) {

@@ -37,7 +37,7 @@ import { formatAbsolute, formatRelative } from "./task-hub-format";
  * 汇总全工作区 LLM 消耗（silent subagents 含）。
  */
 
-const DOMAINS: TaskHubDomain[] = ["session", "index", "review", "prototype"];
+const DOMAINS: TaskHubDomain[] = ["session", "index", "review", "prototype", "editor"];
 const RAIL_W = 90;
 const TRUNK_X = 28;
 
@@ -47,6 +47,24 @@ const TRUNK_X = 28;
 export type TaskHubQuickView =
   | { kind: "report"; root: string; reportId: string; title: string }
   | { kind: "timeline"; root: string; treeId: string; title: string }
+  | {
+      kind: "step-detail";
+      root: string;
+      title: string;
+      step: {
+        tool: string;
+        arg: string;
+        ok?: boolean;
+        fail?: boolean;
+        ms?: string;
+        mcp?: string;
+        cls: string;
+        /** Op start time (ISO) — rendered in the workspace timezone. */
+        at?: string;
+        /** Truncated tool result markdown (detail enrichment). */
+        resultMd?: string;
+      };
+    }
   | {
       kind: "build";
       root: string;
@@ -69,6 +87,8 @@ type Props = {
   /** 分支独立 fork（九轮）：切进 git worktree 临时工作区（停泊当前 →
    *  切 root → 会话主视图）。 */
   onOpenWorkspace: (root: string) => void;
+  /** Editor pair-run nodes (specs/editor-copilot 链路 D): open the file. */
+  onOpenEditorFile?: (root: string, file: string) => void;
 };
 
 export function TaskHubWorkspace({
@@ -77,6 +97,7 @@ export function TaskHubWorkspace({
   onOpenDesign,
   onOpenKnowledge,
   onOpenSession,
+  onOpenEditorFile,
   onOpenWorkspace,
 }: Props): JSX.Element {
   const { t } = useI18n();
@@ -87,10 +108,10 @@ export function TaskHubWorkspace({
   const [domainFilter, setDomainFilter] = useState<TaskHubDomain | "all">("all");
   // Floating detail window (user ask 2026-09-01: 左侧任务详情也用悬浮窗):
   // anchored at the click point, closed by Esc / outside press / scroll.
-  const [pop, setPop] = useState<{ node: TaskHubNode; x: number; y: number } | null>(null);
-  const popRef = useRef<HTMLDivElement | null>(null);
   // 点击任务卡直接展开右侧对应 tab（user ask 2026-09-03: 去掉点击点弹窗）；
-  // setPop/pop 通路已停用，仅供遗留 portal 兜底编译。
+  // Selected session-tree node for inline operations (fork/switch/merge
+  // forms expand in-place under the node row — no floating popover).
+  const [pop, setPop] = useState<{ node: TaskHubNode; x: number; y: number } | null>(null);
   const openNodeQuickView = (node: TaskHubNode): void => {
     const src = node.source;
     if (src.kind === "session-tree") {
@@ -109,6 +130,9 @@ export function TaskHubWorkspace({
       });
     } else if (src.kind === "design-artifact") {
       onOpenDesign(src.artifactId, src.pipeline);
+    } else if (src.kind === "editor-run") {
+      // Editor pair-run nodes (链路 D): open the owning file's tab.
+      onOpenEditorFile?.(root, src.file);
     }
   };
   const [traces, setTraces] = useState<Record<string, Awaited<ReturnType<typeof api.taskHubTrace>>>>({});
@@ -153,7 +177,6 @@ export function TaskHubWorkspace({
     setHub(null);
     setTraces({});
     setTreeBranches({});
-    setPop(null);
     void reload();
   }, [reload]);
 
@@ -227,26 +250,6 @@ export function TaskHubWorkspace({
     return () => unsubs.forEach((u) => u());
   }, [reload, root]);
 
-  // Popover dismissal — capture-phase scroll so inner scrollers close it too.
-  useEffect(() => {
-    if (!pop) return;
-    const onKey = (e: KeyboardEvent): void => {
-      if (e.key === "Escape") setPop(null);
-    };
-    const onScroll = (): void => setPop(null);
-    const onPointerDown = (e: MouseEvent): void => {
-      if (!popRef.current?.contains(e.target as Node)) setPop(null);
-    };
-    window.addEventListener("keydown", onKey);
-    window.addEventListener("scroll", onScroll, true);
-    document.addEventListener("mousedown", onPointerDown);
-    return () => {
-      window.removeEventListener("keydown", onKey);
-      window.removeEventListener("scroll", onScroll, true);
-      document.removeEventListener("mousedown", onPointerDown);
-    };
-  }, [pop]);
-
   // Closing the popover also retires its inline forms (a stale switch picker
   // must not resurface on the next open of the same node).
   useEffect(() => {
@@ -256,7 +259,13 @@ export function TaskHubWorkspace({
     setMergeFor(null);
   }, [pop]);
 
-  const flat = useMemo(() => hub?.groups.flatMap((g) => g.nodes) ?? [], [hub]);
+  const flat = useMemo(
+    // 2026-09-06 user ask: the trunk is ONE global timeline — sort every node
+    // by start time (newest first) instead of domain-block order, so a fresh
+    // editor pair-run is never buried under 4-day-old review nodes.
+    () => (hub?.groups.flatMap((g) => g.nodes) ?? []).sort((a, b) => b.startedAt.localeCompare(a.startedAt)),
+    [hub]
+  );
   /** Fork 伪节点交错进行序列：每棵会话树后面紧跟它的分支节点行
    *  （lane 1，⑂ 标题，abandoned → archived 状态）。 */
   const rows = useMemo(() => {
@@ -442,7 +451,6 @@ export function TaskHubWorkspace({
       setForkFor(null);
       setForkName("");
       setForkWhy("");
-      setPop(null);
       if (res.mode === "branch" && res.workspaceRoot) {
         // 分支独立：切进 git worktree 临时工作区干活（结构性隔离）。
         onOpenWorkspace(res.workspaceRoot);
@@ -506,7 +514,6 @@ export function TaskHubWorkspace({
         return;
       }
       setMergeFor(null);
-      setPop(null);
       await reload();
     } catch (err) {
       setMergeError(err instanceof Error ? err.message : String(err));
@@ -554,7 +561,6 @@ export function TaskHubWorkspace({
         return;
       }
       setSwitchFor(null);
-      setPop(null);
       await reload();
     } catch (err) {
       setSwitchError(err instanceof Error ? err.message : String(err));
@@ -567,6 +573,7 @@ export function TaskHubWorkspace({
     if (isFork(n)) return { label: "FORK", cls: "tag-fork" };
     if (n.source.kind === "review-report") return { label: "REVIEW", cls: "tag-review" };
     if (n.source.kind === "index-job") return { label: "INDEX", cls: "tag-index" };
+    if (n.source.kind === "editor-run") return { label: "PAIR", cls: "tag-pair" };
     if (n.source.kind === "design-artifact")
       return {
         label: n.source.pipeline === "spec" ? "PM-DESIGN" : "UI-DESIGN",
@@ -738,14 +745,8 @@ export function TaskHubWorkspace({
                             runForkSwitch(node);
                             return;
                           }
-                          if (node.source.kind === "session-tree") {
-                            setPop({
-                              node,
-                              x: Math.max(8, Math.min(e.clientX + 14, window.innerWidth - 346)),
-                              y: Math.max(8, Math.min(e.clientY + 10, window.innerHeight - 320)),
-                            });
-                            return;
-                          }
+                          // session-tree 与其他类型一致走右侧面板（用户 ask
+                          // 2026-09-05: SESSION 节点不弹 popover，统一右侧拉窗）
                           openNodeQuickView(node);
                         }}
                         onKeyDown={(e) => {
@@ -754,14 +755,6 @@ export function TaskHubWorkspace({
                           const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
                           if (isFork(node)) {
                             runForkSwitch(node);
-                            return;
-                          }
-                          if (node.source.kind === "session-tree") {
-                            setPop({
-                              node,
-                              x: Math.max(8, Math.min(r.right + 14, window.innerWidth - 346)),
-                              y: Math.max(8, Math.min(r.top + 10, window.innerHeight - 320)),
-                            });
                             return;
                           }
                           openNodeQuickView(node);
@@ -796,6 +789,16 @@ export function TaskHubWorkspace({
                             {formatRelative(node.startedAt, t("index.freshness.justNow"), "—")}
                             {node.startedAt ? ` · ${formatAbsolute(node.startedAt)}` : ""}
                           </span>
+                          {/* Editor pair-run cost/behavior (2026-09-06 user ask):
+                              token 消耗 + 迭代次数 directly on the task node. */}
+                          {node.source.kind === "editor-run" && node.meta?.tokens ? (
+                            <span className="mono" title="token 消耗（本地计数 ≈）">
+                              ≈{fmtTokens(Number((node.meta.tokens as { total?: number }).total ?? 0))} tok
+                            </span>
+                          ) : null}
+                          {node.source.kind === "editor-run" && node.meta?.iterations != null ? (
+                            <span title="agent 迭代轮数">{String(node.meta.iterations)} it</span>
+                          ) : null}
                           {node.meta?.comments != null ? (
                             <span>{t("taskhub.findings", { n: node.meta.comments as number })}</span>
                           ) : null}
@@ -822,7 +825,7 @@ export function TaskHubWorkspace({
                                       <div className="turn-head">
                                         <span>
                                           Turn {i + 1}
-                                          {turn.at ? ` · ${turn.at}` : ""}
+                                          {turn.at ? ` · ${formatAbsolute(turn.at)}` : ""}
                                           {s.truncated && i === 0 ? " …" : ""}
                                         </span>
                                         <span className="ln" />
@@ -838,7 +841,30 @@ export function TaskHubWorkspace({
                                       </div>
                                       <div className="steps">
                                         {turn.steps.map((st, j) => (
-                                          <TraceStepRow key={j} step={st as TaskTraceStep} />
+                                          <TraceStepRow
+                                            key={j}
+                                            step={st as TaskTraceStep}
+                                            onSelect={(step) => {
+                                              onOpenQuick({
+                                                kind: "step-detail",
+                                                root,
+                                                title: step.tool + (step.arg ? ` · ${step.arg.slice(0, 60)}` : ""),
+                                                step: {
+                                                  tool: step.tool,
+                                                  arg: step.arg,
+                                                  ok: step.ok,
+                                                  fail: step.fail,
+                                                  ms: step.ms,
+                                                  mcp: step.mcp,
+                                                  cls: step.cls,
+                                                  // 2026-09-06 user ask: richer detail —
+                                                  // local time + the tool's result markdown.
+                                                  at: step.at,
+                                                  resultMd: step.resultMd,
+                                                },
+                                              });
+                                            }}
+                                          />
                                         ))}
                                       </div>
                                     </div>
@@ -856,259 +882,6 @@ export function TaskHubWorkspace({
             )}
           </div>
         </div>
-
-        {pop
-          ? createPortal(
-              <div ref={popRef} className="ui-taskhub-pop" style={{ left: pop.x, top: pop.y }} role="dialog">
-                {(() => {
-                  const node = pop.node;
-                  const src = node.source;
-                  return (
-                    <div className="ui-taskhub-detail-card">
-                      <div className="ui-taskhub-detail-head">
-                        <span className="glyph">{src.kind === "session-tree" ? "●" : "◆"}</span>
-                        <h2>{node.title}</h2>
-                        <button
-                          type="button"
-                          className="ui-risk-pop-close"
-                          aria-label="close"
-                          onClick={() => setPop(null)}
-                        >
-                          ✕
-                        </button>
-                      </div>
-                      <div className="sub">{t(`taskhub.domain.${node.domain}` as never)}</div>
-                      <div className="rows">
-                        <div className="row">
-                          <span className="k">{t("taskhub.detail.status")}</span>
-                          <span>{t(`taskhub.status.${node.status}` as never)}</span>
-                        </div>
-                        <div className="row">
-                          <span className="k">{t("taskhub.detail.started")}</span>
-                          <span>{formatAbsolute(node.startedAt)}</span>
-                        </div>
-                        {src.kind === "session-tree" && node.meta?.gitHash ? (
-                          <div className="row">
-                            <span className="k">{t("taskhub.gitBound")}</span>
-                            <span className="git-chip">
-                              ⎇ <span className="hash">{String(node.meta.gitHash)}</span>
-                            </span>
-                          </div>
-                        ) : null}
-                        {src.kind === "review-report" && node.meta?.comments != null ? (
-                          <div className="row">
-                            <span className="k">{t("taskhub.findings", { n: node.meta.comments as number })}</span>
-                            <span />
-                          </div>
-                        ) : null}
-                      </div>
-                      {src.kind === "session-tree" ? (
-                        <div className="dsec">
-                          <div className="hd">{t("taskhub.forkSection")}</div>
-                          {forkFor === node.id ? (
-                            <div className="ui-taskhub-forkform">
-                              <input
-                                className="ui-review-scope-select"
-                                value={forkName}
-                                onChange={(e) => setForkName(e.target.value)}
-                                placeholder={t("taskhub.forkName")}
-                              />
-                              <input
-                                className="ui-review-scope-select"
-                                value={forkWhy}
-                                onChange={(e) => setForkWhy(e.target.value)}
-                                placeholder={t("taskhub.forkWhy")}
-                              />
-                              {/* 九轮双模式：worktree 沙盒（.deeporca 内）vs
-                                  分支独立（git 联动 + 仓库外临时工作区）。 */}
-                              <div className="ui-taskhub-forkmode">
-                                <button
-                                  type="button"
-                                  className={`ui-taskhub-pill${forkMode === "worktree" ? " on" : ""}`}
-                                  onClick={() => setForkMode("worktree")}
-                                >
-                                  {t("taskhub.forkMode.worktree")}
-                                </button>
-                                <button
-                                  type="button"
-                                  className={`ui-taskhub-pill${forkMode === "branch" ? " on" : ""}`}
-                                  onClick={() => setForkMode("branch")}
-                                >
-                                  {t("taskhub.forkMode.branch")}
-                                </button>
-                              </div>
-                              {forkMode === "worktree" ? (
-                                <div className="ui-taskhub-forkmode-note">{t("taskhub.forkMode.worktreeNote")}</div>
-                              ) : (
-                                <div className="ui-taskhub-forkmode-note">{t("taskhub.forkMode.branchNote")}</div>
-                              )}
-                              {forkError ? <div className="ui-error">{forkError}</div> : null}
-                              <div className="forkform-actions">
-                                <button
-                                  type="button"
-                                  className="btn"
-                                  disabled={forkBusy || !forkWhy.trim()}
-                                  onClick={() => void runFork()}
-                                >
-                                  ⑂ {t("taskhub.forkGo")}
-                                </button>
-                                <button type="button" className="btn subtle" onClick={() => setForkFor(null)}>
-                                  {t("common.cancel")}
-                                </button>
-                              </div>
-                            </div>
-                          ) : mergeFor === node.id ? (
-                            <div className="ui-taskhub-forkform">
-                              <select
-                                className="ui-review-scope-select"
-                                value={mergeSel}
-                                onChange={(e) => setMergeSel(e.target.value)}
-                              >
-                                {switchOptions.map((b) => (
-                                  <option key={b} value={b}>
-                                    {b}
-                                  </option>
-                                ))}
-                              </select>
-                              {mergeError ? <div className="ui-error">{mergeError}</div> : null}
-                              <div className="forkform-actions">
-                                <button
-                                  type="button"
-                                  className="btn"
-                                  disabled={mergeBusy || !mergeSel}
-                                  onClick={() => void runMerge()}
-                                >
-                                  ⇄ {t("taskhub.mergeGo")}
-                                </button>
-                                <button type="button" className="btn subtle" onClick={() => setMergeFor(null)}>
-                                  {t("common.cancel")}
-                                </button>
-                              </div>
-                            </div>
-                          ) : switchFor === node.id ? (
-                            <div className="ui-taskhub-forkform">
-                              <select
-                                className="ui-review-scope-select"
-                                value={switchSel}
-                                onChange={(e) => setSwitchSel(e.target.value)}
-                              >
-                                {switchOptions.map((b) => (
-                                  <option key={b} value={b}>
-                                    {b}
-                                  </option>
-                                ))}
-                              </select>
-                              {switchError ? <div className="ui-error">{switchError}</div> : null}
-                              <div className="forkform-actions">
-                                <button
-                                  type="button"
-                                  className="btn"
-                                  disabled={switchBusy || !switchSel}
-                                  onClick={() => void runSwitch()}
-                                >
-                                  {t("taskrec.switch")}
-                                </button>
-                                <button type="button" className="btn subtle" onClick={() => setSwitchFor(null)}>
-                                  {t("common.cancel")}
-                                </button>
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="actions">
-                              <button
-                                type="button"
-                                className="btn"
-                                onClick={() =>
-                                  onOpenQuick({ kind: "timeline", root, treeId: src.treeId, title: node.title })
-                                }
-                              >
-                                {t("taskhub.openTimeline")}
-                              </button>
-                              <button
-                                type="button"
-                                className="btn"
-                                onClick={() => {
-                                  setForkFor(node.id);
-                                  setForkWhy("");
-                                  setForkName("");
-                                }}
-                              >
-                                ⑂ {t("taskhub.fork")}
-                              </button>
-                              <button type="button" className="btn subtle" onClick={() => void beginSwitch(node)}>
-                                {t("taskhub.switchBranch")}
-                              </button>
-                              <button type="button" className="btn subtle" onClick={() => void beginMerge(node)}>
-                                ⇄ {t("taskhub.mergeGo")}
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      ) : null}
-                      {src.kind === "review-report" ? (
-                        <div className="dsec">
-                          <div className="hd">{t("taskhub.detail.actions")}</div>
-                          <div className="actions">
-                            <button
-                              type="button"
-                              className="btn"
-                              onClick={() =>
-                                onOpenQuick({ kind: "report", root, reportId: src.reportId, title: node.title })
-                              }
-                            >
-                              {t("taskhub.openReport")}
-                            </button>
-                          </div>
-                        </div>
-                      ) : null}
-                      {src.kind === "design-artifact" ? (
-                        <div className="dsec">
-                          <div className="hd">{t("taskhub.detail.actions")}</div>
-                          <div className="actions">
-                            <button
-                              type="button"
-                              className="btn"
-                              onClick={() => onOpenDesign(src.artifactId, src.pipeline)}
-                            >
-                              {t("taskhub.openDesign")}
-                            </button>
-                          </div>
-                        </div>
-                      ) : null}
-                      {src.kind === "index-job" ? (
-                        <div className="dsec">
-                          <div className="hd">{t("taskhub.detail.actions")}</div>
-                          <div className="actions">
-                            <button
-                              type="button"
-                              className="btn"
-                              onClick={() =>
-                                onOpenQuick({
-                                  kind: "build",
-                                  root,
-                                  jobId: src.jobId,
-                                  title: node.title,
-                                  stages:
-                                    (node.meta?.stages as Array<{ id: string; status: string; error?: string }>) ?? [],
-                                  error: typeof node.meta?.error === "string" ? node.meta.error : undefined,
-                                })
-                              }
-                            >
-                              {t("taskhub.quickBuild")}
-                            </button>
-                            <button type="button" className="btn subtle" onClick={() => onOpenKnowledge(root)}>
-                              {t("taskhub.openIndex")}
-                            </button>
-                          </div>
-                        </div>
-                      ) : null}
-                    </div>
-                  );
-                })()}
-              </div>,
-              document.body
-            )
-          : null}
       </div>
     </div>
   );
@@ -1130,11 +903,25 @@ const TRACE_ICONS: Record<string, JSX.Element> = {
   "t-assistant": <IconChatBubble />,
 };
 
-function TraceStepRow({ step }: { step: TaskTraceStep }): JSX.Element {
+function TraceStepRow({
+  step,
+  onSelect,
+}: {
+  step: TaskTraceStep;
+  onSelect?: (step: TaskTraceStep) => void;
+}): JSX.Element {
   const mcp = step.mcp ? <span className="mcp-badge">MCP · {step.mcp}</span> : null;
   return (
     <>
-      <div className="step">
+      <div
+        className="step clickable"
+        onClick={() => onSelect?.(step)}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && onSelect) onSelect(step);
+        }}
+      >
         <span className={`ic ${step.cls}`}>{TRACE_ICONS[step.cls] ?? <IconToolGeneric />}</span>
         <div className="body">
           <div className="l1">
@@ -1153,7 +940,7 @@ function TraceStepRow({ step }: { step: TaskTraceStep }): JSX.Element {
           </div>
           <div className="steps">
             {step.nested.map((n, i) => (
-              <TraceStepRow key={i} step={n} />
+              <TraceStepRow key={i} step={n} onSelect={onSelect} />
             ))}
           </div>
         </div>

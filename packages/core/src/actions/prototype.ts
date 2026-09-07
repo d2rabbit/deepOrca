@@ -1,40 +1,72 @@
 /**
- * Prototype module actions (design-module split, real-machine feedback):
- * "一句话需求生成原型" mashed two different disciplines into one auto-routed
- * flow. The split gives prototype design its own two-step methodology —
- *
- *   prototype.spec        需求（一句话或详细）→ 结构化需求文档（spec.md）
- *   prototype.materialize 需求文档 → 原型图（OpenUI Lang, render_openui）
- *
- * while UI/UX design (.dd) lives in the separate design.* module
- * (design.materialize: requirement — one sentence allowed — or an existing
- * prototype → UI design document).
- *
- * Both actions are orchestration only: generation goes through
- * ctx.runSubagent (silent — panel-initiated runs leave no session residue)
- * whose skills call the MCP tools that persist to .deeporca/designs/.
+ * Prototype suite actions. Generation is delegated to the existing design
+ * skills; immutable suite reads and writes cross the desktop A2UI MCP seam.
  */
 
 import * as fs from "node:fs";
 import * as path from "node:path";
-import type { ActionDefinition, ActionRun } from "./types";
+import type { ActionContext, ActionDefinition, ActionRun } from "./types";
 
-/** Artifact dir layout shared with desktop's design-store. */
 const DESIGNS_DIR = ".deeporca/designs";
 const SPEC_FILE = "spec.md";
+const A2UI_TOOL_PREFIX = "mcp__a2ui__";
 
-/** Same id guard as design-store — ids reach path.join, so only plain tokens. */
+export interface ArtifactRef {
+  suiteId: string;
+  versionId: string;
+  kind: "prototype" | "ui";
+}
+
+interface PrototypeVerificationCheck {
+  id: string;
+  label: string;
+  status: "pending" | "passed" | "failed" | "healed";
+  action?: string;
+  observation?: string;
+}
+
+interface PrototypeVerificationResult {
+  status: "pending" | "passed" | "failed";
+  checks: PrototypeVerificationCheck[];
+  generatedAt?: string;
+  healingRounds?: number;
+}
+
+export interface PrototypeSuiteContent {
+  requirement?: string;
+  spec?: string;
+  openui?: string;
+  verification?: PrototypeVerificationResult;
+}
+
+export interface UiSuiteContent {
+  requirement?: string;
+  openui?: string;
+  tokens?: unknown;
+  components?: unknown;
+  quality?: Record<string, unknown>;
+  sourcePrototype?: { suiteId: string; versionId: string };
+  designSystemId?: string;
+}
+
+interface SuiteVersionPayload {
+  artifactRef: ArtifactRef;
+  title: string;
+  status: string;
+  content: PrototypeSuiteContent | UiSuiteContent;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 function isSafeArtifactId(id: string): boolean {
   return /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(id) && !id.includes("..");
 }
 
-/** Read an artifact content file under .deeporca/designs/<id>/; null when absent/unsafe. */
 function readArtifactFile(projectRoot: string, id: string, file: string): string | null {
   if (!isSafeArtifactId(id)) return null;
   try {
-    // Containment (scan fix, high): resolve every dynamic segment, then
-    // require the result to stay inside its root — `../` or absolute
-    // segments resolve outside and are rejected before any fs call.
     const base = path.resolve(projectRoot, DESIGNS_DIR);
     const dir = path.resolve(base, id);
     if (!dir.startsWith(base + path.sep)) return null;
@@ -47,32 +79,115 @@ function readArtifactFile(projectRoot: string, id: string, file: string): string
   }
 }
 
-// ── prototype.spec: requirement → structured requirements document ───────────
+function subagentContent(result: unknown): string | null {
+  if (!isRecord(result) || typeof result.content !== "string") return null;
+  return result.content.trim() || null;
+}
+
+function extractGeneratedBody(result: unknown): string | null {
+  const content = subagentContent(result);
+  if (!content) return null;
+  const fence = content.match(/```(?:markdown|md|openui|dd|html|json)?\s*\n([\s\S]*?)```/i);
+  return (fence?.[1] ?? content).trim() || null;
+}
+
+function parseJsonRecord(text: string | undefined): Record<string, unknown> | null {
+  if (!text) return null;
+  const candidates = [text.trim(), text.match(/\{[\s\S]*\}/)?.[0]].filter((value): value is string => Boolean(value));
+  for (const candidate of candidates) {
+    try {
+      const parsed: unknown = JSON.parse(candidate);
+      if (isRecord(parsed)) return parsed;
+    } catch {
+      // Try the next representation.
+    }
+  }
+  return null;
+}
+
+function parseArtifactRef(output: string | undefined): ArtifactRef | null {
+  const direct = parseJsonRecord(output);
+  const nested = direct && isRecord(direct.artifactRef) ? direct.artifactRef : null;
+  const fallbackText = output?.match(/ArtifactRef:\s*(\{[^\n]+\})/)?.[1];
+  const candidate = nested ?? parseJsonRecord(fallbackText);
+  if (
+    !candidate ||
+    typeof candidate.suiteId !== "string" ||
+    typeof candidate.versionId !== "string" ||
+    (candidate.kind !== "prototype" && candidate.kind !== "ui")
+  ) {
+    return null;
+  }
+  return { suiteId: candidate.suiteId, versionId: candidate.versionId, kind: candidate.kind };
+}
+
+async function executeA2ui(
+  ctx: ActionContext,
+  tool: string,
+  args: Record<string, unknown>
+): Promise<{ ok: true; output?: string; artifactRef?: ArtifactRef } | { ok: false; error: string }> {
+  if (!ctx.executeMcpTool) return { ok: false, error: "A2UI MCP action channel is not available" };
+  const result = await ctx.executeMcpTool(`${A2UI_TOOL_PREFIX}${tool}`, args);
+  if (!result.ok) return { ok: false, error: result.error ?? result.output ?? `${tool} failed` };
+  return { ok: true, output: result.output, artifactRef: parseArtifactRef(result.output) ?? undefined };
+}
+
+export async function readSuiteVersion(
+  ctx: ActionContext,
+  suiteId: string,
+  versionId: string
+): Promise<{ ok: true; value: SuiteVersionPayload } | { ok: false; error: string }> {
+  const result = await executeA2ui(ctx, "read_suite_version", { suiteId, versionId });
+  if (!result.ok) return result;
+  const payload = parseJsonRecord(result.output);
+  if (!payload || !isRecord(payload.artifactRef) || !isRecord(payload.content)) {
+    return { ok: false, error: "read_suite_version returned an invalid payload" };
+  }
+  const ref = payload.artifactRef;
+  if (
+    typeof ref.suiteId !== "string" ||
+    typeof ref.versionId !== "string" ||
+    (ref.kind !== "prototype" && ref.kind !== "ui")
+  ) {
+    return { ok: false, error: "read_suite_version returned an invalid ArtifactRef" };
+  }
+  return {
+    ok: true,
+    value: {
+      artifactRef: { suiteId: ref.suiteId, versionId: ref.versionId, kind: ref.kind },
+      title: typeof payload.title === "string" ? payload.title : "Untitled",
+      status: typeof payload.status === "string" ? payload.status : "draft",
+      content: payload.content as PrototypeSuiteContent | UiSuiteContent,
+    },
+  };
+}
 
 export interface PrototypeSpecInput {
-  /** The requirement — a one-liner is fine; the skill expands it. */
   requirement: string;
+  suiteId?: string;
+  baseVersionId?: string;
+  note?: string;
 }
 
 export interface PrototypeSpecOutput {
   ok: boolean;
+  artifactRef?: ArtifactRef;
+  refreshStore?: boolean;
   error?: string;
 }
 
 export const prototypeSpecDefinition: ActionDefinition<PrototypeSpecInput> = {
   id: "prototype.spec",
   description:
-    "Prototype design, step 1: expand a requirement (one sentence is fine) into a structured requirements " +
-    "document (背景/目标/用户与场景/功能需求/页面清单/验收标准) persisted as a spec artifact via the " +
-    "render_spec tool. Step 2 (prototype.materialize) turns the document into an interactive prototype.",
+    "Expand a requirement into a structured prototype specification and create or append a prototype design suite version.",
   category: "design",
   parameters: {
     type: "object",
     properties: {
-      requirement: {
-        type: "string",
-        description: "Natural language requirement (what to build); a single sentence is enough",
-      },
+      requirement: { type: "string", description: "Natural language requirement" },
+      suiteId: { type: "string", description: "Prototype suite to revise; omit for a new suite" },
+      baseVersionId: { type: "string", description: "Immutable suite version used as the revision base" },
+      note: { type: "string", description: "Optional version note" },
     },
     required: ["requirement"],
     additionalProperties: false,
@@ -82,58 +197,62 @@ export const prototypeSpecDefinition: ActionDefinition<PrototypeSpecInput> = {
 
 export const prototypeSpecRun: ActionRun<PrototypeSpecInput, PrototypeSpecOutput> = async (input, ctx) => {
   const requirement = input?.requirement?.trim();
-  if (!requirement) {
-    return { ok: false, error: "requirement is required" };
-  }
-  if (!ctx.runSubagent) {
-    return { ok: false, error: "runSubagent not available — the design subagent channel must be wired" };
-  }
+  const suiteId = input?.suiteId?.trim();
+  const baseVersionId = input?.baseVersionId?.trim();
+  if (!requirement) return { ok: false, error: "requirement is required" };
+  if (baseVersionId && !suiteId) return { ok: false, error: "baseVersionId requires suiteId" };
+  if (!ctx.runSubagent) return { ok: false, error: "runSubagent not available" };
 
-  ctx.emit({ message: "📝 正在细化需求并生成需求文档…", percent: 30 });
+  ctx.emit({ message: "Generating the structured prototype specification", percent: 30 });
   try {
-    await ctx.runSubagent({
+    const generated = await ctx.runSubagent({
       skill: "spec-writer",
       prompt:
-        `Write the structured requirements document for this requirement (expand it, do not invent scope):\n\n` +
-        `${requirement}\n\n` +
-        "Call the render_spec tool with the complete markdown document. requirement text is included for provenance.",
+        "Write the complete structured requirements document for the requirement below. Include background/goals, " +
+        "users/scenarios, functional requirements, an explicit page list, and acceptance criteria. Do not call tools. " +
+        "Return only the complete markdown document in one markdown code fence.\n\n" +
+        requirement,
       silent: true,
     });
-    ctx.emit({ message: "✅ 需求文档已生成", percent: 100 });
-    return { ok: true };
-  } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    const document = extractGeneratedBody(generated);
+    if (!document) return { ok: false, error: "spec-writer returned no requirements document" };
+    const saved = await executeA2ui(ctx, "render_spec", {
+      document,
+      requirement,
+      ...(suiteId ? { suiteId } : {}),
+      ...(baseVersionId ? { versionId: baseVersionId } : {}),
+      note: input.note?.trim() || (suiteId ? "prototype specification revision" : "initial prototype specification"),
+    });
+    if (!saved.ok) return saved;
+    ctx.emit({ message: "Prototype specification saved", percent: 100 });
+    return { ok: true, artifactRef: saved.artifactRef, refreshStore: !saved.artifactRef };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) };
   }
 };
 
-// ── prototype.materialize: requirements document → interactive prototype ─────
-
 export interface PrototypeMaterializeInput {
-  /** spec artifact id produced by prototype.spec (step 1). */
-  specArtifactId: string;
+  suiteId?: string;
+  versionId?: string;
+  specArtifactId?: string;
+  note?: string;
 }
 
-export interface PrototypeMaterializeOutput {
-  ok: boolean;
-  error?: string;
-}
+export type PrototypeMaterializeOutput = PrototypeSpecOutput;
 
 export const prototypeMaterializeDefinition: ActionDefinition<PrototypeMaterializeInput> = {
   id: "prototype.materialize",
   description:
-    "Prototype design, step 2: turn a requirements document (a prototype.spec artifact) into an interactive " +
-    "OpenUI Lang prototype via render_openui. The prototype follows the document's 页面清单 strictly — " +
-    "no scope invention. Requires a spec artifact from prototype.spec.",
+    "Materialize a prototype suite specification into OpenUI Lang. Suite/version is preferred; specArtifactId remains supported for legacy artifacts.",
   category: "design",
   parameters: {
     type: "object",
     properties: {
-      specArtifactId: {
-        type: "string",
-        description: "Artifact id of the requirements document (from prototype.spec / the designs list)",
-      },
+      suiteId: { type: "string", description: "Prototype suite id" },
+      versionId: { type: "string", description: "Prototype suite version containing the specification" },
+      specArtifactId: { type: "string", description: "Legacy specification artifact id" },
+      note: { type: "string", description: "Optional version note" },
     },
-    required: ["specArtifactId"],
     additionalProperties: false,
   },
   sideEffects: ["write-in-cwd"],
@@ -143,36 +262,247 @@ export const prototypeMaterializeRun: ActionRun<PrototypeMaterializeInput, Proto
   input,
   ctx
 ) => {
-  const specId = input?.specArtifactId?.trim();
-  if (!specId) {
-    return { ok: false, error: "specArtifactId is required — run prototype.spec first" };
+  const suiteId = input?.suiteId?.trim();
+  const versionId = input?.versionId?.trim();
+  const legacyId = input?.specArtifactId?.trim();
+  if ((suiteId && !versionId) || (!suiteId && versionId)) {
+    return { ok: false, error: "suiteId and versionId must be provided together" };
   }
-  if (!ctx.runSubagent) {
-    return { ok: false, error: "runSubagent not available — the design subagent channel must be wired" };
-  }
+  if (!suiteId && !legacyId) return { ok: false, error: "suiteId/versionId or specArtifactId is required" };
+  if (!ctx.runSubagent) return { ok: false, error: "runSubagent not available" };
 
-  ctx.emit({ message: "📄 读取需求文档…", percent: 20 });
-  const spec = readArtifactFile(ctx.projectRoot, specId, SPEC_FILE);
-  if (!spec) {
-    return { ok: false, error: `requirements document not found for artifact "${specId}" — run prototype.spec first` };
+  let spec: string | null = null;
+  let requirement: string | undefined;
+  if (suiteId && versionId) {
+    const read = await readSuiteVersion(ctx, suiteId, versionId);
+    if (!read.ok) return read;
+    if (read.value.artifactRef.kind !== "prototype") return { ok: false, error: "suite is not a prototype suite" };
+    const content = read.value.content as PrototypeSuiteContent;
+    spec = content.spec?.trim() || null;
+    requirement = content.requirement;
+  } else if (legacyId) {
+    spec = readArtifactFile(ctx.projectRoot, legacyId, SPEC_FILE);
   }
+  if (!spec) return { ok: false, error: "requirements document not found; run prototype.spec first" };
 
-  ctx.emit({ message: "🎨 正在根据需求文档生成原型图…", percent: 50 });
+  ctx.emit({ message: "Generating OpenUI prototype from the selected specification", percent: 50 });
   try {
-    await ctx.runSubagent({
+    const generated = await ctx.runSubagent({
       skill: "pm-designer-openui",
       prompt:
-        `Create the interactive prototype for the requirements document below. Derive pages and flows from ` +
-        `its 页面清单/功能需求 sections strictly — do not invent scope beyond the document.\n\n` +
-        `Call the render_openui tool with the complete OpenUI Lang program.\n\n` +
-        `--- 需求文档 ---\n${spec}\n--- 文档结束 ---`,
+        "Create the complete OpenUI Lang prototype for the requirements document below. Cover its page list and flows " +
+        "strictly without inventing scope. Do not call tools. Return only the OpenUI Lang program in one code fence.\n\n" +
+        spec,
       silent: true,
     });
-    ctx.emit({ message: "✅ 原型图已生成", percent: 100 });
-    return { ok: true };
-  } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    const code = extractGeneratedBody(generated);
+    if (!code) return { ok: false, error: "pm-designer-openui returned no OpenUI program" };
+    const saved = await executeA2ui(ctx, "render_openui", {
+      code,
+      ...(requirement ? { requirement } : {}),
+      ...(suiteId ? { suiteId, versionId } : {}),
+      ...(input.note?.trim() ? { note: input.note.trim() } : {}),
+    });
+    if (!saved.ok) return saved;
+    ctx.emit({ message: "OpenUI prototype saved with verification pending", percent: 100 });
+    return { ok: true, artifactRef: saved.artifactRef, refreshStore: !saved.artifactRef };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) };
   }
 };
 
-export { readArtifactFile };
+export interface PrototypeVerifyInput {
+  suiteId: string;
+  versionId: string;
+  checks?: Array<{ id?: string; label: string; passed: boolean; observation?: string }>;
+  note?: string;
+}
+
+export interface PrototypeVerifyOutput extends PrototypeSpecOutput {
+  verification?: PrototypeVerificationResult;
+}
+
+export const prototypeVerifyDefinition: ActionDefinition<PrototypeVerifyInput> = {
+  id: "prototype.verify",
+  description:
+    "Run deterministic structural verification over a prototype suite version and persist the result. This does not claim browser testing.",
+  category: "design",
+  parameters: {
+    type: "object",
+    properties: {
+      suiteId: { type: "string" },
+      versionId: { type: "string" },
+      checks: {
+        type: "array",
+        description: "Optional externally observed checks to summarize with the deterministic checks",
+        items: {
+          type: "object",
+          properties: {
+            id: { type: "string" },
+            label: { type: "string" },
+            passed: { type: "boolean" },
+            observation: { type: "string" },
+          },
+          required: ["label", "passed"],
+          additionalProperties: false,
+        },
+      },
+      note: { type: "string" },
+    },
+    required: ["suiteId", "versionId"],
+    additionalProperties: false,
+  },
+  sideEffects: ["write-in-cwd"],
+};
+
+function hasPageList(spec: string): boolean {
+  return /(?:^|\n)#{1,6}\s*(?:\d+[.)、]?\s*)?(?:页面清单|page\s+list|pages)\b/im.test(spec);
+}
+
+export const prototypeVerifyRun: ActionRun<PrototypeVerifyInput, PrototypeVerifyOutput> = async (input, ctx) => {
+  const suiteId = input?.suiteId?.trim();
+  const versionId = input?.versionId?.trim();
+  if (!suiteId || !versionId) return { ok: false, error: "suiteId and versionId are required" };
+  const read = await readSuiteVersion(ctx, suiteId, versionId);
+  if (!read.ok) return read;
+  if (read.value.artifactRef.kind !== "prototype") return { ok: false, error: "suite is not a prototype suite" };
+  const content = read.value.content as PrototypeSuiteContent;
+  const spec = content.spec?.trim() ?? "";
+  const openui = content.openui?.trim() ?? "";
+  const checks: PrototypeVerificationCheck[] = [
+    { id: "spec-non-empty", label: "Specification is non-empty", status: spec ? "passed" : "failed" },
+    {
+      id: "page-list-present",
+      label: "Specification declares a page list",
+      status: hasPageList(spec) ? "passed" : "failed",
+    },
+    { id: "openui-non-empty", label: "OpenUI program is non-empty", status: openui ? "passed" : "failed" },
+    {
+      id: "openui-root",
+      label: "OpenUI program declares root",
+      status: /(?:^|\n)\s*root\s*=/.test(openui) ? "passed" : "failed",
+    },
+  ];
+  for (const [index, check] of (input.checks ?? []).entries()) {
+    checks.push({
+      id: check.id?.trim() || `external-${index + 1}`,
+      label: check.label,
+      status: check.passed ? "passed" : "failed",
+      ...(check.observation?.trim() ? { observation: check.observation.trim() } : {}),
+    });
+  }
+  const verification: PrototypeVerificationResult = {
+    status: checks.every((check) => check.status === "passed" || check.status === "healed") ? "passed" : "failed",
+    checks,
+    generatedAt: new Date().toISOString(),
+    healingRounds: 0,
+  };
+  const saved = await executeA2ui(ctx, "save_suite_result", {
+    suiteId,
+    versionId,
+    verification,
+    note: input.note?.trim() || "deterministic prototype verification",
+  });
+  if (!saved.ok) return saved;
+  return { ok: true, artifactRef: saved.artifactRef, verification, refreshStore: !saved.artifactRef };
+};
+
+export interface PrototypeReviseInput {
+  suiteId: string;
+  versionId: string;
+  part: "spec" | "openui" | "verification";
+  target: string;
+  instruction: string;
+  note?: string;
+}
+
+export const prototypeReviseDefinition: ActionDefinition<PrototypeReviseInput> = {
+  id: "prototype.revise",
+  description:
+    "Revise one selected prototype suite part from an immutable version. Verification revisions only add pending observations.",
+  category: "design",
+  parameters: {
+    type: "object",
+    properties: {
+      suiteId: { type: "string" },
+      versionId: { type: "string" },
+      part: { type: "string", enum: ["spec", "openui", "verification"] },
+      target: { type: "string" },
+      instruction: { type: "string" },
+      note: { type: "string" },
+    },
+    required: ["suiteId", "versionId", "part", "target", "instruction"],
+    additionalProperties: false,
+  },
+  sideEffects: ["write-in-cwd"],
+};
+
+export const prototypeReviseRun: ActionRun<PrototypeReviseInput, PrototypeSpecOutput> = async (input, ctx) => {
+  const suiteId = input?.suiteId?.trim();
+  const versionId = input?.versionId?.trim();
+  const target = input?.target?.trim();
+  const instruction = input?.instruction?.trim();
+  if (!suiteId || !versionId || !target || !instruction) {
+    return { ok: false, error: "suiteId, versionId, target and instruction are required" };
+  }
+  const read = await readSuiteVersion(ctx, suiteId, versionId);
+  if (!read.ok) return read;
+  if (read.value.artifactRef.kind !== "prototype") return { ok: false, error: "suite is not a prototype suite" };
+
+  if (input.part === "verification") {
+    const verification: PrototypeVerificationResult = {
+      status: "pending",
+      checks: [
+        {
+          id: `revision-${Date.now()}`,
+          label: target,
+          status: "pending",
+          observation: instruction,
+        },
+      ],
+    };
+    const saved = await executeA2ui(ctx, "save_suite_result", {
+      suiteId,
+      versionId,
+      verification,
+      note: input.note?.trim() || `verification observation: ${target}`,
+    });
+    return saved.ok
+      ? { ok: true, artifactRef: saved.artifactRef, refreshStore: !saved.artifactRef }
+      : { ok: false, error: saved.error };
+  }
+
+  if (!ctx.runSubagent) return { ok: false, error: "runSubagent not available" };
+  const content = read.value.content as PrototypeSuiteContent;
+  const current = input.part === "spec" ? content.spec : content.openui;
+  if (!current?.trim()) return { ok: false, error: `${input.part} content is empty in the selected version` };
+  const skill = input.part === "spec" ? "spec-writer" : "pm-designer-openui";
+  const generated = await ctx.runSubagent({
+    skill,
+    prompt:
+      `Revise only the ${input.part} content below. Target: ${target}. Instruction: ${instruction}. ` +
+      "Preserve unrelated content and return only the complete revised document in one code fence. Do not call tools.\n\n" +
+      current,
+    silent: true,
+  });
+  const revised = extractGeneratedBody(generated);
+  if (!revised) return { ok: false, error: `${skill} returned no revised content` };
+  const tool = input.part === "spec" ? "render_spec" : "update_openui";
+  const args: Record<string, unknown> = {
+    suiteId,
+    versionId,
+    note: input.note?.trim() || `${input.part} revision: ${target}`,
+  };
+  if (input.part === "spec") {
+    args.document = revised;
+    if (content.requirement) args.requirement = content.requirement;
+  } else {
+    args.code = revised;
+  }
+  const saved = await executeA2ui(ctx, tool, args);
+  return saved.ok
+    ? { ok: true, artifactRef: saved.artifactRef, refreshStore: !saved.artifactRef }
+    : { ok: false, error: saved.error };
+};
+
+export { executeA2ui, extractGeneratedBody, parseArtifactRef, readArtifactFile };

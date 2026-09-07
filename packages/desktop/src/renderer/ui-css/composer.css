@@ -385,6 +385,19 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* Dangling store-reference warning (send-side guard, 2026-09-06): amber strip
+   above the input — the first send is blocked, the second force-sends. */
+.ui-composer-dangling {
+  margin: 2px 14px 0;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ui-warning);
+  background: color-mix(in srgb, var(--ui-warning, #e8590c) 10%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-warning, #e8590c) 35%, transparent);
+  animation: ui-card-enter 0.2s ease both;
+}
 /* Character count in composer toolbar — visible only when typing. */
 .ui-composer-charcount {
   font-family: var(--ui-font-mono);

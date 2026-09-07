@@ -19,7 +19,6 @@ import {
 } from "./session-constants";
 import { clearSessionState } from "./common/state";
 import { clearSessionWorkingDir } from "./tools/bash-handler";
-import { extractErrorDiagnostics } from "./session-mcp-hints";
 import { getCodegraphController } from "./actions/codegraph-controller";
 import { getCrgController } from "./actions/crg-controller";
 import { getExtensionRoot, getPlanModePrompt } from "./prompt";
@@ -30,7 +29,6 @@ import { isUsageRecord } from "./session-usage";
 import { killProcessTree } from "./common/process-tree";
 import { normalizeAskPermissions } from "./common/permissions";
 import { readTextFileWithMetadata } from "./common/file-utils";
-import { SERENA_MCP_SERVER_NAME } from "./common/serena-mcp";
 import { SessionManagerBase } from "./session-manager-base";
 import { SessionManagerSkills } from "./session-manager-skills";
 import { TaskTreeService } from "./tasks/task-tree-service";
@@ -62,7 +60,7 @@ export abstract class SessionManagerPersistence extends SessionManagerSkills {
    */
   protected appendBehaviorContext(sessionId: string): void {
     try {
-      if ((this.getResolvedSettings() as { behaviorContext?: boolean }).behaviorContext !== true) return;
+      if (this.getResolvedSettings().behaviorContext !== true) return;
       const block = this.buildBehaviorContext?.();
       if (!block || !block.trim()) return;
       this.appendSessionMessage(
@@ -498,6 +496,26 @@ export abstract class SessionManagerPersistence extends SessionManagerSkills {
   }
 
   /**
+   * External (non-agent) file mutation (specs/editor-copilot 链路 D): the
+   * editor's own write path stamps freshness + fires the same incremental
+   * CodeGraph sync the agent loop uses. No session key — this is the
+   * sessionless variant desktop's EditorWriteFile handler calls after a
+   * successful write. Fire-and-forget by design; the per-root stamp is the
+   * only state it touches (the editor-runs store records the file itself).
+   */
+  recordExternalMutation(): void {
+    this.knowledgeFreshness.lastMutation = new Date().toISOString();
+    void getCodegraphController()
+      ?.sync(this.projectRoot)
+      .then(() => {
+        this.knowledgeFreshness.codegraphSync = new Date().toISOString();
+      })
+      .catch(() => {
+        // Sync failures leave the previous stamp — the dashboard stays honest.
+      });
+  }
+
+  /**
    * After a task turn ends, run an incremental CodeGraph index update if this turn
    * mutated files. Fire-and-forget; the SDK's sync() is concurrent-safe (FileLock).
    */
@@ -564,52 +582,6 @@ export abstract class SessionManagerPersistence extends SessionManagerSkills {
     crgSync?: string;
   } {
     return { ...this.knowledgeFreshness };
-  }
-
-  /**
-   * After a task turn ends, check diagnostics for mutated files via Serena's
-   * `get_diagnostics_for_file` MCP tool. Fire-and-forget; if error-level
-   * diagnostics are found, a system message is appended so the agent can
-   * self-correct in the next turn. Silently skips when Serena is not connected.
-   */
-  protected maybeRunDiagnosticsCheck(sessionId: string): void {
-    const dirtyFiles = this.diagnosticsDirtyFiles.get(sessionId);
-    if (!dirtyFiles || dirtyFiles.size === 0) return;
-    this.diagnosticsDirtyFiles.delete(sessionId);
-
-    // Check if Serena MCP is connected.
-    const serenaConnected = this.mcpManager.getStatus().some((s) => s.name === SERENA_MCP_SERVER_NAME && s.connected);
-    if (!serenaConnected) return;
-
-    // Fire-and-forget diagnostics check for each mutated file.
-    void (async () => {
-      for (const filePath of dirtyFiles) {
-        try {
-          const result = await this.executeMcpTool(SERENA_MCP_SERVER_NAME, "get_diagnostics_for_file", {
-            file_path: filePath,
-          });
-          const diagnostics = extractErrorDiagnostics(result);
-          if (diagnostics.length > 0) {
-            const message = `⚠️ 编辑后诊断检查发现 ${diagnostics.length} 个错误（${filePath}）：\n${diagnostics.map((d) => `- ${d}`).join("\n")}`;
-            const now = new Date().toISOString();
-            this.appendSessionMessage(sessionId, {
-              id: `diag-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-              sessionId,
-              role: "system",
-              content: message,
-              contentParams: null,
-              messageParams: null,
-              compacted: false,
-              visible: true,
-              createTime: now,
-              updateTime: now,
-            });
-          }
-        } catch {
-          // Diagnostics check is best-effort; ignore failures.
-        }
-      }
-    })();
   }
 
   /**
@@ -1459,6 +1431,9 @@ export abstract class SessionManagerPersistence extends SessionManagerSkills {
       processes: this.deserializeProcesses(value.processes),
       askPermissions: normalizeAskPermissions(value.askPermissions),
       planMode: value.planMode === true,
+      // depth-lane: whitelisted like every other field — an unlisted persisted
+      // field is silently dropped on the first post-restart flush.
+      lane: value.lane === "express" || value.lane === "deep" ? value.lane : undefined,
       taskRef: this.normalizeTaskRef(value.taskRef),
       // Whitelisted like every other field — an unlisted persisted field is
       // silently dropped on the first post-restart updateSessionEntry flush.

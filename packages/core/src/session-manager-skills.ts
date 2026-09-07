@@ -3,14 +3,25 @@ import matter from "gray-matter";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
+import ejs from "ejs";
 import { buildSkillDocumentsPrompt, getExtensionRoot } from "./prompt";
 import { buildThinkingRequestOptions } from "./common/openai-thinking";
 import { formatSessionPrompt } from "./common/session-prompts";
 import { isChineseLocale } from "./session-helpers";
 import { isSkillForCurrentPlatform } from "./session-mcp-hints";
-import { SessionManagerMcp } from "./session-manager-mcp";
-import { SkillMatchCache } from "./common/skill-match-cache";
-import { timedRoutingEvent } from "./routing";
+import { SessionManagerDiagnostics } from "./session-manager-diagnostics";
+import { SkillMatchCache, type CachedLaneVerdict } from "./common/skill-match-cache";
+import { timedRoutingEvent, logRoutingEvent } from "./routing";
+import {
+  computeLane,
+  evaluateL1Rules,
+  expressFailOpen,
+  parseTpcrScores,
+  parseVerdictReason,
+  type ComplexityVerdict,
+} from "./routing/gate/gate";
+import { COMPLEXITY_SCORING_DIRECTIVE } from "./routing/gate/gate-prompt";
+import { resolveComplexityGateSettings, type ComplexityGateSettings } from "./settings";
 import { type RouterBundle, renderShardedContent, shardSkillDocument } from "./routing";
 import type {
   SkillInfo,
@@ -20,24 +31,64 @@ import type {
   BuiltinPluginGroupManifest,
 } from "./session-types";
 
-export abstract class SessionManagerSkills extends SessionManagerMcp {
+export abstract class SessionManagerSkills extends SessionManagerDiagnostics {
+  /** Resolved complexity-gate settings (specs/depth-lane §2.7) — clamped, defaults off. */
+  protected getComplexityGate(): Required<ComplexityGateSettings> {
+    return resolveComplexityGateSettings({ complexityGate: this.getResolvedSettings().complexityGate });
+  }
+
+  /**
+   * Legacy skill-matching surface: string[] of matched skill names, gate
+   * contribution deliberately OFF (replies and non-lifecycle callers must not
+   * pay the directive bytes or the verdict parse). The gate-aware twin is
+   * {@link matchSkillsWithVerdict}, used by createSession.
+   */
   async identifyMatchingSkillNames(
     skills: SkillInfo[],
     userPrompt: string,
     options?: { signal?: AbortSignal; sessionId?: string }
   ): Promise<string[]> {
+    const { skillNames } = await this.matchSkillsWithVerdict(skills, userPrompt, {
+      ...options,
+      laneGateEnabled: false,
+    });
+    return skillNames;
+  }
+
+  /**
+   * Skill matching + complexity verdict from the SAME single flash call
+   * (specs/depth-lane P0.2, decision §7-1: merged, mirroring the multiIntent
+   * precedent — zero incremental LLM calls for the lane on the express side).
+   *
+   * Gate OFF (default): byte-identical to the pre-feature path — the scoring
+   * directive is not appended, TPCR is not parsed, the verdict is null.
+   *
+   * Gate ON: L1 heuristics run first (free, deterministic); a hit decides the
+   * lane and the prompt stays legacy-shaped. On an L1 miss the scoring
+   * directive rides the system-prompt tail and the verdict is COMPUTED from
+   * the strictly-parsed T+P+C+R (a model self-reported lane is never read).
+   * Every failure path (no client / parse failure / throw / abort) fails open
+   * to express, matching status-quo behavior.
+   */
+  async matchSkillsWithVerdict(
+    skills: SkillInfo[],
+    userPrompt: string,
+    options?: {
+      signal?: AbortSignal;
+      sessionId?: string;
+      laneGateEnabled?: boolean;
+      planMode?: boolean;
+    }
+  ): Promise<{ skillNames: string[]; verdict: ComplexityVerdict | null }> {
     this.throwIfAborted(options?.signal);
-    let systemPrompt = `When users ask you to perform tasks, check if any of the available skills match the goal and situation. Skills provide specialized capabilities and domain knowledge.\n
-Response in JSON format:
-\`\`\`
-{
-  "skillNames": ["", ...],
-  "multiIntent": false
-}
-\`\`\`\n
-If none of the available skills match, respond with an empty array, i.e. \`{"skillNames": [], "multiIntent": false}\`.\n
-Set "multiIntent" to true ONLY when the request clearly combines multiple distinct goals that need different skills (e.g. "generate slides AND run the tests"). Single-purpose requests, however complex, are multiIntent: false.\n
-`;
+    const gateEnabled = options?.laneGateEnabled === true && this.getComplexityGate().enabled;
+    const gate = this.getComplexityGate();
+    // L1 free heuristics — decides the lane outright on a hit; the flash call
+    // then serves skill matching only (no directive bytes needed).
+    const l1 = gateEnabled ? evaluateL1Rules({ planMode: options?.planMode, text: userPrompt }) : null;
+    const laneFromL1: ComplexityVerdict | null = l1
+      ? { lane: l1.lane, tpcr: null, reason: l1.reason, source: l1.source }
+      : null;
     const simpleSkills = skills
       .filter((x) => !x.isLoaded && x.allowImplicitInvocation !== false)
       .map((x) => ({
@@ -49,17 +100,25 @@ Set "multiIntent" to true ONLY when the request clearly combines multiple distin
         outputs: x.outputs,
       }));
     if (simpleSkills.length === 0) {
-      return [];
+      // No candidates: legacy short-circuit [] — plus the L1 verdict when the
+      // gate is on (a plan-mode prompt is deep even with an empty skill pool).
+      return { skillNames: [], verdict: laneFromL1 };
     }
     const candidateSkillNames = new Set(simpleSkills.map((skill) => skill.name));
 
     // Phase 3 / T3.2: identical prompt + identical candidate pool replays the
     // cached match (covers the deferred-permission re-send of the same prompt,
     // and any user retry of the same text) — zero embedding + zero LLM cost.
+    // depth-lane P0.3: the cached verdict replays under the SAME key; an
+    // entry cached before the gate was enabled replays as fail-open express.
     const poolSignature = SkillMatchCache.poolSignature(simpleSkills);
-    const cachedMatch = this.skillMatchCache.get(poolSignature, userPrompt);
+    const cachedMatch = this.skillMatchCache.getWithLane(poolSignature, userPrompt);
     if (cachedMatch) {
-      return cachedMatch;
+      const replayed = gateEnabled ? this.replayVerdictFromCache(cachedMatch.verdict, laneFromL1) : null;
+      if (gateEnabled) {
+        this.emitGateTelemetry(replayed, options?.sessionId);
+      }
+      return { skillNames: cachedMatch.skillNames, verdict: replayed };
     }
 
     // G1 routing: reduce the candidate pool via embedding recall before sending
@@ -84,22 +143,57 @@ Set "multiIntent" to true ONLY when the request clearly combines multiple distin
 
     const { client, baseURL, debugLogEnabled, model } = this.createBackgroundLlm();
     if (!client) {
-      return [];
+      // No client is fail-open path #1: skill match [] + express verdict.
+      const verdict = laneFromL1 ?? expressFailOpen("no background LLM client");
+      this.emitGateTelemetry(verdict, options?.sessionId);
+      return { skillNames: [], verdict: gateEnabled ? verdict : null };
     }
     // Skill matching is a tiny classification task — route it to the family's
     // lightweight model with thinking explicitly disabled and a tight output
     // cap so it never burns pro-level reasoning tokens or adds avoidable latency.
 
-    const agentInstructions = this.loadAgentInstructions();
-    if (agentInstructions) {
-      systemPrompt += `Use the current agent instructions as additional context when deciding which skills match:\n
-<agent-instructions>
-${agentInstructions}
-</agent-instructions>\n
-`;
+    // CMB-4 demonstration point: the skill-matching prompt lives as a
+    // versioned artifact (templates/auxiliary/skill-matching.md.ejs) — editing
+    // the prompt means reviewing a diff, not re-reading call-site string
+    // concatenation. depth-lane P0.2's `lane/tpcr` extension lands here too.
+    let systemPrompt: string;
+    // L2 scoring directive rides the tail ONLY when the gate is on AND L1
+    // did not already decide the lane (an L1 hit keeps the prompt byte-stable
+    // with the legacy shape — the scores would be discarded anyway).
+    const scoringDirective = gateEnabled && !laneFromL1 ? COMPLEXITY_SCORING_DIRECTIVE : "";
+    // Loaded ONCE so the fail-open fallback carries the same context as the
+    // template — a packaging gap must not silently change matching behavior
+    // (review finding: fallback used to drop the agent-instructions block).
+    const agentInstructions = this.loadAgentInstructions() || "";
+    try {
+      const templatePath = path.join(getExtensionRoot(), "templates", "auxiliary", "skill-matching.md.ejs");
+      systemPrompt = ejs.render(fs.readFileSync(templatePath, "utf8"), {
+        agentInstructions,
+        candidatePoolJson: JSON.stringify(pool, null, 2),
+        complexityDirective: scoringDirective,
+      });
+    } catch {
+      // Template unreadable → fail-open to the inline fallback (never block
+      // skill matching on a packaging issue) — semantic parity maintained.
+      // The complexity directive is appended to the fallback tail the same
+      // way the template slot appends it (P0.2: BOTH paths carry the fields).
+      systemPrompt =
+        `When users ask you to perform tasks, check if any of the available skills match the goal and situation. ` +
+        `Skills provide specialized capabilities and domain knowledge.\n\n` +
+        `Response in JSON format:\n\`\`\`\n{"skillNames": ["", ...], "multiIntent": false}\n\`\`\`\n\n` +
+        `If none of the available skills match, respond with an empty array, i.e. \`{"skillNames": [], "multiIntent": false}\`.\n\n` +
+        `Set "multiIntent" to true ONLY when the request clearly combines multiple distinct goals that need different skills. ` +
+        `Single-purpose requests, however complex, are multiIntent: false.\n\n`;
+      if (agentInstructions) {
+        systemPrompt +=
+          `Use the current agent instructions as additional context when deciding which skills match:\n\n` +
+          `<agent-instructions>\n${agentInstructions}\n</agent-instructions>\n\n`;
+      }
+      systemPrompt += `The candidate skills are as follows:\n\n\`\`\`\n${JSON.stringify(pool, null, 2)}\n\`\`\``;
+      if (scoringDirective) {
+        systemPrompt += `\n\n${scoringDirective}`;
+      }
     }
-    systemPrompt += "The candidate skills are as follows:\n\n";
-    systemPrompt += "```\n" + JSON.stringify(pool, null, 2) + "\n```";
 
     try {
       const response = await this.createChatCompletionStream(
@@ -130,7 +224,10 @@ ${agentInstructions}
       const rawContent = response.choices?.[0]?.message?.content;
       const content = typeof rawContent === "string" ? rawContent : "";
       if (!content) {
-        return [];
+        // Empty content: legacy [] + fail-open express (paths #2/#3).
+        const verdict = laneFromL1 ?? expressFailOpen("empty scoring response");
+        this.emitGateTelemetry(verdict, options?.sessionId);
+        return { skillNames: [], verdict: gateEnabled ? verdict : null };
       }
 
       const parsed = JSON.parse(content);
@@ -139,6 +236,22 @@ ${agentInstructions}
           (skillName: unknown): skillName is string =>
             typeof skillName === "string" && candidateSkillNames.has(skillName)
         );
+        // The lane is COMPUTED from the strictly-parsed scores — never read
+        // from any self-reported lane field (anti-self-contradiction, §2.2).
+        // A malformed/missing TPCR block fails open to express.
+        let verdict: ComplexityVerdict | null = laneFromL1;
+        if (gateEnabled && !laneFromL1) {
+          const tpcr = parseTpcrScores(parsed);
+          verdict = tpcr
+            ? {
+                lane: computeLane(tpcr, gate.threshold),
+                tpcr,
+                reason: parseVerdictReason(parsed),
+                source: "l2-flash",
+              }
+            : expressFailOpen("invalid or missing TPCR fields");
+        }
+        const cacheVerdict = gateEnabled ? this.toCachedVerdict(verdict) : undefined;
         // G3 compositional routing — gated on the multi-intent judgment made by
         // the SAME flash call above: single-intent turns pay zero extra calls
         // (previously every prompt ran an SAD decomposition first, and a
@@ -148,21 +261,76 @@ ${agentInstructions}
           const composed = await this.composeSkillRoute(userPrompt, simpleSkills, candidateSkillNames, options);
           if (composed && composed.length > 0) {
             const merged = [...new Set([...skillNames, ...composed])];
-            this.skillMatchCache.set(poolSignature, userPrompt, merged);
-            return merged;
+            this.skillMatchCache.set(poolSignature, userPrompt, merged, cacheVerdict);
+            this.emitGateTelemetry(verdict, options?.sessionId);
+            return { skillNames: merged, verdict: gateEnabled ? verdict : null };
           }
         }
-        this.skillMatchCache.set(poolSignature, userPrompt, skillNames);
-        return skillNames;
+        this.skillMatchCache.set(poolSignature, userPrompt, skillNames, cacheVerdict);
+        this.emitGateTelemetry(verdict, options?.sessionId);
+        return { skillNames, verdict: gateEnabled ? verdict : null };
       }
 
-      return [];
+      // Shape miss (skillNames not an array): legacy [] + fail-open express.
+      const verdict = laneFromL1 ?? expressFailOpen("unparseable scoring response");
+      this.emitGateTelemetry(verdict, options?.sessionId);
+      return { skillNames: [], verdict: gateEnabled ? verdict : null };
     } catch (error) {
       if (this.isAbortLikeError(error) || options?.signal?.aborted) {
         throw error;
       }
-      return [];
+      // Transport/parse throw: legacy [] + fail-open express (timeout/abort
+      // rethrows above — the abort path must propagate, not degrade).
+      const verdict = laneFromL1 ?? expressFailOpen("skill-matching call failed");
+      this.emitGateTelemetry(verdict, options?.sessionId);
+      return { skillNames: [], verdict: gateEnabled ? verdict : null };
     }
+  }
+
+  /** Replay resolution for a cache hit: cached L2 verdict wins, L1 re-derivation covers stale entries. */
+  private replayVerdictFromCache(
+    cached: CachedLaneVerdict | undefined,
+    laneFromL1: ComplexityVerdict | null
+  ): ComplexityVerdict | null {
+    if (cached) {
+      return {
+        lane: cached.lane,
+        tpcr: { T: cached.T, P: cached.P, C: cached.C, R: cached.R },
+        reason: cached.reason,
+        source: "l2-flash",
+      };
+    }
+    return laneFromL1 ?? expressFailOpen("cached before the gate was enabled");
+  }
+
+  /** Compress a verdict into the cache slot shape (L1/fail-open verdicts carry zero scores). */
+  private toCachedVerdict(verdict: ComplexityVerdict | null): CachedLaneVerdict | undefined {
+    if (!verdict) return undefined;
+    return {
+      lane: verdict.lane,
+      T: verdict.tpcr?.T ?? 0,
+      P: verdict.tpcr?.P ?? 0,
+      C: verdict.tpcr?.C ?? 0,
+      R: verdict.tpcr?.R ?? 0,
+      reason: verdict.reason,
+    };
+  }
+
+  /** G0 routing telemetry (P0.7): deep=hit, express=skip, fail-open=fallback. Never throws. */
+  private emitGateTelemetry(verdict: ComplexityVerdict | null, sessionId?: string): void {
+    if (!verdict) return;
+    logRoutingEvent({
+      stage: "G0",
+      outcome: verdict.source === "fail-open" ? "fallback" : verdict.lane === "deep" ? "hit" : "skip",
+      sessionId,
+      counts: {
+        T: verdict.tpcr?.T ?? 0,
+        P: verdict.tpcr?.P ?? 0,
+        C: verdict.tpcr?.C ?? 0,
+        R: verdict.tpcr?.R ?? 0,
+      },
+      detail: `${verdict.source}: ${verdict.reason ?? ""}`.slice(0, 200),
+    });
   }
 
   /**

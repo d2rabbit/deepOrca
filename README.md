@@ -30,7 +30,7 @@
 | ---------------- | -------------------------------------------------------------------------------------- | ---------------------------------- |
 | **🎯 原型设计**  | 用自然语言描述需求，AI 生成可交互原型（表单/看板/多页面导航），双向交互验证用户流程    | A2UI 协议 + OpenUI Lang + 7 个模板 |
 | **🎨 UI 设计稿** | 生成自包含 HTML 设计稿，3 种设计系统、14 种 UI 风格、Tailwind 内置，可脱离宿主独立交付 | DeepDesign `.dd` 格式              |
-| **💻 智能编码**  | DeepSeek 驱动的会话式编码：8 个内置工具、MCP 协议无限扩展、Monaco 编辑器、Git 集成     | Core Engine + MCP + Monaco         |
+| **💻 智能编码**  | DeepSeek 驱动的会话式编码：8 个内置工具、MCP 协议无限扩展、CodeMirror 6 编辑器、Git 集成     | Core Engine + MCP + CodeMirror 6         |
 
 三大能力各自独立，从任意一个切入即可。也可以组合使用——从原型验证到设计稿再到代码实现，按需流转。
 
@@ -39,13 +39,13 @@
 | 包                    | 说明                                                                  |
 | --------------------- | --------------------------------------------------------------------- |
 | `@deeporca/core`      | 核心引擎：LLM 会话循环、8 个内置工具、Skills/MCP、Actions、会话持久化 |
-| `@deeporca/desktop`   | Electron 桌面客户端：main/preload/renderer、Monaco、多面板、多主题    |
+| `@deeporca/desktop`   | Electron 桌面客户端：main/preload/renderer、CodeMirror 6、多面板、多主题    |
 | `@deeporca/embedding` | 本地 IBM Granite 嵌入运行时，用于语义路由和召回                       |
 | `@deeporca/memory`    | 进程内 L0–L3 记忆流水线与向量检索                                     |
 
 ### 📦 关于 Deep Code
 
-DeepOrca 起源于 [Deep Code](https://github.com/lessweb/deepcode-cli)（`@vegamo/deepcode`）的 fork，现已发展为独立项目。我们保留了 Deep Code 优秀的核心引擎架构（LLM 会话循环、内置工具、Skills/MCP 扩展、权限控制），并在此基础上增加桌面 GUI、Actions 能力层、本地记忆与嵌入、内置扩展、GitMCP、Monaco Editor 等能力，同时移除了终端 CLI 与 VSCode 插件形态。
+DeepOrca 起源于 [Deep Code](https://github.com/lessweb/deepcode-cli)（`@vegamo/deepcode`）的 fork，现已发展为独立项目。我们保留了 Deep Code 优秀的核心引擎架构（LLM 会话循环、内置工具、Skills/MCP 扩展、权限控制），并在此基础上增加桌面 GUI、Actions 能力层、本地记忆与嵌入、内置扩展、GitMCP、CodeMirror 6 编辑器等能力，同时移除了终端 CLI 与 VSCode 插件形态。
 
 Deep Code 基于 MIT 协议开源，本项目依照协议要求完整保留其原始版权声明（见 [NOTICE](NOTICE)），并在此向原作者致谢。
 
@@ -112,7 +112,7 @@ const output = await run.result;
 - **现代化画布布局** — 浮动功能岛屿 + 圆角工作卡片 + 胶囊任务页签，告别 IDE 窗格拼接感；6 套主题（Aqua / Metro / Glass / Fusion / Line / Orca）× 亮暗双外观
 - **知识中心** — 架构图在点阵画布上多彩铺展（8 色节点环 + 子图虚线框，适配宽度可放大），Wiki 文档站排版，符号关系图三列色卡可下钻
 - **模块流程闭环** — 知识构建完成在对话中出现「查看 / 引用」建议条；Wiki 页面一键引用到对话；审查发现可「在对话中追问」或「一键修复」；原型预览内直接迭代
-- **Monaco Editor 集成** — 专业代码编辑器，支持语法高亮、智能提示
+- **CodeMirror 6 编辑器** — 专业代码编辑器，支持语法高亮、LSP 智能提示、AI 结对编辑
 - **Actions 面板** — 浏览已注册能力、运行无参数 Action、查看统一进度和结构化结果
 - **GitMCP 面板** — 管理 GitHub 仓库索引，语义搜索文档和代码
 - **代码审查面板** — 按需审查任意工作区（与活动区无关）：范围支持工作区 / 提交 / 区间 / 全库，每行记住自己的分支与提交，运行中显示确定进度；OCR 结构化意见，CRG 图谱可用时补充结构风险
@@ -161,12 +161,12 @@ const output = await run.result;
 | 核心引擎      | LLM 会话循环、8 个内置工具、上下文压缩            | ✅   |
 | **原型设计**  | **A2UI 交互原型 + OpenUI Lang + 7 个模板**        | ✅   |
 | **UI 设计稿** | **DeepDesign `.dd` 格式 + 3 设计系统 + 14 风格**  | ✅   |
-| **智能编码**  | **DeepSeek 驱动的会话式编码 + Monaco + Git**      | ✅   |
+| **智能编码**  | **DeepSeek 驱动的会话式编码 + CodeMirror 6 + Git**      | ✅   |
 | Actions       | ActionRegistry、LLM 工具、桌面 IPC/UI、组合工作流 | 🧪   |
 | 桌面客户端    | Electron GUI、多面板、多主题                      | ✅   |
 | 扩展系统      | Skills / MCP / 内置扩展                           | ✅   |
 | 本地智能层    | Granite 嵌入、L0–L3 记忆、语义路由                | ✅   |
-| 代码编辑器    | Monaco Editor 集成                                | ✅   |
+| 代码编辑器    | CodeMirror 6 编辑器                                | ✅   |
 | 工作区索引    | CodeGraph、OpenWiki、arch-scan                    | ✅   |
 | 代码审查      | 按需审查（任意工作区）+ 风险图谱 + 审查历史       | ✅   |
 | 任务中心      | 四域任务树（Git-Graph 历史 + 常开轨迹 + fork）    | ✅   |
@@ -318,7 +318,7 @@ DeepOrca 站在这些开源项目的肩膀上。完整清单（含随安装包�
 | [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)                                                                                                                                                                                                                                                                                                                                                                                                                     | LLM 会话稳健性层设计参考（未使用其代码）                                       | MIT                                              |
 | [TencentDB Agent Memory (TDAI Core)](https://github.com/TencentCloud/TencentDB-Agent-Memory)                                                                                                                                                                                                                                                                                                                                                                                            | L0–L3 记忆管线（完整 fork 于 `packages/memory/src/tdai/`，见该目录 NOTICE.md） | MIT                                              |
 | [Electron](https://github.com/electron/electron)                                                                                                                                                                                                                                                                                                                                                                                                                                        | 桌面客户端运行时                                                               | MIT                                              |
-| [Monaco Editor](https://github.com/microsoft/monaco-editor)                                                                                                                                                                                                                                                                                                                                                                                                                             | 代码编辑器                                                                     | MIT                                              |
+| [CodeMirror 6](https://codemirror.net)                                                                                                                                                                                                                                                                                                                                                                                                                             | 代码编辑器                                                                     | MIT                                              |
 | [OpenAI Node SDK](https://github.com/openai/openai-node)                                                                                                                                                                                                                                                                                                                                                                                                                                | LLM API 客户端                                                                 | Apache-2.0                                       |
 | [Model Context Protocol SDK](https://github.com/modelcontextprotocol/typescript-sdk)                                                                                                                                                                                                                                                                                                                                                                                                    | MCP 工具扩展协议                                                               | MIT                                              |
 | [transformers.js](https://github.com/huggingface/transformers.js) + [ONNX Runtime](https://github.com/microsoft/onnxruntime)                                                                                                                                                                                                                                                                                                                                                            | 本地嵌入推理                                                                   | Apache-2.0 / MIT                                 |

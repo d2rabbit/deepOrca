@@ -111,6 +111,12 @@ export type { BentoCreateInput, BentoCreateOutput } from "./bento";
 export {
   designMaterializeDefinition,
   designMaterializeRun,
+  designLintDefinition,
+  designLintRun,
+  designReviewDefinition,
+  designReviewRun,
+  designReviseDefinition,
+  designReviseRun,
   designExtractDefinition,
   designExtractRun,
   designDriftDefinition,
@@ -119,30 +125,62 @@ export {
 export type {
   DesignMaterializeInput,
   DesignMaterializeOutput,
+  DesignLintOutput,
+  DesignReviewInput,
+  DesignReviewOutput,
+  DesignReviseInput,
   DesignExtractInput,
   DesignExtractOutput,
   DesignDriftInput,
   DesignDriftOutput,
 } from "./design";
-export { designAuditDefinition, designAuditRun } from "./design-audit";
+export { designAuditDefinition, designAuditRun, lintDesignDocument } from "./design-audit";
 export type {
   DesignAuditInput,
   DesignAuditOutput,
   DesignAuditFinding,
   DesignAuditSeverity,
   DesignAuditAxes,
+  DesignLintResult,
 } from "./design-audit";
+export { memoryAuditDefinition, memoryAuditRun } from "./memory-audit";
+export { memoryDistillDefinition, memoryDistillRun } from "./memory-distill";
+export type {
+  MemoryDistillInput,
+  MemoryDistillOutput,
+  DistillProposal,
+  DistillAction,
+  SessionDigest,
+} from "./memory-distill";
+export type {
+  MemoryAuditInput,
+  MemoryAuditOutput,
+  MemoryAuditEvent,
+  MemoryAuditEventKind,
+  MemoryAuditPattern,
+  AlwaysAllowCandidate,
+} from "./memory-audit";
 export {
   prototypeSpecDefinition,
   prototypeSpecRun,
   prototypeMaterializeDefinition,
   prototypeMaterializeRun,
+  prototypeVerifyDefinition,
+  prototypeVerifyRun,
+  prototypeReviseDefinition,
+  prototypeReviseRun,
 } from "./prototype";
 export type {
   PrototypeSpecInput,
   PrototypeSpecOutput,
   PrototypeMaterializeInput,
   PrototypeMaterializeOutput,
+  PrototypeVerifyInput,
+  PrototypeVerifyOutput,
+  PrototypeReviseInput,
+  ArtifactRef,
+  PrototypeSuiteContent,
+  UiSuiteContent,
 } from "./prototype";
 export {
   taskCreateDefinition,

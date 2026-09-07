@@ -10,6 +10,8 @@ skills:
     description: "OpenUI Lang 交互原型 — Designer 默认原型管线"
   - name: taste
     description: "设计纪律规范 — 减少常见设计错误"
+  - name: spec-writer
+    description: "Requirements-document specialist for the prototype module — expands a requirement into a structured requirements document via the render_spec tool."
 mcp:
   - a2ui
 ---

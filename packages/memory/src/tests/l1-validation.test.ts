@@ -71,3 +71,36 @@ test("system prompt carries the time-fidelity and atomicity hard rules", () => {
   assert.ok(EXTRACT_MEMORIES_SYSTEM_PROMPT.includes("原子但有叙事"));
   assert.ok(EXTRACT_MEMORIES_SYSTEM_PROMPT.includes("必须拆成多条"));
 });
+
+// ── CMB-2 (specs/cmb-adoption batch B): the three MemBrain extraction rules ──
+
+import { findForeignProperNouns } from "../tdai/core/record/l1-extractor.js";
+
+test("CMB-2: system prompt carries the boundary / final-sweep / verbatim rules", () => {
+  // Rule 6 — context boundary (no re-extracting facts established above it)
+  assert.ok(EXTRACT_MEMORIES_SYSTEM_PROMPT.includes("上下文分界"));
+  assert.ok(EXTRACT_MEMORIES_SYSTEM_PROMPT.includes("当作新消息的产出重新抽取"));
+  // Rule 7 — final sweep before output
+  assert.ok(EXTRACT_MEMORIES_SYSTEM_PROMPT.includes("输出前终检"));
+  assert.ok(EXTRACT_MEMORIES_SYSTEM_PROMPT.includes("校验发生在输出之前"));
+  // Rule 8 — verbatim preservation list
+  assert.ok(EXTRACT_MEMORIES_SYSTEM_PROMPT.includes("逐字保留"));
+  assert.ok(EXTRACT_MEMORIES_SYSTEM_PROMPT.includes("每周二和周四"));
+  assert.ok(EXTRACT_MEMORIES_SYSTEM_PROMPT.includes("泛化即丢失未来的召回"));
+});
+
+test("CMB-2: findForeignProperNouns flags capitalized tokens absent from all sources", () => {
+  const sources = ["用户在读 Deep Work 这本书，用 VSCode 写 Rust"];
+  // hallucinated brand — nowhere in source
+  assert.deepEqual(findForeignProperNouns("用户喜欢用 Cursor 写代码", sources), ["Cursor"]);
+  // verbatim-copied names pass
+  assert.deepEqual(findForeignProperNouns("用户在读 Deep Work", sources), []);
+  assert.deepEqual(findForeignProperNouns("用户用 VSCode", sources), []);
+});
+
+test("CMB-2: findForeignProperNouns is case-insensitive and skips plain vocabulary", () => {
+  const sources = ["the user works at acme corp"];
+  assert.deepEqual(findForeignProperNouns("The user works at Acme Corp.", sources), []);
+  assert.deepEqual(findForeignProperNouns("用户 the user", sources), []); // lowercase-only skipped
+  assert.deepEqual(findForeignProperNouns("anything", []), []); // no sources → no suspicion (soft posture)
+});

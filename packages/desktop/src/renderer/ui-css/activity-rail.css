@@ -340,6 +340,10 @@
   white-space: nowrap;
   color: var(--ui-text-secondary);
 }
+/* 标题缩略目标段（文件名 / 命令首行）——比工具名弱一档，超宽由 .tt 裁。 */
+.ui-actcol .log .lr .tt .th {
+  color: var(--ui-text-faint);
+}
 .ui-actcol .log .lr .dot {
   width: 6px;
   height: 6px;
@@ -435,8 +439,14 @@
   color: var(--kc, var(--ui-text-dim));
 }
 .pipwin .ph .tt {
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.pipwin .ph .tt .th {
+  font-weight: 500;
+  color: var(--ui-text-faint);
 }
 .pipwin .ph .live-dot {
   width: 6px;
@@ -854,5 +864,18 @@
   .ui-actcol .deck,
   .ui-actcol .ui-think-card {
     display: none;
+  }
+}
+
+/* prefers-reduced-motion: turn off non-essential motion for users who opt out
+   (specs/depth-lane 邻项 — 动画调研 P0 无依赖先行项, 2026-09-04). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

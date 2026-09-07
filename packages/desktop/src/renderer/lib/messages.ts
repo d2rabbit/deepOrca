@@ -96,6 +96,18 @@ export function formatToolParams(summary: ToolSummary): string {
   return truncate(firstNonEmptyLine(summary.params), 200);
 }
 
+/** 活动下拉/小窗标题的缩略目标（user ask 2026-09-04）：文件操作给文件名，
+ *  bash 给命令首行，其余工具给参数首行；无参数返回空串，调用方回退工具名。 */
+export function toolThumbTarget(summary: ToolSummary): string {
+  const line = firstNonEmptyLine(summary.params);
+  if (!line) return "";
+  const n = summary.name.toLowerCase();
+  if (n === "read" || n === "write" || n === "edit") {
+    return line.split(/[\\/]/).pop() || line;
+  }
+  return truncate(line, 64);
+}
+
 export function getResultMd(message: SessionMessage): string {
   const raw = typeof message.meta?.resultMd === "string" ? message.meta.resultMd.trim() : "";
   if (!raw) return "";
