@@ -24,7 +24,7 @@
 | [ui-domain-regroup](./ui-domain-regroup/design.md) | ✅ | 2026-09-03 | tasks 10/10；真机 UI 实测移交预生产走查批 |
 | [review-module](./review-module/design.md) | ✅ | 2026-09-03 | 审查模块主体 + G1-G10 修复落地，理论完备收官（用户拍板） |
 | [memory-audit](./memory-audit/design.md) | ✅ | 2026-09-04 | memory.audit action P0 扫描+P1 合成审核+P2 受控写回全落地（用户拍板跳过数据门）；P3 泛化另行立项 |
-| [cmb-adoption](./cmb-adoption/design.md) | ✅ | 2026-09-04 | CodeBrain/MemBrain 理念采纳 CMB-1/2/3/4/5/7 六项四批次同日落地（提交 007d57e8/584440aa/95e0ac5d/1e5cdf95）；CMB-6 对账同步入台账，CMB-8/9/10/11 留台账观察 |
+| [cmb-adoption](./cmb-adoption/design.md) | ✅ | 2026-09-04 | CodeBrain/MemBrain 理念采纳 CMB-1/2/3/4/5/7 六项四批次同日落地（提交 007d57e8/584440aa/95e0ac5d/1e5cdf95）；CMB-6 对账同步入台账，CMB-8/9/10/11 留台账观察；未决模块延伸为 [cmb-next](../next-version/cmb-next/design.md) |
 | [sandbox](./sandbox/design.md) | ✅ | 2026-09-03 | P0–P2 主体 40/45 收官；5 项未决项延伸为 [specs/sandbox-next/](../next-version/sandbox-next/design.md) |
 | [index-knowledge-rework](./index-knowledge-rework/design.md) | ✅ | 2026-09-03 | R2 全部任务落地标记结束（用户拍板），tasks 全量勾选 |
 

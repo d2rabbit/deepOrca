@@ -17,6 +17,7 @@
 | --- | --- | --- |
 | [android-dev-kit](./android-dev-kit/design.md) | 内核驱动的安卓开发套件 | ⬜ 设计稿（移动域重启向） |
 | [cad-3d-generation](./cad-3d-generation/design.md) | text-to-cad / img2threejs 三阶段 | ⬜ 规划中 |
+| [cmb-next](./cmb-next/design.md) | CMB 延伸（premature stop/动态推理档位/stuck 检测/结构债/重组消费侧/L3 晚绑定） | ⬜ 独立任务规划 |
 | [content-translation](./content-translation/design.md) | 第三方内容翻译引擎 | ⬜ 设计定稿待实现 |
 | [desktop-pet](./desktop-pet/design.md) | 桌宠小助手 P1–P10 | ⬜ 调研定稿（P1 另立项） |
 | [harmonyos-dev-kit](./harmonyos-dev-kit/design.md) | 鸿蒙开发套件 | ❌ 曾落地后下线；重启属 `next/*` |
