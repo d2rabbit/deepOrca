@@ -537,10 +537,25 @@ function readSuiteBase(
   const suite = readDesignSuite(root, suiteId);
   if (!suite) return { error: `suite "${suiteId}" not found` };
   if (suite.kind !== kind) return { error: `suite "${suiteId}" is ${suite.kind}, expected ${kind}` };
+  // Same contract as save_suite_result: appending against a non-head version
+  // must not silently roll the suite head back — the caller has to re-read
+  // the latest version and retry against it.
+  if (versionId && versionId !== suite.currentVersionId) {
+    return {
+      error:
+        `suite head has moved: the latest version of "${suiteId}" is "${suite.currentVersionId}", ` +
+        `not "${versionId}". Re-read the latest version and retry against it.`,
+    };
+  }
   const version = versionId ? readDesignSuiteVersion(root, suiteId, versionId) : suite.currentVersion;
   if (!version) return { error: `version "${versionId}" not found in suite "${suiteId}"` };
   return { content: version.content, title: suite.title };
 }
+
+/** Ref carries the appended/created version; error carries a tool-facing
+ *  reason (head-moved, kind mismatch, …) so callers can surface it verbatim
+ *  instead of a generic "could not append". */
+type SuitePersistOutcome = { ref: DesignArtifactRef } | { error: string };
 
 function persistSuiteContent(
   root: string | undefined,
@@ -549,11 +564,11 @@ function persistSuiteContent(
   title: string,
   build: (base: DesignSuiteContent | undefined) => DesignSuiteContent,
   status: DesignSuiteStatus
-): DesignArtifactRef | null {
-  if (!root) return null;
+): SuitePersistOutcome {
+  if (!root) return { error: "suite persistence requires a project root" };
   const suiteId = stringArg(args, "suiteId");
   const versionId = stringArg(args, "versionId");
-  if (versionId && !suiteId) return null;
+  if (versionId && !suiteId) return { error: "versionId requires suiteId" };
   const note = stringArg(args, "note");
   if (!suiteId) {
     const content = build(undefined);
@@ -573,17 +588,21 @@ function persistSuiteContent(
             ...(note ? { note } : {}),
             status,
           });
-    return created ? { suiteId: created.id, versionId: created.currentVersionId, kind } : null;
+    return created
+      ? { ref: { suiteId: created.id, versionId: created.currentVersionId, kind } }
+      : { error: "could not create the design suite" };
   }
   const base = readSuiteBase(root, suiteId, versionId, kind);
-  if ("error" in base) return null;
+  if ("error" in base) return { error: base.error };
   const updated = appendDesignSuiteVersion(root, {
     suiteId,
     content: build(base.content),
     ...(note ? { note } : {}),
     status,
   });
-  return updated ? { suiteId: updated.id, versionId: updated.currentVersionId, kind } : null;
+  return updated
+    ? { ref: { suiteId: updated.id, versionId: updated.currentVersionId, kind } }
+    : { error: "could not append the design suite" };
 }
 
 /**
@@ -942,7 +961,7 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
         if (stringArg(args, "versionId") && !stringArg(args, "suiteId")) {
           return suiteError("versionId requires suiteId");
         }
-        const ref = persistSuiteContent(
+        const persisted = persistSuiteContent(
           projectRoot,
           args,
           "prototype",
@@ -956,9 +975,9 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
           }),
           "draft"
         );
-        if (!ref) return suiteError("could not create or append the prototype suite");
+        if ("error" in persisted) return suiteError(persisted.error);
         return artifactResult(
-          ref,
+          persisted.ref,
           "Requirements document saved as a prototype suite version. OpenUI and verification were reset.",
           { spec: document }
         );
@@ -1045,7 +1064,7 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
         // every version file just to learn the kind.
         const existingKind = suiteId && projectRoot ? readDesignSuiteKind(projectRoot, suiteId) : null;
         const kind: DesignSuiteKind = existingKind ?? (sourcePrototype || designSystemId ? "ui" : "prototype");
-        const ref = persistSuiteContent(
+        const persisted = persistSuiteContent(
           projectRoot,
           args,
           kind,
@@ -1068,8 +1087,8 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
                 },
           "ready"
         );
-        if (!ref) return suiteError("could not create or append the design suite");
-        return artifactResult(ref, `OpenUI rendered (${code.split("\n").length} statements).`, {
+        if ("error" in persisted) return suiteError(persisted.error);
+        return artifactResult(persisted.ref, `OpenUI rendered (${code.split("\n").length} statements).`, {
           openui: code,
         });
       }
@@ -1117,7 +1136,7 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
           (projectRoot && suiteId ? readDesignSuiteKind(projectRoot, suiteId) : null) ?? "prototype";
         const sourcePrototype = sourcePrototypeArg(args);
         const designSystemId = stringArg(args, "designSystemId");
-        const ref = persistSuiteContent(
+        const persisted = persistSuiteContent(
           projectRoot,
           args,
           targetKind,
@@ -1138,8 +1157,8 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
                 },
           "ready"
         );
-        if (!ref) return suiteError("could not append the design suite");
-        return artifactResult(ref, `OpenUI updated (${code.split("\n").length} statements).`, {
+        if ("error" in persisted) return suiteError(persisted.error);
+        return artifactResult(persisted.ref, `OpenUI updated (${code.split("\n").length} statements).`, {
           openui: code,
         });
       }

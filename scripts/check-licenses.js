@@ -19,6 +19,7 @@
 import { init } from "license-checker-rseidelsohn";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { isAllowedExpression } from "./spdx-expression.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, "..");
@@ -79,18 +80,16 @@ const EXCEPTIONS = [
   },
 ];
 
-/** Evaluate an SPDX expression. `OR` splits accept if ANY side is allowed
- *  (dual-licensed packages let the recipient choose); `AND` splits require
- *  EVERY side to be allowed (e.g. "MIT AND ISC" — d3 vendor bundles ship as
- *  conjunctions of two already-allow-listed permissive licenses). Parentheses
- *  and the trailing "*" the license-checker adds for inferred licenses are
- *  normalized. AND binds tighter than OR in the SPDX grammar, so split on
- *  OR first, then AND inside each disjunct. */
-function isAllowedExpression(raw) {
-  const normalized = String(raw).replace(/[()]/g, "").replace(/\*$/, "").trim();
-  return normalized
-    .split(/\s+OR\s+/i)
-    .some((part) => part.split(/\s+AND\s+/i).every((term) => ALLOWED.has(term.trim())));
+/** Evaluate an SPDX expression against the allow list (`OR` accepts when ANY
+ *  side is allowed — dual-licensed packages let the recipient choose; `AND`
+ *  requires EVERY side, e.g. "MIT AND ISC" — d3 vendor bundles ship as
+ *  conjunctions of two already-allow-listed permissive licenses). The
+ *  trailing "*" the license-checker adds for inferred licenses is dropped.
+ *  Parenthesized nesting is honored (AND binds tighter than OR) and anything
+ *  unparsable — including WITH-expressions — fails closed; see
+ *  scripts/spdx-expression.mjs (unit-tested in scripts/check-licenses.test.mjs). */
+function evaluateLicense(raw) {
+  return isAllowedExpression(raw, ALLOWED);
 }
 
 function findException(name, license) {
@@ -113,7 +112,7 @@ for (const [id, info] of Object.entries(packages)) {
   total += 1;
   const license = info.licenses ?? "UNKNOWN";
   const name = id.replace(/@[^@]*$/, "");
-  if (isAllowedExpression(license)) continue;
+  if (evaluateLicense(license)) continue;
   const exception = findException(name, license);
   if (exception) {
     exceptionHits.push(`${id} — ${license}\n    ↳ ${exception.why}`);

@@ -12,9 +12,9 @@
  * - `scripts/generate-openui-prompt.mjs` previously bound them to stubs
  *   (prompt adapter — superseded by the official openuiLibrary.prompt())
  *
- * Invariant: any schema change here MUST be followed by regenerating the
- * component table in pm-designer-openui SKILL.md (`npm run openui:prompt`);
- * the desktop build verifies this and fails on drift.
+ * This schema does NOT participate in SKILL.md generation: the prompt comes
+ * from the official openuiLibrary itself, so editing legacy defs here can
+ * never drift the generated contract.
  */
 
 import { z } from "zod/v4";

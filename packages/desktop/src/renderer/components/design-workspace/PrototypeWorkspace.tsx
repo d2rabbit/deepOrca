@@ -326,13 +326,19 @@ export function PrototypeWorkspace({
     if (!ref) return false;
     pushDesignToast("success", t("designWorkspace.toastRevised"));
     if (!before) return true;
-    const version = await suiteApi.designSuiteReadVersion(root, ref.suiteId, ref.versionId);
-    const next = version && isPrototypeContent(version.content) ? version.content : null;
-    if (!next) return true;
-    const after = part === "spec" ? (next.spec ?? null) : part === "openui" ? (next.openui ?? null) : null;
-    if (!after) return true;
-    const { added, removed } = diffLines(before, after);
-    if (added.length || removed.length) setDiff(summarizeDiff({ added, removed }));
+    try {
+      const version = await suiteApi.designSuiteReadVersion(root, ref.suiteId, ref.versionId);
+      const next = version && isPrototypeContent(version.content) ? version.content : null;
+      if (!next) return true;
+      const after = part === "spec" ? (next.spec ?? null) : part === "openui" ? (next.openui ?? null) : null;
+      if (!after) return true;
+      const { added, removed } = diffLines(before, after);
+      if (added.length || removed.length) setDiff(summarizeDiff({ added, removed }));
+    } catch {
+      // The revision itself already applied; a failed diff read must not
+      // reject — fire-and-forget `void revise(...)` call sites would surface
+      // it as an unhandled rejection and fix-all would abort mid-loop.
+    }
     return true;
   };
 

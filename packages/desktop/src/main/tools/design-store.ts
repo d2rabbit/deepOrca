@@ -514,22 +514,41 @@ function isDesignSuiteMeta(value: unknown): value is DesignSuiteMeta {
   );
 }
 
-function readSuiteMeta(root: string, id: string): DesignSuiteMeta | null {
+function readRawSuiteMeta(root: string, id: string): unknown {
   const dir = resolveArtifactDir(root, id);
   const metaPath = dir ? resolveContainedFile(dir, "meta.json") : null;
   if (!metaPath) return null;
   try {
-    const parsed = JSON.parse(fs.readFileSync(metaPath, "utf8")) as unknown;
-    return isDesignSuiteMeta(parsed) && parsed.id === id ? parsed : null;
+    return JSON.parse(fs.readFileSync(metaPath, "utf8")) as unknown;
   } catch {
     return null;
   }
 }
 
+function readSuiteMeta(root: string, id: string): DesignSuiteMeta | null {
+  const parsed = readRawSuiteMeta(root, id);
+  return isDesignSuiteMeta(parsed) && parsed.id === id ? parsed : null;
+}
+
 /** Light kind probe — meta.json only, no version-file reads (re-review L6:
- *  deriving an append's kind used to load every version of the suite). */
+ *  deriving an append's kind used to load every version of the suite).
+ *  Legacy (pre-v2) artifact metas carry a `pipeline` instead of v2's
+ *  `schemaVersion`/`kind`; fall back to the pipeline-derived kind so appends
+ *  against a legacy artifact keep the pre-probe behavior (a v2-only probe
+ *  returned null and callers defaulted to "prototype", rejecting legacy
+ *  "design" artifacts with a kind mismatch). */
 export function readDesignSuiteKind(root: string, id: string): DesignSuiteKind | null {
-  return readSuiteMeta(root, id)?.kind ?? null;
+  const parsed = readRawSuiteMeta(root, id);
+  if (!parsed || typeof parsed !== "object") return null;
+  if (isDesignSuiteMeta(parsed) && parsed.id === id) return parsed.kind;
+  const candidate = parsed as { id?: unknown; pipeline?: unknown };
+  if (
+    candidate.id === id &&
+    (candidate.pipeline === "openui" || candidate.pipeline === "design" || candidate.pipeline === "spec")
+  ) {
+    return legacyKind(candidate.pipeline);
+  }
+  return null;
 }
 
 function readSuiteVersionFile(root: string, suiteId: string, versionId: string): DesignSuiteVersion | null {

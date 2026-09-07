@@ -6,7 +6,7 @@ import * as path from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { buildA2uiServer, persistSurfaces } from "../main/tools/a2ui/a2ui-mcp";
-import { listDesignArtifacts, readDesignSuite } from "../main/tools/design-store";
+import { listDesignArtifacts, readDesignSuite, saveDesignArtifact } from "../main/tools/design-store";
 import type { PrototypeSuiteContent } from "../main/tools/design-store";
 
 const roots: string[] = [];
@@ -167,6 +167,82 @@ test("save_suite_result fails on a stale versionId instead of rolling the head b
     assert.notEqual(fresh.isError, true);
     const saved = artifactRefOf(fresh);
     assert.notEqual(saved.versionId, head.versionId);
+  } finally {
+    await client.close();
+  }
+});
+
+test("update_openui fails on a stale versionId instead of rolling the head back", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "a2ui-update-head-"));
+  roots.push(root);
+  const client = await clientFor(root);
+  try {
+    const first = await client.callTool({
+      name: "render_spec",
+      arguments: { document: "# Tasks\n\n## Page list\n- Board", requirement: "Task board", note: "initial" },
+    });
+    const v1 = artifactRefOf(first);
+    const materialized = await client.callTool({
+      name: "render_openui",
+      arguments: { code: "root = Column([board])", suiteId: v1.suiteId, versionId: v1.versionId },
+    });
+    const v2 = artifactRefOf(materialized);
+    assert.notEqual(v2.versionId, v1.versionId);
+
+    // A stale versionId must fail loudly: update_openui expands the new code
+    // over the given base's content, so appending against v1 would silently
+    // roll the head's verification/openui fields back to v1 state.
+    const stale = await client.callTool({
+      name: "update_openui",
+      arguments: { code: "root = Column([stale])", suiteId: v1.suiteId, versionId: v1.versionId },
+    });
+    assert.equal(stale.isError, true);
+    assert.match(text(stale), /head has moved/);
+    assert.match(text(stale), /latest version/);
+
+    // Nothing was written: the head is still v2 with v2's content intact.
+    const suite = readDesignSuite(root, v1.suiteId);
+    assert.equal(suite?.currentVersionId, v2.versionId);
+    const headContent = suite?.currentVersion?.content as PrototypeSuiteContent;
+    assert.equal(headContent.openui, "root = Column([board])");
+
+    // Appending against the head stays ok.
+    const fresh = await client.callTool({
+      name: "update_openui",
+      arguments: { code: "root = Column([fresh])", suiteId: v1.suiteId, versionId: v2.versionId },
+    });
+    assert.notEqual(fresh.isError, true);
+    assert.equal(artifactRefOf(fresh).versionId !== v2.versionId, true);
+  } finally {
+    await client.close();
+  }
+});
+
+test("update_openui accepts a legacy design artifact via the pipeline-derived kind", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "a2ui-legacy-kind-"));
+  roots.push(root);
+  const client = await clientFor(root);
+  try {
+    // Legacy (pre-v2) artifact: meta carries `pipeline`, no schemaVersion/kind.
+    const legacy = saveDesignArtifact(root, {
+      title: "Legacy dash",
+      pipeline: "design",
+      content: "---\nname: legacy-dash\n---",
+    });
+    assert.ok(legacy);
+
+    // The probe must derive "ui" from the pipeline (a v2-only probe returned
+    // null and defaulted to "prototype", rejecting the append with a kind
+    // mismatch).
+    const updated = await client.callTool({
+      name: "update_openui",
+      arguments: { code: 'root = Screen("legacy")', suiteId: legacy.id },
+    });
+    assert.notEqual(updated.isError, true);
+    const ref = artifactRefOf(updated);
+    assert.equal(ref.kind, "ui");
+    const suite = readDesignSuite(root, legacy.id);
+    assert.equal(suite?.kind, "ui");
   } finally {
     await client.close();
   }

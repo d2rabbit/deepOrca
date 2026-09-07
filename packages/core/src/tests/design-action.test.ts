@@ -489,6 +489,26 @@ test("re-review L1: prose mentioning triple backticks mid-line does not trip the
   assert.match(String(save?.args.document ?? ""), /# Tasks/);
 });
 
+test("re-review M6: a mid-line fence mention does not hijack body extraction ahead of the real fence", async () => {
+  const mcpCalls: McpCall[] = [];
+  // The ```markdown mention sits mid-line with a tag+newline right after it,
+  // so the unanchored extraction regex used to capture "fragment" as the
+  // whole body; only a line-initial fence may open the extraction now.
+  // (Every fence stays mid-line so the truncation refusal is not in play.)
+  const result = await prototypeSpecRun(
+    { requirement: "Task board" },
+    makeCtx({
+      mcpCalls,
+      generated: "I will use a ```markdown\nfragment``` and continue.\n\n# Tasks\n\n## Page list\n- Board",
+    })
+  );
+  assert.equal(result.ok, true);
+  const save = mcpCalls.find((call) => call.name.endsWith("render_spec"));
+  const document = String(save?.args.document ?? "");
+  assert.match(document, /# Tasks/, "the real prose body must be extracted");
+  assert.doesNotMatch(document, /^fragment$/, "the mention's inline fragment must not become the body");
+});
+
 test("re-review L2: design.materialize rejects structurally invalid OpenUI before persisting", async () => {
   const mcpCalls: McpCall[] = [];
   const result = await designMaterializeRun(

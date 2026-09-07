@@ -15,6 +15,7 @@ import {
   createDesignSuite,
   appendDesignSuiteVersion,
   readDesignSuite,
+  readDesignSuiteKind,
   readDesignSuiteVersion,
   listDesignSuites,
   deleteDesignSuite,
@@ -55,6 +56,20 @@ test("save + list + read + delete round-trips an artifact", () => {
   assert.equal(deleteDesignArtifact(root, meta!.id), true);
   assert.equal(listDesignArtifacts(root).length, 0);
   assert.equal(readDesignArtifact(root, meta!.id), null);
+});
+
+test("readDesignSuiteKind derives the kind from a legacy pipeline meta without reading versions", () => {
+  const root = tempRoot();
+  // Legacy (pre-v2) artifacts: meta.json carries `pipeline`, not
+  // schemaVersion/kind — the probe must not fall through to null (callers
+  // would default to "prototype" and reject legacy "design" artifacts).
+  const design = saveDesignArtifact(root, { title: "Dash", pipeline: "design", content: "---\nname: dash\n---" });
+  assert.equal(readDesignSuiteKind(root, design!.id), "ui");
+  const proto = saveDesignArtifact(root, { title: "Proto", pipeline: "openui", content: "root = Column([])" });
+  assert.equal(readDesignSuiteKind(root, proto!.id), "prototype");
+  const spec = saveDesignArtifact(root, { title: "Spec", pipeline: "spec", content: "# Requirements" });
+  assert.equal(readDesignSuiteKind(root, spec!.id), "prototype");
+  assert.equal(readDesignSuiteKind(root, "does-not-exist"), null);
 });
 
 test("content changes snapshot the previous version; same content does not", () => {

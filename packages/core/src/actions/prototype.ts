@@ -89,7 +89,9 @@ function subagentContent(result: unknown): string | null {
 function extractGeneratedBody(result: unknown): string | null {
   const content = subagentContent(result);
   if (!content) return null;
-  const fence = content.match(/```(?:markdown|md|openui|dd|html|json)?\s*\n([\s\S]*?)```/i);
+  // Line-anchored (re-review fix): prose merely MENTIONING ``` mid-line must
+  // not open the extraction — only a real line-initial fence does.
+  const fence = content.match(/^[ \t]*```(?:markdown|md|openui|dd|html|json)?[ \t]*\n([\s\S]*?)```/im);
   if (fence) return fence[1]?.trim() || null;
   // An opened-but-never-closed fence means the subagent output was cut off
   // mid-document; refuse the half-captured body (it used to fall back to the

@@ -264,7 +264,9 @@ function uiContent(value: unknown): UiSuiteContent | null {
 }
 
 function parseJsonValue(text: string): unknown {
-  const fenced = text.match(/```(?:json)?\s*\n([\s\S]*?)```/i)?.[1] ?? text;
+  // Line-anchored like prototype.ts's body extraction: a prose line merely
+  // MENTIONING ``` must not open the capture ahead of the real json fence.
+  const fenced = text.match(/^[ \t]*```(?:json)?[ \t]*\n([\s\S]*?)```/im)?.[1] ?? text;
   return JSON.parse(fenced.trim()) as unknown;
 }
 
