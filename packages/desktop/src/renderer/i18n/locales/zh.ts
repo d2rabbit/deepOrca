@@ -1648,6 +1648,14 @@ export const zh: Record<MessageKey, string> = {
   "designWorkspace.quickPagesThree": "整体换成海绿品牌色",
   "designWorkspace.quickTokensThree": "圆角改 3 档",
   "designWorkspace.quickQualityThree": "修复触达目标过小",
+  "designWorkspace.dirChainDesign": "视觉稿 → 设计系统 → 质量与评审",
+  "designWorkspace.dirNote":
+    "此处仅按工作区分组展示（目录，不含操作）；切换工作区在会话/窗口层进行，产物按工作区隔离（.deeporca/designs/）。",
+  "designWorkspace.dirNotRun": "未跑",
+  "designWorkspace.dirNotGenerated": "未生成",
+  "designWorkspace.dirItemsCount": "{count} 项",
+  "designWorkspace.dirSelfHeal": "自愈 {count}",
+  "designWorkspace.dirPassedTotal": "{passed}/{total}",
   "designWorkspace.catalog.modern-minimal": "现代极简",
   "designWorkspace.catalog.editorial": "编辑风",
   "designWorkspace.catalog.dark-tech": "暗色科技",
@@ -1700,4 +1708,5 @@ export const zh: Record<MessageKey, string> = {
   "prototypeWorkspace.reportNeedsPrototype": "先生成交互原型，再运行验收走查。",
   "prototypeWorkspace.reportStatusLabel": "状态：",
   "prototypeWorkspace.checkGroupOther": "通用",
+  "prototypeWorkspace.dirChainPrototype": "需求文档 → 交互原型 → 验收报告",
 };

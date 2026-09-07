@@ -1651,6 +1651,14 @@ export const zhTW: Record<MessageKey, string> = {
   "designWorkspace.quickPagesThree": "整體換成海綠品牌色",
   "designWorkspace.quickTokensThree": "圓角改 3 檔",
   "designWorkspace.quickQualityThree": "修復觸達目標過小",
+  "designWorkspace.dirChainDesign": "視覺稿 → 設計系統 → 品質與審查",
+  "designWorkspace.dirNote":
+    "此處僅按工作區分組展示（目錄，不含操作）；切換工作區在會話/視窗層進行，產物按工作區隔離（.deeporca/designs/）。",
+  "designWorkspace.dirNotRun": "未跑",
+  "designWorkspace.dirNotGenerated": "未產生",
+  "designWorkspace.dirItemsCount": "{count} 項",
+  "designWorkspace.dirSelfHeal": "自癒 {count}",
+  "designWorkspace.dirPassedTotal": "{passed}/{total}",
   "designWorkspace.catalog.modern-minimal": "現代極簡",
   "designWorkspace.catalog.editorial": "編輯風",
   "designWorkspace.catalog.dark-tech": "暗色科技",
@@ -1703,4 +1711,5 @@ export const zhTW: Record<MessageKey, string> = {
   "prototypeWorkspace.reportNeedsPrototype": "先產生互動原型，再執行驗收走查。",
   "prototypeWorkspace.reportStatusLabel": "狀態：",
   "prototypeWorkspace.checkGroupOther": "通用",
+  "prototypeWorkspace.dirChainPrototype": "需求文件 → 互動原型 → 驗收報告",
 };

@@ -1693,6 +1693,14 @@ export const en = {
   "designWorkspace.quickPagesThree": "Switch the whole accent to sea green",
   "designWorkspace.quickTokensThree": "Set radius to 3 levels",
   "designWorkspace.quickQualityThree": "Fix undersized touch targets",
+  "designWorkspace.dirChainDesign": "Visual → design system → quality & review",
+  "designWorkspace.dirNote":
+    "Read-only grouping by workspace — actions live inside each workspace sheet; switching happens at the session/window level, and artifacts stay isolated per workspace (.deeporca/designs/).",
+  "designWorkspace.dirNotRun": "not run",
+  "designWorkspace.dirNotGenerated": "not generated",
+  "designWorkspace.dirItemsCount": "{count} items",
+  "designWorkspace.dirSelfHeal": "self-heal {count}",
+  "designWorkspace.dirPassedTotal": "{passed}/{total}",
   "designWorkspace.catalog.modern-minimal": "Modern Minimal",
   "designWorkspace.catalog.editorial": "Editorial",
   "designWorkspace.catalog.dark-tech": "Dark Tech",
@@ -1747,4 +1755,5 @@ export const en = {
     "Generate the interactive prototype first, then run the acceptance walkthrough.",
   "prototypeWorkspace.reportStatusLabel": "Status:",
   "prototypeWorkspace.checkGroupOther": "general",
+  "prototypeWorkspace.dirChainPrototype": "Spec → interactive prototype → acceptance report",
 } as const;

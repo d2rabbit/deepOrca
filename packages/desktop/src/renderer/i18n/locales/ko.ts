@@ -1686,6 +1686,14 @@ export const ko: Record<MessageKey, string> = {
   "designWorkspace.quickPagesThree": "전체를 시그린 악센트로",
   "designWorkspace.quickTokensThree": "반경 3단계로",
   "designWorkspace.quickQualityThree": "너무 작은 터치 타깃 수정",
+  "designWorkspace.dirChainDesign": "비주얼 → 디자인 시스템 → 품질 검토",
+  "designWorkspace.dirNote":
+    "여기서는 워크스페이스별 그룹 표시만 합니다(디렉터리, 작업 없음). 전환은 세션/창 계층에서 이루어지며 산출물은 워크스페이스별로 분리됩니다(.deeporca/designs/).",
+  "designWorkspace.dirNotRun": "미실행",
+  "designWorkspace.dirNotGenerated": "미생성",
+  "designWorkspace.dirItemsCount": "{count}개 항목",
+  "designWorkspace.dirSelfHeal": "자가 치유 {count}",
+  "designWorkspace.dirPassedTotal": "{passed}/{total}",
   "designWorkspace.catalog.modern-minimal": "모던 미니멀",
   "designWorkspace.catalog.editorial": "에디토리얼",
   "designWorkspace.catalog.dark-tech": "다크 테크",
@@ -1739,4 +1747,5 @@ export const ko: Record<MessageKey, string> = {
   "prototypeWorkspace.reportNeedsPrototype": "먼저 인터랙티브 프로토타입을 생성한 뒤 수용 워크스루를 실행하세요.",
   "prototypeWorkspace.reportStatusLabel": "상태:",
   "prototypeWorkspace.checkGroupOther": "일반",
+  "prototypeWorkspace.dirChainPrototype": "요구사항 → 인터랙티브 프로토타입 → 수용 보고서",
 };

@@ -19,6 +19,53 @@
   padding: 10px 12px;
 }
 
+/* 链路副标题（mockup dir-sub：需求文档 → 交互原型 → 验收报告）。 */
+.ui-design-directory-chain {
+  flex: none;
+  margin: 0;
+  padding: 0 12px 8px;
+  color: var(--ui-text-faint);
+  font-size: 10px;
+  border-bottom: 1px solid var(--ui-border-soft);
+}
+
+.ui-design-directory-path {
+  padding: 6px 9px 2px;
+  color: var(--ui-text-faint);
+  font-family: var(--ui-font-mono);
+  font-size: 9.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 三段产物状态行：缺席段用 warning 虚线感（mockup 报告未跑）。 */
+.ui-design-directory-suite {
+  padding: 2px 0 4px;
+}
+
+.ui-design-directory-seg {
+  padding: 0 0 2px 8px;
+}
+
+.ui-design-directory-seg .ui-design-directory-item small {
+  color: var(--ui-success);
+}
+
+.ui-design-directory-seg .ui-design-directory-item small.miss {
+  color: var(--ui-warning);
+}
+
+.ui-design-directory-note {
+  flex: none;
+  margin: 0;
+  padding: 10px 12px;
+  border-top: 1px solid var(--ui-border-soft);
+  color: var(--ui-text-faint);
+  font-size: 10px;
+  line-height: 1.55;
+}
+
 .ui-design-directory-head strong {
   font-size: 13px;
 }

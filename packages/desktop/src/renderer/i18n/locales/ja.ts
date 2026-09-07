@@ -1694,6 +1694,14 @@ export const ja: Record<MessageKey, string> = {
   "designWorkspace.quickPagesThree": "全体をシーグリーンのアクセントに",
   "designWorkspace.quickTokensThree": "角丸を 3 段階に",
   "designWorkspace.quickQualityThree": "小さすぎるタッチターゲットを修正",
+  "designWorkspace.dirChainDesign": "ビジュアル → デザインシステム → 品質レビュー",
+  "designWorkspace.dirNote":
+    "ここではワークスペース別のグループ表示のみ（ディレクトリ、操作なし）。切り替えはセッション/ウィンドウ層で行い、成果物はワークスペース毎に分離されます（.deeporca/designs/）。",
+  "designWorkspace.dirNotRun": "未実行",
+  "designWorkspace.dirNotGenerated": "未生成",
+  "designWorkspace.dirItemsCount": "{count} 件",
+  "designWorkspace.dirSelfHeal": "自己修復 {count}",
+  "designWorkspace.dirPassedTotal": "{passed}/{total}",
   "designWorkspace.catalog.modern-minimal": "モダンミニマル",
   "designWorkspace.catalog.editorial": "エディトリアル",
   "designWorkspace.catalog.dark-tech": "ダークテック",
@@ -1749,4 +1757,5 @@ export const ja: Record<MessageKey, string> = {
     "先にインタラクティブプロトタイプを生成してから、受け入れウォークスルーを実行してください。",
   "prototypeWorkspace.reportStatusLabel": "状態：",
   "prototypeWorkspace.checkGroupOther": "一般",
+  "prototypeWorkspace.dirChainPrototype": "要件 → プロトタイプ → 検収レポート",
 };
