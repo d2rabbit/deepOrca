@@ -88,7 +88,28 @@ function extractGeneratedBody(result: unknown): string | null {
   const content = subagentContent(result);
   if (!content) return null;
   const fence = content.match(/```(?:markdown|md|openui|dd|html|json)?\s*\n([\s\S]*?)```/i);
-  return (fence?.[1] ?? content).trim() || null;
+  if (fence) return fence[1]?.trim() || null;
+  // An opened-but-never-closed fence means the subagent output was cut off
+  // mid-document; refuse the half-captured body (it used to fall back to the
+  // WHOLE message including leading prose) so callers fail with a
+  // regenerate hint instead of persisting garbage as a "ready" version.
+  if (/```[^\n]*\n/.test(content)) return null;
+  return content.trim() || null;
+}
+
+/**
+ * Cheap OpenUI Lang structural sanity: a program must bind at least one
+ * component and declare the `root` export. Catches truncated or
+ * prose-contaminated LLM output (missing closing fence → the whole message
+ * including prose is "extracted") BEFORE it persists as a "ready" version.
+ */
+export function looksLikeOpenuiProgram(code: string): boolean {
+  return /^[ \t]*[A-Za-z_$][\w$]*\s*=\s*\w/m.test(code) && /^[ \t]*root\s*=\s*\w/m.test(code);
+}
+
+/** A structured spec must carry at least one markdown section heading. */
+export function looksLikeSpecDocument(markdown: string): boolean {
+  return /^#{1,6}\s+\S/m.test(markdown);
 }
 
 function parseJsonRecord(text: string | undefined): Record<string, unknown> | null {
@@ -203,7 +224,11 @@ export const prototypeSpecRun: ActionRun<PrototypeSpecInput, PrototypeSpecOutput
   if (baseVersionId && !suiteId) return { ok: false, error: "baseVersionId requires suiteId" };
   if (!ctx.runSubagent) return { ok: false, error: "runSubagent not available" };
 
-  ctx.emit({ message: "Generating the structured prototype specification", percent: 30 });
+  ctx.emit({
+    message: "Generating the structured prototype specification",
+    percent: 30,
+    data: { code: "prototype.spec.generating" },
+  });
   try {
     const generated = await ctx.runSubagent({
       skill: "spec-writer",
@@ -215,7 +240,12 @@ export const prototypeSpecRun: ActionRun<PrototypeSpecInput, PrototypeSpecOutput
       silent: true,
     });
     const document = extractGeneratedBody(generated);
-    if (!document) return { ok: false, error: "spec-writer returned no requirements document" };
+    if (!document || !looksLikeSpecDocument(document)) {
+      return {
+        ok: false,
+        error: "spec-writer returned an empty or section-less requirements document (truncated output?) — regenerate",
+      };
+    }
     const saved = await executeA2ui(ctx, "render_spec", {
       document,
       requirement,
@@ -224,7 +254,7 @@ export const prototypeSpecRun: ActionRun<PrototypeSpecInput, PrototypeSpecOutput
       note: input.note?.trim() || (suiteId ? "prototype specification revision" : "initial prototype specification"),
     });
     if (!saved.ok) return saved;
-    ctx.emit({ message: "Prototype specification saved", percent: 100 });
+    ctx.emit({ message: "Prototype specification saved", percent: 100, data: { code: "prototype.spec.saved" } });
     return { ok: true, artifactRef: saved.artifactRef, refreshStore: !saved.artifactRef };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : String(error) };
@@ -285,7 +315,11 @@ export const prototypeMaterializeRun: ActionRun<PrototypeMaterializeInput, Proto
   }
   if (!spec) return { ok: false, error: "requirements document not found; run prototype.spec first" };
 
-  ctx.emit({ message: "Generating OpenUI prototype from the selected specification", percent: 50 });
+  ctx.emit({
+    message: "Generating OpenUI prototype from the selected specification",
+    percent: 50,
+    data: { code: "prototype.materialize.generating" },
+  });
   try {
     const generated = await ctx.runSubagent({
       skill: "pm-designer-openui",
@@ -296,7 +330,13 @@ export const prototypeMaterializeRun: ActionRun<PrototypeMaterializeInput, Proto
       silent: true,
     });
     const code = extractGeneratedBody(generated);
-    if (!code) return { ok: false, error: "pm-designer-openui returned no OpenUI program" };
+    if (!code || !looksLikeOpenuiProgram(code)) {
+      return {
+        ok: false,
+        error:
+          "pm-designer-openui returned an empty or truncated OpenUI program (no root/component statements) — regenerate",
+      };
+    }
     const saved = await executeA2ui(ctx, "render_openui", {
       code,
       ...(requirement ? { requirement } : {}),
@@ -304,7 +344,11 @@ export const prototypeMaterializeRun: ActionRun<PrototypeMaterializeInput, Proto
       ...(input.note?.trim() ? { note: input.note.trim() } : {}),
     });
     if (!saved.ok) return saved;
-    ctx.emit({ message: "OpenUI prototype saved with verification pending", percent: 100 });
+    ctx.emit({
+      message: "OpenUI prototype saved with verification pending",
+      percent: 100,
+      data: { code: "prototype.materialize.saved" },
+    });
     return { ok: true, artifactRef: saved.artifactRef, refreshStore: !saved.artifactRef };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : String(error) };
@@ -356,7 +400,10 @@ export const prototypeVerifyDefinition: ActionDefinition<PrototypeVerifyInput> =
 };
 
 function hasPageList(spec: string): boolean {
-  return /(?:^|\n)#{1,6}\s*(?:\d+[.)、]?\s*)?(?:页面清单|page\s+list|pages)\b/im.test(spec);
+  // \b can never match after a CJK alternative (CJK chars are non-word, the
+  // boundary needs a following word char) — pin the boundary to the latin
+  // alternatives only, else Chinese headings like "## 页面清单" never verify.
+  return /(?:^|\n)#{1,6}\s*(?:\d+[.)、]?\s*)?(?:页面清单(?![A-Za-z0-9_])|page\s+list\b|pages\b)/im.test(spec);
 }
 
 export const prototypeVerifyRun: ActionRun<PrototypeVerifyInput, PrototypeVerifyOutput> = async (input, ctx) => {
@@ -448,11 +495,15 @@ export const prototypeReviseRun: ActionRun<PrototypeReviseInput, PrototypeSpecOu
   const read = await readSuiteVersion(ctx, suiteId, versionId);
   if (!read.ok) return read;
   if (read.value.artifactRef.kind !== "prototype") return { ok: false, error: "suite is not a prototype suite" };
+  const content = read.value.content as PrototypeSuiteContent;
 
   if (input.part === "verification") {
+    // Revisions only ADD pending observations — the prior checks must survive
+    // the append, not be replaced by the single fresh one.
     const verification: PrototypeVerificationResult = {
       status: "pending",
       checks: [
+        ...(content.verification?.checks ?? []),
         {
           id: `revision-${Date.now()}`,
           label: target,
@@ -473,7 +524,6 @@ export const prototypeReviseRun: ActionRun<PrototypeReviseInput, PrototypeSpecOu
   }
 
   if (!ctx.runSubagent) return { ok: false, error: "runSubagent not available" };
-  const content = read.value.content as PrototypeSuiteContent;
   const current = input.part === "spec" ? content.spec : content.openui;
   if (!current?.trim()) return { ok: false, error: `${input.part} content is empty in the selected version` };
   const skill = input.part === "spec" ? "spec-writer" : "pm-designer-openui";
@@ -486,7 +536,14 @@ export const prototypeReviseRun: ActionRun<PrototypeReviseInput, PrototypeSpecOu
     silent: true,
   });
   const revised = extractGeneratedBody(generated);
-  if (!revised) return { ok: false, error: `${skill} returned no revised content` };
+  const structurallyValid =
+    revised !== null && (input.part === "spec" ? looksLikeSpecDocument(revised) : looksLikeOpenuiProgram(revised));
+  if (!structurallyValid) {
+    return {
+      ok: false,
+      error: `${skill} returned empty or structurally invalid content (truncated output?) — regenerate`,
+    };
+  }
   const tool = input.part === "spec" ? "render_spec" : "update_openui";
   const args: Record<string, unknown> = {
     suiteId,
@@ -505,4 +562,4 @@ export const prototypeReviseRun: ActionRun<PrototypeReviseInput, PrototypeSpecOu
     : { ok: false, error: saved.error };
 };
 
-export { executeA2ui, extractGeneratedBody, parseArtifactRef, readArtifactFile };
+export { executeA2ui, extractGeneratedBody, hasPageList, parseArtifactRef, readArtifactFile };

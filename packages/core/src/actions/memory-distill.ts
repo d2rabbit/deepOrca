@@ -149,6 +149,17 @@ function keyArg(fn: Record<string, unknown> | undefined): string | null {
   return null;
 }
 
+/** String arguments are model-emitted JSON — a malformed blob degrades to
+ *  no-args instead of aborting the whole digest (fail-open per line). */
+function parseToolCallArgs(value: string | Record<string, unknown> | undefined): Record<string, unknown> | undefined {
+  if (typeof value !== "string") return value as Record<string, unknown> | undefined;
+  try {
+    return JSON.parse(value) as Record<string, unknown>;
+  } catch {
+    return undefined;
+  }
+}
+
 export function readSessionDigest(projectDir: string, sessionId: string): SessionDigest | null {
   if (!isSafeSessionId(sessionId)) return null;
   const messages = readTranscript(projectDir, sessionId);
@@ -191,11 +202,7 @@ export function readSessionDigest(projectDir: string, sessionId: string): Sessio
         const name = call.function?.name;
         if (!name) continue;
         const entry = toolCounts.get(name) ?? { count: 0, args: [] };
-        const arg = keyArg(
-          typeof call.function?.arguments === "string"
-            ? (JSON.parse(call.function.arguments) as Record<string, unknown>)
-            : (call.function?.arguments as Record<string, unknown> | undefined)
-        );
+        const arg = keyArg(parseToolCallArgs(call.function?.arguments));
         if (arg && entry.args.length < 3 && !entry.args.includes(arg)) entry.args.push(arg);
         toolCounts.set(name, entry);
       }

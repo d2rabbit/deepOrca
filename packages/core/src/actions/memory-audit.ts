@@ -493,7 +493,7 @@ export function summarizeStore(store: RejectionStore): DecisionStats {
 }
 
 const proposalSchema: AuxSchema<{ proposals: Array<Record<string, unknown>> }> = {
-  describe: '{"proosals": [{"action","target","ruleText","diffHint","evidenceIds","rationale","estTokens"}]}',
+  describe: '{"proposals": [{"action","target","ruleText","diffHint","evidenceIds","rationale","estTokens"}]}',
   validate: (parsed) => {
     if (!parsed || typeof parsed !== "object") return null;
     const proposals = (parsed as { proposals?: unknown }).proposals;
@@ -544,7 +544,7 @@ Rules:
 - Keep each ruleText one or two sentences, directly actionable; no narration.
 - At most ${MAX_PROPOSALS} proposals, highest confidence first.
 
-Respond with JSON only: {"proosals": [{"action":"add|update|delete","target":"agents|skill","skillName":"...","ruleText":"...","diffHint":"...","evidenceIds":["ev-0"],"rationale":"...","estTokens":12}]}`;
+Respond with JSON only: {"proposals": [{"action":"add|update|delete","target":"agents|skill","skillName":"...","ruleText":"...","diffHint":"...","evidenceIds":["ev-0"],"rationale":"...","estTokens":12}]}`;
 }
 
 /** Redacted, bounded context reads for the synthesis prompt (P1.3). */

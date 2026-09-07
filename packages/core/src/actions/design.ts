@@ -127,6 +127,7 @@ export const designMaterializeRun: ActionRun<DesignMaterializeInput, DesignMater
   if (!ctx.runSubagent) return { ok: false, error: "runSubagent not available" };
 
   let prototypeContent: string | null = null;
+  let suiteRequirement: string | undefined;
   let sourcePrototype: { suiteId: string; versionId: string } | undefined;
   if (prototypeSuiteId && prototypeVersionId) {
     const read = await readSuiteVersion(ctx, prototypeSuiteId, prototypeVersionId);
@@ -135,7 +136,7 @@ export const designMaterializeRun: ActionRun<DesignMaterializeInput, DesignMater
       return { ok: false, error: "source suite is not a prototype suite" };
     prototypeContent = "openui" in read.value.content ? read.value.content.openui?.trim() || null : null;
     if (!requirement && "requirement" in read.value.content) {
-      input.requirement = read.value.content.requirement;
+      suiteRequirement = read.value.content.requirement;
     }
     sourcePrototype = { suiteId: prototypeSuiteId, versionId: prototypeVersionId };
     if (!prototypeContent) return { ok: false, error: "selected prototype suite version has no OpenUI content" };
@@ -144,10 +145,18 @@ export const designMaterializeRun: ActionRun<DesignMaterializeInput, DesignMater
     if (!prototypeContent) return { ok: false, error: `prototype artifact not found for id "${prototypeId}"` };
   }
 
-  ctx.emit({ message: "Generating UI design from the selected prototype and design system", percent: 50 });
+  ctx.emit({
+    message: "Generating UI design from the selected prototype and design system",
+    percent: 50,
+    data: { code: "design.materialize.generating" },
+  });
+  // The caller's input object is never mutated; the suite's stored requirement
+  // reaches BOTH the generation prompt and the persisted version (previously
+  // the prompt still saw the stale pre-read snapshot).
+  const effectiveRequirement = requirement ?? suiteRequirement;
   const promptParts = [
-    requirement
-      ? `Create a complete OpenUI Lang program for this requirement: ${requirement}`
+    effectiveRequirement
+      ? `Create a complete OpenUI Lang program for this requirement: ${effectiveRequirement}`
       : "Create a complete OpenUI Lang program elevating the selected prototype.",
     `Use this bundled design system exactly. Its complete source is included below:\n\n${designSystem}`,
   ];
@@ -162,14 +171,14 @@ export const designMaterializeRun: ActionRun<DesignMaterializeInput, DesignMater
     if (!content) return { ok: false, error: "deep-design returned no OpenUI program" };
     const saved = await executeA2ui(ctx, "render_openui", {
       code: content,
-      requirement: requirement ?? input.requirement,
+      requirement: effectiveRequirement,
       designSystemId,
       ...(sourcePrototype ? { sourcePrototype } : {}),
       ...(suiteId ? { suiteId, versionId } : {}),
       ...(input.note?.trim() ? { note: input.note.trim() } : {}),
     });
     if (!saved.ok) return saved;
-    ctx.emit({ message: "UI design suite version saved", percent: 100 });
+    ctx.emit({ message: "UI design suite version saved", percent: 100, data: { code: "design.materialize.saved" } });
     try {
       const sessionId = ctx.activeSessionId?.();
       const ref = sessionId ? ctx.getSessionTaskRef?.(sessionId) : undefined;
@@ -177,7 +186,7 @@ export const designMaterializeRun: ActionRun<DesignMaterializeInput, DesignMater
         const service = ctx.taskTrees?.();
         service?.switchBranch(ref.treeId, ref.branch);
         service?.appendStep(ref.treeId, {
-          title: `UI design materialized: ${(requirement ?? prototypeId ?? prototypeSuiteId ?? "").slice(0, 80)}`,
+          title: `UI design materialized: ${(effectiveRequirement ?? prototypeId ?? prototypeSuiteId ?? "").slice(0, 80)}`,
           why: "design.materialize produced a versioned UI design.",
         });
       }
@@ -257,10 +266,24 @@ function currentQuality(content: UiSuiteContent): DesignQuality {
 }
 
 /** Deterministic static rules over an OpenUI Lang program (no browser, no LLM). */
+
+/** A style-ish context keyword — hex literals are only colors near these. */
+const STYLE_CONTEXT = /(?:color|background|border|fill|stroke|shadow|gradient|style\s*=)/i;
+
+/**
+ * Valid hex color token: 3/4/6/8 digits only (no 5/7), and the `#` must not
+ * ride on a word char, path separator, `.`, `-` or another `#` — so issue
+ * anchors like "#123" in prose or "#aabbccd" garbage never look like colors
+ * while `color:#aabbcc` keeps matching.
+ */
+const HEX_COLOR = /(?<![\w/.#-])#[0-9a-fA-F]{3}(?:[0-9a-fA-F]|[0-9a-fA-F]{3}|[0-9a-fA-F]{5})?(?![0-9a-fA-F])/;
+
 function lintOpenuiDocument(code: string): StoredLintFinding[] {
   const findings: StoredLintFinding[] = [];
   const push = (ruleId: string, severity: StoredLintFinding["severity"], message: string, line: string) => {
-    const semantic = line.match(/(?:data-sem|data-semantic-id|id)="([^"]+)"/);
+    // The leading \s keeps attribute values out of the id slot: without it,
+    // `aria-valid="true"` captures "true" via its "valid=" substring.
+    const semantic = line.match(/\s(?:data-sem|data-semantic-id|id)="([^"]+)"/);
     findings.push({
       id: `${ruleId}-${findings.length + 1}`,
       preset: "openui-static",
@@ -271,7 +294,7 @@ function lintOpenuiDocument(code: string): StoredLintFinding[] {
     });
   };
   code.split("\n").forEach((line, index) => {
-    if (/#[0-9a-fA-F]{3,8}\b/.test(line)) {
+    if (STYLE_CONTEXT.test(line) && HEX_COLOR.test(line)) {
       push(
         "hardcoded-color",
         "warning",
@@ -368,17 +391,34 @@ export const designReviewDefinition: ActionDefinition<DesignReviewInput> = {
   sideEffects: ["write-in-cwd"],
 };
 
-function validateReview(value: unknown): DesignQualityReview | null {
-  if (!value || typeof value !== "object") return null;
+type ReviewValidation = { ok: true; review: DesignQualityReview } | { ok: false; error: string };
+
+function validateReview(value: unknown): ReviewValidation {
+  if (!value || typeof value !== "object") return { ok: false, error: "review JSON is not an object" };
   const record = value as Record<string, unknown>;
-  if ((record.status !== "passed" && record.status !== "failed") || typeof record.composite !== "number") return null;
-  if (!Number.isFinite(record.composite) || record.composite < 0 || record.composite > 1) return null;
-  if (!record.evidence || typeof record.evidence !== "object" || Array.isArray(record.evidence)) return null;
+  if ((record.status !== "passed" && record.status !== "failed") || typeof record.composite !== "number") {
+    return { ok: false, error: "status must be passed/failed and composite a number" };
+  }
+  if (!Number.isFinite(record.composite) || record.composite < 0 || record.composite > 1) {
+    return { ok: false, error: "composite must be a finite number between 0 and 1" };
+  }
+  if (!record.evidence || typeof record.evidence !== "object" || Array.isArray(record.evidence)) {
+    return { ok: false, error: "evidence must be an object" };
+  }
+  const evidence = record.evidence as Record<string, unknown>;
+  // An empty evidence object would promote the suite to verified on the LLM's
+  // word alone — require at least one concrete string/number observation.
+  if (!Object.values(evidence).some((v) => (typeof v === "string" && v.trim()) || typeof v === "number")) {
+    return { ok: false, error: "evidence must contain at least one non-empty string or number value" };
+  }
   return {
-    status: record.status,
-    composite: record.composite,
-    rounds: 1,
-    evidence: record.evidence as Record<string, unknown>,
+    ok: true,
+    review: {
+      status: record.status,
+      composite: record.composite,
+      rounds: 1,
+      evidence,
+    },
   };
 }
 
@@ -405,13 +445,21 @@ export const designReviewRun: ActionRun<DesignReviewInput, DesignReviewOutput> =
   });
   const text = extractGeneratedBody(reviewed);
   if (!text) return { ok: false, error: "deep-design returned no review JSON" };
-  let review: DesignQualityReview | null = null;
+  let validated: ReviewValidation | null = null;
   try {
-    review = validateReview(parseJsonValue(text));
+    validated = validateReview(parseJsonValue(text));
   } catch {
-    review = null;
+    validated = null;
   }
-  if (!review) return { ok: false, error: "deep-design returned review JSON that failed schema validation" };
+  if (!validated?.ok) {
+    return {
+      ok: false,
+      error: `deep-design returned review JSON that failed schema validation${
+        validated && !validated.ok ? ` (${validated.error})` : ""
+      }`,
+    };
+  }
+  const review = validated.review;
   const saved = await executeA2ui(ctx, "save_suite_result", {
     suiteId,
     versionId,
@@ -631,7 +679,11 @@ export const designExtractRun: ActionRun<DesignExtractInput, DesignExtractOutput
     return { ok: false, error: target.error };
   }
 
-  ctx.emit({ message: `🎨 Extracting brand tokens from ${target.url}…`, percent: 20 });
+  ctx.emit({
+    message: `🎨 Extracting brand tokens from ${target.url}…`,
+    percent: 20,
+    data: { code: "design.tokens.extracting" },
+  });
 
   // Temp workspace for the CLI's artifacts. Upstream has no `--output <dir>`
   // flag — `--save-output` writes `output/<domain>/` relative to the process
@@ -642,7 +694,11 @@ export const designExtractRun: ActionRun<DesignExtractInput, DesignExtractOutput
   const outputDir = path.join(root, ".deeporca", "tmp", "dembrandt", `${Date.now()}-${randomUUID().slice(0, 8)}`);
   fs.mkdirSync(outputDir, { recursive: true });
 
-  ctx.emit({ message: "🌐 Rendering page and extracting tokens…", percent: 50 });
+  ctx.emit({
+    message: "🌐 Rendering page and extracting tokens…",
+    percent: 50,
+    data: { code: "design.tokens.rendering" },
+  });
 
   const { code, stdout, stderr, spawnError } = await runDembrandtCli(
     ctx,
@@ -681,7 +737,7 @@ export const designExtractRun: ActionRun<DesignExtractInput, DesignExtractOutput
   const truncated = stdout.length > DEMBRANDT_TOKENS_CHAR_CAP;
   const tokensJson = truncated ? `${stdout.slice(0, DEMBRANDT_TOKENS_CHAR_CAP)}\n…[truncated]` : stdout;
 
-  ctx.emit({ message: "✅ Tokens extracted", percent: 90 });
+  ctx.emit({ message: "✅ Tokens extracted", percent: 90, data: { code: "design.tokens.extracted" } });
 
   // PERSISTENCE CONTRACT (deliberate, sandbox-correct): this action does NOT
   // write .deeporca/DESIGN.md itself. The write is agent-mediated — the
@@ -774,7 +830,11 @@ export const designDriftRun: ActionRun<DesignDriftInput, DesignDriftOutput> = as
     baselineArg = baselineTarget.url;
   }
 
-  ctx.emit({ message: "📐 Comparing current design against baseline…", percent: 40 });
+  ctx.emit({
+    message: "📐 Comparing current design against baseline…",
+    percent: 40,
+    data: { code: "design.drift.comparing" },
+  });
 
   // Upstream drift syntax: `dembrandt <target> --compare <baseline.json>
   // --json-only` — there is no `drift` subcommand; --compare IS the drift
@@ -811,6 +871,7 @@ export const designDriftRun: ActionRun<DesignDriftInput, DesignDriftOutput> = as
   ctx.emit({
     message: driftDetected ? `⚠️ Drift detected (score ${rawScore ?? "?"})` : "✅ Within baseline",
     percent: 100,
+    data: { code: "design.drift.done" },
   });
 
   return {
