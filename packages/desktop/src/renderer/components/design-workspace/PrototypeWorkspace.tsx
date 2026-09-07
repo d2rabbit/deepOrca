@@ -1,11 +1,13 @@
-import { useCallback, useEffect, useMemo, useState, type JSX } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type JSX } from "react";
 import { api } from "../../api";
 import { useI18n } from "../../i18n";
+import { pushDesignToast } from "../../lib/toast-bus";
 import { IconCheck, IconClose, IconFile, IconPalette, IconRefresh, IconSparkle } from "../../ui/icons";
 import { PrototypePanel, type PrototypeSelection } from "../PrototypePanel";
 import { subscribeToSuiteChanges, suiteApi } from "./api";
-import { DesignWorkspaceFrame } from "./DesignWorkspaceFrame";
+import { DesignWorkspaceFrame, versionLabel } from "./DesignWorkspaceFrame";
 import { FloatingDesignAgent } from "./FloatingDesignAgent";
+import { progressLabel } from "./progress-label";
 import { SelectionPopover, type WorkspaceSelection } from "./SelectionPopover";
 import { diffLines, summarizeDiff } from "./diff";
 import type { DesignSuite, DesignSuiteVersion, PrototypeSuiteContent } from "./types";
@@ -16,6 +18,8 @@ type PrototypeTab = "spec" | "proto" | "report";
 export type PrototypeWorkspaceProps = {
   root: string;
   suiteId?: string;
+  /** Hash deep link / surface tab segment (validated against the tab union). */
+  initialTab?: string;
   onBack?: () => void;
   onQuoteToChat?: (quote: string) => void;
 };
@@ -63,11 +67,22 @@ function markdownSections(markdown: string): Array<{ heading: string; body: stri
 
 const tabs: readonly PrototypeTab[] = ["spec", "proto", "report"];
 
-export function PrototypeWorkspace({ root, suiteId, onBack, onQuoteToChat }: PrototypeWorkspaceProps): JSX.Element {
+export function PrototypeWorkspace({
+  root,
+  suiteId,
+  initialTab,
+  onBack,
+  onQuoteToChat,
+}: PrototypeWorkspaceProps): JSX.Element {
   const { t } = useI18n();
   const [suite, setSuite] = useState<DesignSuite | null>(null);
   const [selectedVersion, setSelectedVersion] = useState<DesignSuiteVersion | null>(null);
-  const [tab, setTab] = useState<PrototypeTab>("spec");
+  const validInitial: PrototypeTab = initialTab === "proto" || initialTab === "report" ? initialTab : "spec";
+  const [tab, setTab] = useState<PrototypeTab>(validInitial);
+  useEffect(() => {
+    // Mid-session deep links (#prototype/report) retarget the open workspace.
+    if (initialTab === "spec" || initialTab === "proto" || initialTab === "report") setTab(initialTab);
+  }, [initialTab]);
   const [requirement, setRequirement] = useState("");
   const [selection, setSelection] = useState<WorkspaceSelection | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -79,11 +94,14 @@ export function PrototypeWorkspace({ root, suiteId, onBack, onQuoteToChat }: Pro
   const [confirmedSpecItems, setConfirmedSpecItems] = useState<ReadonlySet<string>>(new Set());
   const [diff, setDiff] = useState<{ added: number; removed: number; lines: string[] } | null>(null);
 
+  const loadSeq = useRef(0);
   const load = useCallback(async () => {
+    const seq = ++loadSeq.current;
     setLoading(true);
     setError(null);
     try {
       const summaries = await suiteApi.designSuiteList(root, "prototype");
+      if (seq !== loadSeq.current) return;
       const targetId = suiteId && summaries.some((item) => item.id === suiteId) ? suiteId : summaries[0]?.id;
       if (!targetId) {
         setSuite(null);
@@ -91,12 +109,18 @@ export function PrototypeWorkspace({ root, suiteId, onBack, onQuoteToChat }: Pro
         return;
       }
       const next = await suiteApi.designSuiteRead(root, targetId);
+      if (seq !== loadSeq.current) return;
       setSuite(next);
-      setSelectedVersion(next?.currentVersion ?? null);
+      // Keep the user's version selection across background refreshes.
+      setSelectedVersion((prev) =>
+        prev && next?.versions.some((version) => version.versionId === prev.versionId)
+          ? prev
+          : (next?.currentVersion ?? null)
+      );
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
+      if (seq === loadSeq.current) setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
-      setLoading(false);
+      if (seq === loadSeq.current) setLoading(false);
     }
   }, [root, suiteId]);
 
@@ -106,7 +130,7 @@ export function PrototypeWorkspace({ root, suiteId, onBack, onQuoteToChat }: Pro
 
   useEffect(() => {
     return subscribeToSuiteChanges((event) => {
-      if (!event || (event.root === root && (!suiteId || event.suiteId === suiteId))) void load();
+      if (event.root === root && (!suiteId || event.suiteId === suiteId)) void load();
     });
   }, [load, root, suiteId]);
 
@@ -116,6 +140,7 @@ export function PrototypeWorkspace({ root, suiteId, onBack, onQuoteToChat }: Pro
       const cached = suite.versions.find((version) => version.versionId === versionId);
       setSelectedVersion(cached ?? (await suiteApi.designSuiteReadVersion(root, suite.id, versionId)));
       setSelection(null);
+      setDiff(null);
       setConfirmedSpecItems(new Set());
     },
     [root, suite]
@@ -129,9 +154,17 @@ export function PrototypeWorkspace({ root, suiteId, onBack, onQuoteToChat }: Pro
     }
     return api.onActionProgress((event) => {
       if (event.actionId !== busy) return;
-      setProgress(event.percent != null ? `${event.percent}% — ${event.message}` : event.message);
+      // Per-workspace multiplexing: ignore runs belonging to another root.
+      if (event.root && event.root !== root) return;
+      setProgress(progressLabel(event, t));
     });
-  }, [busy]);
+  }, [busy, root, t]);
+
+  /** 待确认 items are confirmed page-local (mockup 2026-09: 勾选→定稿→一键生成),
+   *  not one LLM rewrite + version per item. */
+  useEffect(() => {
+    setConfirmedSpecItems(new Set());
+  }, [selectedVersion?.versionId]);
 
   const content: PrototypeSuiteContent =
     selectedVersion && isPrototypeContent(selectedVersion.content) ? selectedVersion.content : {};
@@ -147,6 +180,27 @@ export function PrototypeWorkspace({ root, suiteId, onBack, onQuoteToChat }: Pro
       .map((line) => line.replace(/^\s*[-*]\s+/, "").trim())
       .filter(Boolean);
   }, [content.spec]);
+  const pendingSpecTodos = useMemo(
+    () => specTodos.filter((item) => !confirmedSpecItems.has(item)),
+    [specTodos, confirmedSpecItems]
+  );
+
+  /** Clearing the last pending item toasts the 定稿 state (mockup 待确认清零). */
+  const hadPendingRef = useRef(false);
+  useEffect(() => {
+    if (specTodos.length === 0) {
+      hadPendingRef.current = false;
+      return;
+    }
+    if (pendingSpecTodos.length > 0) {
+      hadPendingRef.current = true;
+      return;
+    }
+    if (hadPendingRef.current) {
+      hadPendingRef.current = false;
+      pushDesignToast("success", t("prototypeWorkspace.pendingCleared"));
+    }
+  }, [pendingSpecTodos.length, specTodos.length, t]);
   const readOnly = Boolean(suite && selectedVersion && selectedVersion.versionId !== suite.currentVersionId);
 
   const selectArtifactRef = useCallback(
@@ -203,31 +257,45 @@ export function PrototypeWorkspace({ root, suiteId, onBack, onQuoteToChat }: Pro
 
   const verify = () => {
     if (!suite || !selectedVersion) return;
-    void runAction("prototype.verify", { suiteId: suite.id, versionId: selectedVersion.versionId });
+    void (async () => {
+      const ref = await runAction("prototype.verify", { suiteId: suite.id, versionId: selectedVersion.versionId });
+      if (ref) pushDesignToast("success", t("prototypeWorkspace.toastVerified"));
+    })();
   };
 
-  const revise = (instruction: string, target?: string) => {
+  /** Export the selected suite version as .ddp and toast the outcome. */
+  const exportVersion = async () => {
     if (!suite || !selectedVersion) return;
+    const result = await suiteApi.designSuiteExportPackage(root, suite.id, selectedVersion.versionId);
+    if (result.ok && result.path) {
+      pushDesignToast("success", t("designWorkspace.toastExported", { path: result.path }));
+    } else if (!result.ok) {
+      pushDesignToast("error", t("designWorkspace.toastExportFailed", { error: result.error ?? "" }));
+    }
+  };
+
+  const revise = async (instruction: string, target?: string): Promise<boolean> => {
+    if (!suite || !selectedVersion) return false;
     const part = tab === "proto" ? "openui" : tab === "report" ? "verification" : "spec";
     const before = part === "spec" ? (content.spec ?? null) : part === "openui" ? (content.openui ?? null) : null;
-    void (async () => {
-      const ref = await runAction("prototype.revise", {
-        suiteId: suite.id,
-        versionId: selectedVersion.versionId,
-        part,
-        target: target ?? part,
-        instruction,
-      });
-      if (!ref || !before) return;
-      const version = await suiteApi.designSuiteReadVersion(root, ref.suiteId, ref.versionId);
-      const next = version && isPrototypeContent(version.content) ? version.content : null;
-      if (!next) return;
-      const after = part === "spec" ? (next.spec ?? null) : part === "openui" ? (next.openui ?? null) : null;
-      if (!after) return;
-      const { added, removed } = diffLines(before, after);
-      if (!added.length && !removed.length) return;
-      setDiff(summarizeDiff({ added, removed }));
-    })();
+    const ref = await runAction("prototype.revise", {
+      suiteId: suite.id,
+      versionId: selectedVersion.versionId,
+      part,
+      target: target ?? part,
+      instruction,
+    });
+    if (!ref) return false;
+    pushDesignToast("success", t("designWorkspace.toastRevised"));
+    if (!before) return true;
+    const version = await suiteApi.designSuiteReadVersion(root, ref.suiteId, ref.versionId);
+    const next = version && isPrototypeContent(version.content) ? version.content : null;
+    if (!next) return true;
+    const after = part === "spec" ? (next.spec ?? null) : part === "openui" ? (next.openui ?? null) : null;
+    if (!after) return true;
+    const { added, removed } = diffLines(before, after);
+    if (added.length || removed.length) setDiff(summarizeDiff({ added, removed }));
+    return true;
   };
 
   const executePrototypeAction = (action: string) => {
@@ -255,9 +323,21 @@ export function PrototypeWorkspace({ root, suiteId, onBack, onQuoteToChat }: Pro
     [t]
   );
   const quickItems: Record<PrototypeTab, readonly string[]> = {
-    spec: [t("prototypeWorkspace.quickSpecOne"), t("prototypeWorkspace.quickSpecTwo")],
-    proto: [t("prototypeWorkspace.quickProtoOne"), t("prototypeWorkspace.quickProtoTwo")],
-    report: [t("prototypeWorkspace.quickReportOne"), t("prototypeWorkspace.quickReportTwo")],
+    spec: [
+      t("prototypeWorkspace.quickSpecOne"),
+      t("prototypeWorkspace.quickSpecTwo"),
+      t("prototypeWorkspace.quickSpecThree"),
+    ],
+    proto: [
+      t("prototypeWorkspace.quickProtoOne"),
+      t("prototypeWorkspace.quickProtoTwo"),
+      t("prototypeWorkspace.quickProtoThree"),
+    ],
+    report: [
+      t("prototypeWorkspace.quickReportOne"),
+      t("prototypeWorkspace.quickReportTwo"),
+      t("prototypeWorkspace.quickReportThree"),
+    ],
   };
 
   return (
@@ -273,6 +353,14 @@ export function PrototypeWorkspace({ root, suiteId, onBack, onQuoteToChat }: Pro
       selectedVersionId={selectedVersion?.versionId}
       latestVersionId={suite?.currentVersionId}
       onVersionChange={(versionId) => void selectVersion(versionId)}
+      versionCap={t("prototypeWorkspace.versionCapProto")}
+      hint={
+        selectedVersion
+          ? t("prototypeWorkspace.scopeHint", {
+              version: versionLabel(suite?.versions, selectedVersion.versionId) ?? "-",
+            })
+          : undefined
+      }
       versionDetail={(version) => {
         if (!isPrototypeContent(version.content)) return null;
         return (
@@ -306,6 +394,16 @@ export function PrototypeWorkspace({ root, suiteId, onBack, onQuoteToChat }: Pro
         ) : null}
         {tab === "spec" ? (
           <article className="ui-report-doc ui-design-spec-document">
+            <div className="ui-report-doc-head">
+              <h1>{t("prototypeWorkspace.specTitle")}</h1>
+              {selectedVersion ? (
+                <span className="ui-report-meta">
+                  {t("prototypeWorkspace.specMeta", {
+                    version: versionLabel(suite?.versions, selectedVersion.versionId) ?? "-",
+                  })}
+                </span>
+              ) : null}
+            </div>
             <div className="ui-design-spec-card">
               <label htmlFor="ui-design-spec-input">{t("prototypeWorkspace.requirementPrompt")}</label>
               <textarea
@@ -323,7 +421,6 @@ export function PrototypeWorkspace({ root, suiteId, onBack, onQuoteToChat }: Pro
               </footer>
               {busy === "prototype.spec" && progress ? <div className="ui-design-gen-progress">{progress}</div> : null}
             </div>
-            {progress ? <div className="ui-design-gen-progress">{progress}</div> : null}
             {content.spec ? (
               markdownSections(content.spec).map((section, index) => (
                 <section className="ui-design-spec-section" key={`${section.heading}-${index}`}>
@@ -334,10 +431,15 @@ export function PrototypeWorkspace({ root, suiteId, onBack, onQuoteToChat }: Pro
             ) : (
               <div className="ui-report-empty">{t("prototypeWorkspace.noSpec")}</div>
             )}
-            {/* 待确认逐条确认：确认即经 prototype.revise 落为新版本修订。 */}
+            {/* 待确认逐条勾选（页内定稿流，确认不派发动作/不建版本）。 */}
             {specTodos.length > 0 ? (
               <section className="ui-design-spec-section ui-design-spec-todos">
-                <h2>{t("prototypeWorkspace.todosTitle")}</h2>
+                <header className="ui-design-spec-todos-head">
+                  <h2>{t("prototypeWorkspace.todosTitle")}</h2>
+                  <span className={pendingSpecTodos.length ? "pending" : "done"}>
+                    {t("prototypeWorkspace.pendingCount", { count: pendingSpecTodos.length })}
+                  </span>
+                </header>
                 {specTodos.map((item) => {
                   const done = confirmedSpecItems.has(item) || readOnly;
                   return (
@@ -346,12 +448,9 @@ export function PrototypeWorkspace({ root, suiteId, onBack, onQuoteToChat }: Pro
                       <button
                         type="button"
                         disabled={done || busy !== null}
-                        onClick={() => {
-                          setConfirmedSpecItems((prev) => new Set(prev).add(item));
-                          revise(t("prototypeWorkspace.confirmInstruction", { item }), `待确认：${item}`);
-                        }}
+                        onClick={() => setConfirmedSpecItems((prev) => new Set(prev).add(item))}
                       >
-                        {done ? "✓" : t("prototypeWorkspace.confirmItem")}
+                        {done ? `✓ ${t("prototypeWorkspace.confirmedItem")}` : t("prototypeWorkspace.confirmItem")}
                       </button>
                     </div>
                   );
@@ -360,7 +459,12 @@ export function PrototypeWorkspace({ root, suiteId, onBack, onQuoteToChat }: Pro
             ) : null}
             {content.spec ? (
               <div className="ui-design-spec-cta">
-                <button type="button" disabled={busy !== null || readOnly} onClick={materialize}>
+                <button
+                  type="button"
+                  disabled={busy !== null || readOnly || pendingSpecTodos.length > 0}
+                  title={pendingSpecTodos.length > 0 ? t("prototypeWorkspace.pendingHint") : undefined}
+                  onClick={materialize}
+                >
                   <IconPalette /> {t("prototypeWorkspace.materialize")}
                 </button>
               </div>
@@ -374,6 +478,23 @@ export function PrototypeWorkspace({ root, suiteId, onBack, onQuoteToChat }: Pro
             onClick={(event) => event.target === event.currentTarget && setSelection(null)}
           >
             <div className="ui-design-toolbar compact">
+              {selectedVersion ? (
+                <>
+                  <span className="ui-design-vbadge">
+                    {versionLabel(suite?.versions, selectedVersion.versionId) ?? "-"} ·{" "}
+                    {t(`designWorkspace.status.${selectedVersion.status}`)}
+                  </span>
+                  {content.verification ? (
+                    <span className="ui-design-vnote">
+                      {t("prototypeWorkspace.vbadgeNote", {
+                        passed: content.verification.checks.filter((check) => check.status === "passed").length,
+                        total: content.verification.checks.length,
+                        heal: content.verification.healingRounds ?? 0,
+                      })}
+                    </span>
+                  ) : null}
+                </>
+              ) : null}
               <div className="seg">
                 {(["desktop", "mobile", "tablet"] as const).map((d) => (
                   <button key={d} type="button" className={device === d ? "on" : ""} onClick={() => setDevice(d)}>
@@ -389,12 +510,8 @@ export function PrototypeWorkspace({ root, suiteId, onBack, onQuoteToChat }: Pro
               </button>
               <button
                 type="button"
-                disabled={!suite || !selectedVersion}
-                onClick={() =>
-                  suite &&
-                  selectedVersion &&
-                  void suiteApi.designSuiteExportPackage(root, suite.id, selectedVersion.versionId)
-                }
+                disabled={!suite || !selectedVersion || busy !== null}
+                onClick={() => void exportVersion()}
               >
                 {t("designWorkspace.exportVersion")}
               </button>
@@ -402,6 +519,12 @@ export function PrototypeWorkspace({ root, suiteId, onBack, onQuoteToChat }: Pro
             {progress ? <div className="ui-design-gen-progress">{progress}</div> : null}
             {content.openui ? (
               <div className={`ui-design-device ui-design-device-${device}`}>
+                <div className="ui-design-device-chrome" aria-hidden="true">
+                  <i />
+                  <i />
+                  <i />
+                  <span>{suite?.title ?? "prototype"}</span>
+                </div>
                 <PrototypePanel
                   a2uiJson=""
                   openuiCode={content.openui}
@@ -439,13 +562,25 @@ export function PrototypeWorkspace({ root, suiteId, onBack, onQuoteToChat }: Pro
                 <IconRefresh /> {t("prototypeWorkspace.runWalkthrough")}
               </button>
             </div>
+            {selectedVersion ? (
+              <div className="ui-report-meta">
+                {t("prototypeWorkspace.reportMeta", {
+                  version: versionLabel(suite?.versions, selectedVersion.versionId) ?? "-",
+                  time: new Date(selectedVersion.savedAt).toLocaleString(),
+                })}
+              </div>
+            ) : null}
             <div className="trigger-card">
               <b>{t("designWorkspace.triggerChainTitle")}</b>
-              <span>{t("designWorkspace.triggerChain")}</span>
+              <span>{t("prototypeWorkspace.triggerChain")}</span>
             </div>
             {content.verification ? (
               <>
                 <div className="ui-report-cards">
+                  <div className="ui-report-card">
+                    <span className="num">{content.verification.checks.length}</span>
+                    <span className="lbl">{t("prototypeWorkspace.reportChecks")}</span>
+                  </div>
                   <div className="ui-report-card">
                     <span className="num">
                       {content.verification.checks.filter((check) => check.status === "passed").length}
@@ -458,12 +593,18 @@ export function PrototypeWorkspace({ root, suiteId, onBack, onQuoteToChat }: Pro
                     </span>
                     <span className="lbl">{t("prototypeWorkspace.failed")}</span>
                   </div>
+                  <div className="ui-report-card">
+                    <span className="num">{content.verification.healingRounds ?? 0}</span>
+                    <span className="lbl">{t("prototypeWorkspace.reportHealRounds")}</span>
+                  </div>
                 </div>
                 <section className="ui-report-file">
                   {content.verification.checks.map((check) => (
                     <div className="ui-report-finding" key={check.id}>
                       <div className="head">
-                        <span className={`ui-design-status ${check.status}`}>{check.status}</span>
+                        <span className={`ui-design-status ${check.status}`}>
+                          {t(`prototypeWorkspace.checkStatus.${check.status}`)}
+                        </span>
                         <strong>{check.label}</strong>
                         {check.action ? <code className="loc">{check.action}</code> : null}
                       </div>
@@ -499,7 +640,7 @@ export function PrototypeWorkspace({ root, suiteId, onBack, onQuoteToChat }: Pro
           tabLabel={tabLabels[tab]}
           quickItems={quickItems[tab]}
           disabled={readOnly || !suite}
-          busy={busy === "prototype.revise"}
+          busy={busy !== null}
           onSubmit={(instruction) => revise(instruction)}
         />
       </div>

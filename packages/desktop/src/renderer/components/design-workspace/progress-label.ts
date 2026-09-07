@@ -1,0 +1,38 @@
+import type { MessageKey } from "../../i18n/messages";
+
+/**
+ * Progress i18n seam: core actions emit a stable machine code under
+ * `data.code` (see core actions prototype.ts / design.ts); this maps the
+ * known codes to localized labels and falls back to the raw English message
+ * for anything unmapped. Keeps core UI-free while panels show native text.
+ */
+const PROGRESS_KEYS: Record<string, MessageKey> = {
+  "prototype.spec.generating": "prototypeWorkspace.progressSpec",
+  "prototype.spec.saved": "prototypeWorkspace.progressSpecSaved",
+  "prototype.materialize.generating": "prototypeWorkspace.progressMaterialize",
+  "prototype.materialize.saved": "prototypeWorkspace.progressMaterializeSaved",
+  "design.materialize.generating": "designWorkspace.progressGenerate",
+  "design.materialize.saved": "designWorkspace.progressSaved",
+  "design.tokens.extracting": "designWorkspace.progressTokensExtract",
+  "design.tokens.rendering": "designWorkspace.progressTokensRender",
+  "design.tokens.extracted": "designWorkspace.progressTokensDone",
+  "design.drift.comparing": "designWorkspace.progressDriftCompare",
+  "design.drift.done": "designWorkspace.progressDriftDone",
+};
+
+type ProgressEventLike = {
+  message: string;
+  percent?: number;
+  data?: unknown;
+};
+
+/** Localized `${percent}% — label` for a progress event (raw message fallback). */
+export function progressLabel(event: ProgressEventLike, translate: (key: MessageKey) => string): string {
+  const code =
+    typeof event.data === "object" && event.data !== null && "code" in event.data
+      ? (event.data as { code?: unknown }).code
+      : undefined;
+  const key = typeof code === "string" ? PROGRESS_KEYS[code] : undefined;
+  const label = key ? translate(key) : event.message;
+  return event.percent != null ? `${event.percent}% — ${label}` : label;
+}

@@ -42,8 +42,13 @@ export function SelectionPopover({
   }, [onClose, selection]);
 
   if (!selection) return null;
-  const left = Math.max(8, selection.bounds.x + selection.bounds.width + 10);
-  const top = Math.max(8, selection.bounds.y - 6);
+  // Viewport coordinates + position:fixed (mockup ppop): the popover follows
+  // the element across scrolling ancestors and clamps inside the viewport.
+  const left = Math.min(
+    Math.max(8, selection.bounds.x + selection.bounds.width + 10),
+    Math.max(8, window.innerWidth - 296)
+  );
+  const top = Math.min(Math.max(8, selection.bounds.y - 6), Math.max(8, window.innerHeight - 240));
   const submit = () => {
     const instruction = draft.trim();
     if (!instruction || readOnly) return;

@@ -30,6 +30,7 @@ const CORRECTION_DEBOUNCE_MS = 800;
 
 export type PrototypeSelection = {
   nodePath: string;
+  /** Viewport coordinates (getBoundingClientRect) so the popover can use position:fixed. */
   bounds: { x: number; y: number; width: number; height: number };
   action?: string;
 };
@@ -215,40 +216,63 @@ export function PrototypePanel({
     void api.a2uiOpenWindow(liveJson, t("proto.title")).catch(() => {});
   }, [liveJson, t]);
 
+  /** Selected canvas element + metadata, kept for scroll-follow re-measure. */
+  const selectionRef = useRef<{ element: HTMLElement; nodePath: string; action?: string } | null>(null);
+
   const handleSelectionCapture = useCallback(
     (event: MouseEvent<HTMLDivElement>) => {
       if (!selectionEnabled || mode !== "openui" || !onSelectionChange) return;
       const target = event.target;
       if (!(target instanceof HTMLElement)) return;
       const root = event.currentTarget;
-      const selectable =
-        target.closest<HTMLElement>("button, input, select, textarea, [data-sem], [data-semantic-id]") ?? target;
-      if (!root.contains(selectable)) {
+      const selectable = target.closest<HTMLElement>("button, input, select, textarea, [data-sem], [data-semantic-id]");
+      // Blank-canvas click (no selectable ancestor) cancels the selection
+      // instead of re-selecting the whole canvas root (mockup: 点空白取消).
+      if (!selectable || !root.contains(selectable) || selectable === root) {
+        selectionRef.current = null;
         onSelectionChange(null);
         return;
       }
       event.preventDefault();
       event.stopPropagation();
-      const rootBounds = root.getBoundingClientRect();
-      const bounds = selectable.getBoundingClientRect();
-      const action = selectable.dataset.action ?? selectable.getAttribute("data-act") ?? undefined;
-      onSelectionChange({
+      selectionRef.current = {
+        element: selectable,
         nodePath: prototypeNodePath(selectable, root),
-        ...(action ? { action } : {}),
-        bounds: {
-          x: bounds.left - rootBounds.left + root.scrollLeft,
-          y: bounds.top - rootBounds.top + root.scrollTop,
-          width: bounds.width,
-          height: bounds.height,
-        },
+        action: selectable.dataset.action ?? selectable.getAttribute("data-act") ?? undefined,
+      };
+      const bounds = selectable.getBoundingClientRect();
+      onSelectionChange({
+        nodePath: selectionRef.current.nodePath,
+        ...(selectionRef.current.action ? { action: selectionRef.current.action } : {}),
+        bounds: { x: bounds.left, y: bounds.top, width: bounds.width, height: bounds.height },
       });
     },
     [mode, onSelectionChange, selectionEnabled]
   );
 
-  const handleSelectionScroll = useCallback(() => {
-    if (selectionEnabled) onSelectionChange?.(null);
-  }, [onSelectionChange, selectionEnabled]);
+  // Scroll-follow (mockup placePop): re-measure the selected element on any
+  // scroll (capture phase catches every scrolling ancestor); the selection is
+  // dropped only when the element itself left the DOM.
+  useEffect(() => {
+    if (!selectionEnabled || mode !== "openui" || !onSelectionChange) return;
+    const remeasure = () => {
+      const current = selectionRef.current;
+      if (!current) return;
+      if (!current.element.isConnected) {
+        selectionRef.current = null;
+        onSelectionChange(null);
+        return;
+      }
+      const bounds = current.element.getBoundingClientRect();
+      onSelectionChange({
+        nodePath: current.nodePath,
+        ...(current.action ? { action: current.action } : {}),
+        bounds: { x: bounds.left, y: bounds.top, width: bounds.width, height: bounds.height },
+      });
+    };
+    document.addEventListener("scroll", remeasure, { capture: true, passive: true });
+    return () => document.removeEventListener("scroll", remeasure, { capture: true });
+  }, [mode, onSelectionChange, selectionEnabled]);
 
   return (
     <div className="ui-prototype-panel">
@@ -268,7 +292,6 @@ export function PrototypePanel({
       <div
         className={`ui-prototype-panel-body${selectionEnabled ? " selection-enabled" : ""}`}
         onClickCapture={handleSelectionCapture}
-        onScroll={handleSelectionScroll}
       >
         {mode === "openui" ? (
           <Suspense fallback={<div style={{ padding: 20, color: "var(--ui-text-muted)" }}>{t("common.loading")}</div>}>

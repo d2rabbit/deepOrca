@@ -8,8 +8,8 @@ const PrototypeWorkspace = lazy(() =>
 const DesignWorkspace = lazy(() => import("./DesignWorkspace").then((module) => ({ default: module.DesignWorkspace })));
 
 type DesignWorkspaceTab =
-  | { kind: "prototype"; root: string; suiteId?: string }
-  | { kind: "design"; root: string; suiteId?: string };
+  | { kind: "prototype"; root: string; suiteId?: string; tab?: string }
+  | { kind: "design"; root: string; suiteId?: string; tab?: string };
 
 type Props = {
   tab: DesignWorkspaceTab;
@@ -31,9 +31,15 @@ export function DesignWorkspaceSurface({ tab, onClose }: Props): JSX.Element {
     >
       <Suspense fallback={<div className="ui-side-panel-empty">{t("common.loading")}</div>}>
         {tab.kind === "prototype" ? (
-          <PrototypeWorkspace key={tab.root} root={tab.root} suiteId={tab.suiteId} onBack={close} />
+          <PrototypeWorkspace
+            key={tab.root}
+            root={tab.root}
+            suiteId={tab.suiteId}
+            initialTab={tab.tab}
+            onBack={close}
+          />
         ) : (
-          <DesignWorkspace key={tab.root} root={tab.root} suiteId={tab.suiteId} onBack={close} />
+          <DesignWorkspace key={tab.root} root={tab.root} suiteId={tab.suiteId} initialTab={tab.tab} onBack={close} />
         )}
       </Suspense>
     </m.div>

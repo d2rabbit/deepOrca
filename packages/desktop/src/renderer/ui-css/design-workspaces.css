@@ -162,6 +162,10 @@
   font-size: 12px;
 }
 
+.ui-design-workspace-tab:hover {
+  color: var(--ui-text);
+}
+
 .ui-design-workspace-tab.active {
   border-color: var(--ui-border-soft);
   background: var(--ui-surface-raised);
@@ -187,16 +191,28 @@
 }
 
 .ui-design-workspace-close {
-  display: inline-grid;
-  width: 28px;
-  height: 28px;
-  place-items: center;
-  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 28px;
+  padding: 3px 12px;
+  border: 1px solid var(--ui-border-soft);
+  border-radius: var(--ui-radius-pill);
   color: var(--ui-text-dim);
+  font-size: 11px;
 }
 
 .ui-design-workspace-close:hover {
+  border-color: var(--ui-border);
   background: var(--ui-surface-hover);
+}
+
+/* 版本 / 基底 / 主题 联动摘要（mockup scope-hint）。 */
+.ui-design-scope-hint {
+  flex: none;
+  padding: 4px 12px 0;
+  color: var(--ui-text-faint);
+  font-size: 10.5px;
 }
 
 .ui-design-workspace-body {
@@ -494,10 +510,39 @@
   display: grid;
   min-height: 0;
   flex: 1;
-  grid-template-columns: minmax(280px, 0.9fr) minmax(320px, 1.1fr);
+  /* Mockup tok-grid: left = token table card, right = component atom wall. */
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
   gap: 10px;
   overflow: auto;
   padding: 12px;
+}
+
+.ui-design-token-groups {
+  min-height: 0;
+  overflow: auto;
+  padding: 4px 12px 12px;
+}
+
+.ui-design-token-group header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ui-design-token-group header h2,
+.ui-design-token-group header h3 {
+  margin: 0;
+  font-size: 13px;
+}
+
+.ui-design-token-swatch {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin-right: 6px;
+  vertical-align: -2px;
+  border: 1px solid var(--ui-border-soft);
+  border-radius: 3px;
 }
 
 .ui-design-token-table,
@@ -559,9 +604,9 @@
 }
 
 .ui-design-selection-popover {
-  position: absolute;
+  position: fixed;
   z-index: 20;
-  width: min(280px, calc(100% - 16px));
+  width: min(280px, calc(100vw - 16px));
   max-height: 210px;
   overflow: auto;
   padding: 9px;
@@ -569,6 +614,18 @@
   border-radius: var(--ui-radius-md);
   background: var(--ui-surface-raised);
   box-shadow: var(--ui-shadow-modal);
+  animation: ui-design-popover-in 0.18s var(--ui-ease, ease-out);
+}
+
+@keyframes ui-design-popover-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .ui-design-selection-popover header {
@@ -1209,4 +1266,211 @@
 .ui-design-spec-cta button:disabled {
   opacity: 0.45;
   cursor: default;
+}
+
+/* ── 对齐补齐（mockup v2.1）：hover 面 / 设备壳 / 文档按钮组 / 待确认头 ── */
+.ui-design-toolbar button:hover:not(:disabled),
+.ui-design-selection-quick button:hover:not(:disabled),
+.ui-design-selection-input button:hover:not(:disabled),
+.ui-floating-design-agent-quick button:hover:not(:disabled),
+.ui-floating-design-agent-input button:hover:not(:disabled),
+.ui-report-finding > button:hover:not(:disabled),
+.ui-design-locate:hover,
+.ui-design-spec-todo button:hover:not(:disabled) {
+  border-color: var(--ui-accent-55);
+  background: var(--ui-accent-soft);
+}
+
+.ui-design-version-item:hover {
+  background: var(--ui-accent-soft);
+}
+
+.ui-design-device-chrome {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--ui-border-soft);
+  border-bottom: none;
+  border-radius: var(--ui-radius-md) var(--ui-radius-md) 0 0;
+  background: var(--ui-surface-sunken);
+}
+
+.ui-design-device-chrome i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ui-text-faint);
+}
+
+.ui-design-device-chrome span {
+  overflow: hidden;
+  margin-left: 6px;
+  color: var(--ui-text-faint);
+  font-family: var(--ui-font-mono);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ui-design-device .ui-prototype-panel {
+  border: 1px solid var(--ui-border-soft);
+  border-radius: 0 0 var(--ui-radius-md) var(--ui-radius-md);
+}
+
+.ui-design-doc-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ui-design-spec-todos-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.ui-design-spec-todos-head h2 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.ui-design-spec-todos-head span {
+  padding: 1px 8px;
+  border-radius: 99px;
+  font-size: 10px;
+}
+
+.ui-design-spec-todos-head span.pending {
+  color: var(--ui-warning);
+  background: color-mix(in srgb, var(--ui-warning) 14%, transparent);
+}
+
+.ui-design-spec-todos-head span.done {
+  color: var(--ui-success);
+  background: color-mix(in srgb, var(--ui-success) 12%, transparent);
+}
+
+/* ── 批次二（mockup v2.1 收尾）：vbadge/vnote / 文档 meta / 智能体会话体 / act-tag ── */
+.ui-design-vbadge {
+  padding: 2px 8px;
+  border: 1px solid var(--ui-border-soft);
+  border-radius: var(--ui-radius-pill);
+  color: var(--ui-accent-strong, var(--ui-accent));
+  background: var(--ui-accent-soft);
+  font-family: var(--ui-font-mono);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.ui-design-vnote {
+  color: var(--ui-text-faint);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.ui-report-meta {
+  padding: 2px 0 6px;
+  color: var(--ui-text-faint);
+  font-size: 10.5px;
+}
+
+.ui-floating-design-agent-body {
+  display: flex;
+  max-height: 196px;
+  min-height: 52px;
+  flex-direction: column;
+  gap: 5px;
+  overflow-y: auto;
+  padding: 7px 8px 2px;
+}
+
+.ui-floating-design-agent-msg {
+  max-width: 92%;
+  padding: 5px 9px;
+  border-radius: 10px;
+  font-size: 11.5px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.ui-floating-design-agent-msg.user {
+  align-self: flex-end;
+  background: var(--ui-accent-soft);
+  color: var(--ui-text);
+}
+
+.ui-floating-design-agent-msg.agent {
+  align-self: flex-start;
+  background: var(--ui-surface-sunken);
+  color: var(--ui-text-dim);
+}
+
+.ui-floating-design-agent-typing {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  align-self: flex-start;
+  padding: 3px 6px;
+  color: var(--ui-text-faint);
+  font-size: 10px;
+}
+
+.ui-floating-design-agent-typing i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--ui-text-faint);
+  animation: ui-design-typing 1.2s ease-in-out infinite;
+}
+
+.ui-floating-design-agent-typing i:nth-child(2) {
+  animation-delay: 0.18s;
+}
+
+.ui-floating-design-agent-typing i:nth-child(3) {
+  animation-delay: 0.36s;
+}
+
+@keyframes ui-design-typing {
+  0%,
+  100% {
+    opacity: 0.3;
+    transform: translateY(0);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(-2px);
+  }
+}
+
+/* act-tag（mockup 333-336）：hover 可交互元素浮出语义 action 标签。
+   data-act 由 OpenuiRenderer 的标注器生产。 */
+.ui-prototype-panel-body.selection-enabled [data-act] {
+  position: relative;
+}
+
+.ui-prototype-panel-body.selection-enabled [data-act]:hover::after {
+  position: absolute;
+  z-index: 6;
+  top: -20px;
+  left: 50%;
+  padding: 1px 7px;
+  border: 1px solid var(--ui-accent-55);
+  border-radius: 99px;
+  background: var(--ui-accent-soft);
+  color: var(--ui-accent-strong, var(--ui-accent));
+  content: attr(data-act);
+  font-family: var(--ui-font-mono);
+  font-size: 9.5px;
+  pointer-events: none;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+/* 主题重染：设备壳圆点吃 --ds-*（palette 由 stage 容器下沉）。 */
+.ui-design-device-chrome i {
+  background: var(--ds-accent, var(--ui-text-faint));
 }

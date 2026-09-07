@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type JSX } from "react";
+import { useCallback, useEffect, useRef, useState, type JSX } from "react";
 import { useI18n } from "../../i18n";
 import { subscribeToSuiteChanges, suiteApi } from "./api";
 import type { DesignSuiteKind, DesignSuiteSummary } from "./types";
@@ -53,18 +53,22 @@ export function WorkspaceDirectory({ activeRoot, kind, title }: Props): JSX.Elem
     void load();
   }, [load]);
 
+  // Known workspace roots, read inside the subscription without re-subscribing
+  // on every refresh (the subscription must stay mounted for the app lifetime).
+  const knownRootsRef = useRef<ReadonlySet<string>>(new Set());
+  useEffect(() => {
+    knownRootsRef.current = new Set(groups.map((group) => group.root));
+  }, [groups]);
+
   useEffect(() => {
     return subscribeToSuiteChanges((event) => {
-      if (event && !groups.some((group) => group.root === event.root)) return;
-      if (!event) {
-        void load();
-        return;
-      }
+      if (!knownRootsRef.current.has(event.root)) return;
+      // Per-root incremental refresh (mockup: 目录分组随事件只更新本组).
       void suiteApi.designSuiteList(event.root, kind).then((suites) => {
         setGroups((current) => current.map((group) => (group.root === event.root ? { ...group, suites } : group)));
       });
     });
-  }, [groups, kind, load]);
+  }, [kind]);
 
   return (
     <section className="ui-design-directory" aria-label={title}>

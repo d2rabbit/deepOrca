@@ -1,4 +1,6 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { api } from "../api";
+import { parseDesignHash, type DesignWorkspaceTabKind, type DesignWorkspaceTabSegment } from "../lib/design-deep-link";
 import type { MainTab } from "../lib/app-models";
 
 export type DesignWorkspaceTab = {
@@ -7,12 +9,15 @@ export type DesignWorkspaceTab = {
   suiteId?: string;
 };
 
+export { parseDesignHash };
+export type { DesignWorkspaceTabKind, DesignWorkspaceTabSegment };
+
 type DesignWorkspaceTabs = {
   prototypeTabs: DesignWorkspaceTab[];
   designTabs: DesignWorkspaceTab[];
-  openPrototypeTab: (root: string, suiteId?: string) => void;
+  openPrototypeTab: (root: string, suiteId?: string, tab?: DesignWorkspaceTabSegment) => void;
   closePrototypeTab: (root: string) => void;
-  openDesignTab: (root: string, suiteId?: string) => void;
+  openDesignTab: (root: string, suiteId?: string, tab?: DesignWorkspaceTabSegment) => void;
   closeDesignTab: (root: string) => void;
   resetDesignTabs: () => void;
 };
@@ -34,9 +39,9 @@ export function useDesignWorkspaceTabs(
   const [designTabs, setDesignTabs] = useState<DesignWorkspaceTab[]>([]);
 
   const openPrototypeTab = useCallback(
-    (root: string, suiteId?: string) => {
+    (root: string, suiteId?: string, tab?: DesignWorkspaceTabSegment) => {
       setPrototypeTabs((tabs) => upsertTab(tabs, root, suiteId));
-      setActiveTab({ kind: "prototype", root, ...(suiteId ? { suiteId } : {}) });
+      setActiveTab({ kind: "prototype", root, ...(suiteId ? { suiteId } : {}), ...(tab ? { tab } : {}) });
     },
     [setActiveTab]
   );
@@ -48,9 +53,9 @@ export function useDesignWorkspaceTabs(
     [setActiveTab]
   );
   const openDesignTab = useCallback(
-    (root: string, suiteId?: string) => {
+    (root: string, suiteId?: string, tab?: DesignWorkspaceTabSegment) => {
       setDesignTabs((tabs) => upsertTab(tabs, root, suiteId));
-      setActiveTab({ kind: "design", root, ...(suiteId ? { suiteId } : {}) });
+      setActiveTab({ kind: "design", root, ...(suiteId ? { suiteId } : {}), ...(tab ? { tab } : {}) });
     },
     [setActiveTab]
   );
@@ -67,6 +72,33 @@ export function useDesignWorkspaceTabs(
     setDesignTabs([]);
     setActiveTab((tab) => (tab.kind === "prototype" || tab.kind === "design" ? { kind: "chat" } : tab));
   }, [setActiveTab]);
+
+  // Hash deep links (mockup v2.1 demo states): open the named workspace for
+  // the most recent known root, then clear the hash so it stays inert. Kept
+  // here so App's composition root stays at its file-length ceiling.
+  useEffect(() => {
+    let cancelled = false;
+    const open = async () => {
+      const parsed = parseDesignHash(window.location.hash);
+      if (!parsed) return;
+      try {
+        const listing = await api.listWorkspaceSessions();
+        const root = listing.workspaces[0]?.root;
+        if (!root || cancelled) return;
+        if (parsed.kind === "design") openDesignTab(root, undefined, parsed.tab);
+        else openPrototypeTab(root, undefined, parsed.tab);
+        window.history.replaceState(null, "", window.location.pathname + window.location.search);
+      } catch {
+        /* fail-open: a malformed hash is inert */
+      }
+    };
+    void open();
+    window.addEventListener("hashchange", open);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("hashchange", open);
+    };
+  }, [openDesignTab, openPrototypeTab]);
 
   return {
     prototypeTabs,

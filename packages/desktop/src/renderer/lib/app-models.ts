@@ -19,8 +19,8 @@ export type MainTab =
   | { kind: "editor" }
   | { kind: "knowledge"; root: string }
   | { kind: "review"; root: string }
-  | { kind: "prototype"; root: string; suiteId?: string }
-  | { kind: "design"; root: string; suiteId?: string }
+  | { kind: "prototype"; root: string; suiteId?: string; tab?: string }
+  | { kind: "design"; root: string; suiteId?: string; tab?: string }
   | { kind: "task"; treeId: string }
   | { kind: "taskhub"; root: string };
 

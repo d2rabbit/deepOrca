@@ -39,16 +39,53 @@ export interface DdPackageManifest {
   pipeline: "openui" | "design";
   exportedAt: string;
   generator: string;
+  /** .ddp only (additive, spec appendix C④): true when a `verification.md`
+   *  acceptance-report entry is included in the package. */
+  verification?: boolean;
+  /** .ddu only (additive): extra entry names actually included beyond the
+   *  base manifest/source/index set (e.g. ["tokens.json","components.json"]). */
+  entries?: string[];
+}
+
+/** One check of the suite verification result (mirrors the stored meta shape). */
+export interface PackageVerificationCheck {
+  id: string;
+  label: string;
+  status: string;
+  action?: string;
+  observation?: string;
+}
+
+/** The suite verification result (spec §6.6 / appendix C①): shipped inside
+ *  .ddp as the human-readable `verification.md` acceptance report. */
+export interface PackageVerification {
+  status: string;
+  checks: PackageVerificationCheck[];
+  generatedAt?: string;
+  healingRounds?: number;
+}
+
+/** Optional .ddu extras (spec §6.6): design tokens + component inventory. */
+export interface DduExtras {
+  tokens?: unknown;
+  components?: unknown;
 }
 
 const GENERATOR = "DeepOrca Desktop";
 
-/** Build the .ddp package (PM-Design / openui pipeline). */
+/** Build the .ddp package (PM-Design / openui pipeline). When a non-empty
+ *  `verification` result is given, a fourth `verification.md` entry (the
+ *  acceptance report) is added and `manifest.verification` is set. */
 export function buildDdpPackage(
   artifact: { id: string; title: string },
   openuiSource: string,
-  exportedAt: string
+  exportedAt: string,
+  verification?: PackageVerification
 ): Buffer {
+  // "Present and non-empty": a verification object without any check carries
+  // no acceptance evidence — skip both the entry and the manifest flag.
+  const checks = Array.isArray(verification?.checks) ? verification.checks : [];
+  const includeVerification = checks.length > 0;
   const manifest: DdPackageManifest = {
     format: "ddp",
     formatVersion: 1,
@@ -58,12 +95,17 @@ export function buildDdpPackage(
     pipeline: "openui",
     exportedAt,
     generator: GENERATOR,
+    ...(includeVerification ? { verification: true } : {}),
   };
-  return zipEntries([
+  const entries: PackageEntry[] = [
     { name: "manifest.json", data: Buffer.from(JSON.stringify(manifest, null, 2), "utf8") },
     { name: "source.openui.txt", data: Buffer.from(openuiSource, "utf8") },
     { name: "index.html", data: Buffer.from(buildDdpViewerHtml(artifact.title, openuiSource), "utf8") },
-  ]);
+  ];
+  if (includeVerification) {
+    entries.push({ name: "verification.md", data: Buffer.from(renderVerificationMarkdown(verification!), "utf8") });
+  }
+  return zipEntries(entries);
 }
 
 /** Build the .ddu package (UI-Design / design pipeline) with a standalone render. */
@@ -91,12 +133,22 @@ export function buildDduPackage(
 }
 
 /** Build the .ddu package for the current UI-Design generation stack
- *  (OpenUI Lang source; viewer stub — same in-app runtime story as .ddp). */
+ *  (OpenUI Lang source; viewer stub — same in-app runtime story as .ddp).
+ *  Non-empty `extras.tokens` / non-empty `extras.components` each add a JSON
+ *  entry (tokens.json / components.json) and are listed in `manifest.entries`. */
 export function buildDduOpenuiPackage(
   artifact: { id: string; title: string },
   openuiSource: string,
-  exportedAt: string
+  exportedAt: string,
+  extras?: DduExtras
 ): Buffer {
+  const tokens = extras?.tokens;
+  const components = extras?.components;
+  const hasTokens = isNonEmptyRecord(tokens);
+  const componentList = Array.isArray(components) && components.length > 0 ? components : null;
+  const extraNames: string[] = [];
+  if (hasTokens) extraNames.push("tokens.json");
+  if (componentList) extraNames.push("components.json");
   const manifest: DdPackageManifest = {
     format: "ddu",
     formatVersion: 1,
@@ -106,12 +158,46 @@ export function buildDduOpenuiPackage(
     pipeline: "openui",
     exportedAt,
     generator: GENERATOR,
+    ...(extraNames.length > 0 ? { entries: extraNames } : {}),
   };
-  return zipEntries([
+  const entries: PackageEntry[] = [
     { name: "manifest.json", data: Buffer.from(JSON.stringify(manifest, null, 2), "utf8") },
     { name: "source.openui.txt", data: Buffer.from(openuiSource, "utf8") },
     { name: "index.html", data: Buffer.from(buildDduOpenuiViewerHtml(artifact.title, openuiSource), "utf8") },
-  ]);
+  ];
+  if (hasTokens) {
+    entries.push({ name: "tokens.json", data: Buffer.from(JSON.stringify(tokens, null, 2), "utf8") });
+  }
+  if (componentList) {
+    entries.push({ name: "components.json", data: Buffer.from(JSON.stringify(componentList, null, 2), "utf8") });
+  }
+  return zipEntries(entries);
+}
+
+/** The .ddp acceptance report (verification.md) — human-readable markdown:
+ *  status header + one ASCII-marker line per check ([x] passed / [ ] failed /
+ *  [~] pending; healed passes with an auto-healed note). */
+function renderVerificationMarkdown(verification: PackageVerification): string {
+  const lines: string[] = ["# 验收报告", "", `- 状态：${verification.status}`];
+  if (verification.generatedAt) lines.push(`- 生成时间：${verification.generatedAt}`);
+  if (typeof verification.healingRounds === "number") {
+    lines.push(`- 自动修复轮数：${verification.healingRounds}`);
+  }
+  lines.push("", "## 检查项", "");
+  for (const check of verification.checks) {
+    const passed = check.status === "passed" || check.status === "healed";
+    const marker = passed ? "[x]" : check.status === "pending" ? "[~]" : "[ ]";
+    const parts = [`- ${marker} ${check.label}`, check.status];
+    const observation = check.observation?.trim();
+    if (observation) parts.push(observation);
+    else if (check.status === "healed") parts.push("已自动修复");
+    lines.push(parts.join(" — "));
+  }
+  return `${lines.join("\n")}\n`;
+}
+
+function isNonEmptyRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value) && Object.keys(value).length > 0;
 }
 
 /** Viewer stub for the OpenUI-sourced .ddu (UI-Design). */

@@ -21,7 +21,12 @@ import type {
   PrototypeSuiteContent,
   UiSuiteContent,
 } from "../shared/ipc.js";
-import { buildDdpPackage, buildDduOpenuiPackage, buildDduPackage } from "./tools/dd-package.js";
+import {
+  buildDdpPackage,
+  buildDduOpenuiPackage,
+  buildDduPackage,
+  type PackageVerification,
+} from "./tools/dd-package.js";
 import {
   deleteDesignArtifact,
   deleteDesignSuite,
@@ -126,19 +131,30 @@ function safePackageTitle(title: string): string {
   return title.replace(/[^a-zA-Z0-9_\-\u4e00-\u9fff]/g, "_").slice(0, 60) || "design";
 }
 
+/** Suite-version extras carried into an export package (spec §6.6): prototype
+ *  suites add the verification.md acceptance report to .ddp; UI suites add
+ *  tokens.json / components.json to .ddu. Everything is optional — absent or
+ *  empty extras never block the export. */
+export interface SuiteExportExtras {
+  verification?: PackageVerification;
+  tokens?: unknown;
+  components?: unknown;
+}
+
 /** Export targets are per-module deliverables: prototype → .ddp, UI design → .ddu.
  *  Suite UI content is OpenUI Lang (the generation stack); .dd remains only on
  *  legacy artifacts, which keep the standalone compiled .ddu render. */
 function buildPackage(
   artifact: { id: string; title: string },
   format: "ddp" | "ddu-dd" | "ddu-openui",
-  content: string
+  content: string,
+  extras?: SuiteExportExtras
 ): { data: Buffer; options: DesignPackageSaveOptions } {
   const isDesign = format !== "ddp";
   const exportedAt = new Date().toISOString();
   const data =
     format === "ddp"
-      ? buildDdpPackage(artifact, content, exportedAt)
+      ? buildDdpPackage(artifact, content, exportedAt, extras?.verification)
       : format === "ddu-dd"
         ? buildDduPackage(
             artifact,
@@ -146,7 +162,7 @@ function buildPackage(
             compileDdToHtml(parseDdFile(content), readTailwindScript() ?? undefined),
             exportedAt
           )
-        : buildDduOpenuiPackage(artifact, content, exportedAt);
+        : buildDduOpenuiPackage(artifact, content, exportedAt, extras);
   const ext = isDesign ? "ddu" : "ddp";
   const label = isDesign ? "UI-Design" : "PM-Design";
   return {
@@ -265,8 +281,18 @@ export function registerDesignIpc(helpers: DesignIpcHelpers, deps: DesignIpcDeps
     if (!version) return { ok: false, error: "design suite version not found" };
     const projection = suiteProjection(suite.kind, version.content);
     if (!projection) return { ok: false, error: "design suite version has no exportable projection" };
+    // §6.6 extras, per module: prototype suites ship the acceptance report
+    // (.ddp + verification.md), UI suites ship the token/component contract
+    // (.ddu + tokens.json/components.json). Optional — never fails the export.
+    const extras: SuiteExportExtras =
+      projection.format === "ddp"
+        ? { verification: (version.content as PrototypeSuiteContent).verification }
+        : {
+            tokens: (version.content as UiSuiteContent).tokens,
+            components: (version.content as UiSuiteContent).components,
+          };
     try {
-      const pkg = buildPackage(suite, projection.format, projection.content);
+      const pkg = buildPackage(suite, projection.format, projection.content, extras);
       return deps.savePackage(pkg.data, pkg.options);
     } catch (error) {
       return { ok: false, error: `package build failed: ${error instanceof Error ? error.message : String(error)}` };

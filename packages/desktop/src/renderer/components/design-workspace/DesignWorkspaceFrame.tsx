@@ -15,6 +15,10 @@ type Props<T extends string> = {
   latestVersionId?: string;
   onVersionChange: (versionId: string) => void;
   versionDetail?: (version: DesignSuiteVersion) => ReactNode;
+  /** Version-rail caption (mockup: 「版本 · 一版一套（…）」). Defaults to 版本历史. */
+  versionCap?: string;
+  /** Scope hint under the tabs (mockup: 版本 / 基底 / 主题 联动摘要). */
+  hint?: string;
   loading?: boolean;
   empty?: boolean;
   error?: string | null;
@@ -27,6 +31,19 @@ function rootLabel(root: string): string {
   return segments.at(-1) ?? root;
 }
 
+/**
+ * Store versions are oldest-first; the rail displays newest-first, so the
+ * label for store index i is `v{length - i}` (v1 = oldest, newest = vN).
+ */
+export function versionLabel(
+  versions: readonly { versionId: string }[] | undefined,
+  versionId?: string
+): string | null {
+  if (!versions || !versionId) return null;
+  const index = versions.findIndex((version) => version.versionId === versionId);
+  return index === -1 ? null : `v${versions.length - index}`;
+}
+
 export function DesignWorkspaceFrame<T extends string>({
   root,
   tabs,
@@ -37,6 +54,8 @@ export function DesignWorkspaceFrame<T extends string>({
   latestVersionId,
   onVersionChange,
   versionDetail,
+  versionCap,
+  hint,
   loading = false,
   empty = false,
   error,
@@ -45,6 +64,7 @@ export function DesignWorkspaceFrame<T extends string>({
 }: Props<T>): JSX.Element {
   const { t } = useI18n();
   const readOnly = Boolean(selectedVersionId && latestVersionId && selectedVersionId !== latestVersionId);
+  const railVersions = [...versions].reverse();
 
   return (
     <section className="ui-design-workspace" data-testid="design-workspace-frame">
@@ -67,19 +87,26 @@ export function DesignWorkspaceFrame<T extends string>({
           {t("designWorkspace.currentRoot", { root: rootLabel(root) })}
         </span>
         {onBack ? (
-          <button type="button" className="ui-design-workspace-close" onClick={onBack} aria-label={t("common.close")}>
+          <button
+            type="button"
+            className="ui-design-workspace-close"
+            onClick={onBack}
+            aria-label={t("designWorkspace.backToConversation")}
+          >
             <IconClose />
+            <span>{t("designWorkspace.backToConversation")}</span>
           </button>
         ) : null}
       </header>
+      {hint ? <div className="ui-design-scope-hint">{hint}</div> : null}
 
       <div className="ui-design-workspace-body">
         <aside className="ui-design-version-rail" aria-label={t("designWorkspace.versionHistory")}>
-          <div className="ui-design-version-cap">{t("designWorkspace.versionHistory")}</div>
+          <div className="ui-design-version-cap">{versionCap ?? t("designWorkspace.versionHistory")}</div>
           {versions.length === 0 ? (
             <div className="ui-design-version-empty">{t("designWorkspace.noVersions")}</div>
           ) : null}
-          {versions.map((version, index) => {
+          {railVersions.map((version, index) => {
             const isLatest = version.versionId === latestVersionId;
             return (
               <button

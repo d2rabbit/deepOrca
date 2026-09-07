@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type JSX } from "react";
 import { useI18n } from "../i18n";
+import { subscribeDesignToasts } from "../lib/toast-bus";
 import { IconInfo } from "../ui/index";
 import { AnimatePresence, m } from "../ui/motion";
 
@@ -86,6 +87,11 @@ export function useToasts(): {
     }, durationMs);
     timersRef.current.set(id, timer);
   }, []);
+
+  // Design workspaces push feedback (export/drift/revision) through the
+  // module-level bus so it lands in this single toast container. Declared
+  // after `push` so the deps array evaluates the real (stable) callback.
+  useEffect(() => subscribeDesignToasts(push), [push]);
 
   return { toasts, push, dismiss, pause, resume };
 }

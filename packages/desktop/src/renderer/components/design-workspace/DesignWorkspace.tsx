@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type JSX } from "react";
 import { api } from "../../api";
 import { useI18n } from "../../i18n";
+import { pushDesignToast } from "../../lib/toast-bus";
 import { IconCheck, IconClose, IconDesign, IconRefresh, IconSparkle } from "../../ui/icons";
 import { PrototypePanel, type PrototypeSelection } from "../PrototypePanel";
 import { subscribeToSuiteChanges, suiteApi } from "./api";
-import { DesignWorkspaceFrame } from "./DesignWorkspaceFrame";
+import { DesignWorkspaceFrame, versionLabel } from "./DesignWorkspaceFrame";
 import { FloatingDesignAgent } from "./FloatingDesignAgent";
+import { paletteFor } from "./palettes";
+import { progressLabel } from "./progress-label";
 import { SelectionPopover, type WorkspaceSelection } from "./SelectionPopover";
 import { diffLines, summarizeDiff } from "./diff";
 import type { DesignSuite, DesignSuiteVersion, DesignSystemCatalogItem, UiSuiteContent } from "./types";
@@ -17,6 +20,8 @@ type PrototypeBasis = { suiteId: string; versionId: string; label: string };
 export type DesignWorkspaceProps = {
   root: string;
   suiteId?: string;
+  /** Hash deep link / surface tab segment (validated against the tab union). */
+  initialTab?: string;
   onBack?: () => void;
   onQuoteToChat?: (quote: string) => void;
 };
@@ -61,8 +66,16 @@ function recordEntries(value: unknown): Array<[string, string]> {
 }
 
 const tabs: readonly DesignTab[] = ["pages", "tokens", "quality"];
+/** The six canonical DTCG-ish token families (static — safe for hook deps). */
+const TOKEN_GROUPS = ["color", "typography", "spacing", "radius", "shadow", "motion"] as const;
 
-export function DesignWorkspace({ root, suiteId, onBack, onQuoteToChat }: DesignWorkspaceProps): JSX.Element {
+export function DesignWorkspace({
+  root,
+  suiteId,
+  initialTab,
+  onBack,
+  onQuoteToChat,
+}: DesignWorkspaceProps): JSX.Element {
   const { t } = useI18n();
   const [suite, setSuite] = useState<DesignSuite | null>(null);
   const [selectedVersion, setSelectedVersion] = useState<DesignSuiteVersion | null>(null);
@@ -70,7 +83,12 @@ export function DesignWorkspace({ root, suiteId, onBack, onQuoteToChat }: Design
   const [catalog, setCatalog] = useState<DesignSystemCatalogItem[]>([]);
   const [basis, setBasis] = useState("");
   const [designSystemId, setDesignSystemId] = useState("");
-  const [tab, setTab] = useState<DesignTab>("pages");
+  const validInitial: DesignTab = initialTab === "tokens" || initialTab === "quality" ? initialTab : "pages";
+  const [tab, setTab] = useState<DesignTab>(validInitial);
+  useEffect(() => {
+    // Mid-session deep links (#design/tokens) retarget the open workspace.
+    if (initialTab === "tokens" || initialTab === "quality" || initialTab === "pages") setTab(initialTab);
+  }, [initialTab]);
   const [selection, setSelection] = useState<WorkspaceSelection | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -78,8 +96,24 @@ export function DesignWorkspace({ root, suiteId, onBack, onQuoteToChat }: Design
   const [loading, setLoading] = useState(true);
   const [drift, setDrift] = useState<{ detected: boolean; score: number | null } | null>(null);
   const [diff, setDiff] = useState<{ added: number; removed: number; lines: string[] } | null>(null);
+  const [progress, setProgress] = useState<string | null>(null);
 
+  /** Live action progress (localized via the data.code seam; raw fallback). */
+  useEffect(() => {
+    if (!busy) {
+      setProgress(null);
+      return;
+    }
+    return api.onActionProgress((event) => {
+      if (event.actionId !== busy) return;
+      if (event.root && event.root !== root) return;
+      setProgress(progressLabel(event, t));
+    });
+  }, [busy, root, t]);
+
+  const loadSeq = useRef(0);
   const load = useCallback(async () => {
+    const seq = ++loadSeq.current;
     setLoading(true);
     setError(null);
     try {
@@ -88,12 +122,16 @@ export function DesignWorkspace({ root, suiteId, onBack, onQuoteToChat }: Design
         suiteApi.designSuiteList(root, "prototype"),
         suiteApi.designSystemCatalog(),
       ]);
+      if (seq !== loadSeq.current) return;
       const prototypeSuites = await Promise.all(
         prototypeSummaries.map((summary) => suiteApi.designSuiteRead(root, summary.id))
       );
+      if (seq !== loadSeq.current) return;
+      // Store versions are oldest-first; bases default to the newest (vN) — mockup 基底默认最新.
       const bases = prototypeSuites.flatMap((prototypeSuite) =>
         prototypeSuite
-          ? prototypeSuite.versions
+          ? [...prototypeSuite.versions]
+              .reverse()
               .filter((version) => isPrototypeContent(version.content) && Boolean(version.content.openui))
               .map((version, index) => ({
                 suiteId: prototypeSuite.id,
@@ -117,17 +155,24 @@ export function DesignWorkspace({ root, suiteId, onBack, onQuoteToChat }: Design
         return;
       }
       const next = await suiteApi.designSuiteRead(root, targetId);
+      if (seq !== loadSeq.current) return;
       setSuite(next);
-      setSelectedVersion(next?.currentVersion ?? null);
+      // Keep the user's version selection across background refreshes (mockup
+      // 版本漫游); only snap back when the viewed version no longer exists.
+      setSelectedVersion((prev) =>
+        prev && next?.versions.some((version) => version.versionId === prev.versionId)
+          ? prev
+          : (next?.currentVersion ?? null)
+      );
       if (next?.currentVersion && isUiContent(next.currentVersion.content)) {
         const source = next.currentVersion.content.sourcePrototype;
         if (source) setBasis(`${source.suiteId}:${source.versionId}`);
         if (next.currentVersion.content.designSystemId) setDesignSystemId(next.currentVersion.content.designSystemId);
       }
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
+      if (seq === loadSeq.current) setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
-      setLoading(false);
+      if (seq === loadSeq.current) setLoading(false);
     }
   }, [root, suiteId, t]);
 
@@ -137,7 +182,7 @@ export function DesignWorkspace({ root, suiteId, onBack, onQuoteToChat }: Design
 
   useEffect(() => {
     return subscribeToSuiteChanges((event) => {
-      if (!event || event.root === root) void load();
+      if (event.root === root) void load();
     });
   }, [load, root]);
 
@@ -149,6 +194,8 @@ export function DesignWorkspace({ root, suiteId, onBack, onQuoteToChat }: Design
         (await suiteApi.designSuiteReadVersion(root, suite.id, versionId));
       setSelectedVersion(version);
       setSelection(null);
+      setDrift(null);
+      setDiff(null);
       if (version && isUiContent(version.content)) {
         const source = version.content.sourcePrototype;
         if (source) setBasis(`${source.suiteId}:${source.versionId}`);
@@ -174,6 +221,8 @@ export function DesignWorkspace({ root, suiteId, onBack, onQuoteToChat }: Design
       const exactVersion =
         nextVersion ?? nextSuite?.versions.find((version) => version.versionId === ref.versionId) ?? null;
       setSelectedVersion(exactVersion);
+      setDrift(null);
+      setDiff(null);
       if (exactVersion && isUiContent(exactVersion.content)) {
         const source = exactVersion.content.sourcePrototype;
         if (source) setBasis(`${source.suiteId}:${source.versionId}`);
@@ -212,19 +261,34 @@ export function DesignWorkspace({ root, suiteId, onBack, onQuoteToChat }: Design
 
   const materialize = () => {
     if (!selectedBasis || !designSystemId) return;
-    void runAction("design.materialize", {
-      prototypeSuiteId: selectedBasis.suiteId,
-      prototypeVersionId: selectedBasis.versionId,
-      designSystemId,
-      ...(suite ? { suiteId: suite.id } : {}),
-    });
+    void (async () => {
+      const ref = await runAction("design.materialize", {
+        prototypeSuiteId: selectedBasis.suiteId,
+        prototypeVersionId: selectedBasis.versionId,
+        designSystemId,
+        ...(suite ? { suiteId: suite.id } : {}),
+      });
+      if (ref) pushDesignToast("success", t("designWorkspace.toastGenerated"));
+    })();
   };
 
   const runQuality = async () => {
     if (!suite || !selectedVersion) return;
     const lintRef = await runAction("design.lint", { suiteId: suite.id, versionId: selectedVersion.versionId });
     if (!lintRef) return;
-    await runAction("design.review", { suiteId: lintRef.suiteId, versionId: lintRef.versionId });
+    const reviewRef = await runAction("design.review", { suiteId: lintRef.suiteId, versionId: lintRef.versionId });
+    if (reviewRef) pushDesignToast("success", t("designWorkspace.toastQualityDone"));
+  };
+
+  /** Export the selected suite version as .ddu and toast the outcome. */
+  const exportVersion = async () => {
+    if (!suite || !selectedVersion) return;
+    const result = await suiteApi.designSuiteExportPackage(root, suite.id, selectedVersion.versionId);
+    if (result.ok && result.path) {
+      pushDesignToast("success", t("designWorkspace.toastExported", { path: result.path }));
+    } else if (!result.ok) {
+      pushDesignToast("error", t("designWorkspace.toastExportFailed", { error: result.error ?? "" }));
+    }
   };
 
   /** Brand drift gate (design.drift — deterministic dembrandt --compare, zero LLM).
@@ -247,10 +311,10 @@ export function DesignWorkspace({ root, suiteId, onBack, onQuoteToChat }: Design
           typeof result.output === "object" && result.output !== null
             ? (result.output as { driftDetected?: boolean; score?: number })
             : undefined;
-        setDrift({
-          detected: Boolean(output?.driftDetected),
-          score: typeof output?.score === "number" ? output.score : null,
-        });
+        const detected = Boolean(output?.driftDetected);
+        const score = typeof output?.score === "number" ? output.score : null;
+        setDrift({ detected, score });
+        pushDesignToast(detected ? "error" : "success", t("designWorkspace.toastDriftDone"));
       } catch (cause) {
         setError(cause instanceof Error ? cause.message : String(cause));
       } finally {
@@ -268,27 +332,27 @@ export function DesignWorkspace({ root, suiteId, onBack, onQuoteToChat }: Design
     return null;
   };
 
-  const revise = (instruction: string, target?: string) => {
-    if (!suite || !selectedVersion) return;
+  const revise = async (instruction: string, target?: string): Promise<boolean> => {
+    if (!suite || !selectedVersion) return false;
     const part = tab === "pages" ? "design" : tab;
     const before = priorText(content, part);
-    void (async () => {
-      const ref = await runAction("design.revise", {
-        suiteId: suite.id,
-        versionId: selectedVersion.versionId,
-        part,
-        target: target ?? part,
-        instruction,
-      });
-      if (!ref || !before || part === "quality") return;
-      const version = await suiteApi.designSuiteReadVersion(root, ref.suiteId, ref.versionId);
-      if (!version || !isUiContent(version.content)) return;
-      const after = priorText(version.content, part);
-      if (!after) return;
-      const { added, removed } = diffLines(before, after);
-      if (!added.length && !removed.length) return;
-      setDiff(summarizeDiff({ added, removed }));
-    })();
+    const ref = await runAction("design.revise", {
+      suiteId: suite.id,
+      versionId: selectedVersion.versionId,
+      part,
+      target: target ?? part,
+      instruction,
+    });
+    if (!ref) return false;
+    pushDesignToast("success", t("designWorkspace.toastRevised"));
+    if (!before || part === "quality") return true;
+    const version = await suiteApi.designSuiteReadVersion(root, ref.suiteId, ref.versionId);
+    if (!version || !isUiContent(version.content)) return true;
+    const after = priorText(version.content, part);
+    if (!after) return true;
+    const { added, removed } = diffLines(before, after);
+    if (added.length || removed.length) setDiff(summarizeDiff({ added, removed }));
+    return true;
   };
 
   const locateFinding = (nodePath: string) => {
@@ -341,8 +405,6 @@ export function DesignWorkspace({ root, suiteId, onBack, onQuoteToChat }: Design
     }),
     [t]
   );
-  /** Group flat token names into the six canonical DTCG-ish families. */
-  const TOKEN_GROUPS = ["color", "typography", "spacing", "radius", "shadow", "motion"] as const;
   const tokenGroups = useMemo(() => {
     const entries = recordEntries(content.tokens);
     const buckets = new Map<string, Array<[string, string]>>();
@@ -364,11 +426,49 @@ export function DesignWorkspace({ root, suiteId, onBack, onQuoteToChat }: Design
       .map((item) => (typeof item === "object" && item !== null && "name" in item ? String(item.name) : ""))
       .filter(Boolean);
   }, [content.components]);
+  const tokenGroupLabels = useMemo<Record<string, string>>(
+    () => ({
+      color: t("designWorkspace.tokensGroup.color"),
+      typography: t("designWorkspace.tokensGroup.typography"),
+      spacing: t("designWorkspace.tokensGroup.spacing"),
+      radius: t("designWorkspace.tokensGroup.radius"),
+      shadow: t("designWorkspace.tokensGroup.shadow"),
+      motion: t("designWorkspace.tokensGroup.motion"),
+      other: t("designWorkspace.tokensOther"),
+    }),
+    [t]
+  );
   const quickItems: Record<DesignTab, readonly string[]> = {
-    pages: [t("designWorkspace.quickPagesOne"), t("designWorkspace.quickPagesTwo")],
-    tokens: [t("designWorkspace.quickTokensOne"), t("designWorkspace.quickTokensTwo")],
-    quality: [t("designWorkspace.quickQualityOne"), t("designWorkspace.quickQualityTwo")],
+    pages: [
+      t("designWorkspace.quickPagesOne"),
+      t("designWorkspace.quickPagesTwo"),
+      t("designWorkspace.quickPagesThree"),
+    ],
+    tokens: [
+      t("designWorkspace.quickTokensOne"),
+      t("designWorkspace.quickTokensTwo"),
+      t("designWorkspace.quickTokensThree"),
+    ],
+    quality: [
+      t("designWorkspace.quickQualityOne"),
+      t("designWorkspace.quickQualityTwo"),
+      t("designWorkspace.quickQualityThree"),
+    ],
   };
+
+  /** Deterministic re-tint (mockup ②): the selected system's palette drives
+   *  --ds-* on the canvas stage + atom wall the moment the theme changes.
+   *  Canvas CONTENT re-tints only via regeneration (toast states this). */
+  const palette = paletteFor(designSystemId);
+  const themeVars = useMemo<CSSProperties | undefined>(() => {
+    if (!palette) return undefined;
+    return {
+      "--ds-accent": palette.accent,
+      "--ds-surface": palette.surface,
+      "--ds-text": palette.text,
+      "--ds-radius": palette.radius,
+    } as CSSProperties;
+  }, [palette]);
 
   return (
     <DesignWorkspaceFrame
@@ -383,11 +483,35 @@ export function DesignWorkspace({ root, suiteId, onBack, onQuoteToChat }: Design
       selectedVersionId={selectedVersion?.versionId}
       latestVersionId={suite?.currentVersionId}
       onVersionChange={(versionId) => void selectVersion(versionId)}
+      versionCap={t("designWorkspace.versionCapDesign")}
+      hint={
+        selectedVersion
+          ? t("designWorkspace.scopeHint", {
+              version: versionLabel(suite?.versions, selectedVersion.versionId) ?? "-",
+              basis: selectedBasis?.label ?? "-",
+              theme: (catalog.find((item) => item.id === designSystemId)?.title ?? designSystemId) || "-",
+            })
+          : undefined
+      }
       versionDetail={(version) => {
-        const source = isUiContent(version.content) ? version.content.sourcePrototype : undefined;
-        return source ? (
-          <span className="ui-design-version-basis">{t("designWorkspace.basedOn", { version: source.versionId })}</span>
-        ) : null;
+        if (!isUiContent(version.content)) return null;
+        const source = version.content.sourcePrototype;
+        return (
+          <>
+            <span className="ui-design-version-set">
+              <i className={version.content.openui ? undefined : "miss"}>{t("designWorkspace.setOpenui")}</i>
+              <i className={recordEntries(version.content.tokens).length ? undefined : "miss"}>
+                {t("designWorkspace.setTokens")}
+              </i>
+              <i className={version.content.quality ? undefined : "miss"}>{t("designWorkspace.setQuality")}</i>
+            </span>
+            {source ? (
+              <span className="ui-design-version-basis">
+                {t("designWorkspace.basedOn", { version: source.versionId })}
+              </span>
+            ) : null}
+          </>
+        );
       }}
       loading={loading}
       empty={!suite && prototypeBases.length === 0}
@@ -414,6 +538,20 @@ export function DesignWorkspace({ root, suiteId, onBack, onQuoteToChat }: Design
             onClick={(event) => event.target === event.currentTarget && setSelection(null)}
           >
             <div className="ui-design-toolbar compact">
+              {selectedVersion ? (
+                <span className="ui-design-vbadge">
+                  {versionLabel(suite?.versions, selectedVersion.versionId) ?? "-"} ·{" "}
+                  {t(`designWorkspace.status.${selectedVersion.status}`)}
+                </span>
+              ) : null}
+              {content.quality ? (
+                <span className="ui-design-vnote">
+                  {t("designWorkspace.vbadgeNote", {
+                    findings: content.quality.lintFindings.length,
+                    review: content.quality.review ? String(content.quality.review.composite) : "—",
+                  })}
+                </span>
+              ) : null}
               <label>
                 <span>{t("designWorkspace.prototypeBasis")}</span>
                 <select
@@ -433,7 +571,10 @@ export function DesignWorkspace({ root, suiteId, onBack, onQuoteToChat }: Design
                 <select
                   value={designSystemId}
                   disabled={readOnly || busy !== null}
-                  onChange={(event) => setDesignSystemId(event.target.value)}
+                  onChange={(event) => {
+                    setDesignSystemId(event.target.value);
+                    pushDesignToast("success", t("designWorkspace.toastThemeSwitched"));
+                  }}
                 >
                   {catalog.map((item) => (
                     <option value={item.id} key={item.id}>
@@ -466,21 +607,19 @@ export function DesignWorkspace({ root, suiteId, onBack, onQuoteToChat }: Design
                 </span>
               ) : null}
               {suite && selectedVersion ? (
-                <button
-                  type="button"
-                  onClick={() => void suiteApi.designSuiteExportPackage(root, suite.id, selectedVersion.versionId)}
-                >
+                <button type="button" disabled={busy !== null} onClick={() => void exportVersion()}>
                   {t("designWorkspace.exportVersion")}
                 </button>
               ) : null}
             </div>
+            {progress ? <div className="ui-design-gen-progress">{progress}</div> : null}
             {content.openui ? (
-              <div className="ui-design-canvas-stage" ref={stageRef}>
+              <div className="ui-design-canvas-stage" ref={stageRef} style={themeVars}>
                 <PrototypePanel
                   a2uiJson=""
                   openuiCode={content.openui}
                   mode="openui"
-                  onIterate={(instruction) => revise(instruction)}
+                  onIterate={(instruction) => void revise(instruction)}
                   onSelectionChange={handleSelection}
                   selectionEnabled={!readOnly}
                   hideComposer
@@ -498,31 +637,42 @@ export function DesignWorkspace({ root, suiteId, onBack, onQuoteToChat }: Design
             />
           </section>
         ) : null}
-
         {tab === "tokens" ? (
           <section className="ui-design-system-view">
-            {tokenGroups.map((group) => (
-              <div className="ui-design-token-group" key={group.id}>
-                <header>
-                  <h2>{group.id === "other" ? t("designWorkspace.tokensOther") : group.id}</h2>
-                  <span>{catalog.find((item) => item.id === content.designSystemId)?.title ?? designSystemId}</span>
-                </header>
-                {group.rows.length ? (
-                  <table>
-                    <tbody>
-                      {group.rows.map(([name, value]) => (
-                        <tr key={name}>
-                          <th>{name}</th>
-                          <td>{value}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                ) : (
-                  <div className="ui-design-state">{t("designWorkspace.noTokens")}</div>
-                )}
+            <div className="ui-design-token-table">
+              <header>
+                <h2>{t("designWorkspace.tokensTitle")}</h2>
+                <span>{catalog.find((item) => item.id === content.designSystemId)?.title ?? designSystemId}</span>
+              </header>
+              <div className="ui-design-token-groups">
+                {tokenGroups.map((group) => (
+                  <div className="ui-design-token-group" key={group.id}>
+                    <header>
+                      <h3>{tokenGroupLabels[group.id]}</h3>
+                    </header>
+                    {group.rows.length ? (
+                      <table>
+                        <tbody>
+                          {group.rows.map(([name, value]) => (
+                            <tr key={name}>
+                              <th>{name}</th>
+                              <td>
+                                {/^(#|rgb|hsl|color-mix)/i.test(value) ? (
+                                  <i className="ui-design-token-swatch" style={{ background: value }} />
+                                ) : null}
+                                {value}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    ) : (
+                      <div className="ui-design-state">{t("designWorkspace.noTokens")}</div>
+                    )}
+                  </div>
+                ))}
               </div>
-            ))}
+            </div>
             <div className="ui-design-component-library">
               <header>
                 <h2>{t("designWorkspace.componentsTitle")}</h2>
@@ -538,7 +688,7 @@ export function DesignWorkspace({ root, suiteId, onBack, onQuoteToChat }: Design
               ) : (
                 <div className="ui-design-state">{t("designWorkspace.noComponents")}</div>
               )}
-              <div className="ui-design-atom-wall" style={atomStyle}>
+              <div className="ui-design-atom-wall" style={themeVars ?? atomStyle}>
                 <div className="row">
                   <button className="atom-btn primary" type="button">
                     {t("designWorkspace.atomPrimary")}
@@ -563,20 +713,39 @@ export function DesignWorkspace({ root, suiteId, onBack, onQuoteToChat }: Design
             </div>
           </section>
         ) : null}
-
         {tab === "quality" ? (
           <article className="ui-report-doc">
             <div className="ui-report-doc-head">
               <h1>{t("designWorkspace.qualityTitle")}</h1>
-              <button
-                type="button"
-                className="ui-review-run-btn"
-                disabled={!content.openui || busy !== null || readOnly}
-                onClick={() => void runQuality()}
-              >
-                <IconRefresh /> {t("designWorkspace.runQuality")}
-              </button>
+              <div className="ui-design-doc-actions">
+                <button
+                  type="button"
+                  className="ui-review-run-btn"
+                  disabled={!content.openui || busy !== null || readOnly}
+                  onClick={() => void runQuality()}
+                >
+                  <IconRefresh /> {t("designWorkspace.runQuality")}
+                </button>
+                {suite && selectedVersion ? (
+                  <button
+                    type="button"
+                    className="ui-review-run-btn"
+                    disabled={busy !== null}
+                    onClick={() => void exportVersion()}
+                  >
+                    {t("designWorkspace.exportVersion")}
+                  </button>
+                ) : null}
+              </div>
             </div>
+            {selectedVersion ? (
+              <div className="ui-report-meta">
+                {t("designWorkspace.qualityMeta", {
+                  version: versionLabel(suite?.versions, selectedVersion.versionId) ?? "-",
+                })}
+              </div>
+            ) : null}
+            {progress ? <div className="ui-design-gen-progress">{progress}</div> : null}
             {content.quality ? (
               <>
                 <div className="trigger-card">
@@ -674,9 +843,9 @@ export function DesignWorkspace({ root, suiteId, onBack, onQuoteToChat }: Design
           tabLabel={tabLabels[tab]}
           quickItems={quickItems[tab]}
           disabled={readOnly || !suite}
-          busy={busy === "design.revise"}
+          busy={busy !== null}
           onSubmit={(instruction) => revise(instruction)}
-        />
+        />{" "}
       </div>
     </DesignWorkspaceFrame>
   );

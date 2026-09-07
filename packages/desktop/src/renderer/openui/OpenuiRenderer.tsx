@@ -9,11 +9,12 @@
  * Used exclusively by Designer (PM-Design pipeline) when mode === "openui".
  */
 
-import { type JSX, useEffect, useMemo, useState } from "react";
+import { type JSX, useEffect, useMemo, useRef, useState } from "react";
 import { Renderer, type ActionEvent } from "@openuidev/react-lang";
 import type { OpenUIError } from "@openuidev/lang-core";
 import { deeporcaLibrary } from "./library";
 import { createDesignerToolProvider } from "./tool-provider";
+import { annotateActTags } from "./act-annotation";
 
 type Props = {
   /** Raw OpenUI Lang code from the agent's tool output. */
@@ -49,8 +50,35 @@ export function OpenuiRenderer({
     if (!code) setErrors([]);
   }, [code]);
 
+  // Act-tag producer (openui/act-annotation.ts): stamps `data-act` on the
+  // rendered buttons/forms/anchors so the design workspace's selection popover
+  // can show its `执行 {action}` chip, and act-tag hover labels can be styled
+  // by CSS. Runs once per code change, and a MutationObserver re-runs the same
+  // rAF-throttled pass so dynamically mounted controls get stamped too.
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    let frame = 0;
+    const schedule = () => {
+      if (frame) return;
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        annotateActTags(container);
+      });
+    };
+    schedule();
+    const observer = new MutationObserver(schedule);
+    observer.observe(container, { childList: true, subtree: true });
+    return () => {
+      if (frame) cancelAnimationFrame(frame);
+      frame = 0;
+      observer.disconnect();
+    };
+  }, [code]);
+
   return (
-    <div className="ui-openui-renderer" style={{ minHeight: "100%" }}>
+    <div ref={containerRef} className="ui-openui-renderer" style={{ minHeight: "100%" }}>
       {errors.length > 0 ? (
         <div
           style={{
