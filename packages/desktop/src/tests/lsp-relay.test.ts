@@ -5,6 +5,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
+import { join, resolve } from "node:path";
 
 type Relay = typeof import("../main/tools/lsp-relay");
 let relay: Relay | undefined;
@@ -12,6 +14,26 @@ let relay: Relay | undefined;
 test.before(async () => {
   relay = await import("../main/tools/lsp-relay");
 });
+
+/**
+ * Skip guard for the LIVE-session tests: the typescript-language-server
+ * binary itself must be on PATH. `relayServerAvailable("typescript")` is NOT
+ * a usable guard here — it also accepts the spec's npx fallback candidate
+ * ("npx" is on every dev machine), and attaching then spawns the MISSING
+ * binary whose async 'error' event has no handler in the relay (pre-existing
+ * product gap, reported separately): the unhandled error kills the whole
+ * test process instead of skipping. These tests are documented to "skip when
+ * typescript-language-server is not on PATH" — this implements exactly that.
+ */
+function tsServerOnPath(): boolean {
+  const dirs = (process.env.PATH ?? "").split(process.platform === "win32" ? ";" : ":");
+  return dirs.some(
+    (d) =>
+      existsSync(join(d, "typescript-language-server.cmd")) ||
+      existsSync(join(d, "typescript-language-server.exe")) ||
+      existsSync(join(d, "typescript-language-server"))
+  );
+}
 
 /** A fake "server": reads Content-Length frames on stdin, echoes each body
  *  back on stdout. This validates the relay's frame round-trip without any
@@ -27,12 +49,108 @@ test("relayPathToUri / relayPathWithinRoot pin the root", () => {
   assert.equal(r.relayPathToUri("C:/a/b.ts"), "file:///C:/a/b.ts");
   assert.equal(r.relayPathToUri("\\\\srv\\share\\x.ts"), "file://srv/share/x.ts");
   assert.equal(r.relayPathToUri("/a/b c.ts"), "file:///a/b%20c.ts");
-  const root = "/Volumes/data/dev/coding/deepcodeUI/deepcode-cli";
+  // Adaptive fixture (repo cross-platform policy): the old hardcoded macOS
+  // `/Volumes/...` root can never realpath on Windows, so containedResolved
+  // deterministically returned null there. The containment logic under test
+  // is identical against any EXISTING root — use the repo checkout on
+  // Windows, keep the original POSIX root elsewhere.
+  const root = process.platform === "win32" ? process.cwd() : "/Volumes/data/dev/coding/deepcodeUI/deepcode-cli";
   assert.ok(r.relayPathWithinRoot(root, `${root}/packages/desktop/src/main/index.ts`));
   assert.equal(r.relayPathWithinRoot(root, "/etc/passwd"), null);
   assert.equal(r.relayPathWithinRoot(root, "relative/path.ts"), null);
   // Path equal to the root itself is rejected (mirror of routing.resolveWithinRoot).
   assert.equal(r.relayPathWithinRoot(root, root), null);
+});
+
+// ── Unskippable pure URI section (2026-09-07 Windows LSP root fix) ─────────
+// These run on EVERY host (no language server, no skip guard): the old
+// fileUriToPath returned "/C:/a/b.ts" verbatim, path.win32.resolve folded the
+// drive letter into a folder, and firstUriOutsideRoot then rejected EVERY
+// document URI (and the rewritten initialize rootUri) — LSP was completely
+// dead on Windows drive-letter workspaces.
+test("fileUriToPath: drive-letter URIs lose the phantom leading slash (pure, never skipped)", () => {
+  const r = relay!;
+  // Win32 drive form: url.pathname is "/C:/x/y.ts"; the leading slash is the
+  // empty-authority separator, NOT part of the path. The helper keeps the
+  // URI's forward slashes (its only consumer, node's path.resolve, normalizes
+  // them) — the load-bearing assertion is the ABSENCE of the leading slash.
+  assert.equal(r.fileUriToPath("file:///C:/x/y.ts"), "C:/x/y.ts");
+  assert.equal(r.fileUriToPath("file:///C:/x%20y/z.ts"), "C:/x y/z.ts", "percent decoding still applies");
+  // POSIX shape unchanged (true on every platform — the strip only matches
+  // the drive-letter form; this is the CI-guarded case's string twin).
+  assert.equal(r.fileUriToPath("file:///home/u/p.ts"), "/home/u/p.ts");
+  // UNC host form unchanged.
+  assert.equal(r.fileUriToPath("file://srv/share/x.ts"), "\\\\srv\\share\\x.ts");
+  // Non-file schemes and garbage stay null.
+  assert.equal(r.fileUriToPath("https://x/y.ts"), null);
+  assert.equal(r.fileUriToPath("not a uri"), null);
+  // relayPathToUri inverts it exactly (win32 drive form and POSIX form).
+  assert.equal(r.relayPathToUri(r.fileUriToPath("file:///C:/x/y.ts")!), "file:///C:/x/y.ts");
+  assert.equal(r.relayPathToUri(r.fileUriToPath("file:///home/u/p.ts")!), "file:///home/u/p.ts");
+});
+
+test("fileUriToPath output survives the downstream resolve + root containment walk", () => {
+  const r = relay!;
+  const p = r.fileUriToPath("file:///C:/x/y.ts");
+  assert.ok(p);
+  // This repo runs tests on Windows: the downstream `resolve(filePath)` (the
+  // exact call inside firstUriOutsideRoot) must produce the real drive path,
+  // not fold the drive into a folder. POSIX CI keeps the string assertions.
+  if (process.platform === "win32") {
+    assert.equal(resolve(p), "C:\\x\\y.ts");
+  }
+  // Containment against a REAL root (the repo checkout — cwd per the
+  // documented test invocation): a document URI inside the root passes the
+  // same guard that used to reject everything on Windows; an outside URI
+  // still fails (holds on both platforms: the outside path is lexically
+  // non-absolute on POSIX and genuinely escaping on Windows).
+  const root = process.cwd();
+  const insidePath = r.fileUriToPath(
+    r.relayPathToUri(join(root, "packages", "desktop", "src", "tests", "lsp-relay.test.ts"))
+  );
+  assert.ok(insidePath);
+  assert.ok(r.relayPathWithinRoot(root, insidePath), "a URI inside the root must pass the containment walk");
+  const outsidePath = r.fileUriToPath("file:///C:/Windows/system32/drivers/etc/hosts");
+  assert.ok(outsidePath);
+  assert.equal(r.relayPathWithinRoot(root, outsidePath), null, "a URI outside the root must still be rejected");
+});
+
+test("RELAY_ALLOWED_METHODS covers @codemirror/lsp-client 6.x's full outbound set (audited 6.2.5)", () => {
+  const r = relay!;
+  // The complete outbound method set of @codemirror/lsp-client 6.2.5,
+  // recovered from dist/index.js (11 request call sites — initialize via
+  // requestInner, plus completion/hover/formatting/rename/signatureHelp/
+  // definition/declaration/typeDefinition/implementation/references — and
+  // the initialized, didOpen/didChange/didClose, $/cancelRequest
+  // notifications). The client does NOT send completionItem/resolve,
+  // textDocument/prepareRename, workspace/configuration or shutdown, so the
+  // whitelist needs no additions for this version. Pinned here so a client
+  // upgrade that starts sending MORE methods fails this test instead of
+  // dying on "method not allowed" in production.
+  const clientOutbound = [
+    "initialize",
+    "initialized",
+    "$/cancelRequest",
+    "textDocument/didOpen",
+    "textDocument/didChange",
+    "textDocument/didClose",
+    "textDocument/completion",
+    "textDocument/hover",
+    "textDocument/signatureHelp",
+    "textDocument/definition",
+    "textDocument/declaration",
+    "textDocument/typeDefinition",
+    "textDocument/implementation",
+    "textDocument/references",
+    "textDocument/rename",
+    "textDocument/formatting",
+  ];
+  for (const method of clientOutbound) {
+    assert.ok(r.RELAY_ALLOWED_METHODS.has(method), `client method ${method} must stay whitelisted`);
+  }
+  // And the guard keeps its teeth: non-client methods stay out.
+  assert.ok(!r.RELAY_ALLOWED_METHODS.has("workspace/executeCommand"));
+  assert.ok(!r.RELAY_ALLOWED_METHODS.has("workspace/didChangeConfiguration"));
 });
 
 test("relayServerAvailable reflects local binaries (ts true on this host)", () => {
@@ -53,7 +171,7 @@ test("relay sessions lifecycle: attach/send/detach with echo pair", async () => 
   // session-map behavior through a directly-launched cat relay: this test
   // covers the exported class contract (attach reuse + detach) using the
   // typescript spec when available, else skips gracefully.
-  const available = r.relayServerAvailable("typescript");
+  const available = tsServerOnPath();
   if (!available) {
     assert.ok(true, "typescript-language-server not on PATH — lifecycle covered by types below");
     return;
@@ -91,7 +209,7 @@ test("relay sessions lifecycle: attach/send/detach with echo pair", async () => 
 
 test("send: method whitelist rejects executeCommand; initialize is pinned to the root", async () => {
   const r = relay!;
-  if (!r.relayServerAvailable("typescript")) {
+  if (!tsServerOnPath()) {
     // Same graceful skip as the lifecycle test — the whitelist path still
     // needs a live session to exercise.
     return;

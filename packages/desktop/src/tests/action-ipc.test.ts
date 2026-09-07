@@ -26,6 +26,7 @@ import {
   reviewRunDefinition,
   reviewRun,
   configureReviewController,
+  type ActionDefinition,
   type ReviewController,
   type ReviewResult,
 } from "@deeporca/core";
@@ -226,6 +227,41 @@ describe("registerActionIpc (the IPC surface)", () => {
     const res = (await runFn("system.ping", {})) as { ok: false; code: string };
     assert.equal(res.ok, false);
     assert.equal(res.code, "NO_PROJECT");
+  });
+
+  test("ActionRun passthrough: emit `data` (machine codes) flows to the renderer payload untouched", async () => {
+    // The i18n seam contract: actions emit `data: { code }` on progress events;
+    // the bridge must forward it verbatim alongside actionId/root — the same
+    // path the terminal `data: { done: true }` marker rides.
+    const registry = new ActionRegistry({ projectRoot: PROJECT_ROOT });
+    const def: ActionDefinition = {
+      id: "emit.code",
+      description: "test-only action that emits one coded progress event",
+      parameters: { type: "object", properties: {}, additionalProperties: false },
+    };
+    registry.register(def, async (_input, ctx) => {
+      ctx.emit({ message: "coded emit", percent: 40, data: { code: "test.code" } });
+      return { ok: true };
+    });
+    const emitted: { channel: string; payload: unknown }[] = [];
+    const { helpers, handlers } = makeCapturingHelpers();
+    registerActionIpc(helpers, {
+      emit: (channel, payload) => emitted.push({ channel, payload }),
+      getRoot: () => PROJECT_ROOT,
+      getRegistry: () => registry,
+    });
+    const runFn = handlers.get(IpcActionChannel.Run)! as (id: string, input: unknown) => Promise<unknown>;
+    const res = (await runFn("emit.code", {})) as { ok: boolean };
+    assert.equal(res.ok, true);
+    const coded = emitted
+      .filter((e) => e.channel === IpcActionEvent.Progress)
+      .map((e) => e.payload as { actionId: string; message: string; percent?: number; data?: unknown })
+      .find((p) => (p.data as { code?: string } | undefined)?.code === "test.code");
+    assert.ok(coded, "the coded progress event must reach the IPC emit");
+    assert.equal(coded.actionId, "emit.code");
+    assert.equal(coded.message, "coded emit");
+    assert.equal(coded.percent, 40);
+    assert.deepEqual(coded.data, { code: "test.code" });
   });
 });
 

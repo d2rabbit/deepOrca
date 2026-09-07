@@ -24,6 +24,8 @@ type K = typeof import("../renderer/components/editor/cm6-kernel");
 let K: K | undefined;
 type S = typeof import("../renderer/components/editor/cm6-buffer-stream");
 let S: S | undefined;
+type L = typeof import("../renderer/components/editor/cm6-lsp");
+let L: L | undefined;
 
 before(async () => {
   dom = installDom();
@@ -33,6 +35,9 @@ before(async () => {
   (globalThis as unknown as { window: { deeporca: unknown } }).window.deeporca = stub.api;
   K = await import("../renderer/components/editor/cm6-kernel");
   S = await import("../renderer/components/editor/cm6-buffer-stream");
+  // cm6-lsp binds api at module load (safe: the stub is already installed
+  // above) — imported only for the pure relay-failure discrimination test.
+  L = await import("../renderer/components/editor/cm6-lsp");
 });
 
 after(() => {
@@ -229,4 +234,104 @@ test("fence grammar agrees between the streaming extractor and splitResult", () 
   // The row COUNT both sides derive must agree (the excise multiset depends on it).
   const finalRows = (final.code ?? "").split("\n");
   assert.equal(streamed?.rows.length, finalRows.length, "streamed rows === final rows for the same fence");
+});
+
+// ── 2026-09-07 review batch ─────────────────────────────────────────────────
+
+test("apply fallback: AI rows deleted during review → apply refuses, user lines below survive (full doc)", async () => {
+  apiOverrides.editorAgentRun = stubRun(async () => ({ ok: true, content: CODE("NEW"), iterations: 1 }));
+  const { handle } = mount("l1\nl2\nl3\nl4");
+  const { stream } = makeStream(handle);
+  await stream.run({
+    file: "a.ts",
+    selection: { text: "l2", startLine: 2, endLine: 2 },
+    instruction: "go",
+  });
+  assert.equal(stream.currentPhase, "review");
+  assert.equal(handle.view.state.doc.toString(), "l1\nl2\nNEW\nl3\nl4");
+  // The user deletes the AI row TOGETHER WITH ITS LEADING NEWLINE (a
+  // backspace-at-line-start style edit): every add/pending anchor sits
+  // strictly INSIDE the deleted range and dies with it, so apply() reaches
+  // the snapshot-arithmetic FALLBACK with no live anchor. (Deleting only the
+  // row range leaves the row's anchor point at the deletion boundary mapped
+  // onto the next line, and the healthy branch's `left > 0` walk refuses
+  // instead — a different guard.) The del ghost on l2 survives.
+  const doc = handle.view.state.doc;
+  const row = doc.line(3);
+  handle.view.dispatch({ changes: { from: doc.line(2).to, to: row.to + 1 } });
+  assert.equal(handle.view.state.doc.toString(), "l1\nl2l3\nl4");
+  // Old behavior: the fallback splice ran blind over
+  // [selStartLine .. selStartLine + orig + inserted - 1] = lines 2..3 here
+  // and swallowed the user line (l3, now merged into "l2l3"... and l4) with
+  // the AI content the user just deleted.
+  stream.apply();
+  assert.equal(stream.currentPhase, "review", "apply must refuse and STAY in review when the block no longer matches");
+  assert.equal(
+    handle.view.state.doc.toString(),
+    "l1\nl2l3\nl4",
+    "no data loss: the deleted AI content must not be re-spliced over user lines"
+  );
+});
+
+test("apply fallback: decorations cleared but block intact → apply still lands (full doc)", async () => {
+  apiOverrides.editorAgentRun = stubRun(async () => ({ ok: true, content: CODE("NEW"), iterations: 1 }));
+  const { handle } = mount("l1\nl2\nl3\nl4");
+  const { stream } = makeStream(handle);
+  await stream.run({
+    file: "a.ts",
+    selection: { text: "l2", startLine: 2, endLine: 2 },
+    instruction: "go",
+  });
+  assert.equal(stream.currentPhase, "review");
+  // Strip every decoration (no anchors at all) WITHOUT touching the content —
+  // the fallback's window [selStartLine .. +orig+inserted-1] still holds the
+  // original rows followed by the AI rows, so the guard must PASS here.
+  const D = await import("../renderer/components/editor/cm6-deco");
+  handle.view.dispatch({ effects: D.clearAi.of(null) });
+  stream.apply();
+  assert.equal(stream.currentPhase, "applied", "a pristine fallback window is still applyable");
+  assert.equal(handle.view.state.doc.toString(), "l1\nNEW\nl3\nl4");
+});
+
+test("discard mid-run unsubscribes the agent progress listener (no IPC leak)", async () => {
+  apiOverrides.editorAgentRun = stubRun(() => new Promise(() => {}));
+  const { handle } = mount("l1\nl2\nl3");
+  const { stream } = makeStream(handle);
+  stub!.reset(); // clean subscription slate for the count assertions
+  void stream.run({
+    file: "a.ts",
+    selection: { text: "l2", startLine: 2, endLine: 2 },
+    instruction: "go",
+  });
+  await sleep(10);
+  stub!.emit("onEditorAgentProgress", { runId: lastRunId, phase: "delta", text: FENCE("ROW") });
+  await sleep(120);
+  assert.ok(handle.view.state.doc.toString().includes("ROW"), "row landed mid-run");
+  assert.ok(
+    stub!.activeSubscriptions().includes("onEditorAgentProgress"),
+    "the progress listener is alive during the run"
+  );
+  stream.discard();
+  assert.equal(
+    stub!.activeSubscriptions().includes("onEditorAgentProgress"),
+    false,
+    "discard must tear down the in-flight run's IPC progress listener (the stale invoke early-returns before its own unsubscribe)"
+  );
+  assert.equal(handle.view.state.doc.toString(), "l1\nl2\nl3", "discard still excises the streamed rows");
+});
+
+test("relay ok:false discrimination: only an unknown/closed session drops the cached session", () => {
+  // Exact error strings returned by main/tools/lsp-relay.ts send().
+  assert.equal(
+    L!.shouldDropRelaySession("unknown or closed session lsp-ts-abc"),
+    true,
+    "dead session → drop + self-heal"
+  );
+  assert.equal(
+    L!.shouldDropRelaySession("method not allowed: workspace/executeCommand"),
+    false,
+    "refused frame — the session is alive, dropping it thrashed reconnects"
+  );
+  assert.equal(L!.shouldDropRelaySession("malformed frame rejected by relay"), false);
+  assert.equal(L!.shouldDropRelaySession("frame uri escapes session root: file:///etc/passwd"), false);
 });

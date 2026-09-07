@@ -108,6 +108,37 @@ test("digest: intents, tool portrait, conclusion — clipped, corrupt-line toler
   assert.equal(readSessionDigest(projectDir, "../../etc"), null); // traversal guard
 });
 
+test("digest: malformed tool-call arguments degrade to no-args instead of aborting the run", async () => {
+  const home = tempDir("distill-ma-");
+  const workspace = tempDir("distill-maws-");
+  setHomeDir(home);
+  const projectDir = seedProject(home, workspace);
+  fs.writeFileSync(
+    path.join(projectDir, "s3.jsonl"),
+    [
+      msg("user", "跑一下测试"),
+      msg("assistant", "我来调用工具", {
+        messageParams: { tool_calls: [{ function: { name: "bash", arguments: "{not json" } }] },
+      }),
+      msg("tool", TOOL_RESULT("bash")),
+      msg("assistant", "done"),
+    ].join("\n") + "\n",
+    "utf8"
+  );
+
+  const digest = readSessionDigest(projectDir, "s3");
+  assert.ok(digest, "a malformed arguments blob must not abort the digest");
+  const bash = digest?.tools.find((t) => t.name === "bash");
+  assert.equal(bash?.count, 1);
+  assert.equal(bash?.args.length, 0, "malformed arguments degrade to no key args");
+
+  // The whole distill run still succeeds with that session's material.
+  const run = await memoryDistillRun({ sessionId: "s3" }, buildCtx(workspace));
+  assert.equal(run.ok, true);
+  assert.equal(run.digests.length, 1);
+  assert.equal(run.digests[0]?.sessionId, "s3");
+});
+
 const GOOD_SOP =
   '{"sopProposals":[' +
   '{"action":"skill-new","skillName":"timeline-export-test","body":"---\\nname: timeline-export-test\\ndescription: Export the animation timeline to JSON and cover timestamp boundaries with a parse test\\n---\\n# Timeline export testing SOP\\n1. Read Sources/Export/Timeline.swift first\\n2. Export via Codable\\n3. Run swift test --filter TimelineParse","rationale":"The session shows a reusable export+test procedure","evidenceRefs":["s1#0"],"estTokens":120},' +

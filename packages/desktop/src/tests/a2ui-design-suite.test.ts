@@ -5,7 +5,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import { buildA2uiServer } from "../main/tools/a2ui/a2ui-mcp";
+import { buildA2uiServer, persistSurfaces } from "../main/tools/a2ui/a2ui-mcp";
 import { listDesignArtifacts, readDesignSuite } from "../main/tools/design-store";
 import type { PrototypeSuiteContent } from "../main/tools/design-store";
 
@@ -115,6 +115,201 @@ test("calls without suite metadata retain legacy artifact persistence", async ()
     assert.doesNotMatch(text(result), /ArtifactRef:/);
     assert.equal(listDesignArtifacts(root).length, 1);
     assert.equal(listDesignArtifacts(root)[0].pipeline, "openui");
+  } finally {
+    await client.close();
+  }
+});
+
+// ── review-fix regressions ────────────────────────────────────────────────────
+
+function artifactRefOf(result: Awaited<ReturnType<Client["callTool"]>>): {
+  suiteId: string;
+  versionId: string;
+  kind: string;
+} {
+  const match = text(result).match(/ArtifactRef:\s*(\{[^\n]+\})/);
+  assert.ok(match, "expected an ArtifactRef in the tool result");
+  return JSON.parse(match[1]);
+}
+
+test("save_suite_result fails on a stale versionId instead of rolling the head back", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "a2ui-suite-head-"));
+  roots.push(root);
+  const client = await clientFor(root);
+  try {
+    const first = await client.callTool({
+      name: "render_spec",
+      arguments: { document: "# Tasks\n\n## Page list\n- Board", requirement: "Task board", note: "initial" },
+    });
+    const ref = artifactRefOf(first);
+    const materialized = await client.callTool({
+      name: "render_openui",
+      arguments: { code: "root = Column([board])", suiteId: ref.suiteId, versionId: ref.versionId },
+    });
+    const head = artifactRefOf(materialized);
+    assert.notEqual(head.versionId, ref.versionId, "the head moved to a new version");
+
+    // Appending against the stale (non-head) version must fail loudly instead
+    // of silently branching/rolling the head back.
+    const stale = await client.callTool({
+      name: "save_suite_result",
+      arguments: { suiteId: ref.suiteId, versionId: ref.versionId, verification: { status: "passed", checks: [] } },
+    });
+    assert.equal(stale.isError, true);
+    assert.match(text(stale), /head has moved/);
+    assert.match(text(stale), /latest version/);
+
+    // Appending against the head stays ok and creates a new version.
+    const fresh = await client.callTool({
+      name: "save_suite_result",
+      arguments: { suiteId: ref.suiteId, versionId: head.versionId, verification: { status: "passed", checks: [] } },
+    });
+    assert.notEqual(fresh.isError, true);
+    const saved = artifactRefOf(fresh);
+    assert.notEqual(saved.versionId, head.versionId);
+  } finally {
+    await client.close();
+  }
+});
+
+test("render_openui appends to an existing ui suite without designSystemId (kind from the suite)", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "a2ui-suite-kind-"));
+  roots.push(root);
+  const client = await clientFor(root);
+  try {
+    const first = await client.callTool({
+      name: "render_openui",
+      arguments: { code: "root = Column([a])", designSystemId: "dark-tech" },
+    });
+    const ref = artifactRefOf(first);
+    assert.equal(ref.kind, "ui");
+
+    const second = await client.callTool({
+      name: "render_openui",
+      arguments: { code: "root = Column([a, b])", suiteId: ref.suiteId, versionId: ref.versionId },
+    });
+    const next = artifactRefOf(second);
+    assert.equal(next.kind, "ui", "the append must keep the suite's kind");
+    const suite = readDesignSuite(root, ref.suiteId);
+    assert.equal(suite?.kind, "ui");
+    assert.equal(suite?.versions.length, 2);
+  } finally {
+    await client.close();
+  }
+});
+
+test("render_surface rejects traversal surfaceIds; nothing is written outside the prototypes dir", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "a2ui-surface-id-"));
+  roots.push(root);
+  const client = await clientFor(root);
+  try {
+    const components = [
+      { id: "root", component: "Column", children: ["t"] },
+      { id: "t", component: "Text", text: "hi" },
+    ];
+    const evil = await client.callTool({
+      name: "render_surface",
+      arguments: { surfaceId: "../../evil", components, dataModel: {} },
+    });
+    assert.equal(evil.isError, true, "traversal surfaceId must be rejected");
+    assert.match(text(evil), /safe identifier/, "rejected by the surfaceId guard, not schema validation");
+
+    const good = await client.callTool({
+      name: "render_surface",
+      arguments: { surfaceId: "good-one", components, dataModel: {} },
+    });
+    assert.notEqual(good.isError, true);
+
+    persistSurfaces(root);
+    const dir = path.join(root, ".deeporca", "prototypes");
+    assert.deepEqual(fs.readdirSync(dir).sort(), ["good-one.json"]);
+    assert.equal(fs.existsSync(path.join(root, "evil.json")), false);
+    assert.equal(fs.existsSync(path.join(root, ".deeporca", "evil.json")), false);
+  } finally {
+    await client.close();
+  }
+});
+
+test("save_suite_result clamps oversized or over-deep payloads", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "a2ui-suite-clamp-"));
+  roots.push(root);
+  const client = await clientFor(root);
+  try {
+    const first = await client.callTool({
+      name: "render_openui",
+      arguments: { code: "root = Column([])", designSystemId: "dark-tech" },
+    });
+    const ref = artifactRefOf(first);
+    assert.equal(ref.kind, "ui");
+
+    const oversized = await client.callTool({
+      name: "save_suite_result",
+      arguments: { suiteId: ref.suiteId, versionId: ref.versionId, quality: { blob: "x".repeat(600 * 1024) } },
+    });
+    assert.equal(oversized.isError, true);
+    assert.match(text(oversized), /too large/);
+
+    let deep: Record<string, unknown> = { leaf: true };
+    for (let i = 0; i < 15; i += 1) deep = { nested: deep };
+    const overDeep = await client.callTool({
+      name: "save_suite_result",
+      arguments: { suiteId: ref.suiteId, versionId: ref.versionId, quality: deep },
+    });
+    assert.equal(overDeep.isError, true);
+    assert.match(text(overDeep), /depth/);
+
+    const normal = await client.callTool({
+      name: "save_suite_result",
+      arguments: {
+        suiteId: ref.suiteId,
+        versionId: ref.versionId,
+        quality: { lintFindings: [], runtimeChecks: [] },
+      },
+    });
+    assert.notEqual(normal.isError, true, "a normal payload still saves");
+  } finally {
+    await client.close();
+  }
+});
+
+test("legacy update against a suite-normalized artifact fails loudly instead of silently dropping", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "a2ui-lineage-normalized-"));
+  roots.push(root);
+  const client = await clientFor(root);
+  try {
+    await client.callTool({ name: "render_openui", arguments: { code: "root = Column([])" } });
+    const artifact = listDesignArtifacts(root)[0];
+    // Containment guard (mirror of the production isSafeDesignId policy): the
+    // store-issued id must resolve INSIDE the designs root before this test
+    // touches any file under it.
+    const designsRoot = path.resolve(root, ".deeporca", "designs");
+    const dir = path.resolve(designsRoot, artifact.id);
+    assert.ok(dir.startsWith(designsRoot + path.sep), "store-issued artifact id must stay inside the designs root");
+    // Simulate legacy → v2 normalization: the artifact meta becomes suite-shaped
+    // (schemaVersion 2, no `pipeline`), the exact mixed-lineage trap.
+    fs.writeFileSync(
+      path.join(dir, "meta.json"),
+      JSON.stringify({
+        schemaVersion: 2,
+        id: artifact.id,
+        title: artifact.title,
+        kind: "ui",
+        status: "ready",
+        currentVersionId: "v1",
+        versions: [],
+      }),
+      "utf8"
+    );
+    const contentFile = fs.readdirSync(dir).find((name) => name !== "meta.json")!;
+    const before = fs.readFileSync(path.join(dir, contentFile), "utf8");
+
+    const updated = await client.callTool({ name: "update_openui", arguments: { code: "root = Column([b])" } });
+    assert.equal(updated.isError, true, "the dropped revision must surface as a tool error");
+    assert.match(text(updated), /normalized into a v2 design suite/);
+    assert.match(text(updated), /suiteId/);
+
+    const after = fs.readFileSync(path.join(dir, contentFile), "utf8");
+    assert.equal(after, before, "the normalized store must not be touched by the legacy path");
   } finally {
     await client.close();
   }

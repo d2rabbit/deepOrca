@@ -9,6 +9,8 @@ import type { DesignWorkspaceFrame as FrameComponent } from "../renderer/compone
 import type { PrototypeWorkspace as PrototypeWorkspaceComponent } from "../renderer/components/design-workspace/PrototypeWorkspace";
 import type { DesignWorkspace as DesignWorkspaceComponent } from "../renderer/components/design-workspace/DesignWorkspace";
 import type { SelectionPopover as SelectionPopoverComponent } from "../renderer/components/design-workspace/SelectionPopover";
+import { parseDesignHash } from "../renderer/lib/design-deep-link";
+import { paletteFor } from "../renderer/components/design-workspace/palettes";
 import type {
   DesignSuite,
   DesignSuiteSummary,
@@ -42,7 +44,8 @@ function version(versionId: string, content: DesignSuiteVersion["content"], note
 }
 
 function suite(kind: "prototype" | "ui", versions: DesignSuiteVersion[]): DesignSuite {
-  const currentVersion = versions[0];
+  // Store order is oldest-first; the current version is the last one.
+  const currentVersion = versions[versions.length - 1];
   return {
     schemaVersion: 2,
     id: `${kind}-suite`,
@@ -152,13 +155,23 @@ test("prototype and design panels are read-only workspace directories with root-
   assert.deepEqual(opened, []);
   const before = stub.calls.filter((call) => call.method === "designSuiteList").length;
   await rtl.act(async () => {
-    stub.emit("onDesignSuiteChanged", { root: "/not-listed", suiteId: "x", change: "update" });
+    stub.emit("onDesignChanged", { root: "/not-listed", suiteId: "x", change: "update" });
   });
   assert.equal(stub.calls.filter((call) => call.method === "designSuiteList").length, before);
+  // Real suite events carry root/suiteId — known roots refresh incrementally.
+  await rtl.act(async () => {
+    stub.emit("onDesignChanged", { root: "/work/current", suiteId: proto.id, versionId: "latest", change: "update" });
+  });
+  await settle();
+  const incremental = stub.calls
+    .filter((call) => call.method === "designSuiteList")
+    .filter((call) => call.args[0] === "/work/current").length;
+  assert.ok(incremental > 0);
 });
 
 test("shared frame keeps one version selection across tabs and locks old versions", () => {
-  const versions = [version("latest", { spec: "new" }), version("old", { spec: "old" })];
+  // Store order: oldest-first, current version last (matches design-store).
+  const versions = [version("old", { spec: "old" }), version("latest", { spec: "new" })];
   function Harness() {
     const [tab, setTab] = ReactPkg.useState<"a" | "b" | "c">("a");
     const [selected, setSelected] = ReactPkg.useState("latest");
@@ -192,12 +205,12 @@ test("shared frame keeps one version selection across tabs and locks old version
 
 test("prototype workspace runs spec, materialize and verify with suite version parameters; old versions stay read-only", async () => {
   const prototype = suite("prototype", [
+    version("old", { spec: "# Scope\nOld requirements", openui: "root = Text('old')" }),
     version("latest", {
       spec: "# Scope\nLatest requirements",
       openui: "root = Text('latest')",
       verification: { status: "passed", checks: [{ id: "c1", label: "Loads", status: "passed" }] },
     }),
-    version("old", { spec: "# Scope\nOld requirements", openui: "root = Text('old')" }),
   ]);
   overrides.designSuiteList = async () => [summary(prototype)];
   overrides.designSuiteRead = async () => prototype;
@@ -234,8 +247,8 @@ test("prototype workspace runs spec, materialize and verify with suite version p
 
 test("design workspace requires a concrete prototype version, exposes nine systems, and sends linked materialize params", async () => {
   const prototype = suite("prototype", [
-    version("proto-v2", { spec: "# Scope", openui: "root = Text('v2')" }),
     version("proto-v1", { spec: "# Scope", openui: "root = Text('v1')" }),
+    version("proto-v2", { spec: "# Scope", openui: "root = Text('v2')" }),
   ]);
   const baseContent: UiSuiteContent = {
     openui: 'root = Screen("UI")\nhero = Card(data-sem="hero") { Text("Hero") }',
@@ -369,4 +382,174 @@ test("selection popover uses supplied geometry and Escape cancels", () => {
   assert.equal(popover.style.top, "24px");
   rtl.fireEvent.keyDown(document, { key: "Escape" });
   assert.equal(closed, 1);
+});
+
+test("version rail displays newest-first with vN labels matching store identity", () => {
+  const versions = [version("v1-old", { spec: "old" }), version("v2-new", { spec: "new" })];
+  const out = renderWithI18n(
+    ReactPkg.createElement(DesignWorkspaceFrame, {
+      root: "/work/current",
+      tabs: [
+        { id: "a", label: "A" },
+        { id: "b", label: "B" },
+      ] as const,
+      activeTab: "a",
+      onTabChange: () => {},
+      versions,
+      selectedVersionId: "v2-new",
+      latestVersionId: "v2-new",
+      onVersionChange: () => {},
+    })
+  );
+  const items = out.container.querySelectorAll(".ui-design-version-item");
+  assert.equal(items.length, 2);
+  // Newest first (mockup rail), and numbering matches the real store identity.
+  assert.equal(items[0].getAttribute("data-version-id"), "v2-new");
+  assert.equal(items[0].querySelector("strong")?.textContent, "v2");
+  assert.equal(items[1].getAttribute("data-version-id"), "v1-old");
+  assert.equal(items[1].querySelector("strong")?.textContent, "v1");
+});
+
+test("background suite events refresh without resetting the viewed version", async () => {
+  const prototype = suite("prototype", [
+    version("old", { spec: "# Scope\nOld requirements", openui: "root = Text('old')" }),
+    version("latest", { spec: "# Scope\nLatest requirements", openui: "root = Text('latest')" }),
+  ]);
+  overrides.designSuiteList = async () => [summary(prototype)];
+  overrides.designSuiteRead = async () => prototype;
+  const out = renderWithI18n(
+    ReactPkg.createElement(PrototypeWorkspace, { root: "/work/current", suiteId: prototype.id })
+  );
+  await settle();
+  rtl.fireEvent.click(out.container.querySelector('[data-version-id="old"]') as Element);
+  await settle();
+  assert.ok(out.getByText("This older version is read-only."));
+  await rtl.act(async () => {
+    stub.emit("onDesignChanged", {
+      root: "/work/current",
+      suiteId: prototype.id,
+      versionId: "latest",
+      change: "update",
+    });
+  });
+  await settle();
+  // The user is still reading the old version after the background refresh.
+  assert.ok(out.getByText("This older version is read-only."));
+});
+
+test("待确认 items confirm page-local and gate materialize until cleared", async () => {
+  const prototype = suite("prototype", [
+    version("latest", {
+      spec: "# Scope\n\n## 待确认\n- Add dark mode\n- Add search",
+      openui: "root = Text('latest')",
+    }),
+  ]);
+  overrides.designSuiteList = async () => [summary(prototype)];
+  overrides.designSuiteRead = async () => prototype;
+  overrides.designSuiteReadVersion = async (_root: string, _id: string, id: string) =>
+    prototype.versions.find((item) => item.versionId === id) ?? null;
+  const out = renderWithI18n(
+    ReactPkg.createElement(PrototypeWorkspace, { root: "/work/current", suiteId: prototype.id })
+  );
+  await settle();
+  const cta = () => out.getByText("Confirm and generate prototype") as HTMLButtonElement;
+  // Mockup 2026-09: materialize stays locked until every pending item is confirmed.
+  assert.equal(cta().disabled, true);
+  assert.equal(out.getAllByText("✓ Confirm").length, 2);
+  rtl.fireEvent.click(out.getAllByText("✓ Confirm")[0]);
+  assert.equal(cta().disabled, true);
+  rtl.fireEvent.click(out.getByText("✓ Confirm"));
+  assert.equal(cta().disabled, false);
+  // Page-local confirmation must NOT dispatch actions / spawn versions.
+  assert.equal(stub.calls.filter((call) => call.method === "actionRun").length, 0);
+});
+
+test("deep-link hashes parse to workspace + tab segments; junk is inert", () => {
+  assert.deepEqual(parseDesignHash("#design/tokens"), { kind: "design", tab: "tokens" });
+  assert.deepEqual(parseDesignHash("#prototype/report"), { kind: "prototype", tab: "report" });
+  assert.deepEqual(parseDesignHash("#design"), { kind: "design", tab: undefined });
+  assert.equal(parseDesignHash("#design/unknown"), null);
+  assert.equal(parseDesignHash("#chat"), null);
+  assert.equal(parseDesignHash(""), null);
+});
+
+test("system palettes cover the nine bundled ids with --ds-* material", () => {
+  for (const id of [
+    "modern-minimal",
+    "editorial",
+    "dark-tech",
+    "brutalist-contrast",
+    "swiss-international",
+    "terminal-mono",
+    "glass-morphism",
+    "soft-neumorphic",
+    "warm-handcrafted",
+  ]) {
+    const palette = paletteFor(id);
+    assert.ok(palette, id);
+    assert.match(palette.accent, /^#/);
+    assert.ok(palette.surface && palette.text && palette.radius);
+  }
+  assert.equal(paletteFor("unknown-system"), null);
+});
+
+test("deep link initialTab opens the workspace on the requested segment", async () => {
+  const prototype = suite("prototype", [version("latest", { spec: "# Scope", openui: "root = Text('x')" })]);
+  overrides.designSuiteList = async () => [summary(prototype)];
+  overrides.designSuiteRead = async () => prototype;
+  const out = renderWithI18n(
+    ReactPkg.createElement(PrototypeWorkspace, { root: "/work/current", suiteId: prototype.id, initialTab: "report" })
+  );
+  await settle();
+  assert.equal(out.getByRole("tab", { name: "Acceptance report" }).getAttribute("aria-selected"), "true");
+  assert.ok(out.getByText("Run acceptance walkthrough"));
+});
+
+test("floating agent surfaces the conversation body, typing state and the ack bubble", async () => {
+  const prototype = suite("prototype", [version("latest", { spec: "# Scope", openui: "root = Text('x')" })]);
+  overrides.designSuiteList = async () => [summary(prototype)];
+  overrides.designSuiteRead = async () => prototype;
+  overrides.designSuiteReadVersion = async (_root: string, _id: string, id: string) =>
+    prototype.versions.find((item) => item.versionId === id) ?? null;
+  overrides.actionRun = async () => ({
+    ok: true,
+    output: { ok: true, artifactRef: { suiteId: prototype.id, versionId: "latest", kind: "prototype" } },
+  });
+  const out = renderWithI18n(
+    ReactPkg.createElement(PrototypeWorkspace, { root: "/work/current", suiteId: prototype.id })
+  );
+  await settle();
+  // Welcome bubble renders on first expand.
+  assert.ok(out.container.querySelector(".ui-floating-design-agent-msg.agent"));
+  const input = out.getByPlaceholderText("Describe the revision…") as HTMLInputElement;
+  rtl.fireEvent.change(input, { target: { value: "make the hero calmer" } });
+  rtl.fireEvent.click(out.getByText("Submit"));
+  assert.ok(out.container.querySelector(".ui-floating-design-agent-msg.user"));
+  await settle();
+  await settle();
+  assert.ok(
+    Array.from(out.container.querySelectorAll(".ui-floating-design-agent-msg.agent")).some((node) =>
+      node.textContent?.includes("Revision applied")
+    )
+  );
+  assert.equal(input.value, "", "the draft clears once the instruction is dispatched");
+});
+
+test("design toolbar shows the version badge with a localized status", async () => {
+  const prototype = suite("prototype", [version("proto-v1", { spec: "# Scope", openui: "root = Text('v1')" })]);
+  const ui = suite("ui", [
+    version("ui-v1", {
+      openui: 'root = Screen("UI")',
+      tokens: { accent: "blue" },
+      quality: { lintFindings: [], runtimeChecks: [] },
+    }),
+  ]);
+  overrides.designSuiteList = async (_root: string, kind?: string) =>
+    kind === "prototype" ? [summary(prototype)] : [summary(ui)];
+  overrides.designSuiteRead = async (_root: string, id: string) => (id === prototype.id ? prototype : ui);
+  const out = renderWithI18n(ReactPkg.createElement(DesignWorkspace, { root: "/work/current", suiteId: ui.id }));
+  await settle();
+  const badge = out.container.querySelector(".ui-design-vbadge");
+  assert.ok(badge);
+  assert.match(badge.textContent ?? "", /v1 · Ready/);
 });

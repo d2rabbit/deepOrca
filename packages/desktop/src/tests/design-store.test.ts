@@ -320,6 +320,72 @@ test("append ignores identical content and caps retained versions at 20 includin
   assert.equal(fs.readdirSync(path.join(suiteDir(root, initial.id), "versions")).length, 20);
 });
 
+test("appending past the cap deletes evictions last: the current version stays readable", () => {
+  const root = tempRoot();
+  const initial = createDesignSuite(root, { title: "Evict", kind: "prototype", content: { spec: "v0" } });
+  assert.ok(initial);
+  for (let i = 1; i <= 25; i += 1) {
+    assert.ok(appendDesignSuiteVersion(root, { suiteId: initial.id, content: { spec: `v${i}` } }));
+  }
+  const suite = readDesignSuite(root, initial.id);
+  assert.ok(suite, "suite readable after FIFO eviction");
+  assert.equal(suite?.versions.length, 20);
+  assert.equal((suite?.currentContent as PrototypeSuiteContent).spec, "v25");
+  // Every meta-listed version file exists (evictions were deleted last, after
+  // the meta/index persist — no dangling references, no orphans left behind).
+  const onDisk = new Set(
+    fs.readdirSync(path.join(suiteDir(root, initial.id), "versions")).map((name) => name.replace(/\.json$/, ""))
+  );
+  assert.equal(onDisk.size, 20);
+  assert.ok(suite?.versions.every((version) => onDisk.has(version.versionId)));
+});
+
+test("readDesignSuite drops a missing non-current version file; a missing current still nulls", () => {
+  const root = tempRoot();
+  const suite = createDesignSuite(root, { title: "Resilient", kind: "prototype", content: { spec: "v0" } });
+  assert.ok(suite);
+  assert.ok(appendDesignSuiteVersion(root, { suiteId: suite.id, content: { spec: "v1" } }));
+  assert.ok(appendDesignSuiteVersion(root, { suiteId: suite.id, content: { spec: "v2" } }));
+  const before = readDesignSuite(root, suite.id);
+  assert.equal(before?.versions.length, 3);
+
+  // Simulate a crash orphan: a non-current version file vanishes behind the
+  // store's back while meta.json still lists it.
+  const stale = before!.versions[0]!;
+  fs.rmSync(path.join(suiteDir(root, suite.id), "versions", `${stale.versionId}.json`), { force: true });
+  const resilient = readDesignSuite(root, suite.id);
+  assert.ok(resilient, "one missing non-current version must not null the whole suite");
+  assert.equal(resilient?.versions.length, 2);
+  assert.equal(resilient?.currentVersionId, before!.currentVersionId);
+  assert.equal((resilient?.currentContent as PrototypeSuiteContent).spec, "v2");
+
+  // The current version is the suite head — without its file the suite is
+  // unreadable and must stay null.
+  fs.rmSync(path.join(suiteDir(root, suite.id), "versions", `${resilient!.currentVersionId}.json`), { force: true });
+  assert.equal(readDesignSuite(root, suite.id), null);
+});
+
+test("index writes round-trip through the atomic temp+rename path", () => {
+  // The real torn-write race is covered by code review (a partial writeFileSync
+  // on the final path cannot be simulated portably here); what we pin is the
+  // observable contract: index content round-trips after updates and the
+  // atomic helper leaves no temp residue behind.
+  const root = tempRoot();
+  const meta = saveDesignArtifact(root, { title: "Atomic", pipeline: "openui", content: "v1" });
+  assert.ok(meta);
+  saveDesignArtifact(root, { id: meta!.id, title: "Atomic", pipeline: "openui", content: "v2" });
+  const listed = listDesignArtifacts(root);
+  assert.equal(listed.length, 1);
+  assert.equal(listed[0].id, meta!.id);
+  assert.equal(listed[0].title, "Atomic");
+  const raw = fs.readFileSync(path.join(root, ".deeporca", "designs", "index.json"), "utf8");
+  assert.ok(raw.includes("Atomic"));
+  assert.deepEqual(
+    fs.readdirSync(path.join(root, ".deeporca", "designs")).filter((f) => f.endsWith(".tmp")),
+    []
+  );
+});
+
 test("append removes stale current projection files", () => {
   const root = tempRoot();
   const initial = createDesignSuite(root, {

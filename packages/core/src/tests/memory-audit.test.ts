@@ -358,3 +358,25 @@ test("P1: recordDecisions with an unknown auditId fails cleanly", async () => {
   assert.equal(out.ok, false);
   assert.match(out.error ?? "", /snapshot not found/);
 });
+
+test("P1: the prompt's literal JSON template echoes back into a valid synthesis", async () => {
+  const home = tempDir("deeporca-ma-p1c-");
+  const workspace = tempDir("deeporca-ma-p1cws-");
+  setHomeDir(home);
+  seedTwoFailureSessions(path.join(home, ".deeporca", "projects", getProjectCode(workspace)));
+
+  const out = await memoryAuditRun(
+    { synthesize: true },
+    buildCtx2(workspace, async (m) => {
+      // A model echoing the prompt's "Respond with JSON only:" template
+      // verbatim must satisfy the validator (the template used to say
+      // "proosals" while the validator reads "proposals" — a literal echo
+      // could never validate).
+      const prompt = m[1]?.content ?? "";
+      return prompt.split("Respond with JSON only: ")[1] ?? "";
+    })
+  );
+  assert.equal(out.synthesis?.ok, true, "the echoed template must pass validation");
+  assert.equal(out.synthesis?.proposals.length, 1);
+  assert.deepEqual(out.synthesis?.proposals[0]?.evidenceIds, ["ev-0"]);
+});

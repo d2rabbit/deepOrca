@@ -294,3 +294,35 @@ test("a failing store-list IPC fails OPEN — the send is not wedged", async () 
   assert.equal(sends, 1, "validation failure must never block the send");
   assert.equal(container.querySelector(".ui-composer-dangling"), null);
 });
+
+test("a HUNG store-list IPC cannot wedge the composer — the deadline fails open, validatingRef clears", async () => {
+  let sends = 0;
+  // Never resolves AND never rejects: the pre-fix code awaited it bare and
+  // left validatingRef true forever (composer wedged silently).
+  stubOverrides.wikiListPages = (): Promise<never> => new Promise(() => {});
+  const { container } = renderComposer("请结合 @.deeporca/deepwiki/roadmap.md 的内容", {
+    onSend: () => {
+      sends += 1;
+    },
+  });
+  const ta = container.querySelector("textarea") as HTMLTextAreaElement;
+  ta.focus();
+  const pressEnter = async (waitMs: number): Promise<void> => {
+    await rtl.act(async () => {
+      rtl.fireEvent.keyDown(ta, { key: "Enter" });
+      await new Promise((r) => setTimeout(r, waitMs));
+    });
+  };
+  await pressEnter(0);
+  assert.equal(sends, 0, "validation is in flight (hung IPC) — no send yet");
+  // Past the ~1500ms deadline the race resolves to null → fail-open send.
+  await pressEnter(1700);
+  assert.equal(sends, 1, "the validation deadline resolves to null and the send proceeds (fail-open)");
+  assert.equal(container.querySelector(".ui-composer-dangling"), null, "fail-open shows no dangling warning");
+  // validatingRef must be CLEARED: with the store list healthy again, the
+  // next Enter re-validates instantly and sends — a stuck ref would swallow
+  // it at the `if (validatingRef.current) return` guard (sends stays 1).
+  stubOverrides.wikiListPages = async () => [{ path: ".deeporca/deepwiki/roadmap.md", title: "路线图" }];
+  await pressEnter(50);
+  assert.equal(sends, 2, "second send NOT blocked — validatingRef was cleared after the deadline");
+});
