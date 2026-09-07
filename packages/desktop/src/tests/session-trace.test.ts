@@ -120,13 +120,8 @@ test("session-trace: keeps ALL turns and never flags truncation (user ask 2026-0
     raws.push({ role: "assistant", content: `ok ${i}`, createTime: `2026-09-01T10:0${i}:30.000Z` });
   }
   const trace = normalizeSessionTrace("s1", "demo", raws.map((r, i) => msg(r, i)) as never);
-<<<<<<< HEAD
   assert.equal(trace.turns.length, 5, "all turns kept — the product decided to show the full trajectory");
   assert.ok(!trace.truncated, "truncation removed — field absent or false");
-=======
-  assert.equal(trace.turns.length, 5);
-  assert.equal(trace.truncated, undefined);
->>>>>>> origin/feat/modern-ui-redesign
   assert.match(trace.turns[0].user, /turn 1/);
   assert.match(trace.turns[4].user, /turn 5/);
 });

@@ -1563,27 +1563,6 @@ export const en = {
   "trust.applied.quarantine": "Quarantine enabled. Already-running project MCP servers stop after an app restart.",
   "sandbox.degradedToast": "Bash sandbox unavailable ({backend}): {detail}",
 
-  // ── Coord Chain ──────────────────────────────────────────
-  "rail.chain": "Chain Workspace",
-  "chain.pane.title": "Decentralized workspace",
-  "chain.pane.notRunning": "Sharing is off — start to join/create the theme chain.",
-  "chain.pane.start": "Start sharing",
-  "chain.pane.stop": "Stop",
-  "chain.pane.rotateKey": "Rotate device key",
-  "chain.pane.chainId": "Chain",
-  "chain.pane.anchorId": "Device anchor",
-  "chain.pane.anchorBound": "bound to this machine",
-  "chain.pane.anchorUnbound": "NOT bound to this machine (clone)",
-  "chain.pane.height": "Height",
-  "chain.pane.membersLabel": "Members",
-  "chain.pane.blocksLabel": "Blocks",
-  "chain.pane.genealogyLabel": "Task genealogy",
-  "chain.pane.noData": "(none)",
-  "chain.pane.error": "Chain operation failed:",
-  "chain.pane.device": "Device",
-
-  "chain.pane.records": "{n} records",
-} as const;
   // ── Design workspaces ─────────────────────────────────────
   "designWorkspace.currentRoot": "Current · {root}",
   "designWorkspace.versionHistory": "Version history",
@@ -1698,4 +1677,24 @@ export const en = {
   "prototypeWorkspace.quickReportOne": "Fix failed checks",
   "prototypeWorkspace.quickReportTwo": "Improve empty-state copy",
   "prototypeWorkspace.agentPrompt": "Describe changes…",
+  // ── Coord Chain (next/coord-chain) ─────────────────────
+  "rail.chain": "Chain Workspace",
+  "chain.pane.title": "Decentralized workspace",
+  "chain.pane.notRunning": "Sharing is off — start to join/create the theme chain.",
+  "chain.pane.start": "Start sharing",
+  "chain.pane.stop": "Stop",
+  "chain.pane.rotateKey": "Rotate device key",
+  "chain.pane.chainId": "Chain",
+  "chain.pane.anchorId": "Device anchor",
+  "chain.pane.anchorBound": "bound to this machine",
+  "chain.pane.anchorUnbound": "NOT bound to this machine (clone)",
+  "chain.pane.height": "Height",
+  "chain.pane.membersLabel": "Members",
+  "chain.pane.blocksLabel": "Blocks",
+  "chain.pane.genealogyLabel": "Task genealogy",
+  "chain.pane.noData": "(none)",
+  "chain.pane.error": "Chain operation failed:",
+  "chain.pane.device": "Device",
+  "chain.pane.records": "{n} records",
 } as const;
+

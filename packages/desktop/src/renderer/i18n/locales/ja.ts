@@ -1564,27 +1564,6 @@ export const ja: Record<MessageKey, string> = {
     "隔離モードを有効にしました。実行中のプロジェクト MCP サーバーはアプリ再起動後に停止します。",
   "sandbox.degradedToast": "Bash サンドボックス利用不可（{backend}）：{detail}",
 
-  // ── Coord Chain ──────────────────────────────────────────
-  "rail.chain": "チェーンワークスペース",
-  "chain.pane.title": "分散型ワークスペース",
-  "chain.pane.notRunning": "共有はオフです——テーマチェーンに参加/作成するには開始してください。",
-  "chain.pane.start": "共有を開始",
-  "chain.pane.stop": "停止",
-  "chain.pane.rotateKey": "デバイス鍵をローテーション",
-  "chain.pane.chainId": "チェーン",
-  "chain.pane.anchorId": "デバイスアンカー",
-  "chain.pane.anchorBound": "このマシンにバインド済み",
-  "chain.pane.anchorUnbound": "このマシンに未バインド（クローン）",
-  "chain.pane.height": "高さ",
-  "chain.pane.membersLabel": "メンバー",
-  "chain.pane.blocksLabel": "ブロック",
-  "chain.pane.genealogyLabel": "タスク系譜",
-  "chain.pane.noData": "（なし）",
-  "chain.pane.error": "チェーン操作に失敗：",
-  "chain.pane.device": "デバイス",
-
-  "chain.pane.records": "{n} 件のレコード",
-};
   // ── デザインワークスペース ────────────────────────────────
   "designWorkspace.currentRoot": "現在 · {root}",
   "designWorkspace.versionHistory": "バージョン履歴",
@@ -1699,4 +1678,24 @@ export const ja: Record<MessageKey, string> = {
   "prototypeWorkspace.quickReportOne": "不合格項目を修正",
   "prototypeWorkspace.quickReportTwo": "空状態の文言を改善",
   "prototypeWorkspace.agentPrompt": "変更内容を入力…",
+  // ── Coord Chain (next/coord-chain) ─────────────────────
+  "rail.chain": "チェーンワークスペース",
+  "chain.pane.title": "分散型ワークスペース",
+  "chain.pane.notRunning": "共有はオフです——テーマチェーンに参加/作成するには開始してください。",
+  "chain.pane.start": "共有を開始",
+  "chain.pane.stop": "停止",
+  "chain.pane.rotateKey": "デバイス鍵をローテーション",
+  "chain.pane.chainId": "チェーン",
+  "chain.pane.anchorId": "デバイスアンカー",
+  "chain.pane.anchorBound": "このマシンにバインド済み",
+  "chain.pane.anchorUnbound": "このマシンに未バインド（クローン）",
+  "chain.pane.height": "高さ",
+  "chain.pane.membersLabel": "メンバー",
+  "chain.pane.blocksLabel": "ブロック",
+  "chain.pane.genealogyLabel": "タスク系譜",
+  "chain.pane.noData": "（なし）",
+  "chain.pane.error": "チェーン操作に失敗：",
+  "chain.pane.device": "デバイス",
+  "chain.pane.records": "{n} 件のレコード",
 };
+

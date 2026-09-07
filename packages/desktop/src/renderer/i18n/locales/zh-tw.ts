@@ -1522,27 +1522,6 @@ export const zhTW: Record<MessageKey, string> = {
   "trust.applied.quarantine": "已啟用隔離模式。執行中的專案級 MCP 伺服器將在重新啟動應用後停用。",
   "sandbox.degradedToast": "Bash 沙箱不可用（{backend}）：{detail}",
 
-  // ── Coord Chain ──────────────────────────────────────────
-  "rail.chain": "作業鏈",
-  "chain.pane.title": "去中心化工作區",
-  "chain.pane.notRunning": "共享未開啟——啟動以加入/建立主題鏈。",
-  "chain.pane.start": "開啟共享",
-  "chain.pane.stop": "停止",
-  "chain.pane.rotateKey": "輪換設備密鑰",
-  "chain.pane.chainId": "鏈",
-  "chain.pane.anchorId": "設備錨點",
-  "chain.pane.anchorBound": "已綁定本機",
-  "chain.pane.anchorUnbound": "未綁定本機（克隆）",
-  "chain.pane.height": "高度",
-  "chain.pane.membersLabel": "成員",
-  "chain.pane.blocksLabel": "區塊",
-  "chain.pane.genealogyLabel": "任務譜系",
-  "chain.pane.noData": "（無）",
-  "chain.pane.error": "鏈操作失敗：",
-  "chain.pane.device": "設備",
-
-  "chain.pane.records": "{n} 條記錄",
-};
   // ── 設計工作區 ─────────────────────────────────────────────
   "designWorkspace.currentRoot": "目前 · {root}",
   "designWorkspace.versionHistory": "版本歷程",
@@ -1657,4 +1636,24 @@ export const zhTW: Record<MessageKey, string> = {
   "prototypeWorkspace.quickReportOne": "修正未通過項目",
   "prototypeWorkspace.quickReportTwo": "最佳化空狀態文案",
   "prototypeWorkspace.agentPrompt": "描述要修改的內容…",
+  // ── Coord Chain (next/coord-chain) ─────────────────────
+  "rail.chain": "作業鏈",
+  "chain.pane.title": "去中心化工作區",
+  "chain.pane.notRunning": "共享未開啟——啟動以加入/建立主題鏈。",
+  "chain.pane.start": "開啟共享",
+  "chain.pane.stop": "停止",
+  "chain.pane.rotateKey": "輪換設備密鑰",
+  "chain.pane.chainId": "鏈",
+  "chain.pane.anchorId": "設備錨點",
+  "chain.pane.anchorBound": "已綁定本機",
+  "chain.pane.anchorUnbound": "未綁定本機（克隆）",
+  "chain.pane.height": "高度",
+  "chain.pane.membersLabel": "成員",
+  "chain.pane.blocksLabel": "區塊",
+  "chain.pane.genealogyLabel": "任務譜系",
+  "chain.pane.noData": "（無）",
+  "chain.pane.error": "鏈操作失敗：",
+  "chain.pane.device": "設備",
+  "chain.pane.records": "{n} 條記錄",
 };
+
