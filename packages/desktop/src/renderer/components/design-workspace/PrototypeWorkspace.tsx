@@ -197,6 +197,32 @@ export function PrototypeWorkspace({
     [specTodos, confirmedSpecItems]
   );
 
+  /** Report grouping (mockup rp-file): checks clustered by their action's
+   *  namespace ("auth:submit" → "auth"); checks without an action land in
+   *  「通用」. Insertion-ordered so first appearance drives group order. */
+  const checkGroups = useMemo(() => {
+    const checks = content.verification?.checks ?? [];
+    const grouped = new Map<string, Array<(typeof checks)[number]>>();
+    for (const check of checks) {
+      const namespace = check.action?.split(":")[0]?.trim() || t("prototypeWorkspace.checkGroupOther");
+      const rows = grouped.get(namespace) ?? [];
+      rows.push(check);
+      grouped.set(namespace, rows);
+    }
+    return [...grouped.entries()].map(([namespace, checks]) => ({ namespace, checks }));
+  }, [content.verification, t]);
+  const failedCheckCount = (content.verification?.checks ?? []).filter((check) => check.status === "failed").length;
+
+  /** mockup ✦一键修复全部未过项：逐项派发修订（每次自愈生成一个新版本），
+   *  单项失败即停——错误已在工作区错误条可见。 */
+  const fixAllFailed = async (): Promise<void> => {
+    const failed = (content.verification?.checks ?? []).filter((check) => check.status === "failed");
+    for (const check of failed) {
+      const applied = await revise(check.observation ?? check.label);
+      if (!applied) break;
+    }
+  };
+
   /** Clearing the last pending item toasts the 定稿 state (mockup 待确认清零). */
   const hadPendingRef = useRef(false);
   useEffect(() => {
@@ -586,15 +612,38 @@ export function PrototypeWorkspace({
         {tab === "report" ? (
           <article className="ui-report-doc">
             <div className="ui-report-doc-head">
-              <h1>{t("prototypeWorkspace.reportTitle")}</h1>
-              <button
-                type="button"
-                className="ui-review-run-btn primary"
-                disabled={!content.openui || busy !== null || readOnly}
-                onClick={verify}
-              >
-                <IconRefresh /> {t("prototypeWorkspace.runWalkthrough")}
-              </button>
+              <h1>
+                {t("prototypeWorkspace.reportTitle")}
+                {suite ? ` — ${suite.title}` : ""}
+              </h1>
+              <div className="ui-design-doc-actions">
+                <button
+                  type="button"
+                  className="ui-review-run-btn primary"
+                  disabled={!content.openui || busy !== null || readOnly}
+                  onClick={verify}
+                >
+                  <IconRefresh /> {t("prototypeWorkspace.runWalkthrough")}
+                </button>
+                {failedCheckCount > 0 ? (
+                  <button
+                    type="button"
+                    className="ui-review-run-btn"
+                    disabled={readOnly || busy !== null}
+                    onClick={() => void fixAllFailed()}
+                  >
+                    <IconSparkle /> {t("prototypeWorkspace.fixAll")}
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  className="ui-review-run-btn"
+                  disabled={!suite || !selectedVersion || busy !== null}
+                  onClick={() => void exportVersion()}
+                >
+                  {t("designWorkspace.exportVersion")}
+                </button>
+              </div>
             </div>
             {selectedVersion ? (
               <div className="ui-report-meta">
@@ -602,6 +651,13 @@ export function PrototypeWorkspace({
                   version: versionLabel(suite?.versions, selectedVersion.versionId) ?? "-",
                   time: new Date(selectedVersion.savedAt).toLocaleString(),
                 })}
+                {content.verification ? (
+                  <>
+                    {" · "}
+                    {t("prototypeWorkspace.reportStatusLabel")}{" "}
+                    {t(`prototypeWorkspace.checkStatus.${content.verification.status}`)}
+                  </>
+                ) : null}
               </div>
             ) : null}
             <div className="trigger-card">
@@ -632,32 +688,50 @@ export function PrototypeWorkspace({
                     <span className="lbl">{t("prototypeWorkspace.reportHealRounds")}</span>
                   </div>
                 </div>
-                <section className="ui-report-file">
-                  {content.verification.checks.map((check) => (
-                    <div className="ui-report-finding" key={check.id}>
-                      <div className="head">
-                        <span className={`ui-design-status ${check.status}`}>
-                          {t(`prototypeWorkspace.checkStatus.${check.status}`)}
-                        </span>
-                        <strong>{check.label}</strong>
-                        {check.action ? <code className="loc">{check.action}</code> : null}
+                {/* mockup rp-file：按 action 命名空间分组（登录页/订单页/…），无 action 归「通用」。 */}
+                {checkGroups.map((group) => (
+                  <section className="ui-report-file" key={group.namespace}>
+                    <h2 className="ui-report-group-head">
+                      <code>{group.namespace}</code>
+                      <span>{group.checks.length}</span>
+                    </h2>
+                    {group.checks.map((check) => (
+                      <div className="ui-report-finding" key={check.id}>
+                        <div className="head">
+                          <span className={`ui-design-status ${check.status}`}>
+                            {t(`prototypeWorkspace.checkStatus.${check.status}`)}
+                          </span>
+                          <strong>{check.label}</strong>
+                          {check.action ? <code className="loc">{check.action}</code> : null}
+                        </div>
+                        {check.observation ? <div className="body">{check.observation}</div> : null}
+                        {check.status === "failed" ? (
+                          <button
+                            type="button"
+                            disabled={readOnly || busy !== null}
+                            onClick={() => void revise(check.observation ?? check.label)}
+                          >
+                            <IconSparkle /> {t("prototypeWorkspace.fixFinding")}
+                          </button>
+                        ) : null}
                       </div>
-                      {check.observation ? <div className="body">{check.observation}</div> : null}
-                      {check.status === "failed" ? (
-                        <button
-                          type="button"
-                          disabled={readOnly || busy !== null}
-                          onClick={() => void revise(check.observation ?? check.label)}
-                        >
-                          <IconSparkle /> {t("prototypeWorkspace.fixFinding")}
-                        </button>
-                      ) : null}
-                    </div>
-                  ))}
-                </section>
+                    ))}
+                  </section>
+                ))}
               </>
             ) : (
-              <div className="ui-report-empty">{t("prototypeWorkspace.noReport")}</div>
+              <div className="ui-report-empty-state">
+                <p>{t("prototypeWorkspace.noReport")}</p>
+                <button
+                  type="button"
+                  className="primary"
+                  disabled={!content.openui || busy !== null || readOnly}
+                  onClick={verify}
+                >
+                  <IconRefresh /> {t("prototypeWorkspace.runWalkthrough")}
+                </button>
+                {!content.openui ? <small>{t("prototypeWorkspace.reportNeedsPrototype")}</small> : null}
+              </div>
             )}
             {onQuoteToChat && content.verification ? (
               <button

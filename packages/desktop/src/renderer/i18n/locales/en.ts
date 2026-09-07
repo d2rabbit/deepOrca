@@ -1742,4 +1742,9 @@ export const en = {
     "Describe the revision — I apply it via a silent subagent and cut a new version (never in the main session).",
   "prototypeWorkspace.agentFailed": "Revision not applied — check the workspace error hint and retry.",
   "prototypeWorkspace.agentTyping": "agent is responding (silent subagent)…",
+  "prototypeWorkspace.fixAll": "Fix all failed items",
+  "prototypeWorkspace.reportNeedsPrototype":
+    "Generate the interactive prototype first, then run the acceptance walkthrough.",
+  "prototypeWorkspace.reportStatusLabel": "Status:",
+  "prototypeWorkspace.checkGroupOther": "general",
 } as const;

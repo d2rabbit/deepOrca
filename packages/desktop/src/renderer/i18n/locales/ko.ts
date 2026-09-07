@@ -1735,4 +1735,8 @@ export const ko: Record<MessageKey, string> = {
     "수정 내용을 말씀하세요 — 자동(사일런트) 서브에이전트로 적용하고 새 버전을 만듭니다(메인 세션에 기록되지 않음).",
   "prototypeWorkspace.agentFailed": "수정이 적용되지 않았습니다 — 워크스페이스 오류 안내를 확인 후 다시 시도하세요.",
   "prototypeWorkspace.agentTyping": "agent 응답 중(사일런트 서브에이전트)…",
+  "prototypeWorkspace.fixAll": "미통과 항목 일괄 수정",
+  "prototypeWorkspace.reportNeedsPrototype": "먼저 인터랙티브 프로토타입을 생성한 뒤 수용 워크스루를 실행하세요.",
+  "prototypeWorkspace.reportStatusLabel": "상태:",
+  "prototypeWorkspace.checkGroupOther": "일반",
 };

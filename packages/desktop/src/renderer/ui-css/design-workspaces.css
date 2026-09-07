@@ -1522,6 +1522,81 @@
   background: color-mix(in srgb, var(--ui-accent) 88%, var(--ui-text-on-accent));
 }
 
+/* ── 验收报告（mockup report-doc）：空态引导卡 + 分组组头 + action 右对齐 ── */
+.ui-report-empty-state {
+  display: grid;
+  min-height: 220px;
+  place-content: center;
+  justify-items: center;
+  gap: 12px;
+  margin: 16px 0;
+  padding: 32px;
+  border: 1px dashed var(--ui-border);
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-surface-raised);
+  color: var(--ui-text-faint);
+  font-size: 12.5px;
+  text-align: center;
+}
+
+.ui-report-empty-state p {
+  margin: 0;
+}
+
+.ui-report-empty-state small {
+  color: var(--ui-text-faint);
+  font-size: 11px;
+}
+
+.ui-report-empty-state button.primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 5px 16px;
+  border: 1px solid var(--ui-accent);
+  border-radius: var(--ui-radius-pill);
+  background: var(--ui-accent);
+  color: var(--ui-text-on-accent);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.ui-report-empty-state button.primary:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.ui-report-group-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 14px 0 8px;
+  font-size: 13px;
+}
+
+.ui-report-group-head:first-child {
+  margin-top: 0;
+}
+
+.ui-report-group-head code {
+  color: var(--ui-text);
+  font-family: var(--ui-font-mono);
+  font-weight: 600;
+}
+
+.ui-report-group-head span {
+  padding: 0 7px;
+  border: 1px solid var(--ui-border-soft);
+  border-radius: 99px;
+  color: var(--ui-text-faint);
+  font-size: 10px;
+}
+
+.ui-report-finding .head .loc {
+  margin-left: auto;
+}
+
 .ui-prototype-panel-body.selection-enabled [data-act]:hover::after {
   position: absolute;
   z-index: 6;

@@ -1696,4 +1696,8 @@ export const zh: Record<MessageKey, string> = {
   "prototypeWorkspace.agentWelcome": "描述要修订的内容，我会以静默子代理应用并生成新版本（不入主会话）。",
   "prototypeWorkspace.agentFailed": "修订未完成 — 请查看工作区错误提示后重试。",
   "prototypeWorkspace.agentTyping": "agent 正在响应（静默子代理）…",
+  "prototypeWorkspace.fixAll": "一键修复全部未过项",
+  "prototypeWorkspace.reportNeedsPrototype": "先生成交互原型，再运行验收走查。",
+  "prototypeWorkspace.reportStatusLabel": "状态：",
+  "prototypeWorkspace.checkGroupOther": "通用",
 };

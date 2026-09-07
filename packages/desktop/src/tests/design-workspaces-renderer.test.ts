@@ -239,13 +239,16 @@ test("prototype workspace runs spec, materialize and verify with suite version p
   call = stub.calls.find((item) => item.method === "actionRun" && item.args[0] === "prototype.materialize");
   assert.deepEqual(call?.args[1], { root: "/work/current", suiteId: prototype.id, versionId: "latest" });
   rtl.fireEvent.click(out.getByRole("tab", { name: "Acceptance report" }));
-  rtl.fireEvent.click(out.getByText("Run acceptance walkthrough"));
+  rtl.fireEvent.click(out.getAllByText("Run acceptance walkthrough")[0]);
   await settle();
   call = stub.calls.find((item) => item.method === "actionRun" && item.args[0] === "prototype.verify");
   assert.deepEqual(call?.args[1], { root: "/work/current", suiteId: prototype.id, versionId: "latest" });
   rtl.fireEvent.click(out.container.querySelector('[data-version-id="old"]') as Element);
   await settle();
-  assert.equal((out.getByText("Run acceptance walkthrough") as HTMLButtonElement).disabled, true);
+  // Old version → empty report state: header CTA + empty-state CTA, both locked.
+  const walkthroughButtons = out.getAllByText("Run acceptance walkthrough") as HTMLButtonElement[];
+  assert.ok(walkthroughButtons.length >= 2);
+  assert.ok(walkthroughButtons.every((button) => button.disabled));
 });
 
 test("design workspace requires a concrete prototype version, exposes nine systems, and sends linked materialize params", async () => {
@@ -513,7 +516,10 @@ test("deep link initialTab opens the workspace on the requested segment", async 
   );
   await settle();
   assert.equal(out.getByRole("tab", { name: "Acceptance report" }).getAttribute("aria-selected"), "true");
-  assert.ok(out.getByText("Run acceptance walkthrough"));
+  // Empty state: the walkthrough CTA exists in BOTH the doc head and the
+  // empty-state card (mockup rp-actions) — two matches are correct here.
+  assert.ok(out.getAllByText("Run acceptance walkthrough").length >= 2);
+  assert.ok(out.container.querySelector(".ui-report-empty-state"));
 });
 
 test("floating agent surfaces the conversation body, typing state and the ack bubble", async () => {

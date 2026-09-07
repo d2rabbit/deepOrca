@@ -1699,4 +1699,8 @@ export const zhTW: Record<MessageKey, string> = {
   "prototypeWorkspace.agentWelcome": "描述要修訂的內容，我會以靜默子代理套用並產生新版本（不入主會話）。",
   "prototypeWorkspace.agentFailed": "修訂未完成 — 請查看工作區錯誤提示後重試。",
   "prototypeWorkspace.agentTyping": "agent 正在回應（靜默子代理）…",
+  "prototypeWorkspace.fixAll": "一鍵修復全部未過項",
+  "prototypeWorkspace.reportNeedsPrototype": "先產生互動原型，再執行驗收走查。",
+  "prototypeWorkspace.reportStatusLabel": "狀態：",
+  "prototypeWorkspace.checkGroupOther": "通用",
 };

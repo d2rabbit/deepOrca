@@ -1744,4 +1744,9 @@ export const ja: Record<MessageKey, string> = {
   "prototypeWorkspace.agentFailed":
     "修正を適用できませんでした — ワークスペースのエラー表示を確認して再試行してください。",
   "prototypeWorkspace.agentTyping": "agent が応答中（サイレントサブエージェント）…",
+  "prototypeWorkspace.fixAll": "未合格項を一括修正",
+  "prototypeWorkspace.reportNeedsPrototype":
+    "先にインタラクティブプロトタイプを生成してから、受け入れウォークスルーを実行してください。",
+  "prototypeWorkspace.reportStatusLabel": "状態：",
+  "prototypeWorkspace.checkGroupOther": "一般",
 };
