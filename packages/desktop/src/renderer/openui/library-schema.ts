@@ -19,7 +19,12 @@ import { z } from "zod/v4";
 
 const childrenSchema = z.array(z.unknown()).optional().describe("Child elements to render inside");
 
-const actionSchema = z.string().optional().describe("Action name fired on interaction (e.g. 'submit:login')");
+const actionSchema = z
+  .string()
+  .optional()
+  .describe(
+    'Click behavior: an Action([@steps...]) expression, e.g. Action([@Set($page, "orders")]) — or a plain action name like "submit:login"'
+  );
 
 // ── Component definitions ────────────────────────────────────────────────────
 

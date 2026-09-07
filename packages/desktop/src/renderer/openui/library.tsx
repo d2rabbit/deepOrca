@@ -163,7 +163,17 @@ function ButtonComponent({ props }: ComponentRenderProps<Record<string, unknown>
       style={variants[variant] ?? variants.primary}
       onClick={() => {
         if (props.disabled) return;
-        if (props.action) triggerAction(props.action as string);
+        const action = props.action;
+        if (typeof action === "string") {
+          // Plain action name (e.g. "submit:login") — label carries the message.
+          triggerAction(action);
+        } else if (action && typeof action === "object") {
+          // Action([...]) evaluated to a {steps} plan. The Renderer executes
+          // the steps (@Set/@Reset/@Run/…) only when the plan arrives as the
+          // THIRD argument — passing it first would degrade the click to a
+          // ContinueConversation message and leave $page state untouched.
+          triggerAction(props.label as string, undefined, action);
+        }
       }}
     >
       {props.label as string}
