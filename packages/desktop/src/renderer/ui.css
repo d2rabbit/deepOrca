@@ -46,6 +46,9 @@
 /* Wiki reading shell & typography · arch maps · artifact pager · drill rail */
 @import url("./ui-css/wiki-reading.css");
 
+/* Prototype and UI design workspaces: directory, version rail, preview selection, reports */
+@import url("./ui-css/design-workspaces.css");
+
 /* Risk board — the review tab's flat risk map (chips, groups, popover) */
 @import url("./ui-css/risk-board.css");
 

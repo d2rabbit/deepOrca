@@ -48,6 +48,12 @@ import {
   bentoCreateRun,
   designMaterializeDefinition,
   designMaterializeRun,
+  designLintDefinition,
+  designLintRun,
+  designReviewDefinition,
+  designReviewRun,
+  designReviseDefinition,
+  designReviseRun,
   designExtractDefinition,
   designExtractRun,
   designDriftDefinition,
@@ -62,6 +68,10 @@ import {
   prototypeSpecRun,
   prototypeMaterializeDefinition,
   prototypeMaterializeRun,
+  prototypeVerifyDefinition,
+  prototypeVerifyRun,
+  prototypeReviseDefinition,
+  prototypeReviseRun,
   taskCreateDefinition,
   taskCreateRun,
   taskStepDefinition,
@@ -444,6 +454,9 @@ export abstract class SessionManagerBase {
     this.actionRegistry.register(bentoCreateDefinition, bentoCreateRun);
     // ── Designer — one-click requirement materialization ────────────────────
     this.actionRegistry.register(designMaterializeDefinition, designMaterializeRun);
+    this.actionRegistry.register(designLintDefinition, designLintRun);
+    this.actionRegistry.register(designReviewDefinition, designReviewRun);
+    this.actionRegistry.register(designReviseDefinition, designReviseRun);
     // ── Designer — dembrandt brand ingestion (design.extract / design.drift;
     // pinned npx CLI via ctx.spawner, deterministic, no LLM) ────────────────
     this.actionRegistry.register(designExtractDefinition, designExtractRun);
@@ -461,6 +474,8 @@ export abstract class SessionManagerBase {
     // two explicit steps, no auto-routing (real-machine feedback) ──────────
     this.actionRegistry.register(prototypeSpecDefinition, prototypeSpecRun);
     this.actionRegistry.register(prototypeMaterializeDefinition, prototypeMaterializeRun);
+    this.actionRegistry.register(prototypeVerifyDefinition, prototypeVerifyRun);
+    this.actionRegistry.register(prototypeReviseDefinition, prototypeReviseRun);
     // ── Phase 3: task trajectory actions (specs/task-tree P0) ────────────────
     // The tree service is the single writer of .deeporca/task-trees/** and is
     // exposed to actions via the context (accept-dependencies rule).

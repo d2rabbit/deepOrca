@@ -227,7 +227,11 @@ test("tokens-summary: legacy migration backfills once, then is a no-op", async (
 test("tokens-summary: migration after a native request imports legacy without duplicating ledgered sessions", async () => {
   const root = await fsp.mkdtemp(path.join(os.tmpdir(), "toksum7-"));
   try {
-    const now = Date.now();
+    // Fixed mid-week instant (summary receives the same `now`): relative
+    // offsets stay inside the week window no matter when the suite runs —
+    // a real-clock Sunday-midnight run used to drop the 1h-old record into
+    // last week and under-count thisWeek.reqs.
+    const now = new Date("2026-09-02T12:00:00.000Z").getTime();
     const file = await makeIndex(root, [
       {
         // Pre-rework session: totals in the index, no ledger records of its own.

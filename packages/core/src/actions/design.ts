@@ -3,7 +3,7 @@
  * real-machine feedback: one auto-routed "一句话→原型" flow was wrong for
  * both disciplines). UI/UX design takes a requirement (a single sentence is
  * fine) and/or an existing PROTOTYPE artifact as the interaction basis, and
- * produces a .dd design document via the deep-design skill / render_design.
+ * produces an OpenUI Lang program via the deep-design skill / render_openui.
  * Prototype generation now lives in the prototype.* module
  * (spec → prototype, see actions/prototype.ts).
  *
@@ -24,26 +24,53 @@ import { randomUUID } from "node:crypto";
 import type { ActionContext, ActionDefinition, ActionRun } from "./types";
 import { validateDembrandtTargetUrl } from "../common/dembrandt";
 import { runDembrandtProcess } from "../common/dembrandt-runner";
-import { readArtifactFile } from "./prototype";
+import { getExtensionRoot } from "../prompt";
+import { executeA2ui, extractGeneratedBody, readArtifactFile, readSuiteVersion } from "./prototype";
+import type { ArtifactRef, UiSuiteContent } from "./prototype";
 
 export interface DesignMaterializeInput {
-  /** The design requirement — a single sentence is fine (deep-design expands). */
   requirement?: string;
-  /**
-   * Optional prototype artifact id (pipeline "openui"): the UI/UX design must
-   * cover the prototype's pages/flows — the prototype is the interaction
-   * basis, the .dd elevates it to visual design.
-   */
   prototypeArtifactId?: string;
+  prototypeSuiteId?: string;
+  prototypeVersionId?: string;
+  designSystemId?: string;
+  suiteId?: string;
+  versionId?: string;
+  note?: string;
 }
 
 export interface DesignMaterializeOutput {
   ok: boolean;
   pipeline?: string;
-  /** null when the artifact reference can't be resolved — the panels list
-   * designs/ as the source of truth (auto-refreshed via design-store events). */
   artifactId?: string | null;
+  artifactRef?: ArtifactRef;
+  refreshStore?: boolean;
   error?: string;
+}
+
+const DESIGN_SYSTEM_IDS = [
+  "brutalist-contrast",
+  "dark-tech",
+  "editorial",
+  "glass-morphism",
+  "modern-minimal",
+  "soft-neumorphic",
+  "swiss-international",
+  "terminal-mono",
+  "warm-handcrafted",
+] as const;
+
+function readDesignSystem(id: string): string | null {
+  if (!(DESIGN_SYSTEM_IDS as readonly string[]).includes(id)) return null;
+  const root = path.resolve(getExtensionRoot(), "templates", "design", "systems");
+  const target = path.resolve(root, `${id}.md`);
+  if (!target.startsWith(root + path.sep)) return null;
+  try {
+    const content = fs.readFileSync(target, "utf8").trim();
+    return content || null;
+  } catch {
+    return null;
+  }
 }
 
 export const designMaterializeDefinition: ActionDefinition<DesignMaterializeInput> = {
@@ -63,8 +90,14 @@ export const designMaterializeDefinition: ActionDefinition<DesignMaterializeInpu
       },
       prototypeArtifactId: {
         type: "string",
-        description: "Optional prototype artifact id — design the UI/UX on top of that prototype",
+        description: "Legacy prototype artifact id",
       },
+      prototypeSuiteId: { type: "string", description: "Prototype suite id used as the interaction source" },
+      prototypeVersionId: { type: "string", description: "Immutable prototype suite version" },
+      designSystemId: { type: "string", enum: [...DESIGN_SYSTEM_IDS], description: "One bundled design system" },
+      suiteId: { type: "string", description: "Existing UI suite to append" },
+      versionId: { type: "string", description: "Existing UI suite base version" },
+      note: { type: "string", description: "Optional version note" },
     },
     additionalProperties: false,
   },
@@ -74,77 +107,423 @@ export const designMaterializeDefinition: ActionDefinition<DesignMaterializeInpu
 export const designMaterializeRun: ActionRun<DesignMaterializeInput, DesignMaterializeOutput> = async (input, ctx) => {
   const requirement = input?.requirement?.trim();
   const prototypeId = input?.prototypeArtifactId?.trim();
-  if (!requirement && !prototypeId) {
-    return { ok: false, error: "requirement or prototypeArtifactId is required" };
+  const prototypeSuiteId = input?.prototypeSuiteId?.trim();
+  const prototypeVersionId = input?.prototypeVersionId?.trim();
+  const designSystemId = input?.designSystemId?.trim() || "dark-tech";
+  const suiteId = input?.suiteId?.trim();
+  const versionId = input?.versionId?.trim();
+  if (!requirement && !prototypeId && !prototypeSuiteId) {
+    return { ok: false, error: "requirement, prototypeArtifactId, or prototypeSuiteId is required" };
   }
-  if (!ctx.runSubagent) {
-    return { ok: false, error: "runSubagent not available — the design subagent channel must be wired" };
+  if ((prototypeSuiteId && !prototypeVersionId) || (!prototypeSuiteId && prototypeVersionId)) {
+    return { ok: false, error: "prototypeSuiteId and prototypeVersionId must be provided together" };
   }
+  if ((suiteId && !versionId) || (!suiteId && versionId)) {
+    return { ok: false, error: "suiteId and versionId must be provided together" };
+  }
+  if (!designSystemId) return { ok: false, error: "designSystemId is required for suite v2 materialization" };
+  const designSystem = readDesignSystem(designSystemId);
+  if (!designSystem) return { ok: false, error: `unknown or unavailable design system: ${designSystemId}` };
+  if (!ctx.runSubagent) return { ok: false, error: "runSubagent not available" };
 
   let prototypeContent: string | null = null;
-  if (prototypeId) {
-    ctx.emit({ message: "📄 读取原型…", percent: 20 });
-    prototypeContent = readArtifactFile(ctx.projectRoot, prototypeId, "prototype.openui.txt");
-    if (!prototypeContent) {
-      return { ok: false, error: `prototype artifact not found for id "${prototypeId}"` };
+  let sourcePrototype: { suiteId: string; versionId: string } | undefined;
+  if (prototypeSuiteId && prototypeVersionId) {
+    const read = await readSuiteVersion(ctx, prototypeSuiteId, prototypeVersionId);
+    if (!read.ok) return read;
+    if (read.value.artifactRef.kind !== "prototype")
+      return { ok: false, error: "source suite is not a prototype suite" };
+    prototypeContent = "openui" in read.value.content ? read.value.content.openui?.trim() || null : null;
+    if (!requirement && "requirement" in read.value.content) {
+      input.requirement = read.value.content.requirement;
     }
+    sourcePrototype = { suiteId: prototypeSuiteId, versionId: prototypeVersionId };
+    if (!prototypeContent) return { ok: false, error: "selected prototype suite version has no OpenUI content" };
+  } else if (prototypeId) {
+    prototypeContent = readArtifactFile(ctx.projectRoot, prototypeId, "prototype.openui.txt");
+    if (!prototypeContent) return { ok: false, error: `prototype artifact not found for id "${prototypeId}"` };
   }
 
-  ctx.emit({ message: "🎨 正在生成 UI/UX 设计稿…", percent: 50 });
-
-  const promptParts: string[] = [];
-  if (requirement) {
-    promptParts.push(`Create a .dd design document for: ${requirement}. Pick the best design system.`);
-  } else {
-    promptParts.push("Create a .dd design document elevating the prototype below into a polished UI/UX design.");
-  }
+  ctx.emit({ message: "Generating UI design from the selected prototype and design system", percent: 50 });
+  const promptParts = [
+    requirement
+      ? `Create a complete OpenUI Lang program for this requirement: ${requirement}`
+      : "Create a complete OpenUI Lang program elevating the selected prototype.",
+    `Use this bundled design system exactly. Its complete source is included below:\n\n${designSystem}`,
+  ];
   if (prototypeContent) {
-    promptParts.push(
-      "The prototype's pages and flows are the interaction basis — the design must cover them all:\n\n" +
-        "--- 原型 (OpenUI Lang) ---\n" +
-        prototypeContent +
-        "\n--- 原型结束 ---"
-    );
+    promptParts.push(`Cover every page and flow in this OpenUI prototype:\n\n${prototypeContent}`);
   }
-  promptParts.push("Call the render_design tool with the complete .dd document.");
+  promptParts.push("Do not call tools. Return only the complete OpenUI Lang program in one openui code fence.");
 
   try {
-    await ctx.runSubagent({
-      skill: "deep-design",
-      prompt: promptParts.join("\n\n"),
-      silent: true,
+    const generated = await ctx.runSubagent({ skill: "deep-design", prompt: promptParts.join("\n\n"), silent: true });
+    const content = extractGeneratedBody(generated);
+    if (!content) return { ok: false, error: "deep-design returned no OpenUI program" };
+    const saved = await executeA2ui(ctx, "render_openui", {
+      code: content,
+      requirement: requirement ?? input.requirement,
+      designSystemId,
+      ...(sourcePrototype ? { sourcePrototype } : {}),
+      ...(suiteId ? { suiteId, versionId } : {}),
+      ...(input.note?.trim() ? { note: input.note.trim() } : {}),
     });
-    ctx.emit({ message: "✅ UI 设计稿已生成", percent: 100 });
-    // Task-tree integration: when the session is bound to a task branch, the
-    // materialized design becomes a step on that branch — requirement changes
-    // then read as forks, not reruns.
+    if (!saved.ok) return saved;
+    ctx.emit({ message: "UI design suite version saved", percent: 100 });
     try {
       const sessionId = ctx.activeSessionId?.();
       const ref = sessionId ? ctx.getSessionTaskRef?.(sessionId) : undefined;
       if (ref) {
-        const svc = ctx.taskTrees?.();
-        // Land on the session's BOUND branch — the tree's global active
-        // branch may have been moved by another session or a manual switch.
-        svc?.switchBranch(ref.treeId, ref.branch);
-        svc?.appendStep(ref.treeId, {
-          title: `UI design materialized: ${(requirement ?? prototypeId ?? "").slice(0, 80)}`,
-          why: "design.materialize produced a design artifact for this branch.",
+        const service = ctx.taskTrees?.();
+        service?.switchBranch(ref.treeId, ref.branch);
+        service?.appendStep(ref.treeId, {
+          title: `UI design materialized: ${(requirement ?? prototypeId ?? prototypeSuiteId ?? "").slice(0, 80)}`,
+          why: "design.materialize produced a versioned UI design.",
         });
       }
     } catch {
-      // Best-effort — the materialize result stands without the tree step.
+      // Task lineage is best-effort.
     }
     return {
       ok: true,
       pipeline: "design",
-      // runSubagent returns only the last text message — not a stable artifact
-      // reference. The panels list designs/ as the source of truth (refreshed
-      // via design-store change events) instead of guessing an id here.
       artifactId: null,
+      artifactRef: saved.artifactRef,
+      refreshStore: !saved.artifactRef,
     };
-  } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) };
   }
+};
+
+// ── design.lint / design.review / design.revise — suite v2 quality loop ────────
+
+interface StoredLintFinding {
+  id: string;
+  preset: string;
+  ruleId: string;
+  severity: "info" | "warning" | "error";
+  nodePath: string;
+  message: string;
+  suggestion?: string;
+}
+
+interface DesignQualityReview {
+  status: "pending" | "passed" | "failed";
+  composite: number;
+  rounds: number;
+  evidence: Record<string, unknown>;
+}
+
+interface DesignQuality {
+  lintFindings: StoredLintFinding[];
+  runtimeChecks: Array<{ id: string; label: string; status: "pending" | "passed" | "failed"; value?: unknown }>;
+  review?: DesignQualityReview;
+}
+
+interface SuiteActionInput {
+  suiteId: string;
+  versionId: string;
+  note?: string;
+}
+
+interface SuiteActionOutput {
+  ok: boolean;
+  artifactRef?: ArtifactRef;
+  refreshStore?: boolean;
+  error?: string;
+}
+
+function uiContent(value: unknown): UiSuiteContent | null {
+  return typeof value === "object" && value !== null ? (value as UiSuiteContent) : null;
+}
+
+function parseJsonValue(text: string): unknown {
+  const fenced = text.match(/```(?:json)?\s*\n([\s\S]*?)```/i)?.[1] ?? text;
+  return JSON.parse(fenced.trim()) as unknown;
+}
+
+function currentQuality(content: UiSuiteContent): DesignQuality {
+  const value = content.quality;
+  if (value && typeof value === "object") {
+    const quality = value as unknown as Partial<DesignQuality>;
+    return {
+      lintFindings: Array.isArray(quality.lintFindings) ? quality.lintFindings : [],
+      runtimeChecks: Array.isArray(quality.runtimeChecks) ? quality.runtimeChecks : [],
+      ...(quality.review ? { review: quality.review } : {}),
+    };
+  }
+  return { lintFindings: [], runtimeChecks: [] };
+}
+
+/** Deterministic static rules over an OpenUI Lang program (no browser, no LLM). */
+function lintOpenuiDocument(code: string): StoredLintFinding[] {
+  const findings: StoredLintFinding[] = [];
+  const push = (ruleId: string, severity: StoredLintFinding["severity"], message: string, line: string) => {
+    const semantic = line.match(/(?:data-sem|data-semantic-id|id)="([^"]+)"/);
+    findings.push({
+      id: `${ruleId}-${findings.length + 1}`,
+      preset: "openui-static",
+      ruleId,
+      severity,
+      nodePath: semantic ? semantic[1] : "document",
+      message,
+    });
+  };
+  code.split("\n").forEach((line, index) => {
+    if (/#[0-9a-fA-F]{3,8}\b/.test(line)) {
+      push(
+        "hardcoded-color",
+        "warning",
+        `Line ${index + 1}: hardcoded color literal; reference design tokens instead.`,
+        line
+      );
+    }
+    const sizeMatch = line.match(/font-size:\s*(\d+(?:\.\d+)?)px/);
+    if (sizeMatch && Number(sizeMatch[1]) < 12) {
+      push(
+        "tiny-font",
+        "warning",
+        `Line ${index + 1}: font-size ${sizeMatch[1]}px is below the 12px accessibility floor.`,
+        line
+      );
+    }
+    const emoji = line.match(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u);
+    if (emoji) {
+      push("emoji-glyph", "info", `Line ${index + 1}: emoji glyph "${emoji[0]}" in UI copy; prefer icon assets.`, line);
+    }
+  });
+  return findings;
+}
+
+export const designLintDefinition: ActionDefinition<SuiteActionInput> = {
+  id: "design.lint",
+  description:
+    "Run deterministic static OpenUI rules over one UI suite version and persist quality.lintFindings. No browser testing is claimed.",
+  category: "design",
+  parameters: {
+    type: "object",
+    properties: {
+      suiteId: { type: "string" },
+      versionId: { type: "string" },
+      note: { type: "string" },
+    },
+    required: ["suiteId", "versionId"],
+    additionalProperties: false,
+  },
+  sideEffects: ["write-in-cwd"],
+};
+
+export interface DesignLintOutput extends SuiteActionOutput {
+  findings?: StoredLintFinding[];
+}
+
+export const designLintRun: ActionRun<SuiteActionInput, DesignLintOutput> = async (input, ctx) => {
+  const suiteId = input?.suiteId?.trim();
+  const versionId = input?.versionId?.trim();
+  if (!suiteId || !versionId) return { ok: false, error: "suiteId and versionId are required" };
+  const read = await readSuiteVersion(ctx, suiteId, versionId);
+  if (!read.ok) return read;
+  if (read.value.artifactRef.kind !== "ui") return { ok: false, error: "suite is not a UI suite" };
+  const content = uiContent(read.value.content);
+  const openui = content?.openui?.trim();
+  if (!content || !openui) return { ok: false, error: "selected UI suite version has no OpenUI design" };
+  const findings = lintOpenuiDocument(openui);
+  const quality = { ...currentQuality(content), lintFindings: findings };
+  const saved = await executeA2ui(ctx, "save_suite_result", {
+    suiteId,
+    versionId,
+    quality,
+    note: input.note?.trim() || "deterministic OpenUI static lint",
+  });
+  return saved.ok
+    ? { ok: true, artifactRef: saved.artifactRef, findings, refreshStore: !saved.artifactRef }
+    : { ok: false, error: saved.error };
+};
+
+export interface DesignReviewInput extends SuiteActionInput {
+  focus?: string;
+}
+
+export interface DesignReviewOutput extends SuiteActionOutput {
+  review?: DesignQualityReview;
+}
+
+export const designReviewDefinition: ActionDefinition<DesignReviewInput> = {
+  id: "design.review",
+  description:
+    "Opt-in single-round LLM review of a selected UI suite version. Persists a schema-validated evidence review with rounds=1.",
+  category: "design",
+  parameters: {
+    type: "object",
+    properties: {
+      suiteId: { type: "string" },
+      versionId: { type: "string" },
+      focus: { type: "string" },
+      note: { type: "string" },
+    },
+    required: ["suiteId", "versionId"],
+    additionalProperties: false,
+  },
+  sideEffects: ["write-in-cwd"],
+};
+
+function validateReview(value: unknown): DesignQualityReview | null {
+  if (!value || typeof value !== "object") return null;
+  const record = value as Record<string, unknown>;
+  if ((record.status !== "passed" && record.status !== "failed") || typeof record.composite !== "number") return null;
+  if (!Number.isFinite(record.composite) || record.composite < 0 || record.composite > 1) return null;
+  if (!record.evidence || typeof record.evidence !== "object" || Array.isArray(record.evidence)) return null;
+  return {
+    status: record.status,
+    composite: record.composite,
+    rounds: 1,
+    evidence: record.evidence as Record<string, unknown>,
+  };
+}
+
+export const designReviewRun: ActionRun<DesignReviewInput, DesignReviewOutput> = async (input, ctx) => {
+  const suiteId = input?.suiteId?.trim();
+  const versionId = input?.versionId?.trim();
+  if (!suiteId || !versionId) return { ok: false, error: "suiteId and versionId are required" };
+  if (!ctx.runSubagent) return { ok: false, error: "runSubagent not available" };
+  const read = await readSuiteVersion(ctx, suiteId, versionId);
+  if (!read.ok) return read;
+  if (read.value.artifactRef.kind !== "ui") return { ok: false, error: "suite is not a UI suite" };
+  const content = uiContent(read.value.content);
+  if (!content?.openui?.trim()) return { ok: false, error: "selected UI suite version has no OpenUI design" };
+  const quality = currentQuality(content);
+  const reviewed = await ctx.runSubagent({
+    skill: "deep-design",
+    prompt:
+      "Review the OpenUI design and existing deterministic quality below. This is one text-only review round; do not " +
+      "claim browser or runtime checks. Return only JSON with status ('passed' or 'failed'), composite (0..1), and " +
+      "evidence (an object containing concrete quoted selectors/tokens/sections and observations)." +
+      (input.focus?.trim() ? ` Focus: ${input.focus.trim()}.` : "") +
+      `\n\nDESIGN:\n${content.openui}\n\nQUALITY:\n${JSON.stringify(quality)}`,
+    silent: true,
+  });
+  const text = extractGeneratedBody(reviewed);
+  if (!text) return { ok: false, error: "deep-design returned no review JSON" };
+  let review: DesignQualityReview | null = null;
+  try {
+    review = validateReview(parseJsonValue(text));
+  } catch {
+    review = null;
+  }
+  if (!review) return { ok: false, error: "deep-design returned review JSON that failed schema validation" };
+  const saved = await executeA2ui(ctx, "save_suite_result", {
+    suiteId,
+    versionId,
+    quality: { ...quality, review },
+    note: input.note?.trim() || "single-round design review",
+  });
+  return saved.ok
+    ? { ok: true, artifactRef: saved.artifactRef, review, refreshStore: !saved.artifactRef }
+    : { ok: false, error: saved.error };
+};
+
+export interface DesignReviseInput extends SuiteActionInput {
+  part: "design" | "tokens" | "components" | "quality";
+  target: string;
+  instruction: string;
+}
+
+export const designReviseDefinition: ActionDefinition<DesignReviseInput> = {
+  id: "design.revise",
+  description:
+    "Revise a selected UI suite version. Design uses deep-design; tokens/components use structured JSON; quality only clears review to pending.",
+  category: "design",
+  parameters: {
+    type: "object",
+    properties: {
+      suiteId: { type: "string" },
+      versionId: { type: "string" },
+      part: { type: "string", enum: ["design", "tokens", "components", "quality"] },
+      target: { type: "string" },
+      instruction: { type: "string" },
+      note: { type: "string" },
+    },
+    required: ["suiteId", "versionId", "part", "target", "instruction"],
+    additionalProperties: false,
+  },
+  sideEffects: ["write-in-cwd"],
+};
+
+export const designReviseRun: ActionRun<DesignReviseInput, SuiteActionOutput> = async (input, ctx) => {
+  const suiteId = input?.suiteId?.trim();
+  const versionId = input?.versionId?.trim();
+  const target = input?.target?.trim();
+  const instruction = input?.instruction?.trim();
+  if (!suiteId || !versionId || !target || !instruction) {
+    return { ok: false, error: "suiteId, versionId, target and instruction are required" };
+  }
+  const read = await readSuiteVersion(ctx, suiteId, versionId);
+  if (!read.ok) return read;
+  if (read.value.artifactRef.kind !== "ui") return { ok: false, error: "suite is not a UI suite" };
+  const content = uiContent(read.value.content);
+  if (!content) return { ok: false, error: "invalid UI suite content" };
+  if (input.part === "quality") {
+    const saved = await executeA2ui(ctx, "save_suite_result", {
+      suiteId,
+      versionId,
+      clearReview: true,
+      note: input.note?.trim() || `quality review cleared: ${target}`,
+    });
+    return saved.ok
+      ? { ok: true, artifactRef: saved.artifactRef, refreshStore: !saved.artifactRef }
+      : { ok: false, error: saved.error };
+  }
+  if (!ctx.runSubagent) return { ok: false, error: "runSubagent not available" };
+  if (input.part === "design") {
+    if (!content.openui?.trim()) return { ok: false, error: "selected UI suite version has no OpenUI design" };
+    const generated = await ctx.runSubagent({
+      skill: "deep-design",
+      prompt:
+        `Revise only this OpenUI Lang target: ${target}. Instruction: ${instruction}. Preserve unrelated content. ` +
+        `Return only the complete revised OpenUI Lang program in one openui code fence. Do not call tools.\n\n${content.openui}`,
+      silent: true,
+    });
+    const revised = extractGeneratedBody(generated);
+    if (!revised) return { ok: false, error: "deep-design returned no revised OpenUI program" };
+    const saved = await executeA2ui(ctx, "update_openui", {
+      suiteId,
+      versionId,
+      code: revised,
+      ...(content.designSystemId ? { designSystemId: content.designSystemId } : {}),
+      ...(content.sourcePrototype ? { sourcePrototype: content.sourcePrototype } : {}),
+      note: input.note?.trim() || `design revision: ${target}`,
+    });
+    return saved.ok
+      ? { ok: true, artifactRef: saved.artifactRef, refreshStore: !saved.artifactRef }
+      : { ok: false, error: saved.error };
+  }
+
+  const current = input.part === "tokens" ? content.tokens : content.components;
+  const generated = await ctx.runSubagent({
+    skill: "deep-design",
+    prompt:
+      `Revise the ${input.part} JSON only. Target: ${target}. Instruction: ${instruction}. Preserve unrelated values. ` +
+      `Return only valid JSON in one json code fence.\n\n${JSON.stringify(current ?? null)}`,
+    silent: true,
+  });
+  const text = extractGeneratedBody(generated);
+  if (!text) return { ok: false, error: `deep-design returned no ${input.part} JSON` };
+  let revised: unknown;
+  try {
+    revised = parseJsonValue(text);
+  } catch {
+    return { ok: false, error: `deep-design returned invalid ${input.part} JSON` };
+  }
+  const saved = await executeA2ui(ctx, "save_suite_result", {
+    suiteId,
+    versionId,
+    [input.part]: revised,
+    note: input.note?.trim() || `${input.part} revision: ${target}`,
+  });
+  return saved.ok
+    ? { ok: true, artifactRef: saved.artifactRef, refreshStore: !saved.artifactRef }
+    : { ok: false, error: saved.error };
 };
 
 // ── design.extract / design.drift — dembrandt brand ingestion (E1b/E1c) ──────

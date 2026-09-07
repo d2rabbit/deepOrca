@@ -119,21 +119,8 @@ import type { DatabaseSync as DatabaseSyncType } from "node:sqlite";
 import { BuildJobManager } from "./build-job-manager.js";
 import { SkillSpectorCliController } from "./tools/skill-spector-cli.js";
 import { CrgCliController } from "./tools/crg-cli.js";
-import {
-  listDesignArtifacts,
-  onDesignStoreChange,
-  readDesignArtifact,
-  deleteDesignArtifact,
-  saveFormState,
-  readFormState,
-  type DesignPipeline,
-} from "./tools/design-store.js";
-// Dependency-free renderer modules reused by the main-process `.ddu` export
-// (P4-1): parsing/compiling is pure string logic with no browser API touch,
-// so bundling them into main.js is safe.
-import { parseDdFile } from "../renderer/dd/parser.js";
-import { compileDdToHtml } from "../renderer/dd/compiler.js";
-import { buildDdpPackage, buildDduPackage } from "./tools/dd-package.js";
+import { registerDesignIpc as registerDesignStoreIpc } from "./design-ipc.js";
+import { listDesignArtifacts } from "./tools/design-store.js";
 import { a2uiServerBuilder } from "./tools/a2ui/index.js";
 import { buildActivityFramesServer } from "./tools/activity-frames/index.js";
 import { handleEditorReadFile, handleEditorWriteFile, handleEditorListFiles } from "./editor-handlers.js";
@@ -1516,31 +1503,25 @@ function registerEndpointTestIpc({ handle }: IpcHelpers): void {
   });
 }
 
-/**
- * Vendored Tailwind JIT script for the standalone HTML export — same layout
- * the renderer's generated module uses (vendor/tailwind/tailwind.js), read
- * best-effort: a missing vendored tree simply exports without Tailwind (seed
- * CSS + tokens still render the layout).
- */
-function readTailwindScript(): string | null {
-  try {
-    return readFileSync(join(__dirname, "..", "vendor", "tailwind", "tailwind.js"), "utf-8") || null;
-  } catch {
-    return null;
-  }
-}
+/** Designer artifact management — root-pinned handlers live in design-ipc.ts. */
+function registerDesignIpc(helpers: IpcHelpers): void {
+  const { handle, handlePrivileged } = helpers;
+  registerDesignStoreIpc(helpers, {
+    resolveRegisteredRoot,
+    emit,
+    savePackage: async (data, options) => {
+      if (!mainWindow) return { ok: false, error: "no window" };
+      const result = await dialog.showSaveDialog(mainWindow, options);
+      if (result.canceled || !result.filePath) return { ok: false };
+      try {
+        await writeFile(result.filePath, data);
+        return { ok: true, path: result.filePath };
+      } catch (error) {
+        return { ok: false, error: error instanceof Error ? error.message : String(error) };
+      }
+    },
+  });
 
-/** Designer artifact management — bridges the renderer to design-store. */
-function registerDesignIpc({ handle, handlePrivileged }: IpcHelpers): void {
-  // design-store change events → renderer: artifacts are written by the a2ui
-  // MCP tools mid-agent-run; without this the panels show a stale list until a
-  // manual reload (chain-integrity fix, same class as the knowledge panel).
-  onDesignStoreChange((root) => {
-    emit(IpcEvent.DesignChanged, { root });
-  });
-  handle(IpcRequest.DesignList, async () => {
-    return listDesignArtifacts(getBridge().projectRoot);
-  });
   // Background build jobs (R2-1): manager owns jobs in the MAIN process —
   // renderer row state is a read-only subscription, so switching rows/tabs
   // never drops a running build.
@@ -1644,75 +1625,6 @@ function registerDesignIpc({ handle, handlePrivileged }: IpcHelpers): void {
     } catch {
       return { ok: false as const, error: "AGENTS.md not found" };
     }
-  });
-
-  handle(IpcRequest.DesignRead, async (id: string) => {
-    return readDesignArtifact(getBridge().projectRoot, id);
-  });
-
-  handle(IpcRequest.DesignDelete, async (id: string) => {
-    return deleteDesignArtifact(getBridge().projectRoot, id);
-  });
-
-  // P4-1 package export (specs/pm-design-v2, format decision 2026-08-18):
-  // pm-design (openui) → `.ddp`, ui-design (`.dd`) → `.ddu` — both special ZIP
-  // archives (zero-dependency writer in main/tools/dd-package.ts). The `.ddu`
-  // embeds a STANDALONE compiled render (parser/compiler are dependency-free
-  // renderer modules bundled into main; vendored Tailwind JIT inlined). The
-  // `.ddp` carries the OpenUI source + a viewer stub (OpenUI renders via the
-  // in-app React runtime — no standalone compiler exists). Privileged: native
-  // save dialog writing an arbitrary user-chosen path.
-  handlePrivileged(IpcRequest.DesignExportPackage, async (id: string) => {
-    if (!mainWindow) return { ok: false, error: "no window" };
-    const artifact = readDesignArtifact(getBridge().projectRoot, id);
-    if (!artifact) {
-      return { ok: false, error: "design artifact not found" };
-    }
-    const isDesign = artifact.pipeline === "design";
-    let pkg: Buffer;
-    try {
-      pkg = isDesign
-        ? buildDduPackage(
-            artifact,
-            artifact.content,
-            compileDdToHtml(parseDdFile(artifact.content), readTailwindScript() ?? undefined),
-            new Date().toISOString()
-          )
-        : buildDdpPackage(artifact, artifact.content, new Date().toISOString());
-    } catch (err) {
-      return { ok: false, error: `package build failed: ${err instanceof Error ? err.message : String(err)}` };
-    }
-    const ext = isDesign ? "ddu" : "ddp";
-    const safeTitle = artifact.title.replace(/[^a-zA-Z0-9_\-\u4e00-\u9fff]/g, "_").slice(0, 60) || "design";
-    const result = await dialog.showSaveDialog(mainWindow, {
-      title: isDesign ? "Export UI-Design package (.ddu)" : "Export PM-Design package (.ddp)",
-      defaultPath: `${safeTitle}.${ext}`,
-      filters: [{ name: isDesign ? "UI-Design Package (.ddu)" : "PM-Design Package (.ddp)", extensions: [ext] }],
-    });
-    if (result.canceled || !result.filePath) return { ok: false };
-    try {
-      await writeFile(result.filePath, pkg);
-      return { ok: true, path: result.filePath };
-    } catch (err) {
-      return { ok: false, error: err instanceof Error ? err.message : String(err) };
-    }
-  });
-
-  // Form-state persistence targets the LATEST artifact of the pipeline — the
-  // live preview always shows the most recent prototype/document, so the
-  // renderer never needs to know artifact ids.
-  const latestArtifactId = (pipeline: DesignPipeline): string | null => {
-    return listDesignArtifacts(getBridge().projectRoot).find((a) => a.pipeline === pipeline)?.id ?? null;
-  };
-
-  handle(IpcRequest.DesignSaveFormState, async (pipeline: DesignPipeline, state: Record<string, unknown>) => {
-    const id = latestArtifactId(pipeline);
-    return id ? saveFormState(getBridge().projectRoot, id, state) : false;
-  });
-
-  handle(IpcRequest.DesignReadFormState, async (pipeline: DesignPipeline) => {
-    const id = latestArtifactId(pipeline);
-    return id ? readFormState(getBridge().projectRoot, id) : null;
   });
 }
 

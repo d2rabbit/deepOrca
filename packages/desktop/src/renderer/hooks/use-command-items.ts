@@ -32,6 +32,8 @@ export interface CommandItemsDeps {
   handleToggleLineVariant: () => void;
   handleSelectTheme: (theme: Theme) => void;
   openTokensView: () => void;
+  openPrototypeWorkspace: () => void;
+  openDesignWorkspace: () => void;
   setPlanMode: (updater: (prev: boolean) => boolean) => void;
   setModal: (modal: "undo" | "shortcuts") => void;
   setActiveTab: (tab: MainTab) => void;
@@ -54,6 +56,8 @@ export function useCommandItems({
   handleToggleLineVariant,
   handleSelectTheme,
   openTokensView,
+  openPrototypeWorkspace,
+  openDesignWorkspace,
   setPlanMode,
   setModal,
   setActiveTab,
@@ -171,13 +175,13 @@ export function useCommandItems({
         id: "view.prototype",
         label: t("rail.prototype"),
         keywords: "sidebar view prototype spec requirements 原型 需求文档",
-        run: () => selectView("prototype"),
+        run: openPrototypeWorkspace,
       },
       {
         id: "view.design",
         label: t("rail.design"),
         keywords: "sidebar view design ui ux",
-        run: () => selectView("design"),
+        run: openDesignWorkspace,
       },
       {
         id: "view.taskhub",
@@ -277,6 +281,8 @@ export function useCommandItems({
       handleToggleLineVariant,
       modKey,
       openTokensView,
+      openPrototypeWorkspace,
+      openDesignWorkspace,
       projectRoot,
       pushToast,
       runPrompt,

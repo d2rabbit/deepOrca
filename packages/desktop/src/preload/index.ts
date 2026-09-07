@@ -165,12 +165,24 @@ const api: DesktopApi = {
   knowledgeSymbolGraph: (root, query) => ipcRenderer.invoke(IpcRequest.KnowledgeSymbolGraph, root, query),
 
   // ── Designer (design artifacts) ────────────────────────────────────
-  designList: () => ipcRenderer.invoke(IpcRequest.DesignList),
-  designRead: (id) => ipcRenderer.invoke(IpcRequest.DesignRead, id),
-  designDelete: (id) => ipcRenderer.invoke(IpcRequest.DesignDelete, id),
-  designSaveFormState: (pipeline, state) => ipcRenderer.invoke(IpcRequest.DesignSaveFormState, pipeline, state),
-  designReadFormState: (pipeline) => ipcRenderer.invoke(IpcRequest.DesignReadFormState, pipeline),
-  designExportPackage: (id) => ipcRenderer.invoke(IpcRequest.DesignExportPackage, id),
+  designList: (root) => ipcRenderer.invoke(IpcRequest.DesignList, root),
+  designRead: (id, root) => ipcRenderer.invoke(IpcRequest.DesignRead, id, root),
+  designDelete: (id, root) => ipcRenderer.invoke(IpcRequest.DesignDelete, id, root),
+  designSaveFormState: (pipeline, state, root) =>
+    ipcRenderer.invoke(IpcRequest.DesignSaveFormState, pipeline, state, root),
+  designReadFormState: (pipeline, root) => ipcRenderer.invoke(IpcRequest.DesignReadFormState, pipeline, root),
+  designExportPackage: (id, root) => ipcRenderer.invoke(IpcRequest.DesignExportPackage, id, root),
+  designSuiteList: (root, kind) => ipcRenderer.invoke(IpcRequest.DesignSuiteList, root, kind),
+  designSuiteRead: (root, id) => ipcRenderer.invoke(IpcRequest.DesignSuiteRead, root, id),
+  designSuiteReadVersion: (root, id, versionId) =>
+    ipcRenderer.invoke(IpcRequest.DesignSuiteReadVersion, root, id, versionId),
+  designSuiteDelete: (root, id) => ipcRenderer.invoke(IpcRequest.DesignSuiteDelete, root, id),
+  designSuiteExportPackage: (root, id, versionId) =>
+    ipcRenderer.invoke(IpcRequest.DesignSuiteExport, root, id, versionId),
+  designSuiteSaveFormState: (root, id, state) =>
+    ipcRenderer.invoke(IpcRequest.DesignSuiteSaveFormState, root, id, state),
+  designSuiteReadFormState: (root, id) => ipcRenderer.invoke(IpcRequest.DesignSuiteReadFormState, root, id),
+  designSystemCatalog: () => ipcRenderer.invoke(IpcRequest.DesignSystemCatalog),
 
   // ── Task trajectory (read-only panel surface) ────────────────────────────
   taskTreeList: (workspaceRoot) => ipcRenderer.invoke(IpcRequest.TaskTreeList, workspaceRoot),

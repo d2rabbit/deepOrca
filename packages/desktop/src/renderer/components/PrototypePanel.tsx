@@ -11,7 +11,7 @@
  * going back to the chat view.
  */
 
-import { lazy, Suspense, useCallback, useEffect, useRef, useState, type JSX } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState, type JSX, type MouseEvent } from "react";
 import type { ActionEvent, OpenUIError } from "@openuidev/lang-core";
 import { api } from "../api";
 import { useI18n } from "../i18n";
@@ -28,6 +28,12 @@ const FORM_STATE_SAVE_INTERVAL_MS = 2000;
 /** Grace period before feeding render errors back — lets transient parses settle. */
 const CORRECTION_DEBOUNCE_MS = 800;
 
+export type PrototypeSelection = {
+  nodePath: string;
+  bounds: { x: number; y: number; width: number; height: number };
+  action?: string;
+};
+
 type Props = {
   /** A2UI JSON messages (used when mode === "a2ui"). */
   a2uiJson: string;
@@ -37,9 +43,36 @@ type Props = {
   mode?: "a2ui" | "openui";
   /** Send an iteration prompt to the agent (from the mini composer). */
   onIterate: (text: string) => void;
+  /** Optional host-side selection capture for design workspace correction. */
+  onSelectionChange?: (selection: PrototypeSelection | null) => void;
+  selectionEnabled?: boolean;
+  hideComposer?: boolean;
 };
 
-export function PrototypePanel({ a2uiJson: initialJson, openuiCode, mode = "a2ui", onIterate }: Props): JSX.Element {
+function prototypeNodePath(element: HTMLElement, root: HTMLElement): string {
+  const semantic = element.dataset.sem ?? element.getAttribute("data-semantic-id") ?? element.id;
+  if (semantic) return semantic.startsWith("view:") ? semantic : `view:root//${semantic}`;
+  const segments: string[] = [];
+  let current: HTMLElement | null = element;
+  while (current && current !== root) {
+    const siblings = current.parentElement
+      ? Array.from(current.parentElement.children).filter((child) => child.tagName === current?.tagName)
+      : [];
+    segments.unshift(`${current.tagName.toLowerCase()}[${Math.max(1, siblings.indexOf(current) + 1)}]`);
+    current = current.parentElement;
+  }
+  return `view:root//${segments.join("/")}`;
+}
+
+export function PrototypePanel({
+  a2uiJson: initialJson,
+  openuiCode,
+  mode = "a2ui",
+  onIterate,
+  onSelectionChange,
+  selectionEnabled = false,
+  hideComposer = false,
+}: Props): JSX.Element {
   const { t } = useI18n();
   const [draft, setDraft] = useState("");
   const [liveJson, setLiveJson] = useState(initialJson);
@@ -182,6 +215,41 @@ export function PrototypePanel({ a2uiJson: initialJson, openuiCode, mode = "a2ui
     void api.a2uiOpenWindow(liveJson, t("proto.title")).catch(() => {});
   }, [liveJson, t]);
 
+  const handleSelectionCapture = useCallback(
+    (event: MouseEvent<HTMLDivElement>) => {
+      if (!selectionEnabled || mode !== "openui" || !onSelectionChange) return;
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
+      const root = event.currentTarget;
+      const selectable =
+        target.closest<HTMLElement>("button, input, select, textarea, [data-sem], [data-semantic-id]") ?? target;
+      if (!root.contains(selectable)) {
+        onSelectionChange(null);
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      const rootBounds = root.getBoundingClientRect();
+      const bounds = selectable.getBoundingClientRect();
+      const action = selectable.dataset.action ?? selectable.getAttribute("data-act") ?? undefined;
+      onSelectionChange({
+        nodePath: prototypeNodePath(selectable, root),
+        ...(action ? { action } : {}),
+        bounds: {
+          x: bounds.left - rootBounds.left + root.scrollLeft,
+          y: bounds.top - rootBounds.top + root.scrollTop,
+          width: bounds.width,
+          height: bounds.height,
+        },
+      });
+    },
+    [mode, onSelectionChange, selectionEnabled]
+  );
+
+  const handleSelectionScroll = useCallback(() => {
+    if (selectionEnabled) onSelectionChange?.(null);
+  }, [onSelectionChange, selectionEnabled]);
+
   return (
     <div className="ui-prototype-panel">
       {mode === "a2ui" && liveJson.trim() ? (
@@ -197,7 +265,11 @@ export function PrototypePanel({ a2uiJson: initialJson, openuiCode, mode = "a2ui
           </button>
         </div>
       ) : null}
-      <div className="ui-prototype-panel-body">
+      <div
+        className={`ui-prototype-panel-body${selectionEnabled ? " selection-enabled" : ""}`}
+        onClickCapture={handleSelectionCapture}
+        onScroll={handleSelectionScroll}
+      >
         {mode === "openui" ? (
           <Suspense fallback={<div style={{ padding: 20, color: "var(--ui-text-muted)" }}>{t("common.loading")}</div>}>
             <OpenuiRenderer
@@ -217,23 +289,25 @@ export function PrototypePanel({ a2uiJson: initialJson, openuiCode, mode = "a2ui
           />
         )}
       </div>
-      <div className="ui-prototype-panel-composer">
-        <input
-          className="ui-prototype-panel-input"
-          placeholder="Describe changes… (e.g. 'add a remember me checkbox')"
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              handleSubmit();
-            }
-          }}
-        />
-        <button className="ui-prototype-panel-send" onClick={handleSubmit} disabled={!draft.trim()}>
-          →
-        </button>
-      </div>
+      {!hideComposer ? (
+        <div className="ui-prototype-panel-composer">
+          <input
+            className="ui-prototype-panel-input"
+            placeholder={t("prototypeWorkspace.agentPrompt")}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                handleSubmit();
+              }
+            }}
+          />
+          <button className="ui-prototype-panel-send" onClick={handleSubmit} disabled={!draft.trim()}>
+            {t("common.submit")}
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -24,6 +24,7 @@ import { useGit } from "./hooks/use-git";
 import { useGlobalShortcuts } from "./hooks/use-global-shortcuts";
 import { useCommandItems } from "./hooks/use-command-items";
 import { useSettingsData } from "./hooks/use-settings-data";
+import { useDesignWorkspaceTabs } from "./hooks/use-design-workspace-tabs";
 import type {
   ActionProgressEvent,
   AskPermissionRequest,
@@ -82,6 +83,9 @@ const PrototypeDesignPanel = lazy(() =>
   import("./components/PrototypeDesignPanel").then((m) => ({ default: m.PrototypeDesignPanel }))
 );
 const DesignPanel = lazy(() => import("./components/DesignPanel").then((m) => ({ default: m.DesignPanel })));
+const DesignWorkspaceSurface = lazy(() =>
+  import("./components/design-workspace/DesignWorkspaceSurface").then((m) => ({ default: m.DesignWorkspaceSurface }))
+);
 const KnowledgePanel = lazy(() => import("./components/KnowledgePanel").then((m) => ({ default: m.KnowledgePanel })));
 const ReviewWorkspace = lazy(() =>
   import("./components/ReviewWorkspace").then((m) => ({ default: m.ReviewWorkspace }))
@@ -126,18 +130,18 @@ import {
   IconFile,
   IconIndex,
   IconReview,
+  IconPrototype,
+  IconDesign,
   IconPlugins,
   IconTaskTree,
   IconTaskHub,
   IconSparkle,
-  IconMoon,
-  IconSun,
-  IconUndo,
   IconSettings,
 } from "./ui/index";
 import { cx } from "./ui/class-names";
 import { HubOrb, HubSheet } from "./components/HubSheet";
 import { QuickDock } from "./components/QuickDock";
+import { CockpitActions } from "./components/CockpitActions";
 import { FailureBanner } from "./components/FailureBanner";
 import {
   findLatestPlan,
@@ -432,6 +436,15 @@ export function App(): JSX.Element {
     setReviewTabs((tabs) => tabs.filter((tab) => tab.root !== root));
     setActiveTab((tab) => (tab.kind === "review" && tab.root === root ? { kind: "chat" } : tab));
   }, []);
+  const {
+    prototypeTabs,
+    designTabs,
+    openPrototypeTab: handleOpenPrototypeTab,
+    closePrototypeTab: handleClosePrototypeTab,
+    openDesignTab: handleOpenDesignTab,
+    closeDesignTab: handleCloseDesignTab,
+    resetDesignTabs,
+  } = useDesignWorkspaceTabs(setActiveTab);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const {
     runningProcesses,
@@ -705,6 +718,7 @@ export function App(): JSX.Element {
     });
     const offRoot = api.onProjectRootChanged((root) => {
       setProjectRoot(root);
+      resetDesignTabs();
       // We are now LIVE in this workspace: a stale frozen snapshot of it may
       // still sit in the pip stack (parked earlier, returned to via the
       // cross-workspace sidebar or a re-picked folder). Leaving it would layer
@@ -758,6 +772,7 @@ export function App(): JSX.Element {
     pushToast,
     refreshGit,
     refreshMcp,
+    resetDesignTabs,
     refreshSessions,
     refreshSettings,
     refreshSkills,
@@ -1436,6 +1451,14 @@ export function App(): JSX.Element {
     handleToggleLineVariant,
     handleSelectTheme,
     openTokensView,
+    openPrototypeWorkspace: () => {
+      selectView("prototype");
+      if (projectRoot) handleOpenPrototypeTab(projectRoot);
+    },
+    openDesignWorkspace: () => {
+      selectView("design");
+      if (projectRoot) handleOpenDesignTab(projectRoot);
+    },
     setPlanMode,
     setModal,
     setActiveTab,
@@ -1728,19 +1751,16 @@ export function App(): JSX.Element {
   );
 
   // ── Surface chips (cockpit center) ────────────────────────────────────────
-  // Successor of the editor-style tab strip: one glowing chip per open
-  // surface plus the always-first conversation chip. Rendered only when at
-  // least one auxiliary surface exists — a lone conversation keeps the
-  // cockpit clean. Chip = container div + two SIBLING buttons (switch +
-  // close) — nested interactive elements are an a11y/HTML anti-pattern.
-  // user ask 2026-09-03 十轮：标签过多不再横向堆叠 —— 主会话与活动标签
-  // 常驻可见，其余按可用宽度收进「+N ▾」下拉快速切换（隐藏量按真实
-  // chip 宽度测量，ResizeObserver 自适应窗口伸缩）。
+  // One chip per open surface + the always-first conversation chip; chip = two
+  // SIBLING buttons (nested interactive elements are an a11y anti-pattern).
+  // Overflow collapses into「+N ▾」(real chip widths, ResizeObserver-driven).
   const hasAuxSurfaces =
     auxTabs.length > 0 ||
     taskTabs.length > 0 ||
     knowledgeTabs.length > 0 ||
     reviewTabs.length > 0 ||
+    prototypeTabs.length > 0 ||
+    designTabs.length > 0 ||
     taskhubTabs.length > 0;
 
   type SurfaceChipItem = {
@@ -1825,6 +1845,30 @@ export function App(): JSX.Element {
         onClose: () => handleCloseReviewTab(tab.root),
       });
     }
+    for (const tab of prototypeTabs) {
+      items.push({
+        key: `prototype:${tab.root}`,
+        icon: <IconPrototype />,
+        title: `${t("rail.prototype")} · ${tab.label}`,
+        tip: tab.root,
+        active: activeTab.kind === "prototype" && activeTab.root === tab.root,
+        onSelect: () =>
+          setActiveTab({ kind: "prototype", root: tab.root, ...(tab.suiteId ? { suiteId: tab.suiteId } : {}) }),
+        onClose: () => handleClosePrototypeTab(tab.root),
+      });
+    }
+    for (const tab of designTabs) {
+      items.push({
+        key: `design:${tab.root}`,
+        icon: <IconDesign />,
+        title: `${t("rail.design")} · ${tab.label}`,
+        tip: tab.root,
+        active: activeTab.kind === "design" && activeTab.root === tab.root,
+        onSelect: () =>
+          setActiveTab({ kind: "design", root: tab.root, ...(tab.suiteId ? { suiteId: tab.suiteId } : {}) }),
+        onClose: () => handleCloseDesignTab(tab.root),
+      });
+    }
     for (const tab of taskhubTabs) {
       items.push({
         key: `hub:${tab.root}`,
@@ -1845,12 +1889,16 @@ export function App(): JSX.Element {
     handleCloseAuxTab,
     handleCloseKnowledgeTab,
     handleCloseReviewTab,
+    handleClosePrototypeTab,
+    handleCloseDesignTab,
     handleCloseTaskTab,
     handleCloseTaskHubTab,
     knowledgeTabs,
     requestCloseEditor,
     requestCloseSettings,
     reviewTabs,
+    prototypeTabs,
+    designTabs,
     taskTabs,
     taskhubTabs,
   ]);
@@ -1995,7 +2043,6 @@ export function App(): JSX.Element {
             </button>
           ) : null}
         </div>
-        {/* 隐藏测量行：取每个 chip 的真实宽度供贪心装填计算。 */}
         <div className="ui-surface-chips ui-surface-chips-measure" aria-hidden ref={chipMeasureRef}>
           <button type="button" className="ui-surface-chip">
             <IconChat />
@@ -2012,64 +2059,21 @@ export function App(): JSX.Element {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- renderSurfaceChip closes over transient menu state
   }, [chipItems, chipVisible, chipMenu, activeTab.kind, hasAuxSurfaces, t]);
 
-  // Cockpit right cluster — the old rail's bottom icons (commands / undo /
-  // appearance / settings) live here now, floating with the other cockpit
-  // pills. The ⌘K button keeps the palette reachable for mouse-only users —
-  // its only discoverable entry died with the rail. Memoized so TopBar
-  // (React.memo) isn't defeated by an unstable prop identity.
-  const cockpitActions = useMemo(
-    () => (
-      <div className="ui-cockpit-actions">
-        <button
-          type="button"
-          className="ui-cockpit-icon-btn"
-          onClick={() => setPaletteOpen(true)}
-          data-tip={`${t("rail.commands")} (${modKey}K)`}
-          aria-label={t("rail.commands")}
-        >
-          <IconCommand />
-        </button>
-        <button
-          type="button"
-          className="ui-cockpit-icon-btn"
-          onClick={handleToggleAppearance}
-          disabled={theme === "orca"}
-          data-tip={appearanceTitle}
-          aria-label={appearanceTitle}
-        >
-          {appearance === "dark" ? <IconMoon /> : <IconSun />}
-        </button>
-        <button
-          type="button"
-          className="ui-cockpit-icon-btn"
-          onClick={() => setModal("undo")}
-          data-tip={`${t("rail.undo")} (${modKey}Z)`}
-          aria-label={t("rail.undo")}
-        >
-          <IconUndo />
-        </button>
-        <button
-          type="button"
-          className={cx("ui-cockpit-icon-btn", mainView === "settings" && "active")}
-          onClick={() => void handleOpenSettings()}
-          data-tip={`${t("rail.settings")} (${modKey},)`}
-          aria-label={t("rail.settings")}
-        >
-          <IconSettings />
-        </button>
-      </div>
-    ),
-    [
-      appearance,
-      appearanceTitle,
-      handleOpenSettings,
-      handleToggleAppearance,
-      mainView,
-      modKey,
-      setPaletteOpen,
-      t,
-      theme,
-    ]
+  const cockpitActions = (
+    <CockpitActions
+      appearance={appearance}
+      appearanceTitle={appearanceTitle}
+      theme={theme}
+      mainView={mainView}
+      modKey={modKey}
+      commandsLabel={t("rail.commands")}
+      undoLabel={t("rail.undo")}
+      settingsLabel={t("rail.settings")}
+      onOpenPalette={() => setPaletteOpen(true)}
+      onToggleAppearance={handleToggleAppearance}
+      onUndo={() => setModal("undo")}
+      onOpenSettings={() => void handleOpenSettings()}
+    />
   );
 
   // Esc unwinds the hub level by level — flyout first, then the rail itself.
@@ -2102,13 +2106,6 @@ export function App(): JSX.Element {
     requestCloseSettings,
   ]);
 
-  // The conversation is the stage's base layer; auxiliary surfaces
-  // (settings / plugin detail / editor files / task records / knowledge)
-  // render as the stage's flat workspace pane — same plane as the chat view,
-  // and DOCKED beside the hub rail/flyout when those are open (shell.css
-  // docking rules), so the hub keeps serving until the user collapses it.
-
-  // ── Picture-in-picture derivations ────────────────────────────────────────
   /** Live gate check: session entries are workspace-scoped, so this only sees
    *  the CURRENT root; parked roots rely on the capture-time flag instead. */
   const isPipBlocked = useCallback(
@@ -2144,15 +2141,16 @@ export function App(): JSX.Element {
       {/* Global [data-tip] hover tooltip — portal-rendered, fixed-position. */}
       <GlobalTooltip />
 
-      {/* Hub sheet — floating glass island (launcher tiles + sidebar views),
-          the successor of the activity rail + docked sidebar. The stage
-          reflows its centered column instead of being occluded. */}
       {panelOpen ? (
         <HubSheet
           view={sidebarView}
           expanded={viewExtended}
           disabledViews={hasPlan ? [] : ["tasks"]}
-          onSelectView={selectViewBase}
+          onSelectView={(view) => {
+            selectViewBase(view);
+            if (view === "prototype" && projectRoot) handleOpenPrototypeTab(projectRoot);
+            if (view === "design" && projectRoot) handleOpenDesignTab(projectRoot);
+          }}
           onCollapseFlyout={() => setViewExtended(false)}
           onClose={handleCollapsePanel}
           onResizeStart={handleResizeStart}
@@ -2206,11 +2204,11 @@ export function App(): JSX.Element {
             </Suspense>
           ) : sidebarView === "prototype" ? (
             <Suspense fallback={<div className="ui-side-panel-empty">{t("common.loading")}</div>}>
-              <PrototypeDesignPanel onOpenArtifact={handleOpenDesignArtifact} />
+              <PrototypeDesignPanel activeRoot={projectRoot} onOpenWorkspace={handleOpenPrototypeTab} />
             </Suspense>
           ) : sidebarView === "design" ? (
             <Suspense fallback={<div className="ui-side-panel-empty">{t("common.loading")}</div>}>
-              <DesignPanel onOpenArtifact={handleOpenDesignArtifact} />
+              <DesignPanel activeRoot={projectRoot} onOpenWorkspace={handleOpenDesignTab} />
             </Suspense>
           ) : sidebarView === "taskhub" ? (
             <Suspense fallback={<div className="ui-side-panel-empty">{t("common.loading")}</div>}>
@@ -2376,6 +2374,13 @@ export function App(): JSX.Element {
                 />
               </Suspense>
             </m.div>
+          ) : activeTab.kind === "prototype" || activeTab.kind === "design" ? (
+            <DesignWorkspaceSurface
+              tab={activeTab}
+              onClose={(kind, root) =>
+                kind === "prototype" ? handleClosePrototypeTab(root) : handleCloseDesignTab(root)
+              }
+            />
           ) : activeTab.kind === "taskhub" ? (
             <m.div
               key={`tab-taskhub:${activeTab.root}`}

@@ -175,6 +175,14 @@ export const IpcRequest = {
   DesignSaveFormState: "design:saveFormState",
   DesignReadFormState: "design:readFormState",
   DesignExportPackage: "design:exportPackage",
+  DesignSuiteList: "design:suiteList",
+  DesignSuiteRead: "design:suiteRead",
+  DesignSuiteReadVersion: "design:suiteReadVersion",
+  DesignSuiteDelete: "design:suiteDelete",
+  DesignSuiteExport: "design:suiteExport",
+  DesignSuiteSaveFormState: "design:suiteSaveFormState",
+  DesignSuiteReadFormState: "design:suiteReadFormState",
+  DesignSystemCatalog: "design:systemCatalog",
 
   // Task trajectory (specs/task-tree) — panel surface (workspace-scoped)
   TaskTreeList: "tasktree:list",
@@ -245,7 +253,7 @@ export const IpcEvent = {
   LspRelayMessage: "event:lspRelayMessage",
   /** Sandbox backend selection outcome per session (degradation is never silent). */
   SandboxStatusChanged: "event:sandboxStatusChanged",
-  /** design-store artifact saved/deleted (payload: { root }) — panels refresh live. */
+  /** design-store artifact/suite changed — panels refresh the pinned workspace. */
   DesignChanged: "event:designChanged",
 } as const;
 
@@ -896,6 +904,11 @@ export type { TaskNode, TaskReflogEntry, TaskTreeIndex, TaskTreeSummary } from "
 /** Designer artifact pipeline: openui = PM-Design prototype, design = UI-Design .dd document. */
 export type DesignPipeline = "openui" | "design" | "spec";
 
+export type DesignArtifactVersion = {
+  savedAt: string;
+  content: string;
+};
+
 /** A stored design artifact's metadata (index entry). */
 export type DesignArtifactMeta = {
   id: string;
@@ -903,11 +916,156 @@ export type DesignArtifactMeta = {
   pipeline: DesignPipeline;
   createdAt: string;
   updatedAt: string;
+  versions?: DesignArtifactVersion[];
 };
 
 /** A design artifact with full content. */
 export type DesignArtifact = DesignArtifactMeta & {
   content: string;
+  requirement?: string;
+};
+
+export type DesignSuiteKind = "prototype" | "ui";
+export type DesignSuiteStatus = "draft" | "ready" | "verified";
+export type DesignCheckStatus = "pending" | "passed" | "failed" | "healed";
+
+export type DesignArtifactRef = {
+  suiteId: string;
+  versionId: string;
+  kind: DesignSuiteKind;
+};
+
+export type PrototypeVerificationCheck = {
+  id: string;
+  label: string;
+  status: DesignCheckStatus;
+  action?: string;
+  observation?: string;
+};
+
+export type PrototypeVerificationResult = {
+  status: "pending" | "passed" | "failed";
+  checks: PrototypeVerificationCheck[];
+  generatedAt?: string;
+  healingRounds?: number;
+};
+
+export type DesignLintFinding = {
+  id: string;
+  preset: string;
+  ruleId: string;
+  severity: "info" | "warning" | "error";
+  nodePath: string;
+  message: string;
+  suggestion?: string;
+};
+
+export type DesignRuntimeCheck = {
+  id: string;
+  label: string;
+  status: "pending" | "passed" | "failed";
+  value?: unknown;
+};
+
+export type DesignQualityReview = {
+  status: "pending" | "passed" | "failed";
+  composite: number;
+  rounds: number;
+  evidence: Record<string, unknown>;
+};
+
+export type DesignQualityResult = {
+  lintFindings: DesignLintFinding[];
+  runtimeChecks: DesignRuntimeCheck[];
+  review?: DesignQualityReview;
+};
+
+export type PrototypeSuiteContent = {
+  requirement?: string;
+  spec?: string;
+  openui?: string;
+  verification?: PrototypeVerificationResult;
+};
+
+export type UiSuiteContent = {
+  requirement?: string;
+  openui?: string;
+  tokens?: unknown;
+  components?: unknown;
+  quality?: DesignQualityResult;
+  sourcePrototype?: Pick<DesignArtifactRef, "suiteId" | "versionId">;
+  designSystemId?: string;
+};
+
+export type DesignSuiteContent = PrototypeSuiteContent | UiSuiteContent;
+
+export type DesignSuiteVersionSummary = {
+  versionId: string;
+  savedAt: string;
+  note?: string;
+  status: DesignSuiteStatus;
+};
+
+export type DesignSuiteVersion = DesignSuiteVersionSummary & {
+  content: DesignSuiteContent;
+};
+
+export type DesignSuiteMeta = {
+  schemaVersion: 2;
+  id: string;
+  title: string;
+  kind: DesignSuiteKind;
+  status: DesignSuiteStatus;
+  createdAt: string;
+  updatedAt: string;
+  currentVersionId: string;
+  versions: DesignSuiteVersionSummary[];
+};
+
+export type DesignSuiteSummary = {
+  schemaVersion: 2;
+  id: string;
+  title: string;
+  kind: DesignSuiteKind;
+  status: DesignSuiteStatus;
+  createdAt: string;
+  updatedAt: string;
+  currentVersionId: string;
+  versionCount: number;
+  partial?: boolean;
+  sourcePipeline?: DesignPipeline;
+};
+
+export type DesignSuite = Omit<DesignSuiteMeta, "versions"> & {
+  versions: DesignSuiteVersion[];
+  currentVersion: DesignSuiteVersion;
+  currentContent: DesignSuiteContent;
+  partial?: boolean;
+  sourcePipeline?: DesignPipeline;
+};
+
+export type DesignSuiteChangeEvent = {
+  root: string;
+  suiteId: string;
+  versionId?: string;
+  change: "create" | "update" | "delete";
+};
+
+/** IPC payload remains compatible with legacy artifact root-only notifications. */
+export type DesignChangedEvent =
+  | DesignSuiteChangeEvent
+  | {
+      root: string;
+      suiteId?: undefined;
+      versionId?: undefined;
+      change?: undefined;
+    };
+
+export type DesignSystemCatalogItem = {
+  id: string;
+  title: string;
+  description: string;
+  content?: string;
 };
 
 /** Workspace trust level (specs/sandbox/design.md §10.3), project-level setting. */
@@ -1346,24 +1504,27 @@ export type DesktopApi = {
   memoryRoutingStatus(): Promise<MemoryRoutingStatus>;
 
   // ── Designer (design artifacts) ────────────────────────────────────────
-  /** List all design artifacts (PM-Design prototypes + UI-Design documents). */
-  designList(): Promise<DesignArtifactMeta[]>;
-  /** Read a single design artifact's full content. */
-  designRead(id: string): Promise<DesignArtifact | null>;
-  /** Delete a design artifact. */
-  designDelete(id: string): Promise<boolean>;
-  /** Persist the live prototype's form state (caller throttles). Main resolves the latest artifact of the pipeline. */
-  designSaveFormState(pipeline: "openui" | "design", state: Record<string, unknown>): Promise<boolean>;
-  /** Read the persisted form state for hydration; null when none. */
-  designReadFormState(pipeline: "openui" | "design"): Promise<Record<string, unknown> | null>;
-  /**
-   * Export an artifact as a `.ddp` / `.ddu` package (P4-1 format decision
-   * 2026-08-18): special ZIP archives — pm-design prototypes → `.ddp`
-   * (manifest + OpenUI source + viewer stub), ui-design documents → `.ddu`
-   * (manifest + `.dd` source + standalone compiled HTML). Native save dialog;
-   * `ok:false` without `error` = user canceled.
-   */
-  designExportPackage(id: string): Promise<{ ok: boolean; path?: string; error?: string }>;
+  /** Legacy artifact surface. Omitted root remains pinned to the active workspace. */
+  designList(root?: string): Promise<DesignArtifactMeta[]>;
+  designRead(id: string, root?: string): Promise<DesignArtifact | null>;
+  designDelete(id: string, root?: string): Promise<boolean>;
+  designSaveFormState(pipeline: "openui" | "design", state: Record<string, unknown>, root?: string): Promise<boolean>;
+  designReadFormState(pipeline: "openui" | "design", root?: string): Promise<Record<string, unknown> | null>;
+  designExportPackage(id: string, root?: string): Promise<{ ok: boolean; path?: string; error?: string }>;
+
+  /** Versioned design suite surface. All workspace operations require an explicit registered root. */
+  designSuiteList(root: string, kind?: DesignSuiteKind): Promise<DesignSuiteSummary[]>;
+  designSuiteRead(root: string, id: string): Promise<DesignSuite | null>;
+  designSuiteReadVersion(root: string, id: string, versionId: string): Promise<DesignSuiteVersion | null>;
+  designSuiteDelete(root: string, id: string): Promise<boolean>;
+  designSuiteExportPackage(
+    root: string,
+    id: string,
+    versionId?: string
+  ): Promise<{ ok: boolean; path?: string; error?: string }>;
+  designSuiteSaveFormState(root: string, id: string, state: Record<string, unknown>): Promise<boolean>;
+  designSuiteReadFormState(root: string, id: string): Promise<Record<string, unknown> | null>;
+  designSystemCatalog(): Promise<DesignSystemCatalogItem[]>;
 
   // ── Task trajectory (read-only panel surface) ────────────────────────────
   /** List task trees (id, title, active branch, counts). */
@@ -1456,8 +1617,8 @@ export type DesktopApi = {
   onActionProgress(cb: (event: ActionProgressEvent) => void): () => void;
   /** Editor agent run progress subscription (chunk streaming + terminal). */
   onEditorAgentProgress(cb: (event: EditorAgentProgressEvent) => void): () => void;
-  /** Design artifacts changed (a2ui tool saved mid-run / deleted) — live refresh. */
-  onDesignChanged(cb: (event: { root: string }) => void): () => void;
+  /** Design artifacts or suites changed; suite fields are absent for legacy artifact changes. */
+  onDesignChanged(cb: (event: DesignChangedEvent) => void): () => void;
   /** Subscribe to the initial payload sent to a popout prototype window. */
   onA2uiWindowPayload(cb: (event: A2uiWindowPayloadEvent) => void): () => void;
   /** Pull the initial prototype-window payload by token (race-free handshake,
