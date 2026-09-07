@@ -22,6 +22,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { randomUUID } from "node:crypto";
 import type { ActionContext, ActionDefinition, ActionRun } from "./types";
+import { OPENUI_CREATE_CONTRACT, OPENUI_PRESERVE_CONTRACT } from "./openui-contract";
 import { validateDembrandtTargetUrl } from "../common/dembrandt";
 import { runDembrandtProcess } from "../common/dembrandt-runner";
 import { getExtensionRoot } from "../prompt";
@@ -164,9 +165,7 @@ export const designMaterializeRun: ActionRun<DesignMaterializeInput, DesignMater
     effectiveRequirement
       ? `Create a complete OpenUI Lang program for this requirement: ${effectiveRequirement}`
       : "Create a complete OpenUI Lang program elevating the selected prototype.",
-    'It must be ONE directly interactive application, never stacked screens: declare `$page = "<first-page>"`, ' +
-      'render each page\'s view behind a ternary (`$page == "orders" ? ordersView : null`), and navigate via ' +
-      'buttons carrying `Action([@Set($page, "target")])` under a persistent shell.',
+    OPENUI_CREATE_CONTRACT,
     `Use this bundled design system exactly. Its complete source is included below:\n\n${designSystem}`,
   ];
   if (prototypeContent) {
@@ -562,7 +561,7 @@ export const designReviseRun: ActionRun<DesignReviseInput, SuiteActionOutput> = 
       skill: "deep-design",
       prompt:
         `Revise only this OpenUI Lang target: ${target}. Instruction: ${instruction}. Preserve unrelated content. ` +
-        "Preserve the $page state and Action([@Set...]) navigation — the result must stay ONE interactive application. " +
+        `${OPENUI_PRESERVE_CONTRACT} ` +
         `Return only the complete revised OpenUI Lang program in one openui code fence. Do not call tools.\n\n${content.openui}`,
       silent: true,
     });

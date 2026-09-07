@@ -56,6 +56,11 @@ test("the generated prompt teaches interactive single-app prototypes", async () 
   assert.match(prompt, /\$page == "home" \? homeView : ordersView/);
   assert.match(prompt, /ONE interactive application/);
   assert.match(prompt, /Action\(\[@Set\(\$page/);
+  // 2026-09-07 review: bare-string button actions compile but silently dead-
+  // click on the official library (triggerAction TypeError) — the prompt must
+  // forbid them.
+  assert.match(prompt, /MUST be Action\(\[\.\.\.\]\) expressions/);
+  assert.match(prompt, /NEVER pass a bare string as a button action/);
 });
 
 test("applyPromptToSkill is idempotent across regenerations", async () => {

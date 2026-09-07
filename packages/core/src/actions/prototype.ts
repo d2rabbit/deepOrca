@@ -7,6 +7,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { randomUUID } from "node:crypto";
 import type { ActionContext, ActionDefinition, ActionRun } from "./types";
+import { OPENUI_PRESERVE_CONTRACT } from "./openui-contract";
 
 const DESIGNS_DIR = ".deeporca/designs";
 const SPEC_FILE = "spec.md";
@@ -539,9 +540,7 @@ export const prototypeReviseRun: ActionRun<PrototypeReviseInput, PrototypeSpecOu
     skill,
     prompt:
       `Revise only the ${input.part} content below. Target: ${target}. Instruction: ${instruction}. ` +
-      (input.part === "openui"
-        ? "Preserve the $page state, ternary view switching, and Action([@Set...]) navigation — the result must stay ONE interactive application, not stacked screens. "
-        : "") +
+      (input.part === "openui" ? `${OPENUI_PRESERVE_CONTRACT} ` : "") +
       "Preserve unrelated content and return only the complete revised document in one code fence. Do not call tools.\n\n" +
       current,
     silent: true,

@@ -16,6 +16,7 @@ import type { OpenUIError } from "@openuidev/lang-core";
 import { openuiLibrary } from "@openuidev/react-ui/genui-lib";
 import { useI18n } from "../i18n";
 import { deeporcaLibrary } from "./library";
+import { resolveLibraryMode } from "./library-route";
 import { createDesignerToolProvider } from "./tool-provider";
 import { annotateActTags } from "./act-annotation";
 import { splitOpenuiErrors } from "./correction";
@@ -26,15 +27,10 @@ import { splitOpenuiErrors } from "./correction";
  * New prototypes are authored against the OFFICIAL openuiLibrary (see
  * pm-designer-openui SKILL.md, generated from openuiLibrary.prompt()). Suites
  * generated before the switch use DeepOrca's first-party component names —
- * Column/Row/Metric/Badge/Divider/Spacer/TextField exist ONLY in the legacy
- * deeporcaLibrary, so their presence is a reliable legacy marker; shared
- * names (Stack/Card/Button/TextContent) never trigger the fallback.
+ * the classification itself lives in library-route.ts (pure, unit-tested);
+ * official-exclusive component names take priority over legacy markers so a
+ * quoted `Row(` in a string literal can't misroute official code.
  */
-const LEGACY_COMPONENT_PATTERN = /\b(?:Column|Row|Metric|Badge|Divider|Spacer|TextField)\(/;
-
-function resolveLibrary(code: string) {
-  return LEGACY_COMPONENT_PATTERN.test(code) ? deeporcaLibrary : openuiLibrary;
-}
 
 type Props = {
   /** Raw OpenUI Lang code from the agent's tool output. */
@@ -68,7 +64,7 @@ export function OpenuiRenderer({
   // Create the tool provider once (stable reference for the SDK).
   const toolProvider = useMemo(() => (enableTools ? createDesignerToolProvider() : undefined), [enableTools]);
   // Official library for new code; legacy fallback for pre-switch suites.
-  const library = useMemo(() => resolveLibrary(code), [code]);
+  const library = useMemo(() => (resolveLibraryMode(code) === "legacy" ? deeporcaLibrary : openuiLibrary), [code]);
 
   // F6: Clear errors when code becomes empty (SDK's onError([]) doesn't fire
   // for empty response — see react-lang useOpenUIState early return).

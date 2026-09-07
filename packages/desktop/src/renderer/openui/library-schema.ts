@@ -1,12 +1,16 @@
 /**
- * Designer component contract — the single source of truth for the PM-Design
- * OpenUI Lang component library: component names, descriptions, Zod v4 props
- * schemas, and component groups.
+ * LEGACY — Designer component contract for the pre-switch DeepOrca component
+ * library. Since 2026-09 new prototypes are authored against the OFFICIAL
+ * @openuidev/react-ui openuiLibrary (prompt generated from the library itself
+ * by scripts/generate-openui-prompt.mjs); this schema's SKILL.md contract is
+ * historical. It stays only so OpenuiRenderer can render suites generated
+ * before the switch (routed by the legacy component-name heuristic), and the
+ * actionSchema describe text is prompt dead-code for the same reason.
  *
  * React-free by design so non-React consumers can import it from plain Node:
  * - `library.tsx` binds each def to its React component (rendering adapter)
- * - `scripts/generate-openui-prompt.mjs` binds them to stubs (prompt adapter)
- * - contract tests assert the generated SKILL.md table stays in sync
+ * - `scripts/generate-openui-prompt.mjs` previously bound them to stubs
+ *   (prompt adapter — superseded by the official openuiLibrary.prompt())
  *
  * Invariant: any schema change here MUST be followed by regenerating the
  * component table in pm-designer-openui SKILL.md (`npm run openui:prompt`);

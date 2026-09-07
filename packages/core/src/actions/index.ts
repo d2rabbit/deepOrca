@@ -134,6 +134,7 @@ export type {
   DesignDriftInput,
   DesignDriftOutput,
 } from "./design";
+export { OPENUI_CREATE_CONTRACT, OPENUI_PRESERVE_CONTRACT } from "./openui-contract";
 export { designAuditDefinition, designAuditRun, lintDesignDocument } from "./design-audit";
 export type {
   DesignAuditInput,

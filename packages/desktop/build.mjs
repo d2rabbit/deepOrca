@@ -267,10 +267,15 @@ async function copyStaticAssets() {
   } catch (err) {
     console.warn(`[desktop] @a2ui/react v0_9 stylesheet missing — a2ui surfaces render unstyled (${err.message})`);
   }
-  // Official OpenUI (react-ui) stylesheets: --openui-* token defaults,
-  // component styles, and the cascade-layered override styles. main.tsx
-  // injects them BEFORE ui.css so ui-css/openui-bridge.css re-binding wins.
-  // Copied from the installed dependency (same hoisting caveat as @a2ui).
+  // Official OpenUI (react-ui) stylesheet — ONE unlayered copy carries both
+  // the --openui-* token defaults and every component rule. In the installed
+  // dist, components/index.css is byte-identical to styles/index.css, and
+  // every rule of styles/openui-defaults.css is contained in it; the
+  // layered/styles/index.css variant wraps the same rules in `@layer openui`
+  // and can never beat unlayered ones, so copying those two would be dead
+  // weight shipped in the installer and parsed per window. main.tsx injects
+  // it BEFORE ui.css so ui-css/openui-bridge.css re-binding wins. Copied
+  // from the installed dependency (same hoisting caveat as @a2ui).
   try {
     const openuiCandidates = [
       resolve(__dirname, "../../node_modules/@openuidev/react-ui/dist"),
@@ -278,9 +283,7 @@ async function copyStaticAssets() {
     ];
     const openuiDist = openuiCandidates.find((c) => existsSync(c));
     if (!openuiDist) throw new Error(`not found in ${openuiCandidates.join(" | ")}`);
-    await cp(resolve(openuiDist, "styles/openui-defaults.css"), resolve(outdir, "renderer/openui-defaults.css"));
     await cp(resolve(openuiDist, "components/index.css"), resolve(outdir, "renderer/openui-components.css"));
-    await cp(resolve(openuiDist, "layered/styles/index.css"), resolve(outdir, "renderer/openui-styles.css"));
   } catch (err) {
     console.warn(`[desktop] @openuidev/react-ui stylesheets missing — OpenUI canvas renders unstyled (${err.message})`);
   }
@@ -316,11 +319,13 @@ async function copyStaticAssets() {
 
 /**
  * The pm-designer-openui SKILL.md component table is a generated artifact of
- * the designer library schema (library-schema.ts). Regenerate it before
- * bundling and fail when regeneration changes the file — i.e. when a schema
- * change was not followed by `npm run openui:prompt`. The check compares the
- * file before/after regeneration (not git state), so uncommitted-but-in-sync
- * files pass while genuine drift fails.
+ * the OFFICIAL @openuidev/react-ui openuiLibrary (via
+ * scripts/generate-openui-prompt.mjs). Regenerate it before bundling and fail
+ * when regeneration changes the file — i.e. when an upstream library update
+ * was not followed by `npm run openui:prompt`. The check compares the file
+ * before/after regeneration (not git state), so uncommitted-but-in-sync files
+ * pass while genuine drift fails. (The legacy library-schema.ts is only the
+ * pre-switch fallback renderer and is NOT this artifact's source.)
  */
 async function ensureOpenuiPromptInSync() {
   const script = resolve(__dirname, "..", "..", "scripts", "generate-openui-prompt.mjs");
@@ -345,7 +350,7 @@ async function ensureOpenuiPromptInSync() {
   const after = readFileSync(skill, "utf8");
   if (before !== after) {
     throw new Error(
-      "pm-designer-openui SKILL.md is out of sync with library-schema.ts — run `npm run openui:prompt` and commit the result."
+      "pm-designer-openui SKILL.md is out of sync with the official openuiLibrary prompt — run `npm run openui:prompt` and commit the result (source: scripts/generate-openui-prompt.mjs, NOT legacy library-schema.ts)."
     );
   }
 }

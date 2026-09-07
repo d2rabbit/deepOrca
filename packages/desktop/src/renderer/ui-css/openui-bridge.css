@@ -4,11 +4,11 @@
    The design-workspace OpenUI canvas renders the OFFICIAL @openuidev/react-ui
    component library (openuiLibrary). Its stylesheets resolve the documented
    `--openui-*` tokens (camelCase→kebab mapping per the official
-   theme-provider runbook). Inject order matters: main.tsx loads
-   openui-defaults.css (the library's own token defaults) BEFORE ui.css, so
-   this unlayered block wins and re-binds the semantic roles to DeepOrca's
-   theme system — every theme (aqua/glass/line/metro/orca) and appearance
-   switch re-tints the canvas for free, without a JS ThemeProvider.
+   theme-provider runbook). Inject order matters: main.tsx loads the single
+   official components stylesheet (which embeds the token defaults) BEFORE
+   ui.css, so this unlayered block wins and re-binds the semantic roles to
+   DeepOrca's theme system — every theme (aqua/glass/line/metro/orca) and
+   appearance switch re-tints the canvas for free, without a JS ThemeProvider.
 
    Deliberately NOT bridged: spacing, font sizes, line heights, shadows —
    official components keep their own metrics so their layout stays intact.
@@ -26,7 +26,10 @@
   --openui-elevated-light: var(--ui-surface-raised);
   --openui-elevated-strong: var(--ui-surface-raised);
   --openui-elevated-intense: var(--ui-surface-raised);
-  --openui-overlay: var(--ui-surface-raised);
+  /* Modal/lightbox scrim — official default is a translucent black veil
+     (oklch(0 0 0 / 0.4)); bridging it to an opaque surface turned the
+     ImageGallery lightbox into a solid wall. */
+  --openui-overlay: color-mix(in srgb, #000 40%, transparent);
   --openui-highlight: var(--ui-surface-hover);
   --openui-highlight-subtle: var(--ui-surface-hover);
   --openui-highlight-strong: var(--ui-surface-hover);
@@ -39,6 +42,14 @@
   --openui-alert-background: color-mix(in srgb, var(--ui-warning) 14%, transparent);
   --openui-danger-background: color-mix(in srgb, var(--ui-danger) 12%, transparent);
 
+  /* Purple/pink: defined by the official CSS but unconsumed by shipped
+     components in 0.13.10 — bridged so a future consumer follows the app
+     theme instead of the OS prefers-color-scheme defaults. Official light
+     and dark values are identical soft 12% chips, so derive from the app's
+     own soft-chip recipe. */
+  --openui-purple-background: color-mix(in srgb, var(--ui-accent) 12%, transparent);
+  --openui-pink-background: color-mix(in srgb, var(--ui-danger) 12%, transparent);
+
   /* Text */
   --openui-text-neutral-primary: var(--ui-text);
   --openui-text-neutral-secondary: var(--ui-text-dim);
@@ -47,9 +58,14 @@
   --openui-text-brand: var(--ui-accent);
   --openui-text-white: #ffffff;
   --openui-text-black: #16191e;
-  --openui-text-accent-primary: var(--ui-accent);
-  --openui-text-accent-secondary: color-mix(in srgb, var(--ui-accent) 78%, var(--ui-text));
-  --openui-text-accent-tertiary: color-mix(in srgb, var(--ui-accent) 55%, var(--ui-text));
+  /* "Text on an accent fill" — official light AND dark defaults are
+     near-white (accent-secondary @ 50%, tertiary @ 20% alpha). Bridging
+     these to the accent color itself made primary buttons render accent-
+     on-accent (invisible labels on the canvas's highest-frequency widget,
+     plus checkbox indicators and selected calendar days). */
+  --openui-text-accent-primary: var(--ui-text-on-accent);
+  --openui-text-accent-secondary: color-mix(in srgb, var(--ui-text-on-accent) 50%, transparent);
+  --openui-text-accent-tertiary: color-mix(in srgb, var(--ui-text-on-accent) 20%, transparent);
   --openui-text-success-primary: var(--ui-success);
   --openui-text-success-inverted: #ffffff;
   --openui-text-alert-primary: var(--ui-warning);
@@ -62,6 +78,8 @@
   --openui-text-danger-inverted-tertiary: #ffffff;
   --openui-text-info-primary: var(--ui-info);
   --openui-text-info-inverted: #ffffff;
+  --openui-text-purple-primary: var(--ui-accent);
+  --openui-text-purple-inverted: var(--ui-text-on-accent);
 
   /* Interactive accent states */
   --openui-interactive-accent-default: var(--ui-accent);

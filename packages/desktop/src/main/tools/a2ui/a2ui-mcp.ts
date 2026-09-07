@@ -22,6 +22,7 @@ import type { ZodRawShape } from "zod/v3";
 import * as fs from "node:fs";
 import * as nodePath from "node:path";
 import { generatePrototype, listTemplates } from "./a2ui-templates";
+import { OPENUI_PRESERVE_CONTRACT } from "@deeporca/core";
 import { BASIC_CATALOG_ID, convertLegacyComponents } from "../../../shared/a2ui-legacy";
 import {
   appendDesignSuiteVersion,
@@ -1100,8 +1101,7 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
         "Replace an existing OpenUI Lang prototype with updated code. " +
         "Send the complete updated program (full replacement). " +
         "To iterate efficiently, copy the previous code and modify only the parts that need changing. " +
-        "Preserve the $page state, ternary view switching, and Action([@Set...]) navigation — " +
-        "the result must stay ONE interactive application, not stacked screens.",
+        OPENUI_PRESERVE_CONTRACT,
       inputSchema: {
         code: z.string().describe("Complete updated OpenUI Lang program (full replacement, not delta)."),
         ...suiteLineageSchema,

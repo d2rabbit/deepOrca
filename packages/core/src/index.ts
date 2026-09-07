@@ -444,6 +444,8 @@ export {
   isWikiVariantFile,
   archScanRunDefinition,
   archScanRunRun,
+  OPENUI_CREATE_CONTRACT,
+  OPENUI_PRESERVE_CONTRACT,
   configureArchifyPaths,
   getArchifyPaths,
   configureArchRenderer,

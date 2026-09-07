@@ -51,11 +51,19 @@ function injectStylesheet(href: string, id?: string): Promise<void> {
     if (id) link.id = id;
     link.onload = () => resolve();
     link.onerror = () => {
-      // 回退到 Aqua 主题,保证页面不裸奔
+      // styles.css is the Aqua theme's token file, not a generic fallback —
+      // only the theme link may retry with it. An OpenUI canvas link failing
+      // is the degraded state build.mjs already warns about; appending Aqua
+      // tokens after them would silently re-skin the whole window (cascade:
+      // last wins) and override the user's chosen theme.
+      if (id !== THEME_LINK_ID) {
+        resolve();
+        return;
+      }
       if (href !== "./styles.css") {
         injectStylesheet("./styles.css", id).then(resolve);
       } else {
-        // 连 Aqua 都加载失败,认命,直接 mount
+        // Aqua itself failed — give up and mount bare.
         console.error("[desktop] failed to load any stylesheet");
         resolve();
       }
@@ -77,13 +85,12 @@ async function bootstrap(): Promise<void> {
   applyAppearance(resolveAppearance(platform, theme));
   if (theme === "line") applyLineVariant(getStoredLineVariant());
   await Promise.all([
-    // Official OpenUI stylesheets BEFORE our app css: defaults (the --openui-*
-    // token baseline), then component styles, then the layered override
-    // styles. ui.css loads last so ui-css/openui-bridge.css re-binds the
-    // tokens to DeepOrca's theme system and wins the cascade.
-    injectStylesheet("./openui-defaults.css"),
+    // Official OpenUI stylesheet (single unlayered copy = token defaults +
+    // component rules; the layered/distinct defaults files are redundant —
+    // see build.mjs). Loads BEFORE our app css: ui.css last means
+    // ui-css/openui-bridge.css re-binds the tokens to DeepOrca's theme
+    // system and wins the cascade.
     injectStylesheet("./openui-components.css"),
-    injectStylesheet("./openui-styles.css"),
     injectStylesheet("./ui.css"),
     // Official A2UI basic-catalog structural styles (copied by build.mjs).
     injectStylesheet("./a2ui-basic.css"),

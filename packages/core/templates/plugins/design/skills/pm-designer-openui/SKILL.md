@@ -446,6 +446,7 @@ Before finishing, walk your output and verify:
 - NEVER pass more arguments than the component signature above shows — extra positional arguments are DROPPED by the compiler (excess-args). Pass options through their named props only, and omit props you don't need.
 - The prototype is ONE interactive application, never a stack of separate screens. Declare `$page = "<first-page>"`, give each page of the requirements document its own view variable, and render exactly one of them in root behind a ternary (e.g. `$page == "orders" ? ordersView : null`). Keep a persistent navigation shell that is visible on every page. (The Tabs/Accordion/Modal preference applies to in-page sections, not to page-level navigation.)
 - Wire all navigation and flows through button actions: `Button("登录", Action([@Set($page, "orders")]))`. Every page and flow in the requirements must be reachable through such actions — buttons may chain multiple steps like `Action([@Set($page, "detail"), @Reset($form)])`.
+- Button actions MUST be Action([...]) expressions (e.g. `Action([@Set($page, "home")])`). NEVER pass a bare string as a button action — it compiles, but the button silently does nothing when clicked.
 - Buttons inside @Each must be written inline in the template (assigning a Button to a variable and reusing it inside @Each duplicates the last item's context).
 <!-- END generated component prompt -->
 
@@ -469,7 +470,7 @@ homeCard = Card([CardHeader("概览"), TextContent("已登录", "large-heavy")])
 
 ```
 root = Stack([header, metricsRow, contentArea])
-header = Stack([title, Tag("Admin", undefined, "sm", "info")], "row")
+header = Stack([title, Tag("Admin", "sm", "info")], "row")
 title = TextContent("Analytics Dashboard", "large-heavy")
 metricsRow = Stack([revCard, usersCard, churnCard], "row")
 revCard = Card([CardHeader("Revenue"), TextContent("$48.2k", "large-heavy"), TextContent("+12% MoM", "small")])

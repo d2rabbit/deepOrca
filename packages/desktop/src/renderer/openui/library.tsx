@@ -1,11 +1,15 @@
 /**
- * DeepOrca OpenUI component library — lightweight components styled with
- * DeepOrca's --ui-* CSS variables, matching the existing design system.
+ * LEGACY — DeepOrca OpenUI component library (pre-2026-09 switch): lightweight
+ * components styled with DeepOrca's --ui-* CSS variables, matching the
+ * existing design system. New prototypes render the OFFICIAL
+ * @openuidev/react-ui library (openuiLibrary, see OpenuiRenderer.tsx routing);
+ * this catalog remains only to render suites generated before the switch.
  *
  * This is the catalog the OpenUI Lang Renderer uses to resolve component
  * names (e.g. `root = Column([...])`) into React elements. Names, descriptions
- * and Zod v4 props schemas live in library-schema.ts (single source of truth,
- * React-free); this module binds each definition to its React component.
+ * and Zod v4 props schemas live in library-schema.ts (source of truth for the
+ * LEGACY set, React-free); this module binds each definition to its React
+ * component.
  */
 
 import type { ComponentRenderProps } from "@openuidev/react-lang";
