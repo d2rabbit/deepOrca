@@ -101,8 +101,30 @@ export class ChainStore {
     this.view = null;
   }
 
-  // Manifests are tiny metadata objects; persist them so a restarted node can
-  // still serve getManifest for assets it published.
+  // Workspace commit objects (commit + its tree) persist here so diff and
+  // checkout can rebuild content after a restart — the ledger ws.commit
+  // record anchors the commitCid, this store carries the rebuildable payload.
+  saveCommit(commitCid: string, payload: { commit: unknown; tree: unknown }): void {
+    const dir = join(this.paths.objectsDir, "commits");
+    if (!existsSync(dir)) {
+      mkdirSync(dir, { recursive: true });
+    }
+    writeFileSync(join(dir, `${commitCid.replace(/[^a-z0-9]/gi, "_")}.json`), JSON.stringify(payload));
+  }
+
+  loadCommit(commitCid: string): { commit: unknown; tree: unknown } | null {
+    const dir = join(this.paths.objectsDir, "commits");
+    const path = join(dir, `${commitCid.replace(/[^a-z0-9]/gi, "_")}.json`);
+    if (!existsSync(path)) {
+      return null;
+    }
+    try {
+      return JSON.parse(readFileSync(path, "utf8")) as { commit: unknown; tree: unknown };
+    } catch {
+      return null;
+    }
+  }
+
   writeManifest(manifestCid: string, manifest: BlobManifest): void {
     const dir = join(this.paths.objectsDir, MANIFESTS_DIR);
     if (!existsSync(dir)) {

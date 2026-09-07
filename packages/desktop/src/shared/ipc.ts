@@ -34,7 +34,29 @@ export const ChainIpcRequest = {
   Genealogy: "chain:genealogy",
   TaskTrees: "chain:taskTrees",
   ShareTaskBranch: "chain:shareTaskBranch",
+  WsCommit: "chain:wsCommit",
+  WsDiff: "chain:wsDiff",
+  WsCheckout: "chain:wsCheckout",
 } as const;
+
+export type ChainWsCommitArgs = {
+  root: string;
+  files: string[];
+  message: string;
+  taskRef?: string;
+};
+
+export type ChainWsDiffArgs = { a: string; b: string };
+
+export type ChainWsCheckoutArgs = { commitCid: string; targetDir: string };
+
+export type ChainWsFileDiff = {
+  added: string[];
+  removed: string[];
+  modified: string[];
+  renamed: { from: string; to: string }[];
+  unchanged: number;
+};
 
 export type ChainTaskTreeInfo = {
   treeId: string;
@@ -1716,6 +1738,11 @@ export type DesktopApi = {
   chainShareTaskBranch(
     args: ChainShareTaskArgs
   ): Promise<{ ok: boolean; error?: string; recordId?: string; title?: string }>;
+  chainWsCommit(
+    args: ChainWsCommitArgs
+  ): Promise<{ ok: boolean; error?: string; commitCid?: string; treeCid?: string }>;
+  chainWsDiff(args: ChainWsDiffArgs): Promise<{ ok: boolean; error?: string; diff?: ChainWsFileDiff }>;
+  chainWsCheckout(args: ChainWsCheckoutArgs): Promise<{ ok: boolean; error?: string; written?: string[] }>;
   chainOnStateChanged(cb: (payload: ChainStatePayload) => void): () => void;
 };
 

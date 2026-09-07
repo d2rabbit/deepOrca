@@ -42,9 +42,7 @@ import { deviceKeyPath, coordChainRoot, loadOrCreateDeviceIdentity } from "./pat
 
 /** Minimal structural seam over core's TaskTreeService (no core import). */
 export interface TaskTreeSource {
-  getTree(
-    treeId: string
-  ): {
+  getTree(treeId: string): {
     index: {
       id: string;
       title: string;
@@ -65,6 +63,7 @@ export interface ServiceOptions {
   /** Override the machine fingerprint (DEEPORCA_MACHINE_FINGERPRINT also works). */
   machineFingerprint?: string;
   blocksLimit?: number;
+  blockIntervalMs?: number;
   /**
    * Accessor for the ACTIVE workspace's task-tree source — enables the
    * "share task branch to chain" action (task-tree × chain adaptation).
@@ -82,7 +81,9 @@ export class CoordChainService {
   private node: ChainNode | null = null;
   private anchor: IdentityAnchor | null = null;
   private identity: DeviceIdentity | null = null;
-  private readonly options: Required<Pick<ServiceOptions, "dataRoot" | "machineFingerprint" | "blocksLimit">>;
+  private readonly options: Required<
+    Pick<ServiceOptions, "dataRoot" | "machineFingerprint" | "blocksLimit" | "blockIntervalMs">
+  >;
   private readonly taskTrees: () => TaskTreeSource | null;
   private readonly listeners = new Set<(event: ServiceEvent) => void>();
 
@@ -91,6 +92,7 @@ export class CoordChainService {
       dataRoot: options.dataRoot ?? coordChainRoot(),
       machineFingerprint: options.machineFingerprint ?? "",
       blocksLimit: options.blocksLimit ?? 50,
+      blockIntervalMs: options.blockIntervalMs ?? 2000,
     };
     this.taskTrees = options.taskTrees ?? (() => null);
   }
@@ -158,7 +160,7 @@ export class CoordChainService {
         dataRoot: this.options.dataRoot,
         anchor,
         machineFingerprint: this.options.machineFingerprint || undefined,
-        blockIntervalMs: 2000,
+        blockIntervalMs: this.options.blockIntervalMs,
       });
       await this.node.start();
       const payload = this.state();
@@ -331,6 +333,32 @@ export class CoordChainService {
     } catch (error) {
       return { ok: false, error: (error as Error).message };
     }
+  }
+
+  wsCommit(args: { root: string; files: string[]; message: string; taskRef?: string }): {
+    ok: boolean;
+    error?: string;
+    commitCid?: string;
+    treeCid?: string;
+  } {
+    if (!this.node) {
+      return { ok: false, error: "chain not running" };
+    }
+    return this.node.wsCommitFiles(args);
+  }
+
+  wsDiff(a: string, b: string): { ok: boolean; error?: string; diff?: unknown } {
+    if (!this.node) {
+      return { ok: false, error: "chain not running" };
+    }
+    return this.node.wsDiff(a, b);
+  }
+
+  wsCheckout(commitCid: string, targetDir: string): { ok: boolean; error?: string; written?: string[] } {
+    if (!this.node) {
+      return { ok: false, error: "chain not running" };
+    }
+    return this.node.wsCheckout(commitCid, targetDir);
   }
 
   private identityAnchorPath(): string {

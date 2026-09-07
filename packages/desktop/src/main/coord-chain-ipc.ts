@@ -10,9 +10,7 @@ type IpcHelpersLike = {
 };
 
 type TaskTreeSourceLike = {
-  getTree(
-    treeId: string
-  ): {
+  getTree(treeId: string): {
     index: {
       id: string;
       title: string;

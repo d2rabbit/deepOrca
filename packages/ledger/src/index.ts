@@ -103,11 +103,11 @@ export type { BlobManifest, BuiltBlob, ReassembleResult } from "./cid/cid.js";
 export {
   applyChangesToTree,
   assertValidPath,
-  emptyTree,
   isSafeWorkspacePath,
   removeTreeEntry,
-  setTreeEntry,
   treeCidOf,
+  emptyTree,
+  setTreeEntry,
 } from "./ws/tree.js";
 export type { FileMode, Tree, TreeEntry } from "./ws/tree.js";
 export { buildCommit, commitCidOf, commitUnsignedPayload, verifyCommit } from "./ws/commit.js";

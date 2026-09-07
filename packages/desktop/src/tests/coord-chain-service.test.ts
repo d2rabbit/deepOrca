@@ -137,3 +137,60 @@ test("service: shareTaskBranch exports a local tree branch as a chain task.share
 
   await svc.stop();
 });
+
+test("service: wsCommit → wsDiff → wsCheckout roundtrip on the chain workspace", async () => {
+  const dataRoot = mkdtempSync(join(tmpdir(), "coord-svc-ws-commit-"));
+  const root = mkdtempSync(join(tmpdir(), "coord-svc-ws-files-"));
+  const { mkdirSync, writeFileSync } = await import("node:fs");
+  mkdirSync(join(root, "src"));
+  writeFileSync(join(root, "src", "auth.ts"), "export const login = () => 'v1';\n");
+  writeFileSync(join(root, "README.md"), "# demo v1\n");
+
+  const svc = new CoordChainService({ dataRoot, machineFingerprint: FP, blocksLimit: 10 });
+  const started = await svc.start({ mode: "create", theme: THEME, deviceName: "ws-dev" });
+  assert.equal(started.ok, true, started.error ?? "");
+  await waitFor("creator join seals block 0", () => svc.state().height >= 0 && svc.state().memberCount === 1);
+
+  // Commit two files onto the chain workspace.
+  console.error(`[dbg-ws] pre-c1 h=${svc.state().height} pend=${svc.state().pendingRecords}`);
+  const c1 = svc.wsCommit({ root, files: ["src/auth.ts", "README.md"], message: "v1 baseline" });
+  assert.equal(c1.ok, true, c1.error ?? "");
+  assert.ok(c1.commitCid && c1.treeCid);
+  console.error(`[dbg-ws] post-c1 h=${svc.state().height} pend=${svc.state().pendingRecords}`);
+
+  // Second commit modifies one file, drops nothing, adds another.
+  writeFileSync(join(root, "src", "auth.ts"), "export const login = () => 'v2';\n");
+  writeFileSync(join(root, "src", "token.ts"), "export const token = 1;\n");
+  const c2 = svc.wsCommit({ root, files: ["src/auth.ts", "src/token.ts"], message: "v2 changes" });
+  assert.equal(c2.ok, true, c2.error ?? "");
+  // Both ws.commit records may seal into the SAME block (2s/150s batching) —
+  // the seal condition is "no pending records", not a specific height.
+  await waitFor("ws.commit records seal", () => svc.state().pendingRecords === 0 && svc.state().height >= 1);
+
+  // Diff between the two commits: auth modified, token added.
+  const diff = svc.wsDiff(c1.commitCid as string, c2.commitCid as string);
+  assert.equal(diff.ok, true, diff.error ?? "");
+  const d = (diff as { diff: { added: string[]; modified: string[] } }).diff;
+  assert.deepEqual(d.added, ["src/token.ts"]);
+  assert.deepEqual(d.modified, ["src/auth.ts"]);
+
+  // Checkout the second commit into a FRESH directory and byte-compare.
+  const target = mkdtempSync(join(tmpdir(), "coord-svc-checkout-"));
+  const out = svc.wsCheckout(c2.commitCid as string, target);
+  assert.equal(out.ok, true, out.error ?? "");
+  const { readFileSync: rf } = await import("node:fs");
+  assert.equal(rf(join(target, "src", "auth.ts"), "utf8"), "export const login = () => 'v2';\n");
+  assert.equal(rf(join(target, "src", "token.ts"), "utf8"), "export const token = 1;\n");
+
+  // Checkout of the FIRST commit still yields the older content (R29).
+  const target1 = mkdtempSync(join(tmpdir(), "coord-svc-co1-"));
+  const out1 = svc.wsCheckout(c1.commitCid as string, target1);
+  assert.equal(out1.ok, true, out1.error ?? "");
+  assert.equal(rf(join(target1, "src", "auth.ts"), "utf8"), "export const login = () => 'v1';\n");
+
+  // Traversal is rejected on both commit and checkout.
+  assert.equal(svc.wsCommit({ root, files: ["../escape.ts"], message: "x" }).ok, false);
+  assert.equal(svc.wsCheckout(c2.commitCid as string, root).ok, true); // same root is fine
+
+  await svc.stop();
+});

@@ -3,7 +3,15 @@
 
 import { contextBridge, ipcRenderer } from "electron";
 import { ChainIpcRequest, IpcEvent, IpcRequest } from "../shared/ipc";
-import type { ChainShareTaskArgs, ChainStartArgs, ChainStatePayload, ChainTaskTreeInfo } from "../shared/ipc";
+import type {
+  ChainShareTaskArgs,
+  ChainStartArgs,
+  ChainStatePayload,
+  ChainTaskTreeInfo,
+  ChainWsCheckoutArgs,
+  ChainWsCommitArgs,
+  ChainWsDiffArgs,
+} from "../shared/ipc";
 import type { DesktopApi } from "../shared/ipc";
 
 function subscribe(channel: string, cb: (payload: never) => void): () => void {
@@ -241,6 +249,9 @@ const api: DesktopApi = {
   chainGenealogy: () => ipcRenderer.invoke(ChainIpcRequest.Genealogy),
   chainTaskTrees: (workspaceRoot?: string) => ipcRenderer.invoke(ChainIpcRequest.TaskTrees, workspaceRoot),
   chainShareTaskBranch: (args: ChainShareTaskArgs) => ipcRenderer.invoke(ChainIpcRequest.ShareTaskBranch, args),
+  chainWsCommit: (args: ChainWsCommitArgs) => ipcRenderer.invoke(ChainIpcRequest.WsCommit, args),
+  chainWsDiff: (args: ChainWsDiffArgs) => ipcRenderer.invoke(ChainIpcRequest.WsDiff, args),
+  chainWsCheckout: (args: ChainWsCheckoutArgs) => ipcRenderer.invoke(ChainIpcRequest.WsCheckout, args),
   chainOnStateChanged: (cb: (payload: ChainStatePayload) => void) => subscribe(IpcEvent.ChainStateChanged, cb as never),
 };
 

@@ -20,6 +20,7 @@ import {
   AnchorError,
   buildBlock,
   buildBlob,
+  buildCommit,
   buildGenesis,
   buildSignedRecord,
   blockHash,
@@ -38,6 +39,11 @@ import {
   replayChain,
   signBytes,
   themeIdFromTheme,
+  treeCidOf,
+  emptyTree,
+  setTreeEntry,
+  diffTrees,
+  isSafeWorkspacePath,
   verifySignedRecord,
   verifyThemeAnchor,
   checkAnchorBinding,
@@ -55,8 +61,8 @@ import {
 import { startTransport, type PeerConnection, type Transport } from "./transport.js";
 import type { ChainTaskNode } from "./task-tree-bridge.js";
 import { ChainStore, type StoredBlock } from "./chain-store.js";
-import { existsSync, readdirSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { join, resolve as resolvePath } from "node:path";
 import { coordChainRoot } from "./paths.js";
 
 export type ChainNodeMode = "create" | "join";
@@ -134,6 +140,8 @@ export class ChainNode {
   /** Key ids this DEVICE owns — the current key plus any retired key whose
    *  rotation block has not yet sealed (the device keeps its slot until then). */
   private readonly ownKeyIds = new Set<string>();
+  /** Latest ws.commit commitCid — the parent for the next workspace commit. */
+  private lastWorkspaceCommitCid: string | null = null;
   private readonly manifests = new Map<string, BlobManifest>();
   private readonly waiters = new Map<string, Array<(message: SyncMessage) => void>>();
 
@@ -751,6 +759,136 @@ export class ChainNode {
     return { record, newIdentity: next };
   }
 
+  // ------------------------------------------------------- workspace version layer
+
+  /**
+   * Commit workspace files onto the chain workspace (R27/R28): each file is
+   * chunked into the object store, a tree snapshot is built, a signed commit
+   * object is stored, and a `ws.commit` record anchors it on-chain.
+   * `files` must be root-relative paths; traversal is rejected.
+   */
+  wsCommitFiles(args: { root: string; files: string[]; message: string; taskRef?: string }): {
+    ok: boolean;
+    error?: string;
+    commitCid?: string;
+    treeCid?: string;
+  } {
+    try {
+      if (!this.genesis) {
+        return { ok: false, error: "chain not open" };
+      }
+      if (!this.isMember) {
+        return { ok: false, error: "not a chain member yet" };
+      }
+      const root = resolvePath(args.root);
+      const entries: Record<string, { blob: string; mode: "100644" }> = {};
+      for (const file of args.files) {
+        if (!isSafeWorkspacePath(file)) {
+          return { ok: false, error: `unsafe workspace path: ${file}` };
+        }
+        const abs = resolvePath(root, file);
+        if (!abs.startsWith(root + "/") && abs !== root) {
+          return { ok: false, error: `path escapes workspace root: ${file}` };
+        }
+        const data = readFileSync(abs);
+        const built = buildBlob(new Uint8Array(data));
+        const store = this.requireStore();
+        for (let i = 0; i < built.chunks.length; i++) {
+          store.objects.putChunkVerified(built.manifest.chunkIds[i], built.chunks[i]);
+        }
+        store.writeManifest(built.manifestCid, built.manifest);
+        entries[file] = { blob: built.manifestCid, mode: "100644" };
+      }
+      const tree = { version: 1 as const, entries };
+      const treeCid = treeCidOf(tree);
+      const parents = this.lastWorkspaceCommitCid ? [this.lastWorkspaceCommitCid] : [];
+      const commit = buildCommit(this.identity, {
+        treeCid,
+        parents,
+        message: args.message,
+        ts: Date.now(),
+        ...(args.taskRef !== undefined ? { taskRef: args.taskRef } : {}),
+      });
+      this.requireStore().saveCommit(commit.commitCid, { commit, tree });
+      this.lastWorkspaceCommitCid = commit.commitCid;
+      const record = this.submitRecord("ws.commit", {
+        treeCid,
+        parents,
+        message: args.message,
+        ...(args.taskRef !== undefined ? { taskRef: args.taskRef } : {}),
+      });
+      return { ok: true, commitCid: commit.commitCid, treeCid };
+    } catch (error) {
+      return { ok: false, error: (error as Error).message };
+    }
+  }
+
+  /** File-level diff between two workspace commits (R29). */
+  wsDiff(commitCidA: string, commitCidB: string): { ok: boolean; error?: string; diff?: ReturnType<typeof diffTrees> } {
+    try {
+      const store = this.requireStore();
+      const a = store.loadCommit(commitCidA);
+      const b = store.loadCommit(commitCidB);
+      if (!a || !b) {
+        return { ok: false, error: "commit object not found locally" };
+      }
+      const diff = diffTrees(a.tree as never, b.tree as never);
+      return { ok: true, diff };
+    } catch (error) {
+      return { ok: false, error: (error as Error).message };
+    }
+  }
+
+  /**
+   * Materialize a workspace commit into a target directory (R29/R31): every
+   * blob is reassembled from verified chunks, every path is re-checked
+   * against the target directory, and nothing is written until ALL blobs
+   * have verified.
+   */
+  wsCheckout(commitCid: string, targetDir: string): { ok: boolean; error?: string; written?: string[] } {
+    try {
+      const store = this.requireStore();
+      const payload = store.loadCommit(commitCid);
+      if (!payload) {
+        return { ok: false, error: `commit object not found locally: ${commitCid}` };
+      }
+      const tree = payload.tree as { version: number; entries: Record<string, { blob: string; mode: string }> };
+      const target = resolvePath(targetDir);
+      mkdirSync(target, { recursive: true });
+      // Phase 1: reassemble and verify EVERY blob before touching the disk.
+      const contents = new Map<string, Uint8Array>();
+      for (const [path, entry] of Object.entries(tree.entries)) {
+        if (!isSafeWorkspacePath(path)) {
+          return { ok: false, error: `unsafe path in commit: ${path}` };
+        }
+        const manifest = store.readManifest(entry.blob);
+        if (!manifest) {
+          return { ok: false, error: `manifest not found: ${entry.blob}` };
+        }
+        const result = reassembleBlob(manifest, (id) => store.objects.getChunk(id));
+        if (!result.ok) {
+          return { ok: false, error: `blob verification failed for ${path}` };
+        }
+        contents.set(path, result.data);
+      }
+      // Phase 2: all blobs verified — materialize.
+      const written: string[] = [];
+      for (const [path, data] of contents) {
+        const abs = resolvePath(target, path);
+        if (!abs.startsWith(target + "/") && abs !== target) {
+          return { ok: false, error: `checkout path escapes target: ${path}` };
+        }
+        const dir = resolvePath(abs, "..");
+        mkdirSync(dir, { recursive: true });
+        writeFileSync(abs, data);
+        written.push(path);
+      }
+      return { ok: true, written };
+    } catch (error) {
+      return { ok: false, error: (error as Error).message };
+    }
+  }
+
   /**
    * Chain-side task genealogy: every task.share record resolved into a node
    * with its parentRecordId lineage and ws.commit cross-reference — the
@@ -811,6 +949,7 @@ export class ChainNode {
     if (!this.genesis || this.pendingRecords.length === 0) {
       return;
     }
+    console.error(`[ws] maybePropose h=${this.height + 1} pend=[${this.pendingRecords.map((r) => r.type).join(",")}]`);
     const nextHeight = this.height + 1;
     const proposer =
       nextHeight === 0 ? this.genesis.creator : proposerKeyForHeight(nextHeight, this.activeMemberKeyIds());
@@ -884,6 +1023,7 @@ export class ChainNode {
     }
     const verification = this.verifyBlock(block, false);
     if (!verification) {
+      console.error(`[ws] REJECT proposal h=${block.height} kinds=[${block.records.map((r) => r.type).join(",")}]`);
       return;
     }
     const hash = blockHash(block);
