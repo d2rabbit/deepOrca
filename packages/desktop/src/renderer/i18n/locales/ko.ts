@@ -1688,5 +1688,6 @@ export const ko: Record<MessageKey, string> = {
   "chain.pane.error": "체인 작업 실패:",
   "chain.pane.device": "기기",
   "chain.pane.records": "{n}개 기록",
-};
 
+  "chain.pane.shareTaskLabel": "작업 브랜치 공유",
+};

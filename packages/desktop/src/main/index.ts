@@ -2517,7 +2517,19 @@ function registerIpc(): void {
   });
   registerEditorIpc(helpers);
   registerAgentChangesIpc(helpers);
-  registerCoordChainIpc(helpers, () => mainWindow);
+  registerCoordChainIpc(
+    helpers,
+    () => mainWindow,
+    (workspaceRoot?: string) => {
+      // Same pinned-root seam as the task-tree handlers above: unregistered
+      // roots never materialize a task-tree source.
+      if (typeof workspaceRoot === "string" && workspaceRoot) {
+        const pinned = resolveRegisteredRoot(workspaceRoot);
+        return pinned ? new TaskTreeService(pinned) : null;
+      }
+      return new TaskTreeService(getBridge().projectRoot);
+    }
+  );
   registerSessionExportIpc(helpers);
   // defineAction IPC surface. Reads the SAME ActionRegistry SessionManager owns
   // (LLM + IPC + MCP share one instance — no dual state). action-ipc.ts stays

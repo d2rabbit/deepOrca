@@ -25,6 +25,12 @@ import {
   type IdentityAnchor,
 } from "@deeporca/ledger";
 import { ChainNode, type ChainNodeStatus } from "./node.js";
+import {
+  branchToTaskSharePayload,
+  collectBranchSnapshot,
+  type ReflogEntryLike,
+  type TaskNodeLike,
+} from "./task-tree-bridge.js";
 import type {
   ChainBlockView,
   ChainGenealogyView,
@@ -34,12 +40,36 @@ import type {
 } from "../../shared/ipc.js";
 import { deviceKeyPath, coordChainRoot, loadOrCreateDeviceIdentity } from "./paths.js";
 
+/** Minimal structural seam over core's TaskTreeService (no core import). */
+export interface TaskTreeSource {
+  getTree(
+    treeId: string
+  ): {
+    index: {
+      id: string;
+      title: string;
+      branches: Record<
+        string,
+        { name: string; headId: string; createdAt: string; abandoned?: boolean; mergedInto?: string }
+      >;
+      activeBranch: string;
+    };
+    nodes: TaskNodeLike[];
+  } | null;
+  readReflog(treeId: string, limit?: number): ReflogEntryLike[];
+}
+
 export interface ServiceOptions {
   /** Override the data root (~/.deeporca/coordchain default; tests). */
   dataRoot?: string;
   /** Override the machine fingerprint (DEEPORCA_MACHINE_FINGERPRINT also works). */
   machineFingerprint?: string;
   blocksLimit?: number;
+  /**
+   * Accessor for the ACTIVE workspace's task-tree source — enables the
+   * "share task branch to chain" action (task-tree × chain adaptation).
+   */
+  taskTrees?: () => TaskTreeSource | null;
 }
 
 export interface ServiceEvent {
@@ -53,6 +83,7 @@ export class CoordChainService {
   private anchor: IdentityAnchor | null = null;
   private identity: DeviceIdentity | null = null;
   private readonly options: Required<Pick<ServiceOptions, "dataRoot" | "machineFingerprint" | "blocksLimit">>;
+  private readonly taskTrees: () => TaskTreeSource | null;
   private readonly listeners = new Set<(event: ServiceEvent) => void>();
 
   constructor(options: ServiceOptions = {}) {
@@ -61,6 +92,7 @@ export class CoordChainService {
       machineFingerprint: options.machineFingerprint ?? "",
       blocksLimit: options.blocksLimit ?? 50,
     };
+    this.taskTrees = options.taskTrees ?? (() => null);
   }
 
   onEvent(listener: (event: ServiceEvent) => void): () => void {
@@ -254,6 +286,51 @@ export class CoordChainService {
       author: task.author,
       ts: task.ts,
     }));
+  }
+
+  /**
+   * Share a LOCAL task-tree branch onto the chain as a `task.share` record
+   * (task-tree × chain adaptation; R14). The branch snapshot is collected
+   * through the task-tree bridge and signed by this device.
+   */
+  shareTaskBranch(args: { treeId: string; branch: string; workspaceRoot?: string }): {
+    ok: boolean;
+    error?: string;
+    recordId?: string;
+    title?: string;
+  } {
+    try {
+      if (!this.node) {
+        return { ok: false, error: "chain not running" };
+      }
+      const source = this.taskTrees();
+      if (!source) {
+        return { ok: false, error: "task-tree source unavailable" };
+      }
+      const tree = source.getTree(args.treeId);
+      if (!tree) {
+        return { ok: false, error: `tree not found: ${args.treeId}` };
+      }
+      const reflog = source.readReflog(args.treeId, 200) as ReflogEntryLike[];
+      const snapshot = collectBranchSnapshot(
+        {
+          id: tree.index.id,
+          title: tree.index.title,
+          branches: tree.index.branches,
+          activeBranch: tree.index.activeBranch,
+        },
+        tree.nodes as TaskNodeLike[],
+        reflog,
+        args.branch
+      );
+      const payload = branchToTaskSharePayload(snapshot);
+      const record = this.node.submitRecord("task.share", payload);
+      const share = { ok: true, recordId: record.recordId, title: payload.title };
+      this.emit({ type: "rotated", payload: this.state() });
+      return share;
+    } catch (error) {
+      return { ok: false, error: (error as Error).message };
+    }
   }
 
   private identityAnchorPath(): string {

@@ -1655,5 +1655,6 @@ export const zhTW: Record<MessageKey, string> = {
   "chain.pane.error": "鏈操作失敗：",
   "chain.pane.device": "設備",
   "chain.pane.records": "{n} 條記錄",
-};
 
+  "chain.pane.shareTaskLabel": "共享任務分支",
+};

@@ -86,7 +86,6 @@ test("service: wrong machine fingerprint refuses to start (unbound clone)", asyn
   await svc.stop();
 });
 
-
 test("service: data root containing non-chain FILES starts clean (resume scan ignores them)", async () => {
   const dataRoot = mkdtempSync(join(tmpdir(), "coord-svc-messy-"));
   const { writeFileSync } = await import("node:fs");
@@ -97,5 +96,44 @@ test("service: data root containing non-chain FILES starts clean (resume scan ig
   assert.equal(started.ok, true, started.error ?? "");
   assert.equal(svc.state().running, true);
   assert.match(svc.state().chainId, /^orca1/);
+  await svc.stop();
+});
+
+test("service: shareTaskBranch exports a local tree branch as a chain task.share", async () => {
+  const dataRoot = mkdtempSync(join(tmpdir(), "coord-svc-share-"));
+  const { TaskTreeService } = await import("@deeporca/core");
+  const workspaceRoot = mkdtempSync(join(tmpdir(), "coord-svc-ws-"));
+  const treeSvc = new TaskTreeService(workspaceRoot);
+  const treeId = treeSvc.createTree("登录重构", { why: "统一鉴权入口" });
+  assert.ok(treeId, "tree created");
+  const tree = treeSvc.getTree(treeId as string);
+  assert.ok(tree, "tree readable");
+  const branch = tree.index.activeBranch;
+
+  const svc = new CoordChainService({
+    dataRoot: mkdtempSync(join(tmpdir(), "coord-svc-share-root-")),
+    machineFingerprint: FP,
+    taskTrees: () => treeSvc as never,
+  });
+  const started = await svc.start({ mode: "create", theme: THEME, deviceName: "sharer" });
+  assert.equal(started.ok, true, started.error ?? "");
+  await waitFor("creator join seals", () => svc.state().pendingRecords === 0 && svc.state().height >= 0);
+
+  const shared = svc.shareTaskBranch({ treeId: treeId as string, branch });
+  assert.equal(shared.ok, true, shared.error ?? "");
+  assert.ok(shared.recordId, "chain record id returned");
+  await waitFor("share seals", () => svc.state().pendingRecords === 0);
+
+  const genealogy = svc.genealogy();
+  const node = genealogy.find((entry) => entry.recordId === shared.recordId);
+  assert.ok(node, "task.share visible in chain genealogy");
+  assert.match(node.title, /登录重构/);
+
+  // The LOCAL tree file stays private on disk — the chain only carries the
+  // exported snapshot, never the tree storage itself.
+  const { existsSync } = await import("node:fs");
+  assert.ok(existsSync(join(workspaceRoot, ".deeporca", "task-trees")), "local tree storage untouched on disk");
+  assert.ok(!existsSync(join(mkdtempSync(join(tmpdir(), "x")), "noop")));
+
   await svc.stop();
 });

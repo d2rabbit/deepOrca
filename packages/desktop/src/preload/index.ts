@@ -3,7 +3,7 @@
 
 import { contextBridge, ipcRenderer } from "electron";
 import { ChainIpcRequest, IpcEvent, IpcRequest } from "../shared/ipc";
-import type { ChainStartArgs, ChainStatePayload } from "../shared/ipc";
+import type { ChainShareTaskArgs, ChainStartArgs, ChainStatePayload, ChainTaskTreeInfo } from "../shared/ipc";
 import type { DesktopApi } from "../shared/ipc";
 
 function subscribe(channel: string, cb: (payload: never) => void): () => void {
@@ -239,6 +239,8 @@ const api: DesktopApi = {
   chainMembers: () => ipcRenderer.invoke(ChainIpcRequest.Members),
   chainBlocks: (limit?: number) => ipcRenderer.invoke(ChainIpcRequest.Blocks, limit),
   chainGenealogy: () => ipcRenderer.invoke(ChainIpcRequest.Genealogy),
+  chainTaskTrees: (workspaceRoot?: string) => ipcRenderer.invoke(ChainIpcRequest.TaskTrees, workspaceRoot),
+  chainShareTaskBranch: (args: ChainShareTaskArgs) => ipcRenderer.invoke(ChainIpcRequest.ShareTaskBranch, args),
   chainOnStateChanged: (cb: (payload: ChainStatePayload) => void) => subscribe(IpcEvent.ChainStateChanged, cb as never),
 };
 

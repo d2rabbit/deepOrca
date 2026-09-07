@@ -12,6 +12,7 @@ import {
   type ChainMemberView,
   type ChainStatePayload,
   type ChainStartArgs,
+  type ChainTaskTreeInfo,
 } from "../../shared/ipc";
 import { useI18n } from "../i18n";
 
@@ -38,6 +39,9 @@ export function CoordChainPane(props: { startArgs?: Omit<ChainStartArgs, "mode">
   const [members, setMembers] = useState<ChainMemberView[]>([]);
   const [blocks, setBlocks] = useState<ChainBlockView[]>([]);
   const [genealogy, setGenealogy] = useState<ChainGenealogyView[]>([]);
+  const [taskTrees, setTaskTrees] = useState<ChainTaskTreeInfo[]>([]);
+  const [selectedTree, setSelectedTree] = useState("");
+  const [selectedBranch, setSelectedBranch] = useState("");
   const [busy, setBusy] = useState(false);
   const [lastError, setLastError] = useState<string | null>(null);
 
@@ -52,10 +56,20 @@ export function CoordChainPane(props: { startArgs?: Omit<ChainStartArgs, "mode">
         setMembers(await api.chainMembers());
         setBlocks(await api.chainBlocks(10));
         setGenealogy(await api.chainGenealogy());
+        const trees = (await api.chainTaskTrees?.()) ?? [];
+        setTaskTrees(trees);
+        setSelectedTree((current) => {
+          if (current && trees.some((tree) => tree.treeId === current)) {
+            return current;
+          }
+          setSelectedBranch(trees[0]?.activeBranch ?? "");
+          return trees[0]?.treeId ?? "";
+        });
       } else {
         setMembers([]);
         setBlocks([]);
         setGenealogy([]);
+        setTaskTrees([]);
       }
       setLastError(null);
     } catch (error) {
@@ -96,6 +110,22 @@ export function CoordChainPane(props: { startArgs?: Omit<ChainStartArgs, "mode">
       setBusy(false);
     }
   }, [api, refresh]);
+
+  const shareTask = useCallback(async () => {
+    if (!selectedTree || !selectedBranch) {
+      return;
+    }
+    setBusy(true);
+    try {
+      const result = await api.chainShareTaskBranch({ treeId: selectedTree, branch: selectedBranch });
+      if (!result.ok) {
+        setLastError(result.error ?? t("chain.pane.error"));
+      }
+      await refresh();
+    } finally {
+      setBusy(false);
+    }
+  }, [api, selectedTree, selectedBranch, refresh, t]);
 
   const rotate = useCallback(async () => {
     setBusy(true);
@@ -202,6 +232,44 @@ export function CoordChainPane(props: { startArgs?: Omit<ChainStartArgs, "mode">
                   </li>
                 ))}
               </ul>
+            )}
+          </section>
+          <section className="ui-chain-section" data-testid="chain-share-task">
+            <h4>{t("chain.pane.shareTaskLabel")}</h4>
+            {taskTrees.length === 0 ? (
+              <p className="ui-pane-note">{t("chain.pane.noData")}</p>
+            ) : (
+              <>
+                <select
+                  data-testid="share-task-tree"
+                  value={selectedTree}
+                  onChange={(e) => {
+                    setSelectedTree(e.target.value);
+                    const tree = taskTrees.find((tree) => tree.treeId === e.target.value);
+                    setSelectedBranch(tree?.activeBranch ?? "");
+                  }}
+                >
+                  {taskTrees.map((tree) => (
+                    <option key={tree.treeId} value={tree.treeId}>
+                      {tree.title}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  data-testid="share-task-branch"
+                  value={selectedBranch}
+                  onChange={(e) => setSelectedBranch(e.target.value)}
+                >
+                  {(taskTrees.find((tree) => tree.treeId === selectedTree)?.branches ?? []).map((branch) => (
+                    <option key={branch.name} value={branch.name}>
+                      {branch.name}
+                    </option>
+                  ))}
+                </select>
+                <button type="button" className="ui-btn" disabled={busy} onClick={() => void shareTask()}>
+                  {t("chain.pane.shareTaskLabel")}
+                </button>
+              </>
             )}
           </section>
         </>

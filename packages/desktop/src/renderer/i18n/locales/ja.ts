@@ -1697,5 +1697,6 @@ export const ja: Record<MessageKey, string> = {
   "chain.pane.error": "チェーン操作に失敗：",
   "chain.pane.device": "デバイス",
   "chain.pane.records": "{n} 件のレコード",
-};
 
+  "chain.pane.shareTaskLabel": "タスクブランチを共有",
+};

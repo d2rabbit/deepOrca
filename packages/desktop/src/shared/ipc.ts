@@ -32,7 +32,22 @@ export const ChainIpcRequest = {
   Members: "chain:members",
   Blocks: "chain:blocks",
   Genealogy: "chain:genealogy",
+  TaskTrees: "chain:taskTrees",
+  ShareTaskBranch: "chain:shareTaskBranch",
 } as const;
+
+export type ChainTaskTreeInfo = {
+  treeId: string;
+  title: string;
+  branches: Array<{ name: string; headId: string; abandoned?: boolean; mergedInto?: string }>;
+  activeBranch: string;
+};
+
+export type ChainShareTaskArgs = {
+  treeId: string;
+  branch: string;
+  workspaceRoot?: string;
+};
 
 export type ChainStartMode = "create" | "join";
 
@@ -1697,6 +1712,10 @@ export type DesktopApi = {
   chainMembers(): Promise<ChainMemberView[]>;
   chainBlocks(limit?: number): Promise<ChainBlockView[]>;
   chainGenealogy(): Promise<ChainGenealogyView[]>;
+  chainTaskTrees(workspaceRoot?: string): Promise<ChainTaskTreeInfo[]>;
+  chainShareTaskBranch(
+    args: ChainShareTaskArgs
+  ): Promise<{ ok: boolean; error?: string; recordId?: string; title?: string }>;
   chainOnStateChanged(cb: (payload: ChainStatePayload) => void): () => void;
 };
 
