@@ -176,7 +176,7 @@ function DirectorySegments({ suite, kind }: { suite: DesignSuite | null; kind: D
             passed,
             total: verification.checks.length,
           })} · ${t("designWorkspace.dirSelfHeal", { count: verification.healingRounds ?? 0 })}`
-        : t("prototypeWorkspace.dirNotRun"),
+        : t("designWorkspace.dirNotRun"),
       miss: !verification,
     });
   } else if (kind === "ui" && isUiContent(suite.currentContent)) {

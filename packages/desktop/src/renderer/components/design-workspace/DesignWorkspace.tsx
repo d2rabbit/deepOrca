@@ -570,7 +570,14 @@ export function DesignWorkspace({
                 <select
                   value={basis}
                   disabled={readOnly || busy !== null}
-                  onChange={(event) => setBasis(event.target.value)}
+                  onChange={(event) => {
+                    setBasis(event.target.value);
+                    // mockup baseSel change：基底切换即时反馈（对齐 JS L882-886）。
+                    const picked = prototypeBases.find(
+                      (item) => `${item.suiteId}:${item.versionId}` === event.target.value
+                    );
+                    if (picked) pushDesignToast("info", t("designWorkspace.basisSwitched", { label: picked.label }));
+                  }}
                 >
                   {prototypeBases.map((item) => (
                     <option value={`${item.suiteId}:${item.versionId}`} key={`${item.suiteId}:${item.versionId}`}>
@@ -640,6 +647,7 @@ export function DesignWorkspace({
                     onIterate={(instruction) => void revise(instruction)}
                     onSelectionChange={handleSelection}
                     selectionEnabled={!readOnly}
+                    selectionNodePath={selection?.nodePath ?? null}
                     hideComposer
                   />
                 </div>
@@ -710,18 +718,63 @@ export function DesignWorkspace({
                 <div className="ui-design-state">{t("designWorkspace.noComponents")}</div>
               )}
               <div className="ui-design-atom-wall" style={themeVars ?? atomStyle}>
+                {/* mockup wall-cell/state-tag：变体样本 + 状态标注 */}
                 <div className="row">
-                  <button className="atom-btn primary" type="button">
-                    {t("designWorkspace.atomPrimary")}
-                  </button>
-                  <button className="atom-btn" type="button">
-                    {t("designWorkspace.atomSecondary")}
-                  </button>
-                  <button className="atom-btn ghost" type="button">
-                    {t("designWorkspace.atomGhost")}
-                  </button>
+                  <div className="wall-cell">
+                    <button className="atom-btn primary" type="button">
+                      {t("designWorkspace.atomPrimary")}
+                    </button>
+                    <span className="state-tag">default</span>
+                  </div>
+                  <div className="wall-cell">
+                    <button className="atom-btn primary" type="button" style={{ filter: "brightness(1.1)" }}>
+                      {t("designWorkspace.atomPrimary")}
+                    </button>
+                    <span className="state-tag">hover</span>
+                  </div>
+                  <div className="wall-cell">
+                    <button className="atom-btn primary" type="button" style={{ transform: "scale(0.97)" }}>
+                      {t("designWorkspace.atomPrimary")}
+                    </button>
+                    <span className="state-tag">pressed</span>
+                  </div>
+                  <div className="wall-cell">
+                    <button className="atom-btn primary" type="button" disabled>
+                      {t("designWorkspace.atomPrimary")}
+                    </button>
+                    <span className="state-tag">disabled</span>
+                  </div>
+                  <div className="wall-cell">
+                    <button className="atom-btn ghost" type="button">
+                      {t("designWorkspace.atomGhost")}
+                    </button>
+                    <span className="state-tag">ghost</span>
+                  </div>
                 </div>
-                <input className="atom-input" placeholder={t("designWorkspace.atomInput")} readOnly />
+                <div className="row">
+                  <div className="wall-cell">
+                    <input className="atom-input" placeholder={t("designWorkspace.atomInput")} readOnly />
+                    <span className="state-tag">input · default</span>
+                  </div>
+                  <div className="wall-cell">
+                    <input
+                      className="atom-input"
+                      value={t("designWorkspace.atomInputFocus")}
+                      readOnly
+                      style={{ border: "1.5px solid var(--ds-accent, var(--ui-accent))" }}
+                    />
+                    <span className="state-tag">input · focus</span>
+                  </div>
+                  <div className="wall-cell">
+                    <input
+                      className="atom-input"
+                      value={t("designWorkspace.atomInputError")}
+                      readOnly
+                      style={{ border: "1.5px solid var(--ui-danger)" }}
+                    />
+                    <span className="state-tag">input · error</span>
+                  </div>
+                </div>
                 <div className="row">
                   <span className="atom-tag">{t("designWorkspace.atomTag")}</span>
                   <span className="atom-tag warn">{t("designWorkspace.atomTagWarn")}</span>
@@ -763,6 +816,10 @@ export function DesignWorkspace({
               <div className="ui-report-meta">
                 {t("designWorkspace.qualityMeta", {
                   version: versionLabel(suite?.versions, selectedVersion.versionId) ?? "-",
+                  theme:
+                    (catalog.find((item) => item.id === content.designSystemId)?.title ?? content.designSystemId) ||
+                    "-",
+                  time: new Date(selectedVersion.savedAt).toLocaleString(),
                 })}
               </div>
             ) : null}

@@ -267,7 +267,8 @@
   min-height: 0;
   flex: 1;
   gap: 10px;
-  padding: 10px;
+  /* mockup .rev-tab-body：12px 16px */
+  padding: 12px 16px;
 }
 
 .ui-design-version-rail {
@@ -1122,11 +1123,20 @@
 }
 
 /* UI design canvas stage — hosts the OpenUI preview + selection capture */
+/* 视觉稿画布卡片（mockup .ds-canvas）：白底圆角边框 + --ds-* 着色（vars 由
+   stage 的 themeVars 下沉），内容不再直贴容器。 */
 .ui-design-canvas-stage {
   position: relative;
+  width: min(100%, 860px);
   flex: 1;
   min-height: 0;
   overflow: auto;
+  padding: 18px 22px;
+  border: 1px solid var(--ui-border-soft);
+  border-radius: 12px;
+  background: var(--ds-paper, var(--ui-surface));
+  color: var(--ds-ink, inherit);
+  transition: background 0.3s var(--ui-ease);
 }
 
 .ui-design-flash {
@@ -1642,6 +1652,31 @@
 
 .ui-report-finding .head .loc {
   margin-left: auto;
+}
+
+/* 选中元素持久 outline（mockup .dd-sec.pd-sel）—— 由 PrototypePanel 在
+   选定/清除时挂摘。 */
+.ui-design-sel-outline {
+  outline: 2px solid var(--ui-accent);
+  outline-offset: 2px;
+}
+
+/* 组件墙变体格（mockup wall-cell/state-tag）：样本 + 状态标注。 */
+.wall-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.wall-cell .state-tag {
+  padding: 1px 6px;
+  border: 1px solid var(--ui-border-soft);
+  border-radius: 4px;
+  background: var(--ui-surface-sunken);
+  color: var(--ui-text-faint);
+  font-family: var(--ui-font-mono);
+  font-size: 9.5px;
 }
 
 .ui-prototype-panel-body.selection-enabled [data-act]:hover::after {

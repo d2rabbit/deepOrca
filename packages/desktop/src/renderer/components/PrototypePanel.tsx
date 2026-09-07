@@ -48,6 +48,9 @@ type Props = {
   onSelectionChange?: (selection: PrototypeSelection | null) => void;
   selectionEnabled?: boolean;
   hideComposer?: boolean;
+  /** Host-owned selection nodePath — lets the panel drop its persistent
+   *  outline when the workspace clears the selection externally. */
+  selectionNodePath?: string | null;
 };
 
 function prototypeNodePath(element: HTMLElement, root: HTMLElement): string {
@@ -73,6 +76,7 @@ export function PrototypePanel({
   onSelectionChange,
   selectionEnabled = false,
   hideComposer = false,
+  selectionNodePath,
 }: Props): JSX.Element {
   const { t } = useI18n();
   const [draft, setDraft] = useState("");
@@ -221,6 +225,20 @@ export function PrototypePanel({
   /** Last emitted selection bounds — scroll-follow dedupe (re-review M3). */
   const lastBoundsRef = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
 
+  // Persistent selection outline (mockup .dd-sec.pd-sel): stamped on the
+  // element at select time, dropped on deselect/clear — including when the
+  // WORKSPACE clears the selection externally (nodePath prop drift).
+  const dropSelectionMark = useCallback((): void => {
+    selectionRef.current?.element.classList.remove("ui-design-sel-outline");
+  }, []);
+  useEffect(() => {
+    if (selectionRef.current && selectionRef.current.nodePath !== (selectionNodePath ?? null)) {
+      dropSelectionMark();
+      selectionRef.current = null;
+      onSelectionChange?.(null);
+    }
+  }, [selectionNodePath, dropSelectionMark, onSelectionChange]);
+
   const handleSelectionCapture = useCallback(
     (event: MouseEvent<HTMLDivElement>) => {
       if (!selectionEnabled || mode !== "openui" || !onSelectionChange) return;
@@ -231,6 +249,7 @@ export function PrototypePanel({
       // Blank-canvas click (no selectable ancestor) cancels the selection
       // instead of re-selecting the whole canvas root (mockup: 点空白取消).
       if (!selectable || !root.contains(selectable) || selectable === root) {
+        dropSelectionMark();
         selectionRef.current = null;
         lastBoundsRef.current = null;
         onSelectionChange(null);
@@ -238,6 +257,8 @@ export function PrototypePanel({
       }
       event.preventDefault();
       event.stopPropagation();
+      dropSelectionMark();
+      selectable.classList.add("ui-design-sel-outline");
       selectionRef.current = {
         element: selectable,
         nodePath: prototypeNodePath(selectable, root),
@@ -252,7 +273,7 @@ export function PrototypePanel({
         bounds,
       });
     },
-    [mode, onSelectionChange, selectionEnabled]
+    [mode, onSelectionChange, selectionEnabled, dropSelectionMark]
   );
 
   // Scroll-follow (mockup placePop): re-measure the selected element on any
@@ -266,6 +287,7 @@ export function PrototypePanel({
       const current = selectionRef.current;
       if (!current) return;
       if (!current.element.isConnected) {
+        dropSelectionMark();
         selectionRef.current = null;
         lastBoundsRef.current = null;
         onSelectionChange(null);

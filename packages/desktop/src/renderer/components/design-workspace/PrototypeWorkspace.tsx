@@ -570,6 +570,7 @@ export function PrototypeWorkspace({
                     onIterate={(instruction) => revise(instruction)}
                     onSelectionChange={handlePrototypeSelection}
                     selectionEnabled={!readOnly}
+                    selectionNodePath={selection?.nodePath ?? null}
                     hideComposer
                   />
                 </div>
