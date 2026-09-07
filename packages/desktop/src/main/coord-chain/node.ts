@@ -40,8 +40,6 @@ import {
   signBytes,
   themeIdFromTheme,
   treeCidOf,
-  emptyTree,
-  setTreeEntry,
   diffTrees,
   isSafeWorkspacePath,
   verifySignedRecord,
@@ -811,7 +809,7 @@ export class ChainNode {
       });
       this.requireStore().saveCommit(commit.commitCid, { commit, tree });
       this.lastWorkspaceCommitCid = commit.commitCid;
-      const record = this.submitRecord("ws.commit", {
+      this.submitRecord("ws.commit", {
         treeCid,
         parents,
         message: args.message,
