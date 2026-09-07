@@ -364,6 +364,15 @@
   overflow: hidden;
 }
 
+/* 像素对齐（用户比对 2026-09-07）：版本 rail 与右侧详情区与设计稿一样各自成
+   圆角边框卡片 —— rail 的框由 .ui-design-version-rail 提供，详情区在这里补上
+   对称的框线与底色，不再裸排在 sheet 上。 */
+.ui-design-workspace-main {
+  border: 1px solid var(--ui-border-soft);
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-surface);
+}
+
 .ui-design-workspace-content {
   flex-direction: column;
 }
