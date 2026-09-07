@@ -508,7 +508,12 @@ export function PrototypeWorkspace({
                   </button>
                 ))}
               </div>
-              <button type="button" disabled={!content.spec || busy !== null || readOnly} onClick={materialize}>
+              <button
+                type="button"
+                className="primary"
+                disabled={!content.spec || busy !== null || readOnly}
+                onClick={materialize}
+              >
                 <IconPalette /> {t("prototypeWorkspace.materialize")}
               </button>
               <button type="button" disabled={!content.openui || busy !== null || readOnly} onClick={verify}>
@@ -523,27 +528,50 @@ export function PrototypeWorkspace({
               </button>
             </div>
             {progress ? <div className="ui-design-gen-progress">{progress}</div> : null}
-            {content.openui ? (
-              <div className={`ui-design-device ui-design-device-${device}`}>
-                <div className="ui-design-device-chrome" aria-hidden="true">
-                  <i />
-                  <i />
-                  <i />
-                  <span>{suite?.title ?? "prototype"}</span>
+            <div className="ui-design-canvas-area">
+              {content.openui ? (
+                <div className={`ui-design-device ui-design-device-${device}`}>
+                  <div className="ui-design-device-chrome" aria-hidden="true">
+                    <i />
+                    <i />
+                    <i />
+                    <span>{suite?.title ?? "prototype"}</span>
+                  </div>
+                  <PrototypePanel
+                    a2uiJson=""
+                    openuiCode={content.openui}
+                    mode="openui"
+                    onIterate={(instruction) => revise(instruction)}
+                    onSelectionChange={handlePrototypeSelection}
+                    selectionEnabled={!readOnly}
+                    hideComposer
+                  />
                 </div>
-                <PrototypePanel
-                  a2uiJson=""
-                  openuiCode={content.openui}
-                  mode="openui"
-                  onIterate={(instruction) => revise(instruction)}
-                  onSelectionChange={handlePrototypeSelection}
-                  selectionEnabled={!readOnly}
-                  hideComposer
-                />
-              </div>
-            ) : (
-              <div className="ui-design-state">{t("prototypeWorkspace.noPrototype")}</div>
-            )}
+              ) : (
+                // Re-review pixel round: the empty state keeps the device shell
+                // + grid so the canvas never collapses into a bare line of text
+                // (mockup: 画布永远在壳里).
+                <div className={`ui-design-device ui-design-device-${device}`}>
+                  <div className="ui-design-device-chrome" aria-hidden="true">
+                    <i />
+                    <i />
+                    <i />
+                    <span>{suite?.title ?? "prototype"}</span>
+                  </div>
+                  <div className="ui-design-device-empty">
+                    <p>{t("prototypeWorkspace.noPrototype")}</p>
+                    <button
+                      type="button"
+                      className="primary"
+                      disabled={!content.spec || busy !== null || readOnly}
+                      onClick={materialize}
+                    >
+                      <IconPalette /> {t("prototypeWorkspace.materialize")}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
             <SelectionPopover
               selection={selection}
               readOnly={readOnly}
@@ -561,7 +589,7 @@ export function PrototypeWorkspace({
               <h1>{t("prototypeWorkspace.reportTitle")}</h1>
               <button
                 type="button"
-                className="ui-review-run-btn"
+                className="ui-review-run-btn primary"
                 disabled={!content.openui || busy !== null || readOnly}
                 onClick={verify}
               >

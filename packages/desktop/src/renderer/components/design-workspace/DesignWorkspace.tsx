@@ -601,6 +601,7 @@ export function DesignWorkspace({
               </label>
               <button
                 type="button"
+                className="primary"
                 disabled={!selectedBasis || !designSystemId || busy !== null || readOnly}
                 onClick={materialize}
               >
@@ -629,21 +630,25 @@ export function DesignWorkspace({
               ) : null}
             </div>
             {progress ? <div className="ui-design-gen-progress">{progress}</div> : null}
-            {content.openui ? (
-              <div className="ui-design-canvas-stage" ref={stageRef} style={themeVars}>
-                <PrototypePanel
-                  a2uiJson=""
-                  openuiCode={content.openui}
-                  mode="openui"
-                  onIterate={(instruction) => void revise(instruction)}
-                  onSelectionChange={handleSelection}
-                  selectionEnabled={!readOnly}
-                  hideComposer
-                />
-              </div>
-            ) : (
-              <div className="ui-design-state">{t("designWorkspace.noDesign")}</div>
-            )}
+            <div className="ui-design-canvas-area">
+              {content.openui ? (
+                <div className="ui-design-canvas-stage" ref={stageRef} style={themeVars}>
+                  <PrototypePanel
+                    a2uiJson=""
+                    openuiCode={content.openui}
+                    mode="openui"
+                    onIterate={(instruction) => void revise(instruction)}
+                    onSelectionChange={handleSelection}
+                    selectionEnabled={!readOnly}
+                    hideComposer
+                  />
+                </div>
+              ) : (
+                <div className="ui-design-device-empty">
+                  <p>{t("designWorkspace.noDesign")}</p>
+                </div>
+              )}
+            </div>
             <SelectionPopover
               selection={selection}
               readOnly={readOnly}

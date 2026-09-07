@@ -1461,6 +1461,67 @@
   position: relative;
 }
 
+/* ── 画布区（mockup .proto-canvas）：蓝图网格底纹 + 设备壳居中 ── */
+.ui-design-canvas-area {
+  position: relative;
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  overflow: auto;
+  padding: 20px;
+  background:
+    linear-gradient(color-mix(in srgb, var(--ui-border-soft) 40%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--ui-border-soft) 40%, transparent) 1px, transparent 1px);
+  background-size: 44px 44px;
+}
+
+.ui-design-canvas-area .ui-design-device {
+  flex: none;
+}
+
+/* 空态：设备壳保留、壳身居中提示 + 主色 CTA（不再是一行孤零零的灰字）。 */
+.ui-design-device-empty {
+  display: grid;
+  min-height: 320px;
+  place-items: center;
+  background: var(--ui-surface-raised);
+  border-radius: 0 0 var(--ui-radius-md) var(--ui-radius-md);
+}
+
+.ui-design-device-empty > div,
+.ui-design-device-empty p {
+  margin: 0;
+}
+
+.ui-design-device-empty {
+  justify-items: center;
+  gap: 12px;
+  padding: 24px;
+  color: var(--ui-text-faint);
+  font-size: 12px;
+}
+
+/* 主色动作按钮（mockup：▶运行验收走查 / 生成 类的实心 accent 胶囊）。 */
+.ui-design-toolbar button.primary,
+.ui-design-device-empty button.primary,
+.ui-review-run-btn.primary {
+  border-color: var(--ui-accent);
+  border-radius: var(--ui-radius-pill);
+  background: var(--ui-accent);
+  color: var(--ui-text-on-accent);
+  font-weight: 600;
+  padding: 4px 14px;
+}
+
+.ui-design-toolbar button.primary:hover:not(:disabled),
+.ui-design-device-empty button.primary:hover:not(:disabled) {
+  border-color: var(--ui-accent);
+  background: color-mix(in srgb, var(--ui-accent) 88%, var(--ui-text-on-accent));
+}
+
 .ui-prototype-panel-body.selection-enabled [data-act]:hover::after {
   position: absolute;
   z-index: 6;
