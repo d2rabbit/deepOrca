@@ -25,7 +25,13 @@ import type { ActionContext, ActionDefinition, ActionRun } from "./types";
 import { validateDembrandtTargetUrl } from "../common/dembrandt";
 import { runDembrandtProcess } from "../common/dembrandt-runner";
 import { getExtensionRoot } from "../prompt";
-import { executeA2ui, extractGeneratedBody, readArtifactFile, readSuiteVersion } from "./prototype";
+import {
+  executeA2ui,
+  extractGeneratedBody,
+  looksLikeOpenuiProgram,
+  readArtifactFile,
+  readSuiteVersion,
+} from "./prototype";
 import type { ArtifactRef, UiSuiteContent } from "./prototype";
 
 export interface DesignMaterializeInput {
@@ -168,7 +174,12 @@ export const designMaterializeRun: ActionRun<DesignMaterializeInput, DesignMater
   try {
     const generated = await ctx.runSubagent({ skill: "deep-design", prompt: promptParts.join("\n\n"), silent: true });
     const content = extractGeneratedBody(generated);
-    if (!content) return { ok: false, error: "deep-design returned no OpenUI program" };
+    if (!content || !looksLikeOpenuiProgram(content)) {
+      return {
+        ok: false,
+        error: "deep-design returned an empty or truncated OpenUI program (no root/component statements) — regenerate",
+      };
+    }
     const saved = await executeA2ui(ctx, "render_openui", {
       code: content,
       requirement: effectiveRequirement,
@@ -393,6 +404,19 @@ export const designReviewDefinition: ActionDefinition<DesignReviewInput> = {
 
 type ReviewValidation = { ok: true; review: DesignQualityReview } | { ok: false; error: string };
 
+/** True when the value tree carries at least one concrete observation
+ *  (non-empty string or finite number) within the depth bound. */
+function hasConcreteEvidenceLeaf(value: unknown, depth = 0): boolean {
+  if (typeof value === "string") return value.trim().length > 0;
+  if (typeof value === "number") return Number.isFinite(value);
+  if (depth >= 4) return false;
+  if (Array.isArray(value)) return value.some((item) => hasConcreteEvidenceLeaf(item, depth + 1));
+  if (value && typeof value === "object") {
+    return Object.values(value).some((item) => hasConcreteEvidenceLeaf(item, depth + 1));
+  }
+  return false;
+}
+
 function validateReview(value: unknown): ReviewValidation {
   if (!value || typeof value !== "object") return { ok: false, error: "review JSON is not an object" };
   const record = value as Record<string, unknown>;
@@ -407,8 +431,11 @@ function validateReview(value: unknown): ReviewValidation {
   }
   const evidence = record.evidence as Record<string, unknown>;
   // An empty evidence object would promote the suite to verified on the LLM's
-  // word alone — require at least one concrete string/number observation.
-  if (!Object.values(evidence).some((v) => (typeof v === "string" && v.trim()) || typeof v === "number")) {
+  // word alone — require at least one concrete observation. Re-review fix: the
+  // check walks one level of nesting/arrays so legitimate shapes like
+  // {"findings": ["#submit"]} or {"contrast": {"ratio": 3.2}} pass while
+  // {} / {"a": ""} still fail.
+  if (!hasConcreteEvidenceLeaf(evidence)) {
     return { ok: false, error: "evidence must contain at least one non-empty string or number value" };
   }
   return {
@@ -533,7 +560,12 @@ export const designReviseRun: ActionRun<DesignReviseInput, SuiteActionOutput> = 
       silent: true,
     });
     const revised = extractGeneratedBody(generated);
-    if (!revised) return { ok: false, error: "deep-design returned no revised OpenUI program" };
+    if (!revised || !looksLikeOpenuiProgram(revised)) {
+      return {
+        ok: false,
+        error: "deep-design returned empty or structurally invalid content (truncated output?) — regenerate",
+      };
+    }
     const saved = await executeA2ui(ctx, "update_openui", {
       suiteId,
       versionId,
@@ -871,7 +903,9 @@ export const designDriftRun: ActionRun<DesignDriftInput, DesignDriftOutput> = as
   ctx.emit({
     message: driftDetected ? `⚠️ Drift detected (score ${rawScore ?? "?"})` : "✅ Within baseline",
     percent: 100,
-    data: { code: "design.drift.done" },
+    // Re-review fix: distinct codes — a single "done" collapsed both outcomes
+    // into one localized label and hid the score/detected distinction.
+    data: { code: driftDetected ? "design.drift.detected" : "design.drift.clean" },
   });
 
   return {

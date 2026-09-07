@@ -5,6 +5,7 @@
 
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { randomUUID } from "node:crypto";
 import type { ActionContext, ActionDefinition, ActionRun } from "./types";
 
 const DESIGNS_DIR = ".deeporca/designs";
@@ -93,7 +94,9 @@ function extractGeneratedBody(result: unknown): string | null {
   // mid-document; refuse the half-captured body (it used to fall back to the
   // WHOLE message including leading prose) so callers fail with a
   // regenerate hint instead of persisting garbage as a "ready" version.
-  if (/```[^\n]*\n/.test(content)) return null;
+  // Line-anchored (re-review fix): prose merely MENTIONING ``` mid-line must
+  // not trip the truncation refusal.
+  if (/^[ \t]*```[^\n]*\n/m.test(content)) return null;
   return content.trim() || null;
 }
 
@@ -505,7 +508,7 @@ export const prototypeReviseRun: ActionRun<PrototypeReviseInput, PrototypeSpecOu
       checks: [
         ...(content.verification?.checks ?? []),
         {
-          id: `revision-${Date.now()}`,
+          id: `revision-${Date.now()}-${randomUUID().slice(0, 8)}`,
           label: target,
           status: "pending",
           observation: instruction,
