@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   saveDesignArtifact,
   listDesignArtifacts,
@@ -320,7 +321,10 @@ test("append ignores identical content and caps retained versions at 20 includin
   assert.equal(fs.readdirSync(path.join(suiteDir(root, initial.id), "versions")).length, 20);
 });
 
-test("appending past the cap deletes evictions last: the current version stays readable", () => {
+test("appending past the cap keeps exactly 20 versions with the current readable and no orphan files", () => {
+  // NOTE (re-review M8): end-state assertions only — the write-before-delete
+  // crash ORDERING itself needs crash injection and is covered by code
+  // review; what this pins is the cap, head safety and on-disk consistency.
   const root = tempRoot();
   const initial = createDesignSuite(root, { title: "Evict", kind: "prototype", content: { spec: "v0" } });
   assert.ok(initial);
@@ -359,17 +363,39 @@ test("readDesignSuite drops a missing non-current version file; a missing curren
   assert.equal(resilient?.currentVersionId, before!.currentVersionId);
   assert.equal((resilient?.currentContent as PrototypeSuiteContent).spec, "v2");
 
+  // Re-review M2: the drop must RECONCILE the store — meta.json and the suite
+  // index no longer list the orphaned version, so the rail numbering and
+  // versionCount stay truthful and the next append builds on the fixed list.
+  const repairedMeta = JSON.parse(fs.readFileSync(path.join(suiteDir(root, suite.id), "meta.json"), "utf8")) as {
+    versions: Array<{ versionId: string }>;
+  };
+  assert.equal(
+    repairedMeta.versions.some((summary) => summary.versionId === stale.versionId),
+    false,
+    "meta.json drops the orphaned version summary"
+  );
+  const listed = listDesignSuites(root).find((summary) => summary.id === suite.id);
+  assert.equal(listed?.versionCount, 2, "suite index versionCount reconciled");
+
   // The current version is the suite head — without its file the suite is
   // unreadable and must stay null.
   fs.rmSync(path.join(suiteDir(root, suite.id), "versions", `${resilient!.currentVersionId}.json`), { force: true });
   assert.equal(readDesignSuite(root, suite.id), null);
 });
 
-test("index writes round-trip through the atomic temp+rename path", () => {
-  // The real torn-write race is covered by code review (a partial writeFileSync
-  // on the final path cannot be simulated portably here); what we pin is the
-  // observable contract: index content round-trips after updates and the
-  // atomic helper leaves no temp residue behind.
+test("index writes are source-pinned to the atomic helper and round-trip", () => {
+  // Re-review H2: content round-trips + "no .tmp residue" pass under a plain
+  // writeFileSync too — the discriminating assertion is a SOURCE pin: the
+  // legacy index write must route through writeJsonAtomic (the torn-write
+  // race itself needs crash injection; covered by code review).
+  const source = fs.readFileSync(
+    path.join(path.dirname(fileURLToPath(import.meta.url)), "../main/tools/design-store.ts"),
+    "utf8"
+  );
+  const writeIndexBody = source.slice(source.indexOf("function writeIndex("), source.indexOf("function readMetaFile("));
+  assert.match(writeIndexBody, /writeJsonAtomic\(/, "writeIndex must route through writeJsonAtomic");
+  assert.doesNotMatch(writeIndexBody, /writeFileSync\(/, "writeIndex must not bare-write");
+  // Observable contract: index content round-trips after updates.
   const root = tempRoot();
   const meta = saveDesignArtifact(root, { title: "Atomic", pipeline: "openui", content: "v1" });
   assert.ok(meta);

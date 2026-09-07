@@ -15,6 +15,7 @@ import assert from "node:assert/strict";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
+import { fileURLToPath } from "node:url";
 import ejs from "ejs";
 import { SessionManager } from "../session";
 import type { SkillInfo } from "../session-types";
@@ -474,7 +475,7 @@ describe("createSession lane stamping", () => {
 describe("skill-matching template byte stability", () => {
   test("empty complexityDirective renders byte-identically to the pre-feature template", () => {
     const templatePath = path.join(
-      path.dirname(new URL(import.meta.url).pathname),
+      path.dirname(fileURLToPath(import.meta.url)),
       "..",
       "..",
       "templates",
@@ -526,8 +527,11 @@ describe("summarizeLaneTelemetry", () => {
 
 /** The pre-feature skill-matching template: the current file minus the appended directive slot. */
 function preFeatureTemplate(): string {
+  // fileURLToPath (cross-platform fixture policy): URL.pathname keeps a
+  // leading slash on Windows ("/D:/..."), which path.join then folds into
+  // "D:\D:\..." — a guaranteed ENOENT on every drive-letter checkout.
   const templatePath = path.join(
-    path.dirname(new URL(import.meta.url).pathname),
+    path.dirname(fileURLToPath(import.meta.url)),
     "..",
     "..",
     "templates",

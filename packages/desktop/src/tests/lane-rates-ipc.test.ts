@@ -7,17 +7,13 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import {
-  LANE_RATE_MAX_SESSIONS,
-  laneRatesReport,
-  readLaneRateTranscripts,
-  selectRecentLaneSessions,
-} from "../main/tools/lane-rates-ipc";
+import { laneRatesReport, readLaneRateTranscripts, selectRecentLaneSessions } from "../main/tools/lane-rates-ipc";
 
 const T0 = "2026-09-07T10:00:00Z";
 
-/** sessions-index entry shape used across the selection test. */
-type Entry = { id: string; isSilentSubagent?: boolean; updatedAt?: string };
+/** sessions-index entry shape used across the selection test — mirrors core's
+ *  persisted SessionEntry (createTime/updateTime; there is no updateTime). */
+type Entry = { id: string; isSilentSubagent?: boolean; updateTime?: string; createTime?: string };
 
 /** Fresh temp project dir; caller removes it in a finally block. */
 function makeProjectDir(): string {
@@ -40,17 +36,18 @@ function line(role: string, text: string, createTime?: string): object {
 test("selectRecentLaneSessions keeps the newest 80 non-silent entries", () => {
   const base = Date.UTC(2026, 8, 7, 0, 0, 0);
   const iso = (ms: number): string => new Date(ms).toISOString();
-  const entries: Entry[] = Array.from({ length: 85 }, (_, i) => ({ id: `s${i}`, updatedAt: iso(base + i * 60_000) }));
+  const entries: Entry[] = Array.from({ length: 85 }, (_, i) => ({ id: `s${i}`, updateTime: iso(base + i * 60_000) }));
   // Newest entry overall is a silent subagent — must be filtered, not selected.
-  const all: Entry[] = [...entries, { id: "agent-x", isSilentSubagent: true, updatedAt: iso(base + 85 * 60_000) }];
+  const all: Entry[] = [...entries, { id: "agent-x", isSilentSubagent: true, updateTime: iso(base + 85 * 60_000) }];
 
   const out = selectRecentLaneSessions(all);
-  assert.equal(out.length, LANE_RATE_MAX_SESSIONS);
+  assert.equal(out.length, 80);
   assert.ok(out.every((entry) => !entry.isSilentSubagent));
-  // The 5 OLDEST (s0..s4) are dropped by the bound.
+  // The 5 OLDEST (s0..s4) are dropped by the bound — re-review H1 regression:
+  // a field-name mixup here degenerates the sort and keeps the oldest instead.
   assert.ok(out.every((entry) => Number(entry.id.slice(1)) >= 5));
   for (let i = 1; i < out.length; i += 1) {
-    assert.ok(Date.parse(out[i - 1]!.updatedAt!) >= Date.parse(out[i]!.updatedAt!), "sorted updatedAt desc");
+    assert.ok(Date.parse(out[i - 1]!.updateTime!) >= Date.parse(out[i]!.updateTime!), "sorted updateTime desc");
   }
   // Custom bound is honoured.
   assert.equal(selectRecentLaneSessions(all, 3).length, 3);
@@ -59,6 +56,19 @@ test("selectRecentLaneSessions keeps the newest 80 non-silent entries", () => {
   const withNoDate = selectRecentLaneSessions([{ id: "nodate" }, ...entries]);
   assert.equal(withNoDate.length, 80);
   assert.ok(withNoDate.every((entry) => entry.id !== "nodate"));
+  // createTime fallback: entries without updateTime still order by creation.
+  const byCreation = selectRecentLaneSessions(
+    [
+      { id: "old-create", createTime: "2026-09-01T00:00:00Z" },
+      { id: "new-create", createTime: "2026-09-06T00:00:00Z" },
+      { id: "newer-update", updateTime: "2026-09-07T00:00:00Z" },
+    ],
+    3
+  );
+  assert.deepEqual(
+    byCreation.map((entry) => entry.id),
+    ["newer-update", "new-create", "old-create"]
+  );
 });
 
 test("readLaneRateTranscripts: missing file and corrupt line degrade to empty samples", async () => {
@@ -81,8 +91,8 @@ test("laneRatesReport end-to-end: deep negative + express follow-up", async () =
   const dir = makeProjectDir();
   try {
     writeIndex(dir, [
-      { id: "deep1", lane: "deep", updatedAt: "2026-09-07T10:06:00Z" },
-      { id: "exp1", lane: "express", updatedAt: "2026-09-07T10:07:00Z" },
+      { id: "deep1", lane: "deep", updateTime: "2026-09-07T10:06:00Z" },
+      { id: "exp1", lane: "express", updateTime: "2026-09-07T10:07:00Z" },
     ]);
     writeTranscript(dir, "deep1", [
       line("user", "帮我写一份详细的市场分析报告", T0),
@@ -110,9 +120,9 @@ test("laneRatesReport: silent subagent entry and missing transcript degrade grac
   const dir = makeProjectDir();
   try {
     writeIndex(dir, [
-      { id: "real", lane: "express", updatedAt: "2026-09-07T10:00:00Z" },
-      { id: "ghost", isSilentSubagent: true, updatedAt: "2026-09-07T11:00:00Z" },
-      { id: "nofile", updatedAt: "2026-09-07T09:00:00Z" },
+      { id: "real", lane: "express", updateTime: "2026-09-07T10:00:00Z" },
+      { id: "ghost", isSilentSubagent: true, updateTime: "2026-09-07T11:00:00Z" },
+      { id: "nofile", updateTime: "2026-09-07T09:00:00Z" },
     ]);
     writeTranscript(dir, "real", [line("user", "quick question about css grid", T0)]);
 

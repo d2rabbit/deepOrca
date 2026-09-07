@@ -1,5 +1,8 @@
 import { after, afterEach, before, test } from "node:test";
 import assert from "node:assert/strict";
+import * as fs from "node:fs";
+import * as path from "node:path";
+import { fileURLToPath } from "node:url";
 import type * as React from "react";
 import type * as RTL from "@testing-library/react";
 import type { I18nProvider as I18nProviderComponent } from "../renderer/i18n";
@@ -424,6 +427,10 @@ test("background suite events refresh without resetting the viewed version", asy
   rtl.fireEvent.click(out.container.querySelector('[data-version-id="old"]') as Element);
   await settle();
   assert.ok(out.getByText("This older version is read-only."));
+  // Re-review M6: pin the REFRESH half too — the emit must actually trigger a
+  // reload (a dead subscription would leave this count flat and still pass the
+  // banner assertions below).
+  const readsBefore = stub.calls.filter((call) => call.method === "designSuiteRead").length;
   await rtl.act(async () => {
     stub.emit("onDesignChanged", {
       root: "/work/current",
@@ -433,6 +440,10 @@ test("background suite events refresh without resetting the viewed version", asy
     });
   });
   await settle();
+  assert.ok(
+    stub.calls.filter((call) => call.method === "designSuiteRead").length > readsBefore,
+    "the suite event triggered a reload"
+  );
   // The user is still reading the old version after the background refresh.
   assert.ok(out.getByText("This older version is read-only."));
 });
@@ -511,10 +522,14 @@ test("floating agent surfaces the conversation body, typing state and the ack bu
   overrides.designSuiteRead = async () => prototype;
   overrides.designSuiteReadVersion = async (_root: string, _id: string, id: string) =>
     prototype.versions.find((item) => item.versionId === id) ?? null;
-  overrides.actionRun = async () => ({
-    ok: true,
-    output: { ok: true, artifactRef: { suiteId: prototype.id, versionId: "latest", kind: "prototype" } },
-  });
+  // Re-review H3/M7: a manually-resolved actionRun pins the TYPING surface
+  // deterministically (no settle-timing luck) — fire, assert mid-flight, then
+  // resolve and assert the terminal ack.
+  let resolveAction: ((value: { ok: boolean; output: unknown }) => void) | null = null;
+  overrides.actionRun = () =>
+    new Promise((resolve) => {
+      resolveAction = resolve;
+    });
   const out = renderWithI18n(
     ReactPkg.createElement(PrototypeWorkspace, { root: "/work/current", suiteId: prototype.id })
   );
@@ -523,22 +538,40 @@ test("floating agent surfaces the conversation body, typing state and the ack bu
   assert.ok(out.container.querySelector(".ui-floating-design-agent-msg.agent"));
   const input = out.getByPlaceholderText("Describe the revision…") as HTMLInputElement;
   rtl.fireEvent.change(input, { target: { value: "make the hero calmer" } });
-  rtl.fireEvent.click(out.getByText("Submit"));
+  await rtl.act(async () => {
+    rtl.fireEvent.click(out.getByText("Submit"));
+    await Promise.resolve();
+  });
   assert.ok(out.container.querySelector(".ui-floating-design-agent-msg.user"));
+  assert.ok(
+    out.container.querySelector(".ui-floating-design-agent-typing"),
+    "typing indicator is visible while the silent subagent runs"
+  );
+  assert.equal(input.value, "", "the draft clears once the instruction is dispatched");
+  await rtl.act(async () => {
+    resolveAction?.({
+      ok: true,
+      output: { ok: true, artifactRef: { suiteId: prototype.id, versionId: "latest", kind: "prototype" } },
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+  });
   await settle();
-  await settle();
+  assert.equal(out.container.querySelector(".ui-floating-design-agent-typing"), null, "typing clears on settle");
   assert.ok(
     Array.from(out.container.querySelectorAll(".ui-floating-design-agent-msg.agent")).some((node) =>
       node.textContent?.includes("Revision applied")
     )
   );
-  assert.equal(input.value, "", "the draft clears once the instruction is dispatched");
 });
 
 test("design toolbar shows the version badge with a localized status", async () => {
   const prototype = suite("prototype", [version("proto-v1", { spec: "# Scope", openui: "root = Text('v1')" })]);
+  // Re-review L15: two versions — a single-version fixture cannot
+  // discriminate head-labeling conventions (both label the sole item v1).
   const ui = suite("ui", [
-    version("ui-v1", {
+    version("ui-v1", { openui: 'root = Screen("UI v1")' }),
+    version("ui-v2", {
       openui: 'root = Screen("UI")',
       tokens: { accent: "blue" },
       quality: { lintFindings: [], runtimeChecks: [] },
@@ -551,5 +584,67 @@ test("design toolbar shows the version badge with a localized status", async () 
   await settle();
   const badge = out.container.querySelector(".ui-design-vbadge");
   assert.ok(badge);
-  assert.match(badge.textContent ?? "", /v1 · Ready/);
+  assert.match(badge.textContent ?? "", /v2 · Ready/, "head (newest) labeled v2 — not the oldest");
+});
+
+test("progress-label maps every core emit code both ways and handles format/terminal", async () => {
+  const { PROGRESS_KEYS, progressLabel, isTerminalProgress } =
+    await import("../renderer/components/design-workspace/progress-label");
+  // Completeness, both directions: every dotted code literal the core actions
+  // emit is mapped, and no mapped key is dead.
+  const actionsDir = path.join(path.dirname(fileURLToPath(import.meta.url)), "../../../core/src/actions");
+  const sources = ["prototype.ts", "design.ts"]
+    .map((name) => fs.readFileSync(path.join(actionsDir, name), "utf8"))
+    .join("\n");
+  const emitted = [...sources.matchAll(/["'](prototype|design)\.[a-z]+(?:\.[a-z]+)+["']/g)]
+    .map((match) => match[0].slice(1, -1))
+    // File-name literals ("prototype.openui.txt") share the dotted shape —
+    // only two-segment-plus codes without extensions count.
+    .filter((code) => !/\.(txt|md|json|dd)$/.test(code));
+  assert.ok(emitted.length >= 11, `expected ≥11 codes, found ${emitted.length}`);
+  for (const code of emitted) {
+    assert.ok(PROGRESS_KEYS[code], `unmapped progress code: ${code}`);
+  }
+  for (const key of Object.keys(PROGRESS_KEYS)) {
+    assert.ok(sources.includes(`"${key}"`), `dead mapping — core never emits: ${key}`);
+  }
+  // Formatting, unknown-code fallback and the terminal marker.
+  const translate = (key: string) => `T:${key}`;
+  assert.equal(
+    progressLabel({ message: "raw", percent: 30, data: { code: "prototype.spec.generating" } }, translate),
+    "30% — T:prototypeWorkspace.progressSpec"
+  );
+  assert.equal(progressLabel({ message: "plain english", percent: 10 }, translate), "10% — plain english");
+  assert.equal(isTerminalProgress({ message: "done", data: { done: true } }), true);
+  assert.equal(isTerminalProgress({ message: "x", data: { code: "a.b" } }), false);
+});
+
+test("hash deep link opens the most-recent workspace root with the tab segment and clears the hash", async () => {
+  const hookModule = await import("../renderer/hooks/use-design-workspace-tabs");
+  overrides.listWorkspaceSessions = async () => ({
+    workspaces: [
+      { root: "/work/current", label: "current", projectCode: "current", sessions: [] },
+      { root: "/work/other", label: "other", projectCode: "other", sessions: [] },
+    ],
+    archived: [],
+  });
+  const seen: unknown[] = [];
+  const setActiveTab = (updater: unknown): void => {
+    // Object form = a direct open; function form = close/reset (ignored here).
+    if (typeof updater === "function") return;
+    seen.push(updater);
+  };
+  function HookHarness(): React.ReactElement {
+    hookModule.useDesignWorkspaceTabs(setActiveTab as never);
+    return ReactPkg.createElement("div", null, "hook");
+  }
+  window.location.hash = "#design/tokens";
+  try {
+    renderWithI18n(ReactPkg.createElement(HookHarness));
+    await settle();
+    assert.deepEqual(seen.at(-1), { kind: "design", root: "/work/current", tab: "tokens" });
+    assert.equal(window.location.hash, "", "the consumed hash is cleared");
+  } finally {
+    window.history.replaceState(null, "", window.location.pathname + window.location.search);
+  }
 });

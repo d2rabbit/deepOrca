@@ -315,7 +315,10 @@ test("a HUNG store-list IPC cannot wedge the composer — the deadline fails ope
   };
   await pressEnter(0);
   assert.equal(sends, 0, "validation is in flight (hung IPC) — no send yet");
-  // Past the ~1500ms deadline the race resolves to null → fail-open send.
+  // Past the ~1500ms deadline the FIRST activation's race continuation
+  // resolves to null → the fail-open doSend fires from the timer itself
+  // (re-review L16: not the second Enter — that keydown early-returns on the
+  // still-set validatingRef; the 1700ms sleep only lets the deadline land).
   await pressEnter(1700);
   assert.equal(sends, 1, "the validation deadline resolves to null and the send proceeds (fail-open)");
   assert.equal(container.querySelector(".ui-composer-dangling"), null, "fail-open shows no dangling warning");

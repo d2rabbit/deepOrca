@@ -443,3 +443,70 @@ test("progress emits carry stable machine codes for the renderer i18n seam", asy
   assert.equal(design.ok, true);
   assert.deepEqual(codesOf(designEmits), ["design.materialize.generating", "design.materialize.saved"]);
 });
+
+test("re-review M1: nested/array evidence shapes pass the review evidence gate", async () => {
+  const arrayShaped = await designReviewRun(
+    { suiteId: UI_REF.suiteId, versionId: UI_REF.versionId },
+    makeCtx({
+      ui: { openui: 'root = Screen("ui")' },
+      generated: '```json\n{"status":"passed","composite":0.8,"evidence":{"findings":["#submit","#nav"]}}\n```',
+    })
+  );
+  assert.equal(arrayShaped.ok, true, "array-valued evidence is concrete, not empty");
+
+  const nestedShaped = await designReviewRun(
+    { suiteId: UI_REF.suiteId, versionId: UI_REF.versionId },
+    makeCtx({
+      ui: { openui: 'root = Screen("ui")' },
+      generated: '```json\n{"status":"failed","composite":0.3,"evidence":{"contrast":{"ratio":3.2}}}\n```',
+    })
+  );
+  assert.equal(nestedShaped.ok, true, "nested numeric evidence is concrete");
+
+  const hollowShaped = await designReviewRun(
+    { suiteId: UI_REF.suiteId, versionId: UI_REF.versionId },
+    makeCtx({
+      ui: { openui: 'root = Screen("ui")' },
+      generated: '```json\n{"status":"passed","composite":0.9,"evidence":{"a":"","b":[]}}\n```',
+    })
+  );
+  assert.equal(hollowShaped.ok, false, "all-empty leaves are still rejected");
+});
+
+test("re-review L1: prose mentioning triple backticks mid-line does not trip the truncation refusal", async () => {
+  const mcpCalls: McpCall[] = [];
+  // No real fence anywhere — the mention is mid-sentence, so the body must be
+  // extracted verbatim (the unanchored regex used to null it out).
+  const result = await prototypeSpecRun(
+    { requirement: "Task board" },
+    makeCtx({
+      mcpCalls,
+      generated: "Wrap it in a ```openui fence later. # Tasks\n\n## Page list\n- Board",
+    })
+  );
+  assert.equal(result.ok, true);
+  const save = mcpCalls.find((call) => call.name.endsWith("render_spec"));
+  assert.match(String(save?.args.document ?? ""), /# Tasks/);
+});
+
+test("re-review L2: design.materialize rejects structurally invalid OpenUI before persisting", async () => {
+  const mcpCalls: McpCall[] = [];
+  const result = await designMaterializeRun(
+    {
+      prototypeSuiteId: PROTOTYPE_REF.suiteId,
+      prototypeVersionId: PROTOTYPE_REF.versionId,
+      designSystemId: "terminal-mono",
+    },
+    makeCtx({
+      mcpCalls,
+      prototype: { requirement: "Task board", openui: "root = Column([board])" },
+      generated: "Here is the design: buttons everywhere and no root binding at all",
+    })
+  );
+  assert.equal(result.ok, false);
+  assert.match(String(result.error ?? ""), /regenerate/i);
+  assert.equal(
+    mcpCalls.some((call) => call.name.endsWith("render_openui")),
+    false
+  );
+});
