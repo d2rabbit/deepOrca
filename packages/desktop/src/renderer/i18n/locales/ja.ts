@@ -1761,4 +1761,6 @@ export const ja: Record<MessageKey, string> = {
   "prototypeWorkspace.reportStatusLabel": "状態：",
   "prototypeWorkspace.checkGroupOther": "一般",
   "prototypeWorkspace.dirChainPrototype": "要件 → プロトタイプ → 検収レポート",
+  "openui.warningSummary":
+    "{count} 件の互換性警告 — 余分な引数は無視され、描画は継続します。「この項目を修正」でエージェントに自己修復させられます。",
 };

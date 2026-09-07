@@ -1751,4 +1751,6 @@ export const ko: Record<MessageKey, string> = {
   "prototypeWorkspace.reportStatusLabel": "상태:",
   "prototypeWorkspace.checkGroupOther": "일반",
   "prototypeWorkspace.dirChainPrototype": "요구사항 → 인터랙티브 프로토타입 → 수용 보고서",
+  "openui.warningSummary":
+    "{count}건의 호환성 경고 — 초과 인수는 무시되고 렌더링은 계속됩니다. 「이 항목 수정」으로 에이전트에게 자가 치유를 시킬 수 있습니다.",
 };

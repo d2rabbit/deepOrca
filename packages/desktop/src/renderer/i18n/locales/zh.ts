@@ -1712,4 +1712,5 @@ export const zh: Record<MessageKey, string> = {
   "prototypeWorkspace.reportStatusLabel": "状态：",
   "prototypeWorkspace.checkGroupOther": "通用",
   "prototypeWorkspace.dirChainPrototype": "需求文档 → 交互原型 → 验收报告",
+  "openui.warningSummary": "{count} 条兼容性告警 — 多余参数已忽略，渲染继续；可点「修复此项」让 agent 自愈。",
 };

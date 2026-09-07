@@ -1759,4 +1759,6 @@ export const en = {
   "prototypeWorkspace.reportStatusLabel": "Status:",
   "prototypeWorkspace.checkGroupOther": "general",
   "prototypeWorkspace.dirChainPrototype": "Spec → interactive prototype → acceptance report",
+  "openui.warningSummary":
+    "{count} compatibility notice(s) — extra arguments were dropped, rendering continues. Click 修复此项 to let the agent self-heal.",
 } as const;

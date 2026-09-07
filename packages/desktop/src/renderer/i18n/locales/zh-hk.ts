@@ -1714,4 +1714,5 @@ export const zhHK: Record<MessageKey, string> = {
   "prototypeWorkspace.reportStatusLabel": "狀態：",
   "prototypeWorkspace.checkGroupOther": "通用",
   "prototypeWorkspace.dirChainPrototype": "需求文件 → 互動原型 → 驗收報告",
+  "openui.warningSummary": "{count} 條相容性警告 — 多餘參數已忽略，渲染繼續；可點「修復此項」讓 agent 自癒。",
 };
