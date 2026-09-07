@@ -1,643 +1,127 @@
-<!doctype html>
-<html lang="zh" data-appearance="dark">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>工作链设计稿 · 任务树为核心（项目真实 UI · fork 联动各模块版本）</title>
-    <!-- 项目真实样式（与运行中应用同一份 ui.css + Aqua），组件结构对齐真实源码：
-         TopBar.tsx / Sidebar.tsx / TaskHubWorkspace.tsx / TaskQuickSheet.tsx / SettingsPanel TABS；
-         审查阅读面 / 设计模块 ver-rail / 画布 与 screen-ui-design.html 同构（即项目语言）。 -->
-    <link rel="stylesheet" href="../../packages/desktop/src/renderer/ui.css" />
-    <link rel="stylesheet" href="../../packages/desktop/src/renderer/styles.css" />
-    <style>
-      html, body { height: 100%; margin: 0; overflow: hidden; }
-      .v-shell { height: 100vh; display: flex; flex-direction: column; background: var(--ui-bg); }
-      .v-main { flex: 1; min-height: 0; display: flex; }
-      .v-stage { flex: 1; min-width: 0; display: flex; flex-direction: column; padding: 12px 18px 0; gap: 8px; overflow: hidden; }
-      .v-stage-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-      .v-stage-head .t { font-size: 14px; font-weight: 600; }
-      .v-tabs { display: flex; gap: 4px; flex-wrap: wrap; }
-      .v-tab { padding: 4px 13px; border-radius: var(--ui-radius-pill, 999px); border: 1px solid var(--ui-border-soft, #c3cdd9); background: transparent; color: var(--ui-text-dim, #55606d); font-size: 12px; cursor: pointer; font-family: var(--ui-font-sans, system-ui); }
-      .v-tab.on { background: var(--ui-accent-soft, rgba(28, 111, 224, 0.14)); color: var(--ui-text, #1b2129); border-color: color-mix(in srgb, var(--ui-accent, #1c6fe0) 50%, transparent); font-weight: 600; }
-      .v-ws-ident { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--ui-border-soft, #c3cdd9); border-radius: 999px; padding: 3px 12px; font-size: 11px; color: var(--ui-text-dim, #55606d); background: var(--ui-surface-raised, #fff); }
-      .v-ws-ident .cid { font-family: var(--ui-font-mono, monospace); color: var(--ui-accent, #1c6fe0); }
-      .v-stage-head .sp { flex: 1; }
-
-      /* 会话模块任务项：链上 fork 声明链 id（新增最小元素） */
-      .v-cdeclare { font-family: var(--ui-font-mono, monospace); font-size: 9px; color: var(--ui-text-faint, #8590a0); padding: 0 0 2px 24px; line-height: 1.5; }
-      .v-cdeclare b { color: var(--ui-accent, #1c6fe0); font-weight: 400; }
-
-      /* 任务树节点链 chip */
-      .v-chain-chip { font-family: var(--ui-font-mono, monospace); font-size: 9.5px; color: var(--ui-accent, #1c6fe0); border: 1px solid color-mix(in srgb, var(--ui-accent, #1c6fe0) 35%, transparent); border-radius: 5px; padding: 0 5px; background: color-mix(in srgb, var(--ui-accent, #1c6fe0) 7%, transparent); }
-      .v-chain-chip.src { color: var(--ui-text-dim, #55606d); border-color: var(--ui-border-soft, #c3cdd9); background: transparent; }
-
-      /* 链操作日志（任务树底部：本地 + 链历史） */
-      .v-oplog { border: 1px solid var(--ui-border-soft, #c3cdd9); border-radius: 10px; background: var(--ui-surface-raised, #fff); overflow: hidden; }
-      .v-oplog .cap { display: flex; gap: 8px; align-items: center; padding: 7px 12px; border-bottom: 1px solid var(--ui-border-soft, #c3cdd9); font-size: 11px; font-weight: 700; color: var(--ui-text-dim, #55606d); flex-wrap: wrap; }
-      .v-oplog .cap .sub { font-weight: 400; font-size: 9.5px; color: var(--ui-text-faint, #8590a0); font-family: var(--ui-font-mono, monospace); }
-      .v-oplog table { width: 100%; border-collapse: collapse; font-size: 10.5px; }
-      .v-oplog td { padding: 4px 12px; border-bottom: 1px solid var(--ui-border-soft, #c3cdd9); font-family: var(--ui-font-mono, monospace); color: var(--ui-text-dim, #55606d); }
-      .v-oplog tr.new td { animation: v-flash 1.8s var(--ui-ease, ease); }
-      .v-oplog .t { width: 48px; color: var(--ui-text-faint, #8590a0); }
-      .v-oplog .op { color: var(--ui-accent, #1c6fe0); }
-      .v-oplog .cid b { color: var(--ui-accent, #1c6fe0); font-weight: 400; }
-      .v-oplog .who { color: var(--ui-text-faint, #8590a0); }
-      @keyframes v-flash { 0%, 55% { background: color-mix(in srgb, var(--ui-accent, #1c6fe0) 14%, transparent); } 100% { background: transparent; } }
-
-      /* fork/merge 行内 pop（真实 ui-taskhub-forkform 语义） */
-      .v-pop { border: 1px solid var(--ui-accent, #1c6fe0); border-radius: 12px; background: var(--ui-surface-raised, #fff); box-shadow: var(--ui-shadow-card, 0 6px 20px rgba(20, 50, 100, 0.14)); padding: 12px 14px; margin: 6px 0 6px 14px; }
-      .v-pop.merge { border-color: var(--ui-warning, #cf9310); }
-      .v-pop h5 { font-size: 12.5px; font-weight: 700; margin-bottom: 9px; display: flex; gap: 7px; align-items: center; }
-      .v-pop.merge h5 { color: var(--ui-warning, #cf9310); }
-      .v-pop .src { border: 1px solid var(--ui-border-soft, #c3cdd9); border-radius: 9px; padding: 8px 10px; font-size: 11px; line-height: 1.8; background: var(--ui-surface, #fff); margin-bottom: 9px; }
-      .v-pop .src .k { color: var(--ui-text-faint, #8590a0); font-size: 9.5px; }
-      .v-pop .src .cl { font-family: var(--ui-font-mono, monospace); color: var(--ui-accent, #1c6fe0); }
-      .v-pop .doms { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 8px; }
-      .v-pop .doms label { font-size: 10.5px; padding: 3px 10px; border-radius: 99px; border: 1px solid var(--ui-border-soft, #c3cdd9); color: var(--ui-text-dim, #55606d); background: var(--ui-surface, #fff); cursor: pointer; }
-      .v-pop .doms label.on { color: var(--ui-accent, #1c6fe0); border-color: color-mix(in srgb, var(--ui-accent, #1c6fe0) 45%, transparent); background: var(--ui-accent-soft, rgba(28, 111, 224, 0.14)); }
-      .v-pop .doms label.locked { opacity: 0.5; cursor: not-allowed; border-style: dashed; color: var(--ui-danger, #d1453b); }
-      .v-pop input[type="text"], .v-pop textarea { width: 100%; padding: 5px 9px; border-radius: 8px; border: 1px solid var(--ui-border-soft, #c3cdd9); background: var(--ui-surface, #fff); color: var(--ui-text, #1b2129); font-size: 11.5px; outline: none; font-family: var(--ui-font-sans, system-ui); }
-      .v-pop input:focus, .v-pop textarea:focus { border-color: var(--ui-accent, #1c6fe0); }
-      .v-pop textarea { min-height: 34px; margin-top: 6px; resize: vertical; }
-      .v-pop .auto { font-size: 10.5px; color: var(--ui-text-dim, #55606d); line-height: 1.8; border: 1px solid var(--ui-border-soft, #c3cdd9); border-radius: 9px; padding: 7px 10px; background: var(--ui-surface, #fff); margin-top: 8px; }
-      .v-pop .auto b { color: var(--ui-success, #2f9e44); }
-      .v-pop .acts { display: flex; gap: 8px; justify-content: flex-end; margin-top: 9px; }
-
-      /* 模块内版本轨（与审查阅读面/设计模块同构：本地版本 + 链上版本） */
-      .v-verwrap { display: flex; gap: 10px; min-height: 0; height: 100%; }
-      .v-verrail { width: 280px; flex: none; overflow-y: auto; border: 1px solid var(--ui-border-soft, #c3cdd9); border-radius: 10px; padding: 6px; background: var(--ui-surface, #fff); }
-      .v-verrail .cap { font-size: 9.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ui-text-faint, #8590a0); padding: 4px 8px 6px; }
-      .v-veritem { padding: 8px 9px; border-radius: 8px; cursor: pointer; border: 1px solid transparent; margin-bottom: 3px; }
-      .v-veritem:hover { background: var(--ui-surface-hover, rgba(0, 0, 0, 0.05)); }
-      .v-veritem.on { background: var(--ui-accent-soft, rgba(28, 111, 224, 0.14)); }
-      .v-veritem.onchain { border-color: color-mix(in srgb, var(--ui-accent, #1c6fe0) 45%, transparent); background: color-mix(in srgb, var(--ui-accent, #1c6fe0) 5%, transparent); }
-      .v-veritem .vt { font-size: 12px; display: flex; gap: 6px; align-items: center; }
-      .v-veritem .vt .tag { font-family: var(--ui-font-mono, monospace); font-size: 10.5px; color: var(--ui-accent, #1c6fe0); font-weight: 700; }
-      .v-veritem .vt .fresh { font-size: 9px; font-weight: 700; color: var(--ui-success, #2f9e44); background: color-mix(in srgb, var(--ui-success, #2f9e44) 14%, transparent); padding: 0 6px; border-radius: 99px; }
-      .v-veritem .vm { font-size: 10.5px; color: var(--ui-text-dim, #55606d); margin-top: 2px; }
-      .v-veritem .vs { display: flex; gap: 4px; margin-top: 5px; flex-wrap: wrap; }
-      .v-veritem .vs i { font-style: normal; font-size: 9px; padding: 1px 6px; border-radius: 99px; border: 1px solid var(--ui-border-soft, #c3cdd9); color: var(--ui-text-faint, #8590a0); }
-      .v-veritem .vs i.chain { border-color: color-mix(in srgb, var(--ui-accent, #1c6fe0) 45%, transparent); color: var(--ui-accent, #1c6fe0); font-family: var(--ui-font-mono, monospace); }
-      .v-vermain { flex: 1; min-width: 0; border: 1px solid var(--ui-border-soft, #c3cdd9); border-radius: 10px; background: var(--ui-surface-raised, #fff); padding: 14px 18px; overflow: auto; }
-      .v-vermain h3 { font-size: 15px; margin-bottom: 4px; }
-      .v-vermain .mh { font-size: 11px; color: var(--ui-text-faint, #8590a0); margin-bottom: 12px; display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
-      .v-vermain .mh .cl { font-family: var(--ui-font-mono, monospace); color: var(--ui-accent, #1c6fe0); }
-
-      /* 审查 finding（与审查报告阅读面同构） */
-      .v-find { border: 1px solid var(--ui-border-soft, #c3cdd9); border-radius: 9px; padding: 9px 12px; margin: 8px 0; background: var(--ui-surface, #fff); }
-      .v-find .h1 { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 4px; }
-      .v-find .loc { font-family: var(--ui-font-mono, monospace); font-size: 11px; color: var(--ui-text-dim, #55606d); margin-left: auto; }
-      .v-find .bd { font-size: 12px; line-height: 1.6; color: var(--ui-text, #1b2129); }
-      .v-sev { font-size: 9.5px; font-weight: 700; padding: 1px 8px; border-radius: 99px; color: #fff; }
-      .v-sev.high { background: #c2410c; }
-      .v-sev.med { background: #b45309; }
-
-      /* 设计画布（dd-sec 同构） */
-      .v-canvas { flex: 1; min-width: 0; border: 1px solid var(--ui-border-soft, #c3cdd9); border-radius: 10px; background: var(--ui-surface-raised, #fff); overflow: auto; padding: 16px 18px; }
-      .v-sec { border: 1px solid var(--ui-border-soft, #c3cdd9); border-radius: 12px; background: var(--ui-surface, #fff); padding: 12px 16px; margin-bottom: 10px; box-shadow: 0 2px 14px rgba(10, 30, 25, 0.08); }
-      .v-sec .sn { font-weight: 700; font-size: 12.5px; }
-      .v-sec .sd { font-size: 11px; color: var(--ui-text-faint, #8590a0); margin-top: 4px; line-height: 1.7; }
-
-      /* 编辑器：本地历史快照时间线（VSCode/IDEA 式）+ 链上快照 */
-      .v-tl { padding: 7px 9px; border-radius: 8px; cursor: pointer; border: 1px solid transparent; margin-bottom: 3px; }
-      .v-tl:hover { background: var(--ui-surface-hover, rgba(0, 0, 0, 0.05)); }
-      .v-tl.on { background: var(--ui-accent-soft, rgba(28, 111, 224, 0.14)); }
-      .v-tl .t1 { font-size: 12px; display: flex; gap: 6px; align-items: center; }
-      .v-tl .t1 .tm { font-family: var(--ui-font-mono, monospace); font-size: 10px; color: var(--ui-text-faint, #8590a0); margin-left: auto; }
-      .v-tl .t2 { font-size: 10px; color: var(--ui-text-faint, #8590a0); font-family: var(--ui-font-mono, monospace); margin-top: 1px; }
-      .v-tl.onchain { border-color: color-mix(in srgb, var(--ui-accent, #1c6fe0) 45%, transparent); background: color-mix(in srgb, var(--ui-accent, #1c6fe0) 5%, transparent); }
-      .v-tl.onchain .badge { font-size: 9px; font-weight: 700; color: var(--ui-accent, #1c6fe0); border: 1px solid color-mix(in srgb, var(--ui-accent, #1c6fe0) 45%, transparent); border-radius: 99px; padding: 0 6px; }
-      .v-tl.onchain .cid { font-family: var(--ui-font-mono, monospace); font-size: 9px; color: var(--ui-text-faint, #8590a0); margin-top: 3px; }
-      .v-tl.onchain .cid b { color: var(--ui-accent, #1c6fe0); font-weight: 400; }
-      .v-diffbox { font-family: var(--ui-font-mono, monospace); font-size: 11.5px; line-height: 1.8; white-space: pre-wrap; }
-      .v-diffbox .add { color: var(--ui-success, #2f9e44); }
-      .v-diffbox .del { color: var(--ui-danger, #d1453b); }
-
-      /* 会话任务列表（会话 view） */
-      .v-sesslist { max-width: 560px; }
-      .v-srow { display: flex; flex-direction: column; gap: 1px; padding: 8px 10px; border: 1px solid var(--ui-border-soft, #c3cdd9); border-radius: 10px; background: var(--ui-surface-raised, #fff); margin-bottom: 8px; }
-      .v-srow .r1 { display: flex; gap: 8px; align-items: center; font-size: 12.5px; }
-      .v-srow .r1 .st { margin-left: auto; font-size: 10px; color: var(--ui-text-faint, #8590a0); }
-
-      /* 设置 / toast */
-      .v-scrim { position: fixed; inset: 0; background: rgba(10, 14, 22, 0.5); backdrop-filter: blur(3px); display: none; align-items: center; justify-content: center; z-index: 400; }
-      .v-scrim.show { display: flex; }
-      .v-settings { width: 520px; max-width: calc(100vw - 40px); border-radius: 12px; border: 1px solid var(--ui-border, #9aa7b6); background: var(--ui-surface, #fff); box-shadow: var(--ui-shadow-modal, 0 18px 60px rgba(0, 0, 0, 0.32)); overflow: hidden; }
-      .v-settings .sh { padding: 14px 18px 10px; border-bottom: 1px solid var(--ui-border-soft, #c3cdd9); }
-      .v-settings .sh h2 { font-size: 15px; margin: 0; }
-      .v-settings .sh .sub { font-size: 11px; color: var(--ui-text-faint, #8590a0); margin-top: 3px; line-height: 1.7; }
-      .v-settings .sb { padding: 14px 18px; }
-      .v-field { border: 1px solid var(--ui-border-soft, #c3cdd9); border-radius: 10px; padding: 11px 13px; background: var(--ui-surface-raised, #fff); margin-bottom: 10px; display: flex; align-items: center; gap: 12px; }
-      .v-field .fx { flex: 1; }
-      .v-field .ft { font-size: 12.5px; font-weight: 600; }
-      .v-field .fd { font-size: 10.5px; color: var(--ui-text-dim, #55606d); margin-top: 3px; line-height: 1.7; }
-      .v-switch { width: 38px; height: 21px; border-radius: 99px; border: 1px solid var(--ui-border, #9aa7b6); background: var(--ui-surface-sunken, #eef1f6); position: relative; cursor: pointer; flex-shrink: 0; transition: background 0.15s; }
-      .v-switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 15px; height: 15px; border-radius: 50%; background: var(--ui-text-dim, #55606d); transition: transform 0.15s, background 0.15s; }
-      .v-switch.on { background: var(--ui-accent, #1c6fe0); border-color: var(--ui-accent, #1c6fe0); }
-      .v-switch.on::after { transform: translateX(17px); background: #fff; }
-      .v-settings .sf { display: flex; justify-content: flex-end; gap: 8px; padding: 10px 18px 14px; border-top: 1px solid var(--ui-border-soft, #c3cdd9); }
-      .v-toasts { position: fixed; right: 18px; bottom: 18px; display: flex; flex-direction: column; gap: 8px; z-index: 500; align-items: flex-end; }
-      .v-toast { background: var(--ui-surface-raised, #fff); border: 1px solid var(--ui-border, #9aa7b6); border-left: 3px solid var(--ui-accent, #1c6fe0); border-radius: 10px; padding: 9px 13px; font-size: 12px; box-shadow: var(--ui-shadow-modal, 0 18px 60px rgba(0, 0, 0, 0.32)); max-width: 420px; line-height: 1.6; }
-      .v-toast.ok { border-left-color: var(--ui-success, #2f9e44); }
-      .v-toast .tt { font-weight: 600; }
-      .v-toast .td { color: var(--ui-text-faint, #8590a0); font-size: 10.5px; font-family: var(--ui-font-mono, monospace); margin-top: 2px; }
-    </style>
-  </head>
-  <body>
-    <div class="v-shell">
-      <!-- TopBar（TopBar.tsx 结构）+ 模块 chips（cockpit center = 现有模块入口） -->
-      <header class="ui-window-bar">
-        <div class="ui-window-controls mac">
-          <button class="ui-gumdrop close"></button><button class="ui-gumdrop min"></button><button class="ui-gumdrop zoom"></button>
-        </div>
-        <div class="ui-topbar-pill ui-topbar-project">
-          <span class="ui-topbar-project-name">GVGL</span>
-          <span class="ui-topbar-sep">/</span>
-          <select class="ui-topbar-branch" id="pillBranch"><option>main</option><option>fork/passkey</option></select>
-        </div>
-        <div class="ui-window-bar-spacer">
-          <div class="v-tabs" id="modTabs">
-            <button class="v-tab on" data-m="tree">⑂ 任务树（核心 · 全链共享）</button>
-            <button class="v-tab" data-m="sessions">💬 会话</button>
-            <button class="v-tab" data-m="prototype">◎ 原型设计</button>
-            <button class="v-tab" data-m="ui">✦ UI 设计</button>
-            <button class="v-tab" data-m="review">✓ 审查报告</button>
-            <button class="v-tab" data-m="kb">▤ 知识库</button>
-            <button class="v-tab" data-m="editor">✎ 编辑器</button>
-          </div>
-        </div>
-        <div class="ui-topbar-pill ui-topbar-models">DeepSeek V4 · think</div>
-        <div class="ui-topbar-pill ui-topbar-tokens">
-          <span class="ui-topbar-token-part"><span class="ui-topbar-token-label">上下文</span><span class="ui-topbar-token-value">142k</span></span>
-          <span class="ui-topbar-token-bar"><span class="ui-topbar-token-bar-fill" style="width:28%"></span></span>
-        </div>
-        <button class="ui-topbar-pill" id="settingsBtn" style="cursor:pointer;background:transparent;border:none">⚙</button>
-      </header>
-
-      <div class="v-main">
-        <!-- 会话模块（Sidebar.tsx 结构）：会话任务落地；链上 fork 声明链 id -->
-        <aside class="ui-session-panel" style="width:272px;flex-shrink:0;border-right:1px solid var(--ui-border-soft,#c3cdd9);display:flex;flex-direction:column;min-height:0">
-          <div class="ui-session-panel-head">
-            <span>会话 <span class="ui-session-count-badge" id="sessCount"></span></span>
-            <div class="ui-session-panel-head-actions"><button class="ui-icon-btn--sm" title="新建工作区">＋</button><button class="ui-icon-btn--sm" title="收起">⟨</button></div>
-          </div>
-          <div class="ui-session-search"><input class="ui-input" type="text" placeholder="搜索会话" /></div>
-          <div class="ui-session-list" id="sessList" style="overflow:auto;flex:1;min-height:0"></div>
-          <button class="ui-session-tokens">
-            <span class="ui-session-tokens-part"><span class="ui-session-tokens-label">工作区</span><span class="ui-session-tokens-value">1.10M</span></span>
-            <span class="ui-session-tokens-part"><span class="ui-session-tokens-label">累计</span><span class="ui-session-tokens-value">18.4M</span></span>
-          </button>
-        </aside>
-
-        <main class="v-stage">
-          <div class="v-stage-head">
-            <span class="t" id="stageTitle">任务树</span>
-            <span class="v-ws-ident"><span>🌿</span><span style="font-family:var(--ui-font-mono,monospace)" id="stageWs"></span><span class="cid" id="stageChain" title="链 id 绑定设备（每设备唯一）"></span></span>
-            <span class="sp"></span>
-            <button class="ui-topbar-pill" id="themeBtn" style="cursor:pointer;background:transparent;border:none">🌓</button>
-          </div>
-          <div id="stageBody" style="flex:1;min-height:0;overflow:auto;position:relative"></div>
-        </main>
-      </div>
-
-      <div class="v-scrim" id="settingsScrim"></div>
-      <div class="v-toasts" id="toasts"></div>
-    </div>
-
-    <script>
-      "use strict";
-      var $ = function (id) { return document.getElementById(id); };
-      var esc = function (s) { return String(s).replace(/[&<>"]/g, function (c) { return ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]; }); };
-      var hash7 = function (s) { var h = 2166136261; for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(16).slice(0, 7); };
-
-      var DEVICES = {
-        kel: { name: "kelthas-mbp", chain: "orca1-wiymh-xraxv-a7ovu-yzdft" },
-        dev: { name: "dev-windows-01", chain: "orca1-8a41c-c02d9-1b773-3d91b" },
-        ipad: { name: "design-ipad", chain: "orca1-3f9d2-k8m1p-7w2qx" }
-      };
-      var MY = "kel";
-      var TODAY = "2026-09-07";
-      var cs = function (c) { return c.slice(0, 15) + "…"; };
-
-      /* ── 任务树节点（核心：全链共享；一切 fork 由树产生） ── */
-      var AREAS = [
-        { key: "main", title: "登录重构", domain: "chat", kind: "own", from: null, branch: "main", git: "a91c2fe", st: "进行中" },
-        { key: "passkey", title: "passkey 方案", domain: "chat", kind: "fork", from: "dev", branch: "fork/passkey", git: "c3d4e01", st: "已完成", land: "会话任务（声明链 id）+ 知识库/审查/编辑器 关联版本" },
-        { key: "editor", title: "编辑器核对", domain: "editor", kind: "fork", from: "dev", branch: "fork/editor-passkey", git: "c7a11f2", st: "进行中", land: "编辑器快照上链 + 关联版本" },
-        { key: "design", title: "passkey 视觉稿", domain: "ui", kind: "fork", from: "ipad", branch: "fork/design-passkey", git: null, st: "进行中", land: "UI 设计模块 · 链上版本（独立）" },
-        { key: "proto", title: "需求原型 · 交互流", domain: "prototype", kind: "fork", from: "ipad", branch: "fork/prototype-flow", git: null, st: "进行中", land: "原型设计模块 · 链上版本（独立）" },
-        { key: "review", title: "审查报告", domain: "review", kind: "follow", from: null, branch: "main", git: null, st: "随代码", land: "随代码 · 关联版本" },
-        { key: "kb", title: "知识库", domain: "kb", kind: "follow", from: null, branch: "main", git: null, st: "随代码", land: "随代码 · 关联版本" },
-        { key: "token", title: "token 迁移", domain: "chat", kind: "own", from: null, branch: "wip/token-migration", git: "b77e90a", st: "进行中" }
-      ];
-
-      /* ── 会话模块（会话任务；链上 fork 声明链 id） ── */
-      var SESSIONS = [
-        { name: "登录重构", st: "进行中", declare: null },
-        { name: "token 迁移", st: "进行中", declare: null },
-        { name: "passkey 方案", st: "已完成", declare: "链上 fork · 来源 fork/passkey", chain: DEVICES.dev.chain }
-      ];
-
-      /* ── 各模块版本（本地已有 + 链上注入） ── */
-      var MODV = {
-        prototype: [
-          { name: "交互流 v3", time: TODAY + " 16:40", tag: "v3", meta: "本地版本 · 流程页 + 分支图" },
-          { name: "交互流 v2", time: "2026-09-06 11:20", tag: "v2", meta: "本地版本" }
-        ],
-        ui: [
-          { name: "passkey 视觉稿 v3", time: TODAY + " 16:40", tag: "v3", meta: "本地版本 · 设计系统 + 页面" },
-          { name: "passkey 视觉稿 v2", time: "2026-09-06 09:10", tag: "v2", meta: "本地版本" }
-        ],
-        review: [
-          { name: "审查报告 " + TODAY, time: TODAY + " 15:00", tag: "本地", meta: "3 findings（1 high / 2 med）" },
-          { name: "审查报告 2026-09-07（链上）", time: TODAY + " 15:02", tag: "链上", onchain: "dev", meta: "链上版本 · 随代码（fork/passkey 基线）" }
-        ],
-        kb: [
-          { name: "知识库 2026-09-06", time: "2026-09-06", tag: "本地", meta: "12 条沉淀" },
-          { name: "知识库 2026-09-07（链上）", time: TODAY + " 15:02", tag: "链上", onchain: "dev", meta: "链上版本 · 随代码" }
-        ],
-        editor: [
-          { name: "编辑 src/auth/passkey.ts", time: "16:55", tag: "快照", meta: "+48 −12" },
-          { name: "新建 src/auth/passkey.ts", time: "15:12", tag: "快照", meta: "checkout 基线" },
-          { name: "链上快照 · passkey 核对", time: "17:00", tag: "链上", onchain: "dev", meta: "链上操作历史快照 · fork/editor-passkey" }
-        ]
-      };
-
-      /* ── 链操作日志（本地 + 链历史；每条 = 链 id + 操作） ── */
-      var OPLOG = [
-        { t: "17:02", op: "merge", cid: DEVICES.kel.chain, who: "kelthas-mbp" },
-        { t: "17:00", op: "editor.snapshot", cid: DEVICES.dev.chain, who: "dev-windows-01" },
-        { t: "16:42", op: "design.version", cid: DEVICES.ipad.chain, who: "design-ipad" },
-        { t: "16:40", op: "fork", cid: DEVICES.ipad.chain, who: "design-ipad" },
-        { t: "15:12", op: "fork", cid: DEVICES.dev.chain, who: "dev-windows-01" },
-        { t: "09:00", op: "init", cid: DEVICES.kel.chain, who: "kelthas-mbp" }
-      ];
-
-      var view = "tree";
-      var selKey = "main";
-      var pop = null;
-      var forkDom = "chat";
-      var sharedOn = false;
-      var verSel = {};
-      var edSel = 0;
-
-      var area = function (k) { for (var i = 0; i < AREAS.length; i++) if (AREAS[i].key === k) return AREAS[i]; return null; };
-      var chainOf = function (a) { return a.kind === "fork" && a.from ? DEVICES[a.from].chain : DEVICES[MY].chain; };
-
-      function toast(kind, title, sub) {
-        var el = document.createElement("div");
-        el.className = "v-toast " + (kind || "");
-        el.innerHTML = '<div class="tt">' + title + '</div><div class="td">' + esc(sub || "") + "</div>";
-        $("toasts").appendChild(el);
-        setTimeout(function () { el.remove(); }, 4600);
+<html lang="en" data-appearance="dark" style="--ui-composer-reserved: 12px;"><head>
+    <meta charset="UTF-8">
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <title>DeepOrca</title>
+    <!-- CSS 由 main.tsx 按平台动态注入,此处不再硬编码 -->
+  <style id="a2ui-date-time-input-webkit-styles">
+      .a2ui-date-time-input::-webkit-datetime-edit,
+      .a2ui-date-time-input::-webkit-datetime-edit-fields-wrapper {
+        color: var(--a2ui-datetimeinput-color, var(--a2ui-color-on-input, #333));
       }
+    </style><link rel="stylesheet" href="../../packages/desktop/src/renderer/ui.css"><link rel="stylesheet" href="../../packages/desktop/src/renderer/styles.css" id="deeporca-theme-css" data-mermaid-skin-watched="1"></head>
+  <body style="background: #1d1d1d; margin: 0">
+    <div id="root"><div class="ui-shell panel-open hub-expanded" style="--ui-panel-w: 300px;"><nav class="ui-hub-rail" aria-label="枢纽"><span class="ui-hub-mark" aria-hidden="true">◈</span><div class="ui-hub-rail-items" role="tablist" aria-label="枢纽"><button type="button" role="tab" aria-selected="false" class="ui-hub-item"><span class="ui-hub-item-icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true" focusable="false"><path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path></svg></span><span class="ui-hub-item-label">会话</span></button><button type="button" role="tab" aria-selected="false" class="ui-hub-item"><span class="ui-hub-item-icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true" focusable="false"><circle cx="6" cy="6" r="2.4" stroke="currentColor" stroke-width="1.4"></circle><circle cx="6" cy="18" r="2.4" stroke="currentColor" stroke-width="1.4"></circle><circle cx="18" cy="12" r="2.4" stroke="currentColor" stroke-width="1.4"></circle><path d="M6 8.4v7.2M8.2 6h4.4M8.2 18h4.4M12.6 6h.8a4 4 0 0 1 3 1.4l1 1.2M12.6 18h.8a4 4 0 0 0 3-1.4l1-1.2M16.4 12H20M16.4 12h1.4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"></path></svg></span><span class="ui-hub-item-label">工作链</span></button><button type="button" role="tab" aria-selected="false" class="ui-hub-item"><span class="ui-hub-item-icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true" focusable="false"><circle cx="6" cy="5" r="2" stroke="currentColor" stroke-width="1.5"></circle><circle cx="6" cy="15" r="2" stroke="currentColor" stroke-width="1.5"></circle><circle cx="14" cy="8" r="2" stroke="currentColor" stroke-width="1.5"></circle><path d="M6 7v6M8 8h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path></svg></span><span class="ui-hub-item-label">源代码管理</span></button><button type="button" role="tab" aria-selected="false" class="ui-hub-item"><span class="ui-hub-item-icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true" focusable="false"><ellipse cx="10" cy="5" rx="6" ry="2.5" stroke="currentColor" stroke-width="1.5"></ellipse><path d="M4 5v10c0 1.38 2.69 2.5 6 2.5s6-1.12 6-2.5V5" stroke="currentColor" stroke-width="1.5"></path><path d="M4 10c0 1.38 2.69 2.5 6 2.5s6-1.12 6-2.5" stroke="currentColor" stroke-width="1.5"></path></svg></span><span class="ui-hub-item-label">知识库</span></button><button type="button" role="tab" aria-selected="false" class="ui-hub-item"><span class="ui-hub-item-icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true" focusable="false"><circle cx="9" cy="9" r="5.5" stroke="currentColor" stroke-width="1.5"></circle><path d="M13 13l4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path><path d="M7 9l1.5 1.5L11.5 7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path></svg></span><span class="ui-hub-item-label">代码审查</span></button><button type="button" role="tab" aria-selected="false" class="ui-hub-item"><span class="ui-hub-item-icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true" focusable="false"><path d="M8 3H3a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V8M8 3v5h5M8 3l5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M6 12l-2-2 2-2M12 12l2-2-2-2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg></span><span class="ui-hub-item-label">编辑器</span></button><button type="button" role="tab" aria-selected="false" class="ui-hub-item"><span class="ui-hub-item-icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true" focusable="false"><path d="M4 16V10M10 16V4M16 16V8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path></svg></span><span class="ui-hub-item-label">Token 消耗</span></button><button type="button" role="tab" aria-selected="false" class="ui-hub-item"><span class="ui-hub-item-icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true" focusable="false"><path d="M5 3h6.5L16 7.5V17H5z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></path><path d="M11.5 3v4.5H16" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"></path><path d="M7.2 12.8l1.6-1.6 4.2 4.2-1.9.3z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"></path></svg></span><span class="ui-hub-item-label">原型设计</span></button><button type="button" role="tab" aria-selected="false" class="ui-hub-item"><span class="ui-hub-item-icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true" focusable="false"><rect x="3" y="3" width="14" height="14" rx="2" stroke="currentColor" stroke-width="1.5"></rect><path d="M3 7.5h14" stroke="currentColor" stroke-width="1.5"></path><path d="M9 7.5V17" stroke="currentColor" stroke-width="1.2"></path></svg></span><span class="ui-hub-item-label">UI 设计</span></button><button type="button" role="tab" aria-selected="true" class="ui-hub-item active"><span class="ui-hub-item-icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true" focusable="false"><circle cx="10" cy="4" r="1.8" stroke="currentColor" stroke-width="1.4"></circle><path d="M10 5.8V9M5.5 9h9M5.5 9v2.8M14.5 9v2.8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"></path><circle cx="5.5" cy="13.6" r="1.8" stroke="currentColor" stroke-width="1.4"></circle><circle cx="14.5" cy="13.6" r="1.8" stroke="currentColor" stroke-width="1.4"></circle></svg></span><span class="ui-hub-item-label">任务树</span></button><button type="button" role="tab" aria-selected="false" class="ui-hub-item"><span class="ui-hub-item-icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true" focusable="false"><path d="M6.5 3h9v14h-9A1.5 1.5 0 0 1 5 15.5v-11A1.5 1.5 0 0 1 6.5 3Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></path><path d="M5 14.5A1.5 1.5 0 0 1 6.5 13h9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path><circle cx="9.5" cy="6.5" r="1.1" stroke="currentColor" stroke-width="1.2"></circle><circle cx="12.5" cy="10" r="1.1" stroke="currentColor" stroke-width="1.2"></circle><path d="M9.5 7.6c0 1.6 3 .8 3 1.3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"></path></svg></span><span class="ui-hub-item-label">GitMCP</span></button><button type="button" role="tab" aria-selected="false" class="ui-hub-item"><span class="ui-hub-item-icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true" focusable="false"><path d="M8 3H5a2 2 0 0 0-2 2v3a2 2 0 0 1 0 4v3a2 2 0 0 0 2 2h3a2 2 0 0 0 4 0h3a2 2 0 0 0 2-2v-3a2 2 0 0 0-4 0V5a2 2 0 0 0-2-2h-3a2 2 0 0 0-4 0Z" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path></svg></span><span class="ui-hub-item-label">插件中心</span></button></div><button type="button" class="ui-hub-close ui-hub-collapse" title="关闭" aria-label="关闭">⟨</button></nav><section class="ui-hub-flyout" aria-label="任务树"><header class="ui-hub-head"><span class="ui-hub-title">任务树</span><button type="button" class="ui-hub-close" title="收起面板" aria-label="收起面板">✕</button></header><div class="ui-hub-body"><div class="ui-hub-body-view"><div class="ui-side-panel"><div class="ui-side-panel-head"><span>任务树</span><button type="button" class="ui-icon-btn" title="刷新" aria-label="刷新">⟳</button></div><div class="ui-side-panel-body"><div class="ui-ik-rowwrap"><div class="ui-ik-row" role="button" tabindex="0"><span class="ui-ik-dot on" aria-hidden="true"></span><div class="ui-ik-row-main"><div class="ui-ik-name">GVGL</div><div class="ui-ik-meta">10 个任务 · 1d</div></div><button type="button" class="ui-btn ui-btn--subtle ui-btn--sm ui-ik-build" title="打开任务树">打开任务树</button></div><div class="ui-taskhub-active" aria-hidden="true"></div></div><div class="ui-ik-rowwrap"><div class="ui-ik-row" role="button" tabindex="0"><span class="ui-ik-dot on" aria-hidden="true"></span><div class="ui-ik-row-main"><div class="ui-ik-name">deepcode-cli</div><div class="ui-ik-meta">3 个任务 · 6d</div></div><button type="button" class="ui-btn ui-btn--subtle ui-btn--sm ui-ik-build" title="打开任务树">打开任务树</button></div></div></div></div></div></div><div class="ui-hub-resize" role="separator" aria-orientation="vertical"></div></section><div class="ui-window-bar"><div class="ui-window-controls mac"><button class="ui-gumdrop close" aria-label="关闭" title="关闭"></button><button class="ui-gumdrop min" aria-label="最小化" title="最小化"></button><button class="ui-gumdrop zoom" aria-label="缩放" title="缩放"></button></div><div class="ui-topbar-pill ui-topbar-project" title="/Volumes/data/dev/coding/GVGL"><span class="ui-topbar-project-name">GVGL</span><span class="ui-topbar-sep">/</span><select class="ui-select ui-topbar-branch" title="分支"><option value="v5-quadrant-desktop">v5-quadrant-desktop</option><option value="main">main</option></select></div><div class="ui-window-bar-spacer"><div class="ui-surface-chips"><button type="button" class="ui-surface-chip" data-tip="对话"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false"><path d="M2.5 3h11a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H6l-3 2.5V11h-.5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"></path></svg></button><div class="ui-surface-chip active"><button type="button" class="ui-surface-chip-main" data-tip="GVGL"><svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true" focusable="false"><circle cx="10" cy="6.3" r="3.4" stroke="currentColor" stroke-width="1.5"></circle><path d="M10 9.7V17" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path><path d="M7 17h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path><path d="M10 6.3V4.6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"></path></svg>GVGL</button><button type="button" class="ui-surface-chip-close" aria-label="关闭">✕</button></div></div><div class="ui-surface-chips ui-surface-chips-measure" aria-hidden="true"><button type="button" class="ui-surface-chip"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false"><path d="M2.5 3h11a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H6l-3 2.5V11h-.5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"></path></svg></button><div class="ui-surface-chip active"><button type="button" class="ui-surface-chip-main" data-tip="GVGL"><svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true" focusable="false"><circle cx="10" cy="6.3" r="3.4" stroke="currentColor" stroke-width="1.5"></circle><path d="M10 9.7V17" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path><path d="M7 17h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path><path d="M10 6.3V4.6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"></path></svg>GVGL</button><button type="button" class="ui-surface-chip-close" aria-label="关闭">✕</button></div></div></div><div class="ui-topbar-pill ui-topbar-models"><div class="ui-dd"><button type="button" class="ui-dd-trigger ui-topbar-model" data-tip="StepFun Plan / step-3.7-flash" aria-label="模型" aria-haspopup="listbox" aria-expanded="false">StepFun Plan / step-3.7-flash<span class="ui-dd-caret" aria-hidden="true"></span></button><div class="ui-dd-menu" role="listbox"><button type="button" role="option" aria-selected="true" class="ui-dd-item ui-dd-item--selected">StepFun Plan / step-3.7-flash</button><button type="button" role="option" aria-selected="false" class="ui-dd-item">DeepSeek / deepseek-v4-flash-vision-exp</button><button type="button" role="option" aria-selected="false" class="ui-dd-item">配置模型池…</button></div></div><span class="ui-topbar-divider" aria-hidden="true"></span><div class="ui-dd"><button type="button" class="ui-dd-trigger ui-topbar-thinking" data-tip="High" aria-label="思考模型" aria-haspopup="listbox" aria-expanded="false">High<span class="ui-dd-caret" aria-hidden="true"></span></button><div class="ui-dd-menu" role="listbox"><button type="button" role="option" aria-selected="false" class="ui-dd-item">Low</button><button type="button" role="option" aria-selected="false" class="ui-dd-item">Medium</button><button type="button" role="option" aria-selected="true" class="ui-dd-item ui-dd-item--selected">High</button><button type="button" role="option" aria-selected="false" class="ui-dd-item">关闭思考</button></div></div></div><button class="ui-topbar-pill ui-topbar-tokens" title="Token 消耗 — 点击查看详情"><span class="ui-topbar-token-part"><span class="ui-topbar-token-label">上下文</span><span class="ui-topbar-token-value">0</span></span><span class="ui-topbar-token-part"><span class="ui-topbar-token-label">工作区</span><span class="ui-topbar-token-value">1.10M</span></span></button><div class="ui-cockpit-actions"><button type="button" class="ui-cockpit-icon-btn" data-tip="命令面板 (⌘K)" aria-label="命令面板"><svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true" focusable="false"><path d="M7 7V5a2 2 0 1 0-2 2h2Zm0 0v6m0-6h6m-6 6v2a2 2 0 1 1-2-2h2Zm6-6h2a2 2 0 1 0-2-2v2Zm0 0v6m0-6V5a2 2 0 1 1 2 2h-2Zm0 6h2a2 2 0 1 1-2 2v-2Z" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path></svg></button><button type="button" class="ui-cockpit-icon-btn" data-tip="深色外观 — 点击切换浅色" aria-label="深色外观 — 点击切换浅色"><svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true" focusable="false"><path d="M16 11.5A6.5 6.5 0 0 1 8.5 4 6.5 6.5 0 1 0 16 11.5Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></path></svg></button><button type="button" class="ui-cockpit-icon-btn" data-tip="撤销 / 恢复 (⌘Z)" aria-label="撤销 / 恢复"><svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true" focusable="false"><path d="M4 8h9a4 4 0 0 1 0 8H9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M7 5L4 8l3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg></button><button type="button" class="ui-cockpit-icon-btn" data-tip="设置 (⌘,)" aria-label="设置"><svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true" focusable="false"><path d="M3 5h5.2M12.8 5H17M3 10h1.2M8.8 10H17M3 15h8.2M15.8 15H17" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path><circle cx="10.5" cy="5" r="1.9" stroke="currentColor" stroke-width="1.5"></circle><circle cx="6" cy="10" r="1.9" stroke="currentColor" stroke-width="1.5"></circle><circle cx="13.5" cy="15" r="1.9" stroke="currentColor" stroke-width="1.5"></circle></svg></button></div></div><div class="ui-main"><div class="ui-sheet" style="opacity: 1; transform: none;"><button type="button" class="ui-sheet-close" aria-label="返回对话">✕ 返回对话</button><div class="ui-taskhub"><div class="ui-taskhub-top"><span class="ui-taskhub-ws"><i class="dot" aria-hidden="true"></i>GVGL</span><div class="ui-taskhub-pills"><button type="button" class="ui-taskhub-pill on">全部 · 10</button><button type="button" class="ui-taskhub-pill"><i class="sw sw-session" aria-hidden="true"></i>会话任务 · 2</button><button type="button" class="ui-taskhub-pill"><i class="sw sw-index" aria-hidden="true"></i>知识库 · 0</button><button type="button" class="ui-taskhub-pill"><i class="sw sw-review" aria-hidden="true"></i>代码审查 · 4</button><button type="button" class="ui-taskhub-pill"><i class="sw sw-prototype" aria-hidden="true"></i>原型设计 · 0</button><button type="button" class="ui-taskhub-pill"><i class="sw sw-editor" aria-hidden="true"></i>编辑器结对 · 4</button></div><div class="ui-taskhub-legend"><span class="it"><i class="sw round session" aria-hidden="true"></i>会话主任务</span><span class="it"><i class="sw ring" aria-hidden="true"></i>fork 分支（↔ git 分支）</span><span class="it"><i class="sw diamond" aria-hidden="true"></i>伴随任务</span><span class="it"><i class="ln dash" aria-hidden="true"></i>abandoned 渐隐</span><span class="it"><i class="ln" aria-hidden="true"></i>merge 汇入</span></div><div class="ui-taskhub-tokens"><button type="button" class="ui-taskhub-token-badge">Ⓣ 1.10M · 26 reqs</button></div></div><div class="ui-taskhub-body"><div class="ui-taskhub-graph" data-dim="all"><div class="ui-taskhub-railwrap"><svg class="ui-taskhub-tracks" width="90" height="583" viewBox="0 0 90 583"><path d="M 28 34 L 28 98.90625" class="edge trunk"></path><path d="M 28 98.90625 L 28 163.8125" class="edge trunk"></path><path d="M 28 163.8125 L 28 228.71875" class="edge trunk"></path><path d="M 28 228.71875 L 28 293.625" class="edge trunk"></path><path d="M 28 293.625 L 28 1232.28125" class="edge trunk"></path><path d="M 28 1232.28125 L 28 2662.0625" class="edge trunk"></path><path d="M 28 2662.0625 L 28 2726.96875" class="edge trunk"></path><path d="M 28 2726.96875 L 28 2791.875" class="edge trunk"></path><path d="M 28 2791.875 L 28 2856.78125" class="edge trunk"></path><g class="node"><circle class="halo" cx="28" cy="34" r="12" fill="none" stroke="var(--ui-accent)" stroke-width="1.6"></circle><rect x="23.8" y="29.8" width="8.4" height="8.4" rx="1.6" transform="rotate(45 28 34)" fill="var(--dot-editor)" stroke="var(--ui-surface-raised)" stroke-width="1.6"></rect></g><g class="node"><circle class="halo" cx="28" cy="98.90625" r="12" fill="none" stroke="var(--ui-accent)" stroke-width="1.6"></circle><rect x="23.8" y="94.70625" width="8.4" height="8.4" rx="1.6" transform="rotate(45 28 98.90625)" fill="var(--dot-editor)" stroke="var(--ui-surface-raised)" stroke-width="1.6"></rect></g><g class="node"><circle class="halo" cx="28" cy="163.8125" r="12" fill="none" stroke="var(--ui-accent)" stroke-width="1.6"></circle><rect x="23.8" y="159.6125" width="8.4" height="8.4" rx="1.6" transform="rotate(45 28 163.8125)" fill="var(--dot-editor)" stroke="var(--ui-surface-raised)" stroke-width="1.6"></rect></g><g class="node"><circle class="halo" cx="28" cy="228.71875" r="12" fill="none" stroke="var(--ui-accent)" stroke-width="1.6"></circle><rect x="23.8" y="224.51875" width="8.4" height="8.4" rx="1.6" transform="rotate(45 28 228.71875)" fill="var(--dot-editor)" stroke="var(--ui-surface-raised)" stroke-width="1.6"></rect></g><g class="node"><circle class="halo" cx="28" cy="293.625" r="12" fill="none" stroke="var(--ui-accent)" stroke-width="1.6"></circle><circle cx="28" cy="293.625" r="7" fill="var(--ui-surface-raised)" stroke="var(--dot-session)" stroke-width="3"></circle></g><g class="node"><circle class="halo" cx="28" cy="1232.28125" r="12" fill="none" stroke="var(--ui-accent)" stroke-width="1.6"></circle><circle cx="28" cy="1232.28125" r="7" fill="var(--ui-surface-raised)" stroke="var(--dot-session)" stroke-width="3"></circle></g><g class="node"><circle class="halo" cx="28" cy="2662.0625" r="12" fill="none" stroke="var(--ui-accent)" stroke-width="1.6"></circle><rect x="23.8" y="2657.8625" width="8.4" height="8.4" rx="1.6" transform="rotate(45 28 2662.0625)" fill="var(--dot-review)" stroke="var(--ui-surface-raised)" stroke-width="1.6"></rect></g><g class="node"><circle class="halo" cx="28" cy="2726.96875" r="12" fill="none" stroke="var(--ui-accent)" stroke-width="1.6"></circle><rect x="23.8" y="2722.76875" width="8.4" height="8.4" rx="1.6" transform="rotate(45 28 2726.96875)" fill="var(--dot-review)" stroke="var(--ui-surface-raised)" stroke-width="1.6"></rect></g><g class="node"><circle class="halo" cx="28" cy="2791.875" r="12" fill="none" stroke="var(--ui-accent)" stroke-width="1.6"></circle><rect x="23.8" y="2787.675" width="8.4" height="8.4" rx="1.6" transform="rotate(45 28 2791.875)" fill="var(--dot-review)" stroke="var(--ui-surface-raised)" stroke-width="1.6"></rect></g><g class="node"><circle class="halo" cx="28" cy="2856.78125" r="12" fill="none" stroke="var(--ui-accent)" stroke-width="1.6"></circle><rect x="23.8" y="2852.58125" width="8.4" height="8.4" rx="1.6" transform="rotate(45 28 2856.78125)" fill="var(--dot-review)" stroke="var(--ui-surface-raised)" stroke-width="1.6"></rect></g></svg></div><div class="ui-taskhub-rows"><div class="ui-taskhub-row" data-domain="editor"><div class="ui-taskhub-card-wrap"><div class="ui-taskhub-card" role="button" tabindex="0"><div class="t"><span class="chip tag-pair">PAIR</span><span class="name">解释选中代码的职责、意图与边界条件。只输出文字说明，不要输出代码块，不要改写代码。</span></div><div class="meta"><span>1d · 2026-09-06 14:24:54</span><span class="mono" title="token 消耗（本地计数 ≈）">≈22.3K tok</span><span title="agent 迭代轮数">2 it</span></div></div></div></div><div class="ui-taskhub-row" data-domain="editor"><div class="ui-taskhub-card-wrap"><div class="ui-taskhub-card" role="button" tabindex="0"><div class="t"><span class="chip tag-pair">PAIR</span><span class="name">解释选中代码的职责、意图与边界条件。只输出文字说明，不要输出代码块，不要改写代码。</span></div><div class="meta"><span>1d · 2026-09-06 13:53:03</span></div></div></div></div><div class="ui-taskhub-row" data-domain="editor"><div class="ui-taskhub-card-wrap"><div class="ui-taskhub-card" role="button" tabindex="0"><div class="t"><span class="chip tag-pair">PAIR</span><span class="name">解释选中代码的职责、意图与边界条件。只输出文字说明，不要输出代码块，不要改写代码。</span></div><div class="meta"><span>1d · 2026-09-06 13:48:48</span></div></div></div></div><div class="ui-taskhub-row" data-domain="editor"><div class="ui-taskhub-card-wrap"><div class="ui-taskhub-card" role="button" tabindex="0"><div class="t"><span class="chip tag-pair">PAIR</span><span class="name">解释这段代码的职责与边界条件</span></div><div class="meta"><span>1d · 2026-09-06 11:01:54</span></div></div></div></div><div class="ui-taskhub-row" data-domain="session"><div class="ui-taskhub-card-wrap"><div class="ui-taskhub-card" role="button" tabindex="0"><div class="t"><span class="chip tag-session">CHAT</span><span class="name">评估方案与风险：GVGL 若要为外部插件作者开放动画时间线 API，安全边界（插件能否触碰渲染数据）与兼容承诺之间怎么权衡？给出多路线对比与建议（只做分析，不要修改任何文件）</span></div><div class="meta"><span>2d · 2026-09-04 22:51:21</span></div></div><div class="ui-taskhub-trace"><div class="tr-head">◈ 评估方案与风险：GVGL 若要为外部插件作者开放动画时间线 API，安全边界（插件能否触碰渲染数据）与兼容承诺之间怎么权衡？给出多路线对比与建议（只做分析，不要修改任何文件） — 完整任务轨迹（session event log）</div><div class="tr-body"><div class="turn"><div class="turn-head"><span>Turn 1 · 2026-09-04 22:49:39</span><span class="ln"></span></div><div class="user-msg"><span class="ic"><svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true" focusable="false"><path d="M4 4.5h12a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 1-1.5 1.5H8.5L5 16.2v-2.7H4A1.5 1.5 0 0 1 2.5 12V6A1.5 1.5 0 0 1 4 4.5Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></path><circle cx="7" cy="9" r="0.9" fill="currentColor"></circle><circle cx="10" cy="9" r="0.9" fill="currentColor"></circle><circle cx="13" cy="9" r="0.9" fill="currentColor"></circle></svg></span><div><div class="who">用户指令</div><div class="txt">评估方案与风险：GVGL 若要为外部插件作者开放动画时间线 API，安全边界（插件能否触碰渲染数据）与兼容承诺之间怎么权衡？给出多路线对比与建议（只做分析，不要修改任何文件）</div></div></div><div class="steps"><div class="step clickable" role="button" tabindex="0"><span class="ic t-read"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false"><path d="M2 3h5v10H2V3Zm12 0H9v10h5V3Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"></path><path d="M8 3v10" stroke="currentColor" stroke-width="1.2"></path></svg></span><div class="body"><div class="l1"><span class="tool">UpdatePlan</span><span class="arg">{"plan": "1. 读取项目架构与关键文档，理解 GVGL 现有模块边界与安全模型\n2. 定位动画时间线相关实现与潜在插件接口点\n3. 梳理外部插件可能接触的渲染数据与风险面\n4. 设计多路线方案（安全/兼…</span><span class="ok">✓</span><span class="ms">4ms</span></div></div></div><div class="step clickable" role="button" tabindex="0"><span class="ic t-read"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false"><path d="M2 3h5v10H2V3Zm12 0H9v10h5V3Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"></path><path d="M8 3v10" stroke="currentColor" stroke-width="1.2"></path></svg></span><div class="body"><div class="l1"><span class="tool">read</span><span class="arg">{"file_path": "/Volumes/data/dev/coding/GVGL/DESIGN.md"}</span><span class="ok">✓</span><span class="ms">65ms</span></div></div></div><div class="step clickable" role="button" tabindex="0"><span class="ic t-read"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false"><path d="M2 3h5v10H2V3Zm12 0H9v10h5V3Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"></path><path d="M8 3v10" stroke="currentColor" stroke-width="1.2"></path></svg></span><div class="body"><div class="l1"><span class="tool">read</span><span class="arg">{"file_path": "/Volumes/data/dev/coding/GVGL/.deeporca/deepwiki/architecture.md"}</span><span class="fail">✗</span><span class="ms">65ms</span></div></div></div><div class="step clickable" role="button" tabindex="0"><span class="ic t-bash"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false"><rect x="1.5" y="2.5" width="13" height="11" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.3"></rect><path d="M4 6.5 L6 8 L4 9.5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"></path><line x1="7" y1="9.5" x2="10.5" y2="9.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"></line></svg></span><div class="body"><div class="l1"><span class="tool">bash</span><span class="arg">{"command": "ls -la /Volumes/data/dev/coding/GVGL/Sources &amp;&amp; ls -la /Volumes/data/dev/coding/GVGL/Tests", "de…</span><span class="ok">✓</span><span class="ms">66ms</span></div></div></div><div class="step clickable" role="button" tabindex="0"><span class="ic t-bash"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false"><rect x="1.5" y="2.5" width="13" height="11" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.3"></rect><path d="M4 6.5 L6 8 L4 9.5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"></path><line x1="7" y1="9.5" x2="10.5" y2="9.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"></line></svg></span><div class="body"><div class="l1"><span class="tool">bash</span><span class="arg">{"command": "rg -n \"animat|timeline|frame|tick|keyframe|transition|duration|easing|interpolat\" /Volumes/dat…</span><span class="fail">✗</span><span class="ms">179ms</span></div></div></div><div class="step clickable" role="button" tabindex="0"><span class="ic t-bash"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false"><rect x="1.5" y="2.5" width="13" height="11" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.3"></rect><path d="M4 6.5 L6 8 L4 9.5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"></path><line x1="7" y1="9.5" x2="10.5" y2="9.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"></line></svg></span><div class="body"><div class="l1"><span class="tool">bash</span><span class="arg">{"command": "ls -la /Volumes/data/dev/coding/GVGL/Sources/GVGLServer &amp;&amp; ls -la /Volumes/data/dev/coding/GVGL/…</span><span class="ok">✓</span><span class="ms">179ms</span></div></div></div><div class="step clickable" role="button" tabindex="0"><span class="ic t-bash"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false"><rect x="1.5" y="2.5" width="13" height="11" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.3"></rect><path d="M4 6.5 L6 8 L4 9.5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"></path><line x1="7" y1="9.5" x2="10.5" y2="9.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"></line></svg></span><div class="body"><div class="l1"><span class="tool">bash</span><span class="arg">{"command": "rg -n \"animat|timeline|keyframe|easing|interpolat\" /Volumes/data/dev/coding/GVGL/Sources /Volu…</span><span class="fail">✗</span><span class="ms">71ms</span></div></div></div><div class="step clickable" role="button" tabindex="0"><span class="ic t-bash"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false"><rect x="1.5" y="2.5" width="13" height="11" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.3"></rect><path d="M4 6.5 L6 8 L4 9.5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"></path><line x1="7" y1="9.5" x2="10.5" y2="9.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"></line></svg></span><div class="body"><div class="l1"><span class="tool">bash</span><span class="arg">{"command": "rg -n \"plugin|sandbox|capability|permission|token|policy|allow|deny|audit|expose\" /Volumes/dat…</span><span class="fail">✗</span><span class="ms">71ms</span></div></div></div><div class="step clickable" role="button" tabindex="0"><span class="ic t-bash"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false"><rect x="1.5" y="2.5" width="13" height="11" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.3"></rect><path d="M4 6.5 L6 8 L4 9.5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"></path><line x1="7" y1="9.5" x2="10.5" y2="9.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"></line></svg></span><div class="body"><div class="l1"><span class="tool">bash</span><span class="arg">{"command": "grep -RinE \"animat|timeline|keyframe|easing|interpolat\" /Volumes/data/dev/coding/GVGL/Sources …</span><span class="ok">✓</span><span class="ms">131ms</span></div></div></div><div class="step clickable" role="button" tabindex="0"><span class="ic t-bash"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false"><rect x="1.5" y="2.5" width="13" height="11" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.3"></rect><path d="M4 6.5 L6 8 L4 9.5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"></path><line x1="7" y1="9.5" x2="10.5" y2="9.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"></line></svg></span><div class="body"><div class="l1"><span class="tool">bash</span><span class="arg">{"command": "grep -RinE \"plugin|sandbox|capability|permission|token|policy|allow|deny|audit|expose\" /Volume…</span><span class="ok">✓</span><span class="ms">131ms</span></div></div></div><div class="step clickable" role="button" tabindex="0"><span class="ic t-read"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false"><path d="M2 3h5v10H2V3Zm12 0H9v10h5V3Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"></path><path d="M8 3v10" stroke="currentColor" stroke-width="1.2"></path></svg></span><div class="body"><div class="l1"><span class="tool">read</span><span class="arg">{"file_path": "/Volumes/data/dev/coding/GVGL/Sources/GVGLServer/SocketServer.swift"}</span><span class="ok">✓</span><span class="ms">7ms</span></div></div></div><div class="step clickable" role="button" tabindex="0"><span class="ic t-read"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false"><path d="M2 3h5v10H2V3Zm12 0H9v10h5V3Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"></path><path d="M8 3v10" stroke="currentColor" stroke-width="1.2"></path></svg></span><div class="body"><div class="l1"><span class="tool">read</span><span class="arg">{"file_path": "/Volumes/data/dev/coding/GVGL/Sources/GVGLCore/Models.swift", "limit": 260}</span><span class="ok">✓</span><span class="ms">8ms</span></div></div></div><div class="step clickable" role="button" tabindex="0"><span class="ic t-read"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false"><path d="M2 3h5v10H2V3Zm12 0H9v10h5V3Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"></path><path d="M8 3v10" stroke="currentColor" stroke-width="1.2"></path></svg></span><div class="body"><div class="l1"><span class="tool">read</span><span class="arg">{"file_path": "/Volumes/data/dev/coding/GVGL/Sources/GVGLCore/Models.swift", "offset": 260, "limit": 360}</span><span class="ok">✓</span><span class="ms">3ms</span></div></div></div><div class="step clickable" role="button" tabindex="0"><span class="ic t-read"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false"><path d="M2 3h5v10H2V3Zm12 0H9v10h5V3Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"></path><path d="M8 3v10" stroke="currentColor" stroke-width="1.2"></path></svg></span><div class="body"><div class="l1"><span class="tool">UpdatePlan</span><span class="arg">{"plan": "1. 读取项目架构与关键文档，理解 GVGL 现有模块边界与安全模型\n2. 定位动画时间线相关实现与潜在插件接口点\n3. 梳理外部插件可能接触的渲染数据与风险面\n4. 设计多路线方案（安全/兼…</span><span class="ok">✓</span><span class="ms">1ms</span></div></div></div><div class="step clickable" role="button" tabindex="0"><span class="ic t-read"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false"><path d="M2 3h5v10H2V3Zm12 0H9v10h5V3Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"></path><path d="M8 3v10" stroke="currentColor" stroke-width="1.2"></path></svg></span><div class="body"><div class="l1"><span class="tool">read</span><span class="arg">{"file_path": "/Volumes/data/dev/coding/GVGL/Sources/GVGLCore/Models.swift", "limit": 260, "offset": 619}</span><span class="ok">✓</span><span class="ms">7ms</span></div></div></div><div class="step clickable" role="button" tabindex="0"><span class="ic t-read"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false"><path d="M2 3h5v10H2V3Zm12 0H9v10h5V3Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"></path><path d="M8 3v10" stroke="currentColor" stroke-width="1.2"></path></svg></span><div class="body"><div class="l1"><span class="tool">read</span><span class="arg">{"file_path": "/Volumes/data/dev/coding/GVGL/Sources/GVGLSync/DesktopModel.swift", "limit": 260, "offset": 1}</span><span class="ok">✓</span><span class="ms">8ms</span></div></div></div><div class="step clickable" role="button" tabindex="0"><span class="ic t-read"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false"><path d="M2 3h5v10H2V3Zm12 0H9v10h5V3Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"></path><path d="M8 3v10" stroke="currentColor" stroke-width="1.2"></path></svg></span><div class="body"><div class="l1"><span class="tool">UpdatePlan</span><span class="arg">{"plan": "1. 读取项目架构与关键文档，理解 GVGL 现有模块边界与安全模型\n2. 定位动画时间线相关实现与潜在插件接口点\n3. 梳理外部插件可能接触的渲染数据与风险面\n4. 设计多路线方案（安全/兼…</span><span class="ok">✓</span><span class="ms">1ms</span></div></div></div><div class="step clickable" role="button" tabindex="0"><span class="ic t-read"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false"><path d="M2 3h5v10H2V3Zm12 0H9v10h5V3Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"></path><path d="M8 3v10" stroke="currentColor" stroke-width="1.2"></path></svg></span><div class="body"><div class="l1"><span class="tool">UpdatePlan</span><span class="arg">{"plan": "1. 读取项目架构与关键文档，理解 GVGL 现有模块边界与安全模型\n2. 定位动画时间线相关实现与潜在插件接口点\n3. 梳理外部插件可能接触的渲染数据与风险面\n4. 设计多路线方案（安全/兼…</span><span class="ok">✓</span><span class="ms">1ms</span></div></div></div><div class="step clickable" role="button" tabindex="0"><span class="ic t-assistant"><svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true" focusable="false"><path d="M4 4.5h12a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 1-1.5 1.5H8.5L5 16.2v-2.7H4A1.5 1.5 0 0 1 2.5 12V6A1.5 1.5 0 0 1 4 4.5Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></path><circle cx="7" cy="9" r="0.9" fill="currentColor"></circle><circle cx="10" cy="9" r="0.9" fill="currentColor"></circle><circle cx="13" cy="9" r="0.9" fill="currentColor"></circle></svg></span><div class="body"><div class="l1"><span class="tool">assistant</span><span class="arg">&lt;proposed_plan&gt; # 深度决策报告（deep-lane） ## 结论（先读这里） Adopt a tiered, capability-based animation timeline API that exposes only read-only timeline data and…</span><span class="ms"></span></div></div></div></div></div></div></div></div></div><div class="ui-taskhub-row" data-domain="session"><div class="ui-taskhub-card-wrap"><div class="ui-taskhub-card" role="button" tabindex="0"><div class="t"><span class="chip tag-session">CHAT</span><span class="name">/init</span></div><div class="meta"><span>3d · 2026-09-03 21:59:28</span></div></div><div class="ui-taskhub-trace"><div class="tr-head">◈ /init — 完整任务轨迹（session event log）</div><div class="tr-body"><div class="turn"><div class="turn-head"><span>Turn 1 · 2026-09-03 18:46:25</span><span class="ln"></span></div><div class="user-msg"><span class="ic"><svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true" focusable="false"><path d="M4 4.5h12a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 1-1.5 1.5H8.5L5 16.2v-2.7H4A1.5 1.5 0 0 1 2.5 12V6A1.5 1.5 0 0 1 4 4.5Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></path><circle cx="7" cy="9" r="0.9" fill="currentColor"></circle><circle cx="10" cy="9" r="0.9" fill="currentColor"></circle><circle cx="13" cy="9" r="0.9" fill="currentColor"></circle></svg></span><div><div class="who">用户指令</div><div class="txt">/init</div></div></div><div class="steps"><div class="step clickable" role="button" tabindex="0"><span class="ic t-read"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false"><path d="M2 3h5v10H2V3Zm12 0H9v10h5V3Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"></path><path d="M8 3v10" stroke="currentColor" stroke-width="1.2"></path></svg></span><div class="body"><div class="l1"><span class="tool">read</span><span class="arg">{"file_path": "/Volumes/data/dev/coding/GVGL/AGENTS.md"}</span><span class="ok">✓</span><span class="ms">56ms</span></div></div></div><div class="step clickable" role="button" tabindex="0"><span class="ic t-bash"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false"><rect x="1.5" y="2.5" width="13" height="11" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.3"></rect><path d="M4 6.5 L6 8 L4 9.5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"></path><line x1="7" y1="9.5" x2="10.5" y2="9.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"></line></svg></span><div class="body"><div class="l1"><span class="tool">bash</span><span class="arg">{"command": "ls -la /Volumes/data/dev/coding/GVGL", "description": "List repository root contents", "sideEffe…</span><span class="ok">✓</span><span class="ms">57ms</span></div></div></div><div class="step clickable" role="button" tabindex="0"><span class="ic t-read"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false"><path d="M2 3h5v10H2V3Zm12 0H9v10h5V3Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"></path><path d="M8 3v10" stroke="currentColor" stroke-width="1.2"></path></svg></span><div class="body"><div class="l1"><span class="tool">read</span><span class="arg">{"file_path": "/Volumes/data/dev/coding/GVGL/Package.swift"}</span><span class="ok">✓</span><span class="ms">66ms</span></div></div></div><div class="step clickable" role="button" tabindex="0"><span class="ic t-read"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false"><path d="M2 3h5v10H2V3Zm12 0H9v10h5V3Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"></path><path d="M8 3v10" stroke="currentColor" stroke-width="1.2"></path></svg></span><div class="body"><div class="l1"><span class="tool">read</span><span class="arg">{"file_path": "/Volumes/data/dev/coding/GVGL/README.md"}</span><span class="ok">✓</span><span class="ms">66ms</span></div></div></div><div class="step clickable" role="button" tabindex="0"><span class="ic t-read"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false"><path d="M2 3h5v10H2V3Zm12 0H9v10h5V3Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"></path><path d="M8 3v10" stroke="currentColor" stroke-width="1.2"></path></svg></span><div class="body"><div class="l1"><span class="tool">read</span><span class="arg">{"file_path": "/Volumes/data/dev/coding/GVGL/CLAUDE.md"}</span><span class="ok">✓</span><span class="ms">66ms</span></div></div></div><div class="step clickable" role="button" tabindex="0"><span class="ic t-bash"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false"><rect x="1.5" y="2.5" width="13" height="11" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.3"></rect><path d="M4 6.5 L6 8 L4 9.5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"></path><line x1="7" y1="9.5" x2="10.5" y2="9.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"></line></svg></span><div class="body"><div class="l1"><span class="tool">bash</span><span class="arg">{"command": "find /Volumes/data/dev/coding/GVGL/Sources -type f | head -60", "description": "List source file…</span><span class="ok">✓</span><span class="ms">66ms</span></div></div></div><div class="step clickable" role="button" tabindex="0"><span class="ic t-bash"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false"><rect x="1.5" y="2.5" width="13" height="11" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.3"></rect><path d="M4 6.5 L6 8 L4 9.5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"></path><line x1="7" y1="9.5" x2="10.5" y2="9.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"></line></svg></span><div class="body"><div class="l1"><span class="tool">bash</span><span class="arg">{"command": "find /Volumes/data/dev/coding/GVGL/Tests -type f | head -60", "description": "List test files", …</span><span class="ok">✓</span><span class="ms">66ms</span></div></div></div><div class="step clickable" role="button" tabindex="0"><span class="ic t-bash"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false"><rect x="1.5" y="2.5" width="13" height="11" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.3"></rect><path d="M4 6.5 L6 8 L4 9.5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"></path><line x1="7" y1="9.5" x2="10.5" y2="9.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"></line></svg></span><div class="body"><div class="l1"><span class="tool">bash</span><span class="arg">{"command": "find /Volumes/data/dev/coding/GVGL/scripts -type f | head -60", "description": "List scripts", "…</span><span class="ok">✓</span><span class="ms">66ms</span></div></div></div><div class="step clickable" role="button" tabindex="0"><span class="ic t-write"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false"><path d="M4 2h6l3 3v9H4V2Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"></path><path d="M10 2v3h3" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"></path><path d="M6 8h4M6 11h3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"></path></svg></span><div class="body"><div class="l1"><span class="tool">write</span><span class="arg">{"file_path": "/Volumes/data/dev/coding/GVGL/AGENTS.md", "content": "&lt;!-- OPENWIKI:START --&gt;\n\n## OpenWiki\n…</span><span class="ok">✓</span><span class="ms">394ms</span></div></div></div><div class="step clickable" role="button" tabindex="0"><span class="ic t-assistant"><svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true" focusable="false"><path d="M4 4.5h12a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 1-1.5 1.5H8.5L5 16.2v-2.7H4A1.5 1.5 0 0 1 2.5 12V6A1.5 1.5 0 0 1 4 4.5Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></path><circle cx="7" cy="9" r="0.9" fill="currentColor"></circle><circle cx="10" cy="9" r="0.9" fill="currentColor"></circle><circle cx="13" cy="9" r="0.9" fill="currentColor"></circle></svg></span><div class="body"><div class="l1"><span class="tool">assistant</span><span class="arg">已更新 `AGENTS.md`，在保留原有 OpenWiki 指令块的基础上，新增了 **Repository Guidelines** 主体文档，覆盖你要求的结构、构建、风格、测试、提交与 Agent 约束，并贴合当前仓库实际布局。 验证要点： - 标题：`# Repository Guidel…</span><span class="ms"></span></div></div></div></div></div><div class="turn"><div class="turn-head"><span>Turn 2 · 2026-09-03 21:56:36</span><span class="ln"></span></div><div class="user-msg"><span class="ic"><svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true" focusable="false"><path d="M4 4.5h12a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 1-1.5 1.5H8.5L5 16.2v-2.7H4A1.5 1.5 0 0 1 2.5 12V6A1.5 1.5 0 0 1 4 4.5Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></path><circle cx="7" cy="9" r="0.9" fill="currentColor"></circle><circle cx="10" cy="9" r="0.9" fill="currentColor"></circle><circle cx="13" cy="9" r="0.9" fill="currentColor"></circle></svg></span><div><div class="who">用户指令</div><div class="txt">1</div></div></div><div class="steps"><div class="step clickable" role="button" tabindex="0"><span class="ic t-assistant"><svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true" focusable="false"><path d="M4 4.5h12a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 1-1.5 1.5H8.5L5 16.2v-2.7H4A1.5 1.5 0 0 1 2.5 12V6A1.5 1.5 0 0 1 4 4.5Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></path><circle cx="7" cy="9" r="0.9" fill="currentColor"></circle><circle cx="10" cy="9" r="0.9" fill="currentColor"></circle><circle cx="13" cy="9" r="0.9" fill="currentColor"></circle></svg></span><div class="body"><div class="l1"><span class="tool">assistant</span><span class="arg">已记录当前上下文：日期 2026-09-03，模型 `step-3.7-flash`。 如果你需要继续处理仓库任务、切换模型，或进行其他操作，直接告诉我即可。</span><span class="ms"></span></div></div></div></div></div><div class="turn"><div class="turn-head"><span>Turn 3 · 2026-09-03 21:56:53</span><span class="ln"></span></div><div class="user-msg"><span class="ic"><svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true" focusable="false"><path d="M4 4.5h12a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 1-1.5 1.5H8.5L5 16.2v-2.7H4A1.5 1.5 0 0 1 2.5 12V6A1.5 1.5 0 0 1 4 4.5Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></path><circle cx="7" cy="9" r="0.9" fill="currentColor"></circle><circle cx="10" cy="9" r="0.9" fill="currentColor"></circle><circle cx="13" cy="9" r="0.9" fill="currentColor"></circle></svg></span><div><div class="who">用户指令</div><div class="txt">2</div></div></div><div class="steps"><div class="step clickable" role="button" tabindex="0"><span class="ic t-assistant"><svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true" focusable="false"><path d="M4 4.5h12a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 1-1.5 1.5H8.5L5 16.2v-2.7H4A1.5 1.5 0 0 1 2.5 12V6A1.5 1.5 0 0 1 4 4.5Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></path><circle cx="7" cy="9" r="0.9" fill="currentColor"></circle><circle cx="10" cy="9" r="0.9" fill="currentColor"></circle><circle cx="13" cy="9" r="0.9" fill="currentColor"></circle></svg></span><div class="body"><div class="l1"><span class="tool">assistant</span><span class="arg">已就绪。当前模型：`step-3.7-flash`，时间：2026-09-03。 需要我继续处理 GVGL 仓库的哪项任务？</span><span class="ms"></span></div></div></div></div></div><div class="turn"><div class="turn-head"><span>Turn 4 · 2026-09-03 21:57:04</span><span class="ln"></span></div><div class="user-msg"><span class="ic"><svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true" focusable="false"><path d="M4 4.5h12a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 1-1.5 1.5H8.5L5 16.2v-2.7H4A1.5 1.5 0 0 1 2.5 12V6A1.5 1.5 0 0 1 4 4.5Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></path><circle cx="7" cy="9" r="0.9" fill="currentColor"></circle><circle cx="10" cy="9" r="0.9" fill="currentColor"></circle><circle cx="13" cy="9" r="0.9" fill="currentColor"></circle></svg></span><div><div class="who">用户指令</div><div class="txt">3</div></div></div><div class="steps"><div class="step clickable" role="button" tabindex="0"><span class="ic t-assistant"><svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true" focusable="false"><path d="M4 4.5h12a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 1-1.5 1.5H8.5L5 16.2v-2.7H4A1.5 1.5 0 0 1 2.5 12V6A1.5 1.5 0 0 1 4 4.5Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></path><circle cx="7" cy="9" r="0.9" fill="currentColor"></circle><circle cx="10" cy="9" r="0.9" fill="currentColor"></circle><circle cx="13" cy="9" r="0.9" fill="currentColor"></circle></svg></span><div class="body"><div class="l1"><span class="tool">assistant</span><span class="arg">收到。当前日期：2026-09-03，模型：`step-3.7-flash`。 需要我帮你处理 GVGL 仓库的具体任务吗？</span><span class="ms"></span></div></div></div></div></div><div class="turn"><div class="turn-head"><span>Turn 5 · 2026-09-03 21:57:44</span><span class="ln"></span></div><div class="user-msg"><span class="ic"><svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true" focusable="false"><path d="M4 4.5h12a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 1-1.5 1.5H8.5L5 16.2v-2.7H4A1.5 1.5 0 0 1 2.5 12V6A1.5 1.5 0 0 1 4 4.5Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></path><circle cx="7" cy="9" r="0.9" fill="currentColor"></circle><circle cx="10" cy="9" r="0.9" fill="currentColor"></circle><circle cx="13" cy="9" r="0.9" fill="currentColor"></circle></svg></span><div><div class="who">用户指令</div><div class="txt">我要看你的思考内容，你进行思考</div></div></div><div class="steps"><div class="step clickable" role="button" tabindex="0"><span class="ic t-assistant"><svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true" focusable="false"><path d="M4 4.5h12a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 1-1.5 1.5H8.5L5 16.2v-2.7H4A1.5 1.5 0 0 1 2.5 12V6A1.5 1.5 0 0 1 4 4.5Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></path><circle cx="7" cy="9" r="0.9" fill="currentColor"></circle><circle cx="10" cy="9" r="0.9" fill="currentColor"></circle><circle cx="13" cy="9" r="0.9" fill="currentColor"></circle></svg></span><div class="body"><div class="l1"><span class="tool">assistant</span><span class="arg">好的，我会显式展示当前思考过程。 ## 思考过程 1. **上下文确认**：当前日期是 2026-09-03，模型是 `step-3.7-flash`。之前已完成的 AGENTS.md 更新已确认写入成功。 2. **用户意图判断**：用户连续发送 "1"、"2"、"3"，我均回执了模型信息；现在…</span><span class="ms"></span></div></div></div></div></div><div class="turn"><div class="turn-head"><span>Turn 6 · 2026-09-03 21:58:45</span><span class="ln"></span></div><div class="user-msg"><span class="ic"><svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true" focusable="false"><path d="M4 4.5h12a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 1-1.5 1.5H8.5L5 16.2v-2.7H4A1.5 1.5 0 0 1 2.5 12V6A1.5 1.5 0 0 1 4 4.5Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></path><circle cx="7" cy="9" r="0.9" fill="currentColor"></circle><circle cx="10" cy="9" r="0.9" fill="currentColor"></circle><circle cx="13" cy="9" r="0.9" fill="currentColor"></circle></svg></span><div><div class="who">用户指令</div><div class="txt">你更新一下 agent 文件，写入 本项目目前仅针对 Mac</div></div></div><div class="steps"><div class="step clickable" role="button" tabindex="0"><span class="ic t-read"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false"><path d="M2 3h5v10H2V3Zm12 0H9v10h5V3Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"></path><path d="M8 3v10" stroke="currentColor" stroke-width="1.2"></path></svg></span><div class="body"><div class="l1"><span class="tool">read</span><span class="arg">{"file_path": "/Volumes/data/dev/coding/GVGL/AGENTS.md"}</span><span class="ok">✓</span><span class="ms">4ms</span></div></div></div><div class="step clickable" role="button" tabindex="0"><span class="ic t-edit"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false"><path d="M11 2.5a1.5 1.5 0 0 1 2.1 2.1L6 11.7 3.5 12.5l.8-2.5L11 2.5Z" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"></path></svg></span><div class="body"><div class="l1"><span class="tool">edit</span><span class="arg">{"snippet_id": "full_file_4", "file_path": "/Volumes/data/dev/coding/GVGL/AGENTS.md", "old_string": "- `docs/…</span><span class="ok">✓</span><span class="ms">302ms</span></div></div></div><div class="step clickable" role="button" tabindex="0"><span class="ic t-assistant"><svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true" focusable="false"><path d="M4 4.5h12a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 1-1.5 1.5H8.5L5 16.2v-2.7H4A1.5 1.5 0 0 1 2.5 12V6A1.5 1.5 0 0 1 4 4.5Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></path><circle cx="7" cy="9" r="0.9" fill="currentColor"></circle><circle cx="10" cy="9" r="0.9" fill="currentColor"></circle><circle cx="13" cy="9" r="0.9" fill="currentColor"></circle></svg></span><div class="body"><div class="l1"><span class="tool">assistant</span><span class="arg">已更新 `AGENTS.md`，在 **Project Structure &amp; Module Organization** 中追加了一行： &gt; 本项目目前仅针对 Mac；`gvglui` 为 AppKit 应用，守护进程依赖 macOS Accessibility API 与 launchd。 其…</span><span class="ms"></span></div></div></div></div></div><div class="turn"><div class="turn-head"><span>Turn 7 · 2026-09-03 21:59:15</span><span class="ln"></span></div><div class="user-msg"><span class="ic"><svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true" focusable="false"><path d="M4 4.5h12a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 1-1.5 1.5H8.5L5 16.2v-2.7H4A1.5 1.5 0 0 1 2.5 12V6A1.5 1.5 0 0 1 4 4.5Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></path><circle cx="7" cy="9" r="0.9" fill="currentColor"></circle><circle cx="10" cy="9" r="0.9" fill="currentColor"></circle><circle cx="13" cy="9" r="0.9" fill="currentColor"></circle></svg></span><div><div class="who">用户指令</div><div class="txt">你更新一下 agent 文件，写入 本项目目前仅针对 Mac os</div></div></div><div class="steps"><div class="step clickable" role="button" tabindex="0"><span class="ic t-read"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false"><path d="M2 3h5v10H2V3Zm12 0H9v10h5V3Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"></path><path d="M8 3v10" stroke="currentColor" stroke-width="1.2"></path></svg></span><div class="body"><div class="l1"><span class="tool">read</span><span class="arg">{"file_path": "/Volumes/data/dev/coding/GVGL/AGENTS.md"}</span><span class="ok">✓</span><span class="ms">9ms</span></div></div></div><div class="step clickable" role="button" tabindex="0"><span class="ic t-edit"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false"><path d="M11 2.5a1.5 1.5 0 0 1 2.1 2.1L6 11.7 3.5 12.5l.8-2.5L11 2.5Z" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"></path></svg></span><div class="body"><div class="l1"><span class="tool">edit</span><span class="arg">{"snippet_id": "full_file_5", "file_path": "/Volumes/data/dev/coding/GVGL/AGENTS.md", "old_string": "- 本项目目前仅…</span><span class="ok">✓</span><span class="ms">288ms</span></div></div></div><div class="step clickable" role="button" tabindex="0"><span class="ic t-assistant"><svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true" focusable="false"><path d="M4 4.5h12a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 1-1.5 1.5H8.5L5 16.2v-2.7H4A1.5 1.5 0 0 1 2.5 12V6A1.5 1.5 0 0 1 4 4.5Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></path><circle cx="7" cy="9" r="0.9" fill="currentColor"></circle><circle cx="10" cy="9" r="0.9" fill="currentColor"></circle><circle cx="13" cy="9" r="0.9" fill="currentColor"></circle></svg></span><div class="body"><div class="l1"><span class="tool">assistant</span><span class="arg">已完成。`AGENTS.md` 中对应行已更新为： &gt; 本项目目前仅针对 Mac os；`gvglui` 为 AppKit 应用，守护进程依赖 macOS Accessibility API 与 launchd。</span><span class="ms"></span></div></div></div></div></div></div></div></div></div><div class="ui-taskhub-row" data-domain="review"><div class="ui-taskhub-card-wrap"><div class="ui-taskhub-card" role="button" tabindex="0"><div class="t"><span class="chip tag-review">REVIEW</span><span class="name">代码审查 · 提交 HEAD 的变更</span></div><div class="meta"><span>5d · 2026-09-02 01:03:29</span><span>0 项意见</span></div></div></div></div><div class="ui-taskhub-row" data-domain="review"><div class="ui-taskhub-card-wrap"><div class="ui-taskhub-card" role="button" tabindex="0"><div class="t"><span class="chip tag-review">REVIEW</span><span class="name">代码审查 · 全仓库（全域审查）</span></div><div class="meta"><span>6d · 2026-09-01 20:30:18</span><span>11 项意见</span></div></div></div></div><div class="ui-taskhub-row" data-domain="review"><div class="ui-taskhub-card-wrap"><div class="ui-taskhub-card" role="button" tabindex="0"><div class="t"><span class="chip tag-review">REVIEW</span><span class="name">代码审查</span></div><div class="meta"><span>6d · 2026-08-31 22:05:35</span><span>0 项意见</span></div></div></div></div><div class="ui-taskhub-row" data-domain="review"><div class="ui-taskhub-card-wrap"><div class="ui-taskhub-card" role="button" tabindex="0"><div class="t"><span class="chip tag-review">REVIEW</span><span class="name">代码审查</span></div><div class="meta"><span>6d · 2026-08-31 21:50:03</span><span>0 项意见</span></div></div></div></div></div></div></div></div></div></div></div></div>
+    
+  
 
-      /* ── 会话模块（Sidebar 1:1） ── */
-      function renderSess() {
-        $("sessCount").textContent = SESSIONS.length;
-        var html = '<div class="ui-tree-workspace" data-ws="gvgl">'
-          + '<div class="ui-tree-ws-head current" role="button"><span class="ui-tree-caret">▾</span><span class="ui-tree-icon ui-tree-icon-folder"></span>'
-          + '<span class="ui-tree-ws-label">GVGL</span><span class="ui-tree-count">' + SESSIONS.length + '</span><button class="ui-tree-ws-new" title="新建会话">＋</button></div>'
-          + '<div class="ui-tree-children">';
-        SESSIONS.forEach(function (s) {
-          html += '<div class="ui-session-item ui-tree-session">'
-            + '<div class="ui-session-title"><span class="ui-tree-icon">💬</span>' + esc(s.name) + "</div>"
-            + '<div class="ui-session-meta"><span class="ui-status-dot ui-status-dot--' + (s.st === "已完成" ? "succeeded" : "running") + '"></span><span>' + esc(s.st) + '</span><span class="ui-session-time">刚刚</span></div>'
-            + (s.declare ? '<div class="v-cdeclare">' + esc(s.declare) + ' · <b>⛓ ' + esc(cs(s.chain)) + "</b></div>" : "")
-            + "</div>";
-        });
-        html += "</div></div>";
-        $("sessList").innerHTML = html;
-        var nw = document.querySelector(".ui-tree-ws-new");
-        if (nw) nw.addEventListener("click", function (e) { e.stopPropagation(); toast("info", "新建会话", "会话任务落地在此 · 链上 fork 时声明链 id"); });
-      }
 
-      /* ── 任务树（核心视图） ── */
-      function chipCls(a) {
-        if (a.kind === "own") return "st-main";
-        if (a.kind === "follow") return "st-lock";
-        if (a.domain === "ui" || a.domain === "prototype") return "st-design";
-        if (a.domain === "editor") return "st-editor";
-        return "st-fork";
-      }
-      function chipTxt(a) {
-        if (a.kind === "own") return "主域";
-        if (a.kind === "follow") return "追随 main · 随代码";
-        if (a.domain === "ui" || a.domain === "prototype") return "🎨 设计独立";
-        if (a.domain === "editor") return "✏️ chat 变种";
-        return "⑂ fork";
-      }
-      function renderTree() {
-        var rows = AREAS.map(function (a) {
-          var fork = a.kind === "fork";
-          var merged = a.mergedInto ? '<span class="chip st-merged">已并入 main</span>' : "";
-          var chain = chainOf(a);
-          var acts = "";
-          if (a.kind === "follow") acts = "";
-          else if (a.key === "main") acts = '<button class="ui-btn" data-fork="' + a.key + '" style="font-size:10px;padding:2px 9px">⑂ fork</button><button class="ui-btn" data-merge="' + a.key + '" style="font-size:10px;padding:2px 9px">⇄ 并入…</button>';
-          else acts = '<button class="ui-btn" data-fork="' + a.key + '" style="font-size:10px;padding:2px 9px">⑂ fork</button>';
-          var decl = "";
-          if (fork) decl = '<div class="tdecl" style="font-family:var(--ui-font-mono,monospace);font-size:9.5px;color:var(--ui-text-faint,#8590a0);padding:0 0 2px 44px">⑂ 声明来源：<span style="color:var(--ui-accent,#1c6fe0)">' + esc(DEVICES[a.from].name) + " · " + esc(cs(chain)) + " · " + esc(a.branch) + "</span> · 落地：" + esc(a.land) + "</div>";
-          else if (a.kind === "follow") decl = '<div class="tdecl" style="font-family:var(--ui-font-mono,monospace);font-size:9.5px;color:var(--ui-text-faint,#8590a0);padding:0 0 2px 44px">' + esc(a.land) + " · 不可单独 fork</div>";
-          return '<div class="ui-taskhub-row' + (fork ? " fork-row" : "") + (selKey === a.key ? " sel" : "") + '" data-br="' + a.key + '">'
-            + '<div class="ui-taskhub-card-wrap"><div class="ui-taskhub-card" role="button" tabindex="0">'
-            + '<div class="t"><span class="chip ' + chipCls(a) + '">' + chipTxt(a) + '</span><span class="name">' + esc(a.title) + "</span>" + merged + "</div>"
-            + '<div class="meta">'
-            + (a.git ? '<span class="git-chip"><span class="hash">⎇ ' + a.git + "</span></span>" : "")
-            + '<span class="meta-branch">⑂ ' + esc(a.branch) + "</span>"
-            + '<span class="v-chain-chip' + (fork ? " src" : "") + '" title="' + (fork ? "来源链 id" : "本设备链 id") + '">⛓ ' + esc(cs(chain)) + "</span>"
-            + "</div></div></div>"
-            + '<div style="display:flex;gap:5px;align-self:center;flex:none">' + acts + "</div>"
-            + decl + "</div>";
-        }).join("");
-        var logRows = OPLOG.map(function (o) {
-          return "<tr" + (o.fresh ? ' class="new"' : "") + '><td class="t">' + o.t + '</td><td class="op">' + esc(o.op) + '</td><td class="cid">⛓ <b>' + esc(cs(o.cid)) + '</b></td><td class="who">' + esc(o.who) + "</td></tr>";
-        }).join("");
-        var popHtml = pop ? renderPop() : "";
-        $("stageBody").innerHTML =
-          '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:0 2px 10px">'
-          + '<span class="chip st-main" style="font-size:10.5px">任务树 = 整个共享链（本地 + 链历史）</span>'
-          + '<span style="font-size:11px;color:var(--ui-text-faint,#8590a0)">一切 fork 以树为核心产生 · fork = checkout 新分支（自动上链）· merge 冲突只报告</span></div>'
-          + '<div style="position:relative">' + rows + popHtml + "</div>"
-          + '<div class="v-oplog" style="margin-top:12px"><div class="cap">⛓ 链操作日志 <span class="sub">每个链历史操作 = 链 id + 操作（fork / kb.version / review.version / editor.snapshot / design.version / merge / init）</span></div>'
-          + "<table>" + logRows + "</table></div>";
-        Array.prototype.forEach.call($("stageBody").querySelectorAll("[data-br]"), function (el) {
-          el.addEventListener("click", function (e) {
-            if (e.target.closest("button")) return;
-            var a = area(el.dataset.br);
-            selKey = a.key;
-            if (a.kind === "follow") { setView(a.domain); pop = null; }
-            else if (a.key === "main") { pop = { mode: "merge", key: a.key }; }
-            else { pop = { mode: "fork", key: a.key, dom: a.domain }; }
-            renderAll();
-          });
-        });
-        Array.prototype.forEach.call($("stageBody").querySelectorAll("[data-fork]"), function (b) {
-          b.addEventListener("click", function (e) { e.stopPropagation(); var a = area(b.dataset.fork); selKey = a.key; pop = { mode: "fork", key: a.key, dom: a.domain }; renderAll(); });
-        });
-        Array.prototype.forEach.call($("stageBody").querySelectorAll("[data-merge]"), function (b) {
-          b.addEventListener("click", function (e) { e.stopPropagation(); pop = { mode: "merge", key: b.dataset.merge }; renderAll(); });
-        });
-        bindPop();
-      }
-
-      function renderPop() {
-        var a = area(pop.key);
-        if (!a) return "";
-        if (pop.mode === "merge") {
-          var cands = AREAS.filter(function (x) { return x.kind === "fork" && x.domain === "chat" && x.st === "已完成" && !x.mergedInto; });
-          return '<div class="v-pop merge" data-pop="merge"><h5>⇄ 并入 main —— cherry-pick 语义 · merge commit 双亲上链</h5>'
-            + '<div class="src"><div class="k">要并入的分支</div><select id="mergeSel" style="margin-top:4px;background:var(--ui-surface,#fff);border:1px solid var(--ui-border-soft,#c3cdd9);border-radius:6px;padding:4px 8px;color:var(--ui-text,#1b2129);font-size:11px">'
-            + (cands.map(function (c) { return '<option value="' + c.key + '">' + esc(c.branch) + "（" + esc(DEVICES[c.from].name) + " · 已完成）</option>"; }).join("") || "<option>（暂无待并入分支）</option>")
-            + "</select></div>"
-            + '<div class="auto">冲突处理沿用现状：<b>只报告、不自动解决</b>（在编辑器中解决后完成）；合并后源分支标「已并入」；链操作日志新增 merge 行。</div>'
-            + '<div class="acts"><button class="ui-btn" data-pclose>取消</button><button class="ui-btn ui-btn-primary" data-mgo>⇄ 确认并入</button></div></div>';
-        }
-        var dom = pop.dom || forkDom;
-        var srcChain = chainOf(a);
-        var doms =
-          '<label class="' + (dom === "chat" ? "on" : "") + '" data-dom="chat">💬 会话任务</label>'
-          + '<label class="' + (dom === "editor" ? "on" : "") + '" data-dom="editor">✎ 编辑器（快照上链）</label>'
-          + '<label class="' + (dom === "ui" ? "on" : "") + '" data-dom="ui">✦ UI 设计（独立）</label>'
-          + '<label class="' + (dom === "prototype" ? "on" : "") + '" data-dom="prototype">◎ 原型设计（独立）</label>'
-          + '<label class="locked" data-dom="review">✓ 审查 · 随代码</label>'
-          + '<label class="locked" data-dom="kb">▤ 知识库 · 随代码</label>';
-        var land = {
-          chat: "落地：<b>会话模块</b>新会话任务（声明链 id=来源链）+ 基线检出；并<b>自动构建关联版本</b>：知识库 + 审查报告（链上版本，随代码）+ 编辑器（链上快照）。",
-          editor: "落地：<b>编辑器</b>——本地历史快照（VSCode/IDEA 式）上链 = 链上操作历史快照；并自动构建知识库/审查关联版本。",
-          ui: "落地：<b>UI 设计模块</b>——在已有本地版本管理上新增链上版本（独立模块，不牵动会话/知识库/审查/编辑器）。",
-          prototype: "落地：<b>原型设计模块</b>——同 UI 设计：本地版本管理上新增链上版本（独立模块）。"
-        }[dom];
-        return '<div class="v-pop" data-pop="fork"><h5>⑂ fork = checkout 新分支（树上声明 · 行为即上链）</h5>'
-          + '<div class="src"><div class="k">来源（自动携带 · 只读）</div>'
-          + '<div class="cl">来源链：' + esc(srcChain) + "</div>"
-          + '<div class="cl">来源设备：' + esc(DEVICES[a.kind === "fork" ? a.from : MY].name) + " · 分支 " + esc(a.branch) + (a.git ? " · ⎇ " + esc(a.git) : "") + "</div></div>"
-          + '<div class="doms">' + doms + "</div>"
-          + '<input type="text" id="forkName" value="' + esc(a.title.replace(/\s+/g, "-").slice(0, 14) + "-fork") + '" />'
-          + '<textarea id="forkWhy" placeholder="一句话理由（进链上 fork 记录）"></textarea>'
-          + '<div class="auto">链行为：<b>fork 即自动上链</b>（无需手动共享）。' + land + "</div>"
-          + '<div class="acts"><button class="ui-btn" data-pclose>取消</button><button class="ui-btn ui-btn-primary" data-fgo>⑂ 确认 fork</button></div></div>';
-      }
-      function bindPop() {
-        var popEl = document.querySelector("[data-pop]");
-        if (!popEl) return;
-        Array.prototype.forEach.call(popEl.querySelectorAll("[data-pclose]"), function (b) { b.addEventListener("click", function () { pop = null; renderAll(); }); });
-        Array.prototype.forEach.call(popEl.querySelectorAll("[data-dom]"), function (l) {
-          l.addEventListener("click", function () {
-            if (l.classList.contains("locked")) { toast("", "审查/知识库不可单独 fork", "与代码强绑定 → 随会话/编辑器 fork 自动构建关联版本"); return; }
-            forkDom = l.dataset.dom;
-            if (pop) pop.dom = forkDom;
-            renderAll();
-          });
-        });
-        var fgo = popEl.querySelector("[data-fgo]");
-        if (fgo) fgo.addEventListener("click", doFork);
-        var mgo = popEl.querySelector("[data-mgo]");
-        if (mgo) mgo.addEventListener("click", doMerge);
-      }
-
-      function doFork() {
-        var a = area(pop.key);
-        var name = $("forkName").value.trim();
-        var why = $("forkWhy").value.trim();
-        if (!name) { toast("", "需要命名", ""); return; }
-        if (!why) { toast("", "一句话理由必填", "理由进链上 fork 记录（可审计）"); return; }
-        var dom = pop.dom || forkDom;
-        var srcChain = chainOf(a);
-        var branch = "fork/" + name.replace(/\s+/g, "-").toLowerCase().slice(0, 14);
-        var fromDev = a.kind === "fork" ? a.from : MY;
-        var na = { key: "n" + hash7(branch + Date.now()), title: name, domain: dom, kind: "fork", from: fromDev, branch: branch, git: hash7(branch + "x"), st: "进行中" };
-        AREAS.push(na);
-        var op = sharedOn ? "fork · 上链" : "fork（本地）";
-        if (dom === "chat") {
-          SESSIONS.unshift({ name: name, st: "进行中", declare: "链上 fork · 来源 " + branch, chain: srcChain });
-          MODV.kb.unshift({ name: "知识库 " + TODAY + "（关联 · 链上）", time: "刚刚", tag: "链上", onchain: MY, meta: "随代码关联版本 · 来源 " + branch, fresh: true });
-          MODV.review.unshift({ name: "审查报告 " + TODAY + "（关联 · 链上）", time: "刚刚", tag: "链上", onchain: MY, meta: "随代码关联版本 · 来源 " + branch, fresh: true });
-          MODV.editor.unshift({ name: "链上快照 · " + name + " 基线", time: "刚刚", tag: "链上", onchain: MY, meta: "链上操作历史快照 · " + branch, fresh: true });
-          op = sharedOn ? "fork + kb/review/editor 关联 · 上链" : "fork + 关联（本地）";
-        } else if (dom === "editor") {
-          MODV.editor.unshift({ name: "链上快照 · " + name, time: "刚刚", tag: "链上", onchain: MY, meta: "链上操作历史快照 · " + branch, fresh: true });
-          MODV.kb.unshift({ name: "知识库 " + TODAY + "（关联 · 链上）", time: "刚刚", tag: "链上", onchain: MY, meta: "随代码关联版本 · 来源 " + branch, fresh: true });
-          MODV.review.unshift({ name: "审查报告 " + TODAY + "（关联 · 链上）", time: "刚刚", tag: "链上", onchain: MY, meta: "随代码关联版本 · 来源 " + branch, fresh: true });
-        } else {
-          MODV[dom].unshift({ name: (dom === "ui" ? "视觉稿" : "交互流") + " " + name + " " + TODAY + "（链上）", time: "刚刚", tag: "链上", onchain: MY, meta: "链上版本 · 来源 " + branch, fresh: true });
-        }
-        OPLOG.unshift({ t: "刚刚", op: op, cid: srcChain, who: DEVICES[MY].name, fresh: true });
-        pop = null;
-        selKey = na.key;
-        toast("ok", "fork 已" + (sharedOn ? "上链" : "完成（本地）"), branch + " · 来源链 " + cs(srcChain) + "… · " + (dom === "chat" ? "会话任务 + 知识库/审查/编辑器关联版本已构建" : dom === "editor" ? "编辑器快照 + 关联版本已构建" : "对应设计模块链上版本已构建"));
-        renderAll();
-      }
-
-      function doMerge() {
-        var sel = $("mergeSel");
-        var t = sel ? area(sel.value) : null;
-        if (t) { t.mergedInto = true; t.st = "已完成"; }
-        OPLOG.unshift({ t: "刚刚", op: sharedOn ? "merge · 上链" : "merge（本地）", cid: DEVICES[MY].chain, who: DEVICES[MY].name, fresh: true });
-        pop = null;
-        toast("ok", "已并入 main ✓", "源分支标注「已并入」· 链操作日志新增 merge 行");
-        renderAll();
-      }
-
-      /* ── 模块视图 ── */
-      function verRailHtml(key) {
-        var list = MODV[key];
-        if (verSel[key] === undefined) verSel[key] = 0;
-        var titles = { prototype: "原型设计", ui: "UI 设计", review: "审查报告", kb: "知识库", editor: "编辑器" };
-        var rail = '<div class="v-verrail"><div class="cap">' + esc(titles[key]) + " · 版本（本地 + 链上）</div>";
-        list.forEach(function (v, i) {
-          rail += '<div class="v-veritem' + (v.onchain ? " onchain" : "") + (verSel[key] === i ? " on" : "") + '" data-vi="' + i + '">'
-            + '<div class="vt"><span class="tag">' + esc(v.tag) + "</span>" + esc(v.name) + (v.fresh ? ' <span class="fresh">NEW</span>' : "") + "</div>"
-            + '<div class="vm">' + esc(v.time) + " · " + esc(v.meta) + "</div>"
-            + '<div class="vs">' + (v.onchain ? '<i class="chain">⛓ 来源链 ' + esc(cs(DEVICES[v.onchain].chain)) + "</i>" : "<i>本地版本</i>") + "</div></div>";
-        });
-        rail += "</div>";
-        return rail;
-      }
-      function bindVerRail(key, onSelect) {
-        Array.prototype.forEach.call($("stageBody").querySelectorAll("[data-vi]"), function (el) {
-          el.addEventListener("click", function () { verSel[key] = Number(el.dataset.vi); onSelect(); });
-        });
-      }
-
-      function renderDesign(key) {
-        var list = MODV[key];
-        var sel = list[verSel[key]] || list[0];
-        var title = key === "ui" ? "UI 设计" : "原型设计";
-        $("stageBody").innerHTML =
-          '<div class="v-verwrap">' + verRailHtml(key)
-          + '<div class="v-canvas"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px">'
-          + '<b style="font-size:14px">' + esc(sel.name) + "</b>"
-          + (sel.onchain ? '<span class="v-chain-chip">⛓ 链上版本 · 来源链 ' + esc(cs(DEVICES[sel.onchain].chain)) + "</span>" : '<span class="chip st-main" style="font-size:10px">本地版本</span>')
-          + '<span style="flex:1"></span><button class="ui-btn" id="modFork" style="font-size:11px">⑂ fork 此模块节点</button></div>'
-          + (key === "ui"
-            ? '<div class="v-sec"><div class="sn">passkey 登录页</div><div class="sd">WebAuthn 三入口 · gel 主按钮 · focus-ring 输入框</div></div><div class="v-sec"><div class="sn">设置 · passkey 管理</div><div class="sd">设备卡片列表 · 危险区红色描边</div></div>'
-            : '<div class="v-sec"><div class="sn">登录流程 · 分支图</div><div class="sd">手机号 / 验证码 / passkey 三入口与跳转关系</div></div><div class="v-sec"><div class="sn">设置页</div><div class="sd">passkey 管理入口 · 设备列表</div></div>')
-          + '<div style="margin-top:10px;font-size:10.5px;color:var(--ui-text-faint,#8590a0);line-height:1.8">' + title + "是<b>唯二可独立 fork 的任务模块</b>：fork 在本地版本管理上新增链上版本，不牵动会话/知识库/审查/编辑器。</div>"
-          + "</div></div>";
-        bindVerRail(key, function () { renderDesign(key); });
-        var mf = $("modFork");
-        if (mf) mf.addEventListener("click", function () {
-          var a = AREAS.filter(function (x) { return x.domain === key; })[0];
-          if (!a) return;
-          selKey = a.key; setView("tree"); pop = { mode: "fork", key: a.key, dom: key }; renderAll();
-        });
-      }
-
-      function renderReview() {
-        var list = MODV.review;
-        var sel = list[verSel.review] || list[0];
-        $("stageBody").innerHTML =
-          '<div class="v-verwrap">' + verRailHtml("review")
-          + '<div class="v-vermain"><h3>' + esc(sel.name) + "</h3>"
-          + '<div class="mh"><span>' + esc(sel.time) + "</span>"
-          + (sel.onchain ? '<span class="cl">⛓ 链上版本 · 来源链 ' + esc(cs(DEVICES[sel.onchain].chain)) + "（随代码 · 关联版本）</span>" : "<span>本地版本</span>") + "</div>"
-          + '<div class="v-find"><div class="h1"><span class="v-sev high">high</span><b>passkey 验证失败未回滚 session</b><span class="loc">src/auth/passkey.ts:42</span></div><div class="bd">失败路径应清理会话状态；与 main 中间件顺序对齐。</div></div>'
-          + '<div class="v-find"><div class="h1"><span class="v-sev med">med</span><b>webauthn 导入未做能力探测</b><span class="loc">src/auth/passkey.ts:8</span></div><div class="bd">旧浏览器降级提示缺失。</div></div>'
-          + '<div style="margin-top:12px;font-size:10.5px;color:var(--ui-text-faint,#8590a0);line-height:1.8">与代码强绑定：fork 会话/编辑器时<b>自动构建本模块关联版本</b>（随代码），不可单独 fork、不生成会话任务。</div>'
-          + "</div></div>";
-        bindVerRail("review", function () { renderReview(); });
-      }
-
-      function renderKb() {
-        var list = MODV.kb;
-        var sel = list[verSel.kb] || list[0];
-        $("stageBody").innerHTML =
-          '<div class="v-verwrap">' + verRailHtml("kb")
-          + '<div class="v-vermain"><h3>' + esc(sel.name) + "</h3>"
-          + '<div class="mh"><span>' + esc(sel.time) + "</span>"
-          + (sel.onchain ? '<span class="cl">⛓ 链上版本 · 来源链 ' + esc(cs(DEVICES[sel.onchain].chain)) + "（随代码 · 关联版本）</span>" : "<span>本地版本</span>") + "</div>"
-          + '<div class="v-find"><div class="h1"><b>passkey 注册/验证流程沉淀</b></div><div class="bd">12 条相关条目 · 含坑位记录（WebAuthn 能力探测、降级提示）。</div></div>'
-          + '<div class="v-find"><div class="h1"><b>WebAuthn 浏览器兼容矩阵</b></div><div class="bd">来自链上协作者补充 · 随代码版本对齐。</div></div>'
-          + '<div style="margin-top:12px;font-size:10.5px;color:var(--ui-text-faint,#8590a0);line-height:1.8">与代码强绑定：fork 会话/编辑器时<b>自动构建本模块关联版本</b>（随代码），不可单独 fork、不生成会话任务。</div>'
-          + "</div></div>";
-        bindVerRail("kb", function () { renderKb(); });
-      }
-
-      function renderEditor() {
-        var list = MODV.editor;
-        if (edSel >= list.length) edSel = 0;
-        var sel = list[edSel];
-        var rail = '<div class="v-verrail"><div class="cap">编辑器 · 本地历史快照（VSCode/IDEA 式）+ 链上快照</div>';
-        list.forEach(function (s, i) {
-          rail += '<div class="v-tl' + (s.onchain ? " onchain" : "") + (edSel === i ? " on" : "") + '" data-ti="' + i + '">'
-            + '<div class="t1">' + (s.onchain ? '<span class="badge">⛓ 链上快照</span>' : "") + esc(s.name) + '<span class="tm">' + esc(s.time) + "</span></div>"
-            + '<div class="t2">' + esc(s.meta) + "</div>"
-            + (s.onchain ? '<div class="cid">⛓ 链 id <b>' + esc(cs(DEVICES[s.onchain].chain)) + "</b>（来源设备 " + esc(DEVICES[s.onchain].name) + "）</div>" : "")
-            + "</div>";
-        });
-        rail += "</div>";
-        $("stageBody").innerHTML =
-          '<div class="v-verwrap">' + rail
-          + '<div class="v-vermain"><h3>' + esc(sel.name) + "</h3>"
-          + '<div class="mh"><span>' + esc(sel.time) + "</span>"
-          + (sel.onchain ? '<span class="cl">⛓ 链上操作历史快照 · 链 id ' + esc(cs(DEVICES[sel.onchain].chain)) + "</span>" : "<span>本地快照</span>")
-          + '<span>编辑器 = chat 变种</span></div>'
-          + '<div class="v-diffbox"><span class="add">+ import { webauthn } from "./webauthn";</span>\n+ export async function verifyPasskey(cred) {\n+   const ok = await webauthn.verify(cred);\n+   if (!ok) throw new AuthError("passkey 验证失败");\n+   return await session.issue(cred.user);\n+ }\n<span class="del">- // TODO: 迁移旧 session 逻辑</span></div>'
-          + '<div style="margin-top:12px;font-size:10.5px;color:var(--ui-text-faint,#8590a0);line-height:1.8">fork 编辑器任务 = 他人代码合入你本地；本地历史快照上链 = 链上操作历史快照（fork 会话/编辑器时自动构建）。</div>'
-          + "</div></div>";
-        Array.prototype.forEach.call($("stageBody").querySelectorAll("[data-ti]"), function (el) {
-          el.addEventListener("click", function () { edSel = Number(el.dataset.ti); renderEditor(); });
-        });
-      }
-
-      function renderSessionsView() {
-        var rows = SESSIONS.map(function (s) {
-          return '<div class="v-srow"><div class="r1">💬 <b>' + esc(s.name) + '</b><span class="st">' + esc(s.st) + "</span></div>"
-            + (s.declare ? '<div class="v-cdeclare">' + esc(s.declare) + ' · <b>⛓ ' + esc(cs(s.chain)) + "</b></div>" : "")
-            + "</div>";
-        }).join("");
-        $("stageBody").innerHTML =
-          '<div class="v-sesslist"><div style="font-size:11px;color:var(--ui-text-faint,#8590a0);padding:0 2px 10px">会话任务在此落地 · 从链上 fork 的会话任务声明链 id（来源链）</div>' + rows + "</div>";
-      }
-
-      function setView(v) {
-        view = v;
-        Array.prototype.forEach.call(document.querySelectorAll(".v-tab"), function (b) { b.classList.toggle("on", b.dataset.m === v); });
-        $("stageTitle").textContent = { tree: "任务树", sessions: "会话", prototype: "原型设计", ui: "UI 设计", review: "审查报告", kb: "知识库", editor: "编辑器" }[v] || v;
-      }
-
-      function renderAll() {
-        renderSess();
-        $("stageWs").textContent = "GVGL";
-        $("stageChain").textContent = "⛓ " + DEVICES[MY].chain;
-        if (view === "tree") renderTree();
-        else if (view === "sessions") renderSessionsView();
-        else if (view === "prototype") renderDesign("prototype");
-        else if (view === "ui") renderDesign("ui");
-        else if (view === "review") renderReview();
-        else if (view === "kb") renderKb();
-        else if (view === "editor") renderEditor();
-      }
-
-      Array.prototype.forEach.call(document.querySelectorAll(".v-tab"), function (b) {
-        b.addEventListener("click", function () { setView(b.dataset.m); pop = null; renderAll(); });
+<script>
+(function () {
+  var $ = function (s, r) { return (r || document).querySelector(s); };
+  var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
+  var DEV = { kel: "orca1-wiymh-xraxv-a7ovu-yzdft", dev: "orca1-8a41c-c02d9-1b773-3d91b", ipad: "orca1-3f9d2-k8m1p-7w2qx" };
+  var cs = function (c) { return c.slice(0, 15) + "…"; };
+  var OWNER = { 0: ["kelthas-mbp", DEV.kel], 1: ["dev-windows-01", DEV.dev], 2: ["design-ipad", DEV.ipad] };
+  /* 任务树卡片：注入链 id chip（第 0 行=主域本机链；fork 行=来源链） */
+  var cards = $$(".ui-taskhub-card");
+  cards.forEach(function (c, i) {
+    var meta = $(".meta", c); if (!meta) return;
+    var owner = OWNER[Math.min(i, 2)];
+    var chip = document.createElement("span");
+    chip.className = "chain-chip" + (i % 2 ? " src" : "");
+    chip.title = i % 2 ? "来源链 id（fork 来源设备）" : "本设备链 id";
+    chip.textContent = "⛓ " + cs(owner[1]);
+    meta.appendChild(chip);
+    c.parentElement.parentElement.setAttribute("data-br", "node-" + i);
+    c.setAttribute("data-br", "node-" + i);
+  });
+  /* 链操作日志（挂任务树底部） */
+  var th = $(".ui-taskhub"); if (th) {
+    var lg = document.createElement("div");
+    lg.className = "v-oplog";
+    lg.innerHTML = '<div class="cap" style="display:flex;gap:8px;align-items:center;padding:7px 12px;border-bottom:1px solid var(--ui-border-soft);font-size:11px;font-weight:700">⛓ 链操作日志 <span style="font-weight:400;font-size:9.5px;color:var(--ui-text-faint);font-family:var(--ui-font-mono)">每个链历史操作 = 链 id + 操作</span></div>'
+      + '<table style="width:100%;border-collapse:collapse;font-size:10.5px">'
+      + [["17:02","merge"],["17:00","editor.snapshot"],["16:42","design.version"],["16:40","fork"],["15:12","fork"],["09:00","init"]].map(function (r, i) {
+        return '<tr><td style="padding:4px 12px;color:var(--ui-text-faint);font-family:var(--ui-font-mono);width:48px">' + r[0] + '</td><td style="padding:4px 12px;color:var(--ui-accent);font-family:var(--ui-font-mono)">' + r[1] + '</td><td style="padding:4px 12px;font-family:var(--ui-font-mono);color:var(--ui-text-dim)">⛓ <b style="color:var(--ui-accent)">' + cs(OWNER[Math.min(i, 2)][1]) + '</b></td><td style="padding:4px 12px;color:var(--ui-text-faint);font-family:var(--ui-font-mono)">' + OWNER[Math.min(i, 2)][0] + "</td></tr>";
+      }).join("") + "</table>";
+    th.appendChild(lg);
+  }
+  /* fork/merge pop（行内声明：来源断言自动携带 · fork=checkout 新分支 · 行为即上链） */
+  var pop = null;
+  function closePop() { var p = $(".v-wpop"); if (p) p.remove(); pop = null; }
+  function openPop(node) {
+    closePop();
+    var i = parseInt((node || "node-0").replace("node-", ""), 10) || 0;
+    var owner = OWNER[Math.min(i, 2)];
+    var el = document.createElement("div");
+    el.className = "v-wpop";
+    el.innerHTML = '<div class="pp-hd"><span class="cap">fork</span><span class="pp-sem">checkout 新分支 · 行为即上链</span><button class="pp-close" style="width:18px;height:18px;border-radius:5px;color:var(--ui-text-faint)">✕</button></div>'
+      + '<div style="padding:10px 12px">'
+      + '<div style="border:1px solid var(--ui-border-soft);border-radius:9px;padding:8px 10px;font-size:11px;line-height:1.8;background:var(--ui-surface)"><div style="color:var(--ui-text-faint);font-size:9.5px">来源（自动携带 · 只读）</div><div style="font-family:var(--ui-font-mono);color:var(--ui-accent)">来源链：' + owner[1] + '</div><div style="font-family:var(--ui-font-mono);color:var(--ui-accent)">来源设备：' + owner[0] + "</div></div>"
+      + '<div style="display:flex;gap:5px;flex-wrap:wrap;margin:8px 0">'
+      + '<label class="v-dom on" data-dom="chat">💬 会话任务</label><label class="v-dom" data-dom="editor">✎ 编辑器（快照上链）</label>'
+      + '<label class="v-dom" data-dom="ui">✦ UI 设计（链上版本）</label><label class="v-dom" data-dom="prototype">◎ 原型设计（链上版本）</label>'
+      + '<label class="v-dom" style="opacity:.5;border-style:dashed;color:var(--ui-danger);cursor:not-allowed">✓ 审查 · 随代码</label><label class="v-dom" style="opacity:.5;border-style:dashed;color:var(--ui-danger);cursor:not-allowed">▤ 知识库 · 随代码</label></div>'
+      + '<input id="fkName" style="width:100%;padding:5px 9px;border-radius:7px;border:1px solid var(--ui-border-soft);background:var(--ui-surface-sunken);color:var(--ui-text);font-size:11.5px" value="passkey-fork" />'
+      + '<textarea id="fkWhy" placeholder="一句话理由（进链上 fork 记录）" style="width:100%;min-height:34px;margin-top:6px;padding:5px 9px;border-radius:7px;border:1px solid var(--ui-border-soft);background:var(--ui-surface-sunken);color:var(--ui-text);font-size:11.5px"></textarea>'
+      + '<div style="font-size:10.5px;color:var(--ui-text-dim);line-height:1.7;border:1px solid var(--ui-border-soft);border-radius:9px;padding:7px 10px;background:var(--ui-surface);margin-top:8px">链行为：<b style="color:var(--ui-success)">fork 即自动上链</b>。落地：💬 会话任务→会话模块新会话任务（声明链 id）+ 知识库/审查/编辑器自动构建关联版本（代码强绑定）；✎ 编辑器→本地历史快照上链（VSCode/IDEA 式）；✦ UI 设计 / ◎ 原型设计→在本地版本管理上新增【链上版本】（唯二可独立 fork）。</div>'
+      + '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:9px"><button class="rp-btn" data-cancel>取消</button><button class="rp-btn gel" data-go>⑂ 确认 fork</button></div></div>';
+    el.querySelector(".pp-close").addEventListener("click", closePop);
+    el.querySelector("[data-cancel]").addEventListener("click", closePop);
+    el.querySelectorAll(".v-dom").forEach(function (l) {
+      l.addEventListener("click", function () {
+        if (l.style.opacity) { alert("审查/知识库与代码强绑定：随会话/编辑器 fork 自动构建关联版本，不可单独 fork"); return; }
+        el.querySelectorAll(".v-dom").forEach(function (x) { x.classList.remove("on"); });
+        l.classList.add("on");
       });
-      $("themeBtn").addEventListener("click", function () {
-        document.documentElement.dataset.appearance = document.documentElement.dataset.appearance === "dark" ? "light" : "dark";
-      });
-      $("settingsBtn").addEventListener("click", function () {
-        $("settingsScrim").innerHTML = '<div class="v-settings">'
-          + '<div class="sh"><h2>⚙ 设置 · 工作链（新增段）</h2><div class="sub">链 id 绑定设备、每设备唯一；任务树 = 整个共享链；链路本身为隐藏行为。</div></div>'
-          + '<div class="sb">'
-          + '<div class="v-field"><div class="fx"><div class="ft">开启链共享</div><div class="fd">关闭：本地独立。<b>开启：自动上链</b>——fork / 合并 / 版本 / 快照自动记录上链，无需手动共享。</div></div><span class="v-switch' + (sharedOn ? " on" : "") + '" id="swShare"></span></div>'
-          + '<div class="v-field"><div class="fx"><div class="ft">链 id（本设备）</div><div class="fd" style="margin-top:4px;font-family:var(--ui-font-mono,monospace)">⛓ ' + esc(DEVICES[MY].chain) + " · 绑定设备 " + esc(DEVICES[MY].name) + "</div></div></div>"
-          + "</div>"
-          + '<div class="sf"><button class="ui-btn ui-btn-primary" id="setClose">完成</button></div></div>';
-        $("settingsScrim").classList.add("show");
-        $("setClose").addEventListener("click", function () { $("settingsScrim").classList.remove("show"); });
-        $("swShare").addEventListener("click", function () {
-          sharedOn = !sharedOn;
-          $("swShare").classList.toggle("on", sharedOn);
-          toast(sharedOn ? "ok" : "", sharedOn ? "链共享已开启 —— 行为自动上链" : "链共享已关闭 —— 本地独立", sharedOn ? "fork / 关联版本 / 快照自动上链" : "重新开启后恢复");
-          renderAll();
-        });
-      });
-      document.addEventListener("keydown", function (e) {
-        if (e.key === "Escape") { pop = null; $("settingsScrim").classList.remove("show"); renderAll(); }
-      });
-
-      renderAll();
-    </script>
-  </body>
-</html>
+    });
+    el.querySelector("[data-go]").addEventListener("click", function () {
+      var name = el.querySelector("#fkName").value.trim() || "fork";
+      var row = document.createElement("tr");
+      row.innerHTML = '<td style="padding:4px 12px;color:var(--ui-text-faint);font-family:var(--ui-font-mono);width:48px">刚刚</td><td style="padding:4px 12px;color:var(--ui-accent);font-family:var(--ui-font-mono)">fork · 上链</td><td style="padding:4px 12px;font-family:var(--ui-font-mono);color:var(--ui-text-dim)">⛓ <b style="color:var(--ui-accent)">' + cs(DEV.kel) + '</b></td><td style="padding:4px 12px;color:var(--ui-text-faint);font-family:var(--ui-font-mono)">' + name + " · 来源断言已携带</td>";
+      var tb = $(".v-oplog tbody") || $(".v-oplog table");
+      if (tb) tb.insertBefore(row, tb.firstChild);
+      closePop();
+    });
+    document.body.appendChild(el);
+  }
+  $$("[data-br]").forEach(function (el) {
+    el.addEventListener("click", function (e) {
+      if (e.target.closest("button")) return;
+      openPop(el.dataset.br || "node-0");
+    });
+  });
+  /* 设置 · 工作链段（单开关） */
+  var scrim = document.createElement("div");
+  scrim.style.cssText = "position:fixed;inset:0;background:rgba(10,14,22,.5);backdrop-filter:blur(3px);display:none;align-items:center;justify-content:center;z-index:400";
+  scrim.innerHTML = '<div style="width:520px;max-width:92vw;border-radius:12px;border:1px solid var(--ui-border);background:var(--ui-surface);box-shadow:var(--ui-shadow-modal);overflow:hidden">'
+    + '<div style="padding:14px 18px 10px;border-bottom:1px solid var(--ui-border-soft)"><div style="font-size:15px;font-weight:700">⚙ 设置 · 工作链（新增段）</div><div style="font-size:11px;color:var(--ui-text-faint);margin-top:3px">链 id 绑定设备（每设备唯一）；任务树 = 整个共享链；链路本身为隐藏行为。</div></div>'
+    + '<div style="padding:14px 18px">'
+    + '<div style="border:1px solid var(--ui-border-soft);border-radius:10px;padding:11px 13px;background:var(--ui-surface-raised);display:flex;gap:12px;align-items:center;margin-bottom:10px"><div style="flex:1"><div style="font-size:12.5px;font-weight:650">开启链共享</div><div style="font-size:10.5px;color:var(--ui-text-dim);margin-top:3px;line-height:1.7">关闭：本地独立。<b>开启：自动上链</b>——fork / 合并 / 版本 / 快照自动记录上链，无需手动共享。</div></div><span id="sw" style="width:38px;height:21px;border-radius:99px;border:1px solid var(--ui-border);background:var(--ui-surface-sunken);position:relative;cursor:pointer;flex-shrink:0"></span></div>'
+    + '<div style="border:1px solid var(--ui-border-soft);border-radius:10px;padding:11px 13px;background:var(--ui-surface-raised)"><div style="font-size:12.5px;font-weight:650">链 id（本设备）</div><div style="font-size:10.5px;color:var(--ui-text-dim);margin-top:4px;font-family:var(--ui-font-mono)">⛓ ' + DEV.kel + " · 绑定设备 kelthas-mbp（每设备唯一）</div></div></div>"
+    + '<div style="display:flex;justify-content:flex-end;gap:8px;padding:10px 18px 14px;border-top:1px solid var(--ui-border-soft)"><button class="rp-btn gel" data-done>完成</button></div></div>';
+  var sw = null;
+  scrim.addEventListener("click", function (e) {
+    if (e.target === scrim) { scrim.style.display = "none"; return; }
+    if (e.target.dataset.done !== undefined) { scrim.style.display = "none"; }
+    if (e.target.id === "sw" || (sw && e.target === sw)) {
+      sw.classList.toggle("on");
+      sw.style.background = sw.classList.contains("on") ? "var(--ui-accent)" : "var(--ui-surface-sunken)";
+      var k = sw.appendChild(document.createElement("i"));
+      k.style.cssText = "content:'';position:absolute;top:2px;left:2px;width:15px;height:15px;border-radius:50%;background:" + (sw.classList.contains("on") ? "#fff" : "var(--ui-text-dim)") + ";transition:transform .15s" + (sw.classList.contains("on") ? ";transform:translateX(17px)" : "");
+      sw.querySelectorAll("i").forEach(function (x, idx) { if (idx > 0) x.remove(); });
+      sw.appendChild(k);
+    }
+  });
+  document.body.appendChild(scrim);
+  var sb = $("#settingsBtn") || $$(".ui-cockpit-icon-btn").pop();
+  if (sb) sb.addEventListener("click", function () { scrim.style.display = "flex"; });
+  /* 样式：链 chip / pop 基础样式（复用项目 token） */
+  var st = document.createElement("style");
+  st.textContent = ".chain-chip{font-family:var(--ui-font-mono);font-size:9.5px;color:var(--ui-accent);border:1px solid color-mix(in srgb,var(--ui-accent) 35%,transparent);border-radius:5px;padding:0 5px;background:color-mix(in srgb,var(--ui-accent) 7%,transparent)}.chain-chip.src{color:var(--ui-text-dim);border-color:var(--ui-border-soft);background:transparent}.v-wpop{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:470px;max-width:92vw;z-index:460;background:var(--ui-surface-raised);border:1px solid color-mix(in srgb,var(--ui-accent) 45%,transparent);border-radius:10px;box-shadow:var(--ui-shadow-modal)}.pp-hd{display:flex;align-items:center;gap:6px;padding:6px 8px 5px 10px;border-bottom:1px solid var(--ui-border-soft)}.pp-hd .cap{font-size:9px;font-weight:700;letter-spacing:.06em;color:var(--ui-text-faint)}.pp-sem{font-family:var(--ui-font-mono);font-size:10px;color:var(--ui-accent);flex:1}.pp-close{background:none;border:none;cursor:pointer}.pp-close:hover{background:var(--ui-surface-hover)}.v-dom{font-size:10.5px;padding:3px 10px;border-radius:99px;border:1px solid var(--ui-border-soft);color:var(--ui-text-dim);background:var(--ui-surface);cursor:pointer}.v-dom.on{color:var(--ui-accent);border-color:color-mix(in srgb,var(--ui-accent) 45%,transparent);background:var(--ui-accent-soft)}.rp-btn{font-size:11.5px;font-weight:600;padding:5px 12px;border-radius:8px;border:1px solid var(--ui-border-soft);color:var(--ui-accent);background:var(--ui-surface-raised);cursor:pointer}.rp-btn:hover{background:var(--ui-accent);color:#fff}.rp-btn.gel{background:var(--ui-accent-fill);border-color:transparent;color:#fff}";
+  document.head.appendChild(st);
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") closePop(); });
+})();
+</script></body></html>
