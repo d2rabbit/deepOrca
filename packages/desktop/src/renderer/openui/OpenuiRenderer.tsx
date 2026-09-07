@@ -12,14 +12,14 @@
 
 import { type JSX, useEffect, useMemo, useRef, useState } from "react";
 import { Renderer, type ActionEvent } from "@openuidev/react-lang";
-import type { OpenUIError } from "@openuidev/lang-core";
 import { openuiLibrary } from "@openuidev/react-ui/genui-lib";
 import { useI18n } from "../i18n";
 import { deeporcaLibrary } from "./library";
-import { resolveLibraryMode } from "./library-route";
+import { resolveLibraryMode, type OpenuiLibraryMode } from "./library-route";
+import { auditButtonActions } from "./action-audit";
 import { createDesignerToolProvider } from "./tool-provider";
 import { annotateActTags } from "./act-annotation";
-import { splitOpenuiErrors } from "./correction";
+import { splitOpenuiErrors, type RendererErrorLike } from "./correction";
 
 /**
  * Route code to its rendering library.
@@ -35,6 +35,9 @@ import { splitOpenuiErrors } from "./correction";
 type Props = {
   /** Raw OpenUI Lang code from the agent's tool output. */
   code: string;
+  /** Which library authored this suite (meta stamp). Wins over the
+   *  component-name heuristic; absent → heuristic fallback. */
+  authoringLibrary?: OpenuiLibraryMode | null;
   /** Called when a component triggers an action (e.g. Button click). */
   onAction?: (event: ActionEvent) => void;
   /** Enable the designer tool provider — prototypes can Query() local data. */
@@ -43,12 +46,14 @@ type Props = {
   onStateUpdate?: (state: Record<string, unknown>) => void;
   /** Hydrate form fields from a persisted state. */
   initialState?: Record<string, unknown>;
-  /** Render errors surfaced (correction-loop input; see openui/correction.ts). */
-  onErrors?: (errors: OpenUIError[]) => void;
+  /** Render errors surfaced (correction-loop input; see openui/correction.ts).
+   *  Includes DeepOrca's own audit findings (bare-string Button actions). */
+  onErrors?: (errors: RendererErrorLike[]) => void;
 };
 
 export function OpenuiRenderer({
   code,
+  authoringLibrary,
   onAction,
   enableTools = true,
   onStateUpdate,
@@ -56,21 +61,40 @@ export function OpenuiRenderer({
   onErrors,
 }: Props): JSX.Element {
   const { t } = useI18n();
-  const [errors, setErrors] = useState<OpenUIError[]>([]);
-  // Non-fatal compiler notices (excess-args: dropped args, render continues)
+  const [sdkErrors, setSdkErrors] = useState<RendererErrorLike[]>([]);
+  // Declared library wins; the name heuristic only runs for unstamped suites
+  // (pre-field metas, legacy artifacts).
+  const libraryMode = useMemo(() => resolveLibraryMode(code, authoringLibrary), [code, authoringLibrary]);
+  // Official library for new code; legacy fallback for pre-switch suites.
+  const library = libraryMode === "legacy" ? deeporcaLibrary : openuiLibrary;
+  // M3: a bare-string Button action compiles (upstream z.any()) but throws at
+  // click time with zero surface feedback — surface it as a non-fatal warning
+  // riding the same correction loop as excess-args. Official code only:
+  // legacy Button treats a string action as a message.
+  const auditFindings = useMemo(
+    () => (libraryMode === "official" ? auditButtonActions(code) : []),
+    [code, libraryMode]
+  );
+  const allErrors = useMemo<RendererErrorLike[]>(() => [...sdkErrors, ...auditFindings], [sdkErrors, auditFindings]);
+  // Non-fatal notices (excess-args, dead-button-action: render continues)
   // fold into one amber warning; only fatal errors get the red wall.
-  const { fatal: fatalErrors, warnings } = useMemo(() => splitOpenuiErrors(errors), [errors]);
+  const { fatal: fatalErrors, warnings } = useMemo(() => splitOpenuiErrors(allErrors), [allErrors]);
 
   // Create the tool provider once (stable reference for the SDK).
   const toolProvider = useMemo(() => (enableTools ? createDesignerToolProvider() : undefined), [enableTools]);
-  // Official library for new code; legacy fallback for pre-switch suites.
-  const library = useMemo(() => (resolveLibraryMode(code) === "legacy" ? deeporcaLibrary : openuiLibrary), [code]);
 
   // F6: Clear errors when code becomes empty (SDK's onError([]) doesn't fire
   // for empty response — see react-lang useOpenUIState early return).
   useEffect(() => {
-    if (!code) setErrors([]);
+    if (!code) setSdkErrors([]);
   }, [code]);
+
+  // Correction-loop feed: SDK errors arrive via onError below, audit findings
+  // change with code — both funnel through the merged array so the host sees
+  // one complete picture (handleErrors debounces and de-dupes).
+  useEffect(() => {
+    onErrors?.(allErrors);
+  }, [allErrors, onErrors]);
 
   // Act-tag producer (openui/act-annotation.ts): stamps `data-act` on the
   // rendered buttons/forms/anchors so the design workspace's selection popover
@@ -149,15 +173,12 @@ export function OpenuiRenderer({
         library={library}
         isStreaming={false}
         onAction={onAction}
-        onError={(errs) => {
-          setErrors(errs);
-          onErrors?.(errs);
-        }}
+        onError={(errs) => setSdkErrors(errs)}
         toolProvider={toolProvider}
         onStateUpdate={onStateUpdate}
         initialState={initialState}
       />
-      {errors.length > 0 ? (
+      {allErrors.length > 0 ? (
         <details style={{ marginTop: 12 }}>
           <summary style={{ cursor: "pointer", fontSize: 12, color: "var(--ui-text-faint, var(--ui-text-dim))" }}>
             Raw OpenUI Lang code

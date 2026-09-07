@@ -1,6 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildCorrectionPrompt, correctionFingerprint, shouldRetry } from "../renderer/openui/correction";
+import {
+  buildCorrectionPrompt,
+  correctionFingerprint,
+  shouldRetry,
+  splitOpenuiErrors,
+} from "../renderer/openui/correction";
 
 const ERRORS = [
   { code: "unknown-component", message: "Unknown component: Gridd" },
@@ -36,4 +41,20 @@ test("shouldRetry re-arms when the error set changed", () => {
   const fed = correctionFingerprint(ERRORS, "root = Gridd([])");
   const newErrors = [{ code: "missing-required", message: "Column requires children" }];
   assert.equal(shouldRetry(newErrors, fed, "root = Gridd([])"), true);
+});
+
+test("dead-button-action audit findings fold into warnings and ride the correction loop", () => {
+  // M3: the audit finding must be non-fatal (amber fold, render continues)
+  // while still feeding shouldRetry/buildCorrectionPrompt.
+  const finding = {
+    code: "dead-button-action",
+    message: 'Button passes a plain string ("save") as its action argument',
+  };
+  const { fatal, warnings } = splitOpenuiErrors([finding]);
+  assert.equal(fatal.length, 0);
+  assert.equal(warnings.length, 1);
+  assert.ok(shouldRetry([finding], null, "code-v1"), "first finding feeds back");
+  const prompt = buildCorrectionPrompt([finding], "code-v1");
+  assert.ok(prompt?.includes("[dead-button-action]"), "code tag reaches the agent");
+  assert.ok(prompt?.includes('("save")'), "the offending literal reaches the agent");
 });

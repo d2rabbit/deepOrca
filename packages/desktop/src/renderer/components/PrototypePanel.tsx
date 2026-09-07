@@ -12,13 +12,18 @@
  */
 
 import { lazy, Suspense, useCallback, useEffect, useRef, useState, type JSX, type MouseEvent } from "react";
-import type { ActionEvent, OpenUIError } from "@openuidev/lang-core";
+import type { ActionEvent } from "@openuidev/lang-core";
 import { api } from "../api";
 import { useI18n } from "../i18n";
 import { IconExternal } from "../ui/index";
 import { A2uiSurface } from "../a2ui/A2uiSurface";
 import { processA2uiMessages, extractSurfaceId } from "../a2ui/processor";
-import { buildCorrectionPrompt, correctionFingerprint, shouldRetry } from "../openui/correction";
+import {
+  buildCorrectionPrompt,
+  correctionFingerprint,
+  shouldRetry,
+  type RendererErrorLike,
+} from "../openui/correction";
 
 // Lazy-load the OpenUI renderer so it only adds to the bundle when used.
 const OpenuiRenderer = lazy(() => import("../openui/OpenuiRenderer").then((m) => ({ default: m.OpenuiRenderer })));
@@ -42,6 +47,9 @@ type Props = {
   openuiCode?: string;
   /** Rendering mode. Defaults to "a2ui". */
   mode?: "a2ui" | "openui";
+  /** Which library authored openuiCode (suite meta stamp) — wins over the
+   *  component-name routing heuristic. Absent → heuristic. */
+  authoringLibrary?: "official" | "legacy" | null;
   /** Send an iteration prompt to the agent (from the mini composer). */
   onIterate: (text: string) => void;
   /** Optional host-side selection capture for design workspace correction. */
@@ -72,6 +80,7 @@ export function PrototypePanel({
   a2uiJson: initialJson,
   openuiCode,
   mode = "a2ui",
+  authoringLibrary,
   onIterate,
   onSelectionChange,
   selectionEnabled = false,
@@ -198,7 +207,7 @@ export function PrototypePanel({
   }, []);
 
   const handleErrors = useCallback(
-    (errors: OpenUIError[]) => {
+    (errors: RendererErrorLike[]) => {
       if (correctionTimer.current) clearTimeout(correctionTimer.current);
       correctionTimer.current = setTimeout(() => {
         correctionTimer.current = null;
@@ -339,6 +348,7 @@ export function PrototypePanel({
           <Suspense fallback={<div style={{ padding: 20, color: "var(--ui-text-muted)" }}>{t("common.loading")}</div>}>
             <OpenuiRenderer
               code={liveOpenuiCode}
+              authoringLibrary={authoringLibrary}
               onAction={handleOpenuiAction}
               onStateUpdate={handleStateUpdate}
               initialState={hydratedFormState}

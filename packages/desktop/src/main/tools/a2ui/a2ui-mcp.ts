@@ -572,6 +572,9 @@ function persistSuiteContent(
   const note = stringArg(args, "note");
   if (!suiteId) {
     const content = build(undefined);
+    // Post-switch creations are authored against the official openuiLibrary
+    // prompt — stamp it so the renderer never has to guess from component
+    // names (shared-name-only suites misroute under the text heuristic).
     const created =
       kind === "prototype"
         ? createDesignSuite(root, {
@@ -580,6 +583,7 @@ function persistSuiteContent(
             content: content as PrototypeSuiteContent,
             ...(note ? { note } : {}),
             status,
+            authoringLibrary: "official",
           })
         : createDesignSuite(root, {
             title,
@@ -587,6 +591,7 @@ function persistSuiteContent(
             content: content as UiSuiteContent,
             ...(note ? { note } : {}),
             status,
+            authoringLibrary: "official",
           });
     return created
       ? { ref: { suiteId: created.id, versionId: created.currentVersionId, kind } }

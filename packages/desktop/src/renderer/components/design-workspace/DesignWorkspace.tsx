@@ -650,6 +650,7 @@ export function DesignWorkspace({
                     a2uiJson=""
                     openuiCode={content.openui}
                     mode="openui"
+                    authoringLibrary={suite?.authoringLibrary}
                     onIterate={(instruction) => void revise(instruction)}
                     onSelectionChange={handleSelection}
                     selectionEnabled={!readOnly}

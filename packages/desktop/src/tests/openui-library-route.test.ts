@@ -36,3 +36,18 @@ test("legacy suites still route to the fallback even with look-alike substrings"
   // `Column(` must not match the official-only `Col(` (word boundary).
   assert.equal(resolveLibraryMode("root = Column([Spacer(16)])"), "legacy");
 });
+
+test("a declared authoring library wins outright over the name heuristic", () => {
+  // M4: suites stamped at creation never guess. A shared-name-only legacy
+  // suite (the misroute case that motivated the stamp) routes legacy once
+  // declared, and official-exclusive names can't drag a declared legacy
+  // suite back to official.
+  const sharedOnly = 'root = Stack([Card([TextContent("hi"), Button("保存", "save")])])';
+  assert.equal(resolveLibraryMode(sharedOnly), "official", "unstamped → heuristic (known limitation)");
+  assert.equal(resolveLibraryMode(sharedOnly, "legacy"), "legacy");
+  assert.equal(resolveLibraryMode('root = Column([Metric("x")])', "official"), "official");
+
+  // Null/undefined declared → heuristic, exactly as before the stamp existed.
+  assert.equal(resolveLibraryMode('root = Column([Metric("x")])', null), "legacy");
+  assert.equal(resolveLibraryMode('root = Column([Metric("x")])', undefined), "legacy");
+});

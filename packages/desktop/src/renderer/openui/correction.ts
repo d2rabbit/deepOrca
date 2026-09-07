@@ -63,12 +63,16 @@ export function correctionFingerprint(errors: RendererErrorLike[], code: string)
 }
 
 /**
- * Non-fatal compiler notices: the renderer DROPS the excess arguments and
- * keeps rendering, so these must not surface as a scary red error wall —
- * they fold into an amber warning and still ride the correction loop.
+ * Non-fatal notices: the render continues, so these must not surface as a
+ * scary red error wall — they fold into an amber warning and still ride the
+ * correction loop. `excess-args` are upstream compiler notices (dropped
+ * args); `dead-button-action` is DeepOrca's own audit finding (openui/
+ * action-audit.ts): a bare-string Button action compiles but throws at click
+ * time, so the only chance to fix it is a correction round.
  */
 export function isNonFatalOpenuiError(error: RendererErrorLike): boolean {
-  if ((error.code ?? "").toLowerCase() === "excess-args") return true;
+  const code = (error.code ?? "").toLowerCase();
+  if (code === "excess-args" || code === "dead-button-action") return true;
   return /excess dropped|too many arguments/i.test(error.message ?? "");
 }
 

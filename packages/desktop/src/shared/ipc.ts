@@ -1020,7 +1020,14 @@ export type DesignSuiteMeta = {
   updatedAt: string;
   currentVersionId: string;
   versions: DesignSuiteVersionSummary[];
+  /** Which component library authored this suite's code. Stamped at creation
+   *  ("official" for every post-switch a2ui creation); absent on pre-field
+   *  suites and legacy artifacts, where the renderer falls back to the
+   *  component-name heuristic (shared-name-only suites misroute without it). */
+  authoringLibrary?: DesignAuthoringLibrary;
 };
+
+export type DesignAuthoringLibrary = "official" | "legacy";
 
 export type DesignSuiteSummary = {
   schemaVersion: 2;

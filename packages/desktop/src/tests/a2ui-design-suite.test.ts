@@ -248,6 +248,33 @@ test("update_openui accepts a legacy design artifact via the pipeline-derived ki
   }
 });
 
+test("a2ui suite creations stamp authoringLibrary=official; appends keep it", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "a2ui-legacy-kind-"));
+  roots.push(root);
+  const client = await clientFor(root);
+  try {
+    // Create path (render_openui with a note but no suiteId → suite mode
+    // create): the post-switch official prompt authored this code; the
+    // renderer must never guess.
+    const rendered = await client.callTool({
+      name: "render_openui",
+      arguments: { code: 'root = Stack([Button("Go", Action([@Set($p, "home")]))])', note: "initial" },
+    });
+    const created = artifactRefOf(rendered);
+    assert.equal(readDesignSuite(root, created.suiteId)?.authoringLibrary, "official");
+
+    // Append path carries the stamp forward verbatim.
+    const updated = await client.callTool({
+      name: "update_openui",
+      arguments: { code: 'root = Stack([Button("Back", Action([@Set($p, "root")]))])', suiteId: created.suiteId },
+    });
+    assert.notEqual(updated.isError, true);
+    assert.equal(readDesignSuite(root, created.suiteId)?.authoringLibrary, "official");
+  } finally {
+    await client.close();
+  }
+});
+
 test("render_openui appends to an existing ui suite without designSystemId (kind from the suite)", async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "a2ui-suite-kind-"));
   roots.push(root);

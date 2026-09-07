@@ -72,6 +72,37 @@ test("readDesignSuiteKind derives the kind from a legacy pipeline meta without r
   assert.equal(readDesignSuiteKind(root, "does-not-exist"), null);
 });
 
+test("authoringLibrary stamps at creation, survives appends, and stays absent when unstamped", () => {
+  const root = tempRoot();
+  const stamped = createDesignSuite(root, {
+    title: "Official",
+    kind: "prototype",
+    content: { openui: 'root = Stack([Button("Go", Action([@Set($p, "home")]))])' },
+    authoringLibrary: "official",
+  });
+  assert.equal(readDesignSuite(root, stamped!.id)?.authoringLibrary, "official");
+
+  // Appends rebuild meta field-by-field — the stamp must be carried forward,
+  // not silently dropped (a dropped stamp degrades routing to the heuristic).
+  appendDesignSuiteVersion(root, {
+    suiteId: stamped!.id,
+    content: { openui: 'root = Stack([Button("Back", Action([@Set($p, "root")]))])' },
+    status: "ready",
+  });
+  assert.equal(readDesignSuite(root, stamped!.id)?.authoringLibrary, "official");
+
+  const unstamped = createDesignSuite(root, {
+    title: "Seed",
+    kind: "ui",
+    content: { openui: 'root = Stack([Card([TextContent("hi")])])' },
+  });
+  assert.equal(
+    readDesignSuite(root, unstamped!.id)?.authoringLibrary,
+    undefined,
+    "absent → renderer heuristic fallback (seed/legacy data is not forced official)"
+  );
+});
+
 test("content changes snapshot the previous version; same content does not", () => {
   const root = tempRoot();
   const first = saveDesignArtifact(root, { title: "Proto", pipeline: "openui", content: "v1" });

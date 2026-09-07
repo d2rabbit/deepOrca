@@ -130,6 +130,12 @@ export interface DesignSuiteVersion extends DesignSuiteVersionSummary {
   content: DesignSuiteContent;
 }
 
+/** Which component library authored a suite's code. Stamped at creation
+ *  ("official" for every post-switch a2ui creation); absent on pre-field
+ *  suites and legacy artifacts — the renderer then falls back to the
+ *  component-name heuristic, which misroutes shared-name-only suites. */
+export type DesignAuthoringLibrary = "official" | "legacy";
+
 export interface DesignSuiteMeta {
   schemaVersion: 2;
   id: string;
@@ -140,6 +146,7 @@ export interface DesignSuiteMeta {
   updatedAt: string;
   currentVersionId: string;
   versions: DesignSuiteVersionSummary[];
+  authoringLibrary?: DesignAuthoringLibrary;
 }
 
 export interface DesignSuiteSummary {
@@ -173,6 +180,7 @@ export type CreateDesignSuiteInput =
       content: PrototypeSuiteContent;
       note?: string;
       status?: DesignSuiteStatus;
+      authoringLibrary?: DesignAuthoringLibrary;
     }
   | {
       title: string;
@@ -180,6 +188,7 @@ export type CreateDesignSuiteInput =
       content: UiSuiteContent;
       note?: string;
       status?: DesignSuiteStatus;
+      authoringLibrary?: DesignAuthoringLibrary;
     };
 
 export interface AppendDesignSuiteVersionInput {
@@ -748,6 +757,7 @@ export function createDesignSuite(root: string, input: CreateDesignSuiteInput): 
       updatedAt: now,
       currentVersionId: version.versionId,
       versions: [versionSummary],
+      ...(input.authoringLibrary ? { authoringLibrary: input.authoringLibrary } : {}),
     };
     persistSuiteVersion(root, meta, version);
     notifySuiteChange({ root, suiteId: id, versionId: version.versionId, change: "create" });
@@ -838,6 +848,9 @@ export function appendDesignSuiteVersion(root: string, input: AppendDesignSuiteV
       updatedAt: currentVersion.savedAt,
       currentVersionId: currentVersion.versionId,
       versions,
+      // The authoring library is lineage-stable: stamped once at creation and
+      // carried forward verbatim on every append.
+      ...(suite.authoringLibrary ? { authoringLibrary: suite.authoringLibrary } : {}),
     };
     persistSuiteVersion(root, meta, currentVersion);
     for (const evictedPath of evictedPaths) {

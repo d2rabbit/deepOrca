@@ -28,7 +28,16 @@ export const OFFICIAL_COMPONENT_PATTERN =
 
 export type OpenuiLibraryMode = "official" | "legacy";
 
-export function resolveLibraryMode(code: string): OpenuiLibraryMode {
+/**
+ * Classify which library renders `code`. A suite's declared authoring library
+ * (stamped into meta at creation — design-store's authoringLibrary) wins
+ * outright; the component-name heuristic only runs for suites without the
+ * stamp (pre-field suites, legacy artifacts), where shared-name-only code
+ * still misroutes — the known limitation the stamp retires for everything
+ * created after it landed.
+ */
+export function resolveLibraryMode(code: string, declared?: OpenuiLibraryMode | null): OpenuiLibraryMode {
+  if (declared === "official" || declared === "legacy") return declared;
   if (OFFICIAL_COMPONENT_PATTERN.test(code)) return "official";
   return LEGACY_COMPONENT_PATTERN.test(code) ? "legacy" : "official";
 }

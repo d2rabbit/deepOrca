@@ -573,6 +573,7 @@ export function PrototypeWorkspace({
                     a2uiJson=""
                     openuiCode={content.openui}
                     mode="openui"
+                    authoringLibrary={suite?.authoringLibrary}
                     onIterate={(instruction) => revise(instruction)}
                     onSelectionChange={handlePrototypeSelection}
                     selectionEnabled={!readOnly}
