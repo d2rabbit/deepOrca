@@ -79,12 +79,18 @@ const EXCEPTIONS = [
   },
 ];
 
-/** Split an SPDX expression on OR and accept if ANY side is allowed
- *  (dual-licensed packages let the recipient choose). Parentheses and the
- *  trailing "*" license-checker adds for inferred licenses are normalized. */
+/** Evaluate an SPDX expression. `OR` splits accept if ANY side is allowed
+ *  (dual-licensed packages let the recipient choose); `AND` splits require
+ *  EVERY side to be allowed (e.g. "MIT AND ISC" — d3 vendor bundles ship as
+ *  conjunctions of two already-allow-listed permissive licenses). Parentheses
+ *  and the trailing "*" the license-checker adds for inferred licenses are
+ *  normalized. AND binds tighter than OR in the SPDX grammar, so split on
+ *  OR first, then AND inside each disjunct. */
 function isAllowedExpression(raw) {
   const normalized = String(raw).replace(/[()]/g, "").replace(/\*$/, "").trim();
-  return normalized.split(/\s+OR\s+/i).some((part) => ALLOWED.has(part.trim()));
+  return normalized
+    .split(/\s+OR\s+/i)
+    .some((part) => part.split(/\s+AND\s+/i).every((term) => ALLOWED.has(term.trim())));
 }
 
 function findException(name, license) {
