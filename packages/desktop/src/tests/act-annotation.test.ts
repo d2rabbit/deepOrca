@@ -10,6 +10,7 @@ import { installDom, type DomHandle } from "./dom-harness";
 // DOM-free at module load, so a static import is safe here; installDom() below
 // provides the jsdom document the functions operate on.
 import { annotateActTags, slugifyActLabel } from "../renderer/openui/act-annotation";
+import { splitOpenuiErrors } from "../renderer/openui/correction";
 
 let dom: DomHandle;
 
@@ -116,4 +117,22 @@ test("slugifyActLabel returns empty for empty or meaningless text", () => {
   assert.equal(slugifyActLabel("   "), "");
   assert.equal(slugifyActLabel("!!!"), "");
   assert.equal(slugifyActLabel(" —— "), "");
+});
+
+test("splitOpenuiErrors: excess-args folds to warnings, fatal stays red", () => {
+  const errors = [
+    { code: "excess-args", message: "Column takes 4 arg(s), got 5 (1 excess dropped)" },
+    { code: "excess-args", message: "Card takes 3 arg(s), got 4 (1 excess dropped)" },
+    { code: "parse-failed", message: "unexpected token" },
+  ];
+  const { fatal, warnings } = splitOpenuiErrors(errors);
+  assert.equal(warnings.length, 2);
+  assert.equal(fatal.length, 1);
+  assert.equal(fatal[0].code, "parse-failed");
+  assert.equal(splitOpenuiErrors([]).warnings.length, 0);
+  assert.equal(
+    splitOpenuiErrors([{ message: "Column takes 4 arg(s), got 6 (2 excess dropped)" }]).warnings.length,
+    1,
+    "message-based catch for untyped notices"
+  );
 });

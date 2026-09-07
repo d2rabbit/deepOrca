@@ -12,9 +12,11 @@
 import { type JSX, useEffect, useMemo, useRef, useState } from "react";
 import { Renderer, type ActionEvent } from "@openuidev/react-lang";
 import type { OpenUIError } from "@openuidev/lang-core";
+import { useI18n } from "../i18n";
 import { deeporcaLibrary } from "./library";
 import { createDesignerToolProvider } from "./tool-provider";
 import { annotateActTags } from "./act-annotation";
+import { splitOpenuiErrors } from "./correction";
 
 type Props = {
   /** Raw OpenUI Lang code from the agent's tool output. */
@@ -39,7 +41,11 @@ export function OpenuiRenderer({
   initialState,
   onErrors,
 }: Props): JSX.Element {
+  const { t } = useI18n();
   const [errors, setErrors] = useState<OpenUIError[]>([]);
+  // Non-fatal compiler notices (excess-args: dropped args, render continues)
+  // fold into one amber warning; only fatal errors get the red wall.
+  const { fatal: fatalErrors, warnings } = useMemo(() => splitOpenuiErrors(errors), [errors]);
 
   // Create the tool provider once (stable reference for the SDK).
   const toolProvider = useMemo(() => (enableTools ? createDesignerToolProvider() : undefined), [enableTools]);
@@ -79,7 +85,7 @@ export function OpenuiRenderer({
 
   return (
     <div ref={containerRef} className="ui-openui-renderer" style={{ minHeight: "100%" }}>
-      {errors.length > 0 ? (
+      {fatalErrors.length > 0 ? (
         <div
           style={{
             padding: 12,
@@ -91,12 +97,36 @@ export function OpenuiRenderer({
             color: "#f87171",
           }}
         >
-          {errors.map((e, i) => (
+          {fatalErrors.map((e, i) => (
             <div key={i}>
               <strong>{e.code}</strong>: {e.message}
             </div>
           ))}
         </div>
+      ) : null}
+      {warnings.length > 0 ? (
+        <details
+          style={{
+            marginBottom: 8,
+            borderRadius: "var(--ui-radius, 8px)",
+            background: "rgba(240, 180, 40, 0.08)",
+            border: "1px solid rgba(240, 180, 40, 0.35)",
+            padding: "8px 12px",
+            fontSize: 12,
+            color: "var(--ui-text-dim, #b08c00)",
+          }}
+        >
+          <summary style={{ cursor: "pointer", fontWeight: 600 }}>
+            ⚠ {t("openui.warningSummary", { count: warnings.length })}
+          </summary>
+          <div style={{ marginTop: 6 }}>
+            {warnings.map((e, i) => (
+              <div key={i}>
+                <strong>{e.code}</strong>: {e.message}
+              </div>
+            ))}
+          </div>
+        </details>
       ) : null}
       <Renderer
         response={code}

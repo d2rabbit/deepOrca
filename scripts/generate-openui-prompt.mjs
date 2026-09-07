@@ -51,6 +51,10 @@ export async function buildDesignerPrompt() {
     additionalRules: [
       "Follow the taste skill's design discipline (one accent, 4/8px spacing, ≥4.5:1 contrast).",
       "Use Query('design.readWiki', {name: '...'}) to pull project context into prototypes.",
+      // Real-machine 2026-09-07: the model kept passing extra positional args
+      // to Column/Card — every excess arg is DROPPED (excess-args warnings on
+      // the canvas). Arity is a hard rule, not a suggestion.
+      "NEVER pass more arguments than the component signature above shows — extra positional arguments are DROPPED by the compiler (excess-args). Pass options through their named props only, and omit props you don't need.",
     ],
     editMode: false,
   });

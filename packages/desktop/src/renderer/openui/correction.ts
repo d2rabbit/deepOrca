@@ -61,3 +61,25 @@ export function correctionFingerprint(errors: RendererErrorLike[], code: string)
       .join(","),
   };
 }
+
+/**
+ * Non-fatal compiler notices: the renderer DROPS the excess arguments and
+ * keeps rendering, so these must not surface as a scary red error wall —
+ * they fold into an amber warning and still ride the correction loop.
+ */
+export function isNonFatalOpenuiError(error: RendererErrorLike): boolean {
+  if ((error.code ?? "").toLowerCase() === "excess-args") return true;
+  return /excess dropped|too many arguments/i.test(error.message ?? "");
+}
+
+export function splitOpenuiErrors(errors: RendererErrorLike[]): {
+  fatal: RendererErrorLike[];
+  warnings: RendererErrorLike[];
+} {
+  const fatal: RendererErrorLike[] = [];
+  const warnings: RendererErrorLike[] = [];
+  for (const error of errors) {
+    (isNonFatalOpenuiError(error) ? warnings : fatal).push(error);
+  }
+  return { fatal, warnings };
+}

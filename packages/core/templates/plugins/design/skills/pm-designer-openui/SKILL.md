@@ -101,6 +101,7 @@ Before finishing, walk your output and verify:
 
 - Follow the taste skill's design discipline (one accent, 4/8px spacing, ≥4.5:1 contrast).
 - Use Query('design.readWiki', {name: '...'}) to pull project context into prototypes.
+- NEVER pass more arguments than the component signature above shows — extra positional arguments are DROPPED by the compiler (excess-args). Pass options through their named props only, and omit props you don't need.
 <!-- END generated component prompt -->
 
 ## Example: Login form
