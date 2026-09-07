@@ -526,6 +526,12 @@ function readSuiteMeta(root: string, id: string): DesignSuiteMeta | null {
   }
 }
 
+/** Light kind probe — meta.json only, no version-file reads (re-review L6:
+ *  deriving an append's kind used to load every version of the suite). */
+export function readDesignSuiteKind(root: string, id: string): DesignSuiteKind | null {
+  return readSuiteMeta(root, id)?.kind ?? null;
+}
+
 function readSuiteVersionFile(root: string, suiteId: string, versionId: string): DesignSuiteVersion | null {
   if (!isSafeDesignId(versionId)) return null;
   const dir = resolveArtifactDir(root, suiteId);
@@ -854,6 +860,7 @@ export function readDesignSuite(root: string, id: string): DesignSuite | null {
   const meta = readSuiteMeta(root, id);
   if (!meta) return readLegacySuite(root, id);
   const versions: DesignSuiteVersion[] = [];
+  const dropped: string[] = [];
   for (const summary of meta.versions) {
     const version = readSuiteVersionFile(root, id, summary.versionId);
     if (!version) {
@@ -862,12 +869,34 @@ export function readDesignSuite(root: string, id: string): DesignSuite | null {
       // whole suite. The CURRENT version is the suite head — without it the
       // suite is unreadable and stays null.
       if (summary.versionId === meta.currentVersionId) return null;
+      dropped.push(summary.versionId);
       continue;
     }
     versions.push(version);
   }
   const currentVersion = versions.find((version) => version.versionId === meta.currentVersionId);
   if (!currentVersion) return null;
+  if (dropped.length > 0) {
+    // Re-review M2: dropping a version without repairing the store left meta,
+    // index and every read silently disagreeing (rail renumbering, stale
+    // versionCount). Reconcile on read so the next append cannot build on the
+    // stale listing either. Best-effort — a failed repair degrades to the
+    // un-repaired (still readable) view.
+    try {
+      const dir = resolveArtifactDir(root, id);
+      const metaPath = dir ? resolveContainedFile(dir, "meta.json") : null;
+      if (metaPath) {
+        const repaired: DesignSuiteMeta = {
+          ...meta,
+          versions: meta.versions.filter((summary) => !dropped.includes(summary.versionId)),
+        };
+        writeJsonAtomic(metaPath, repaired);
+        writeSuiteIndex(root, repaired);
+      }
+    } catch {
+      // best-effort repair
+    }
+  }
   return { ...meta, versions, currentVersion, currentContent: currentVersion.content };
 }
 

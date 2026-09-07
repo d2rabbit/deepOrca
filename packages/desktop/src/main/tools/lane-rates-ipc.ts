@@ -18,12 +18,16 @@ import { collectLaneRateSessions, computeLaneRates, type LaneRateSession, type L
 /** Perf review fix: bound the scan to the most recent N sessions. */
 export const LANE_RATE_MAX_SESSIONS = 80;
 
-/** Shape of the sessions-index.json entries the scan consumes. */
+/** Shape of the sessions-index.json entries the scan consumes.
+ *  Re-review fix: core's SessionEntry persists createTime/updateTime — the
+ *  original updatedAt read never existed on disk and silently degenerated the
+ *  sort (every ts → 0, slice took the OLDEST sessions). */
 export type LaneRateIndexEntry = {
   id: string;
   isSilentSubagent?: boolean;
   lane?: "express" | "deep";
-  updatedAt?: string;
+  updateTime?: string;
+  createTime?: string;
 };
 
 /** Shape of the transcript JSONL lines the scan consumes. */
@@ -36,21 +40,20 @@ export type LaneRateTranscriptLine = {
 
 /**
  * Most-recent-N selection: silent subagents are filtered out, then entries
- * sort by updatedAt DESC and slice to the bound. Node's sort is stable, and
- * missing/unparseable timestamps map to 0 so they sink to the tail (dropped)
- * instead of poisoning the comparator with NaN.
+ * sort by (updateTime ?? createTime) DESC and slice to the bound. Node's sort
+ * is stable, and missing/unparseable timestamps map to 0 so they sink to the
+ * tail (dropped) instead of poisoning the comparator with NaN.
  */
-export function selectRecentLaneSessions<E extends { isSilentSubagent?: boolean; updatedAt?: string }>(
-  entries: E[],
-  maxSessions: number = LANE_RATE_MAX_SESSIONS
-): E[] {
-  const ts = (value: string | undefined): number => {
-    const parsed = Date.parse(value ?? "");
+export function selectRecentLaneSessions<
+  E extends { isSilentSubagent?: boolean; updateTime?: string; createTime?: string },
+>(entries: E[], maxSessions: number = LANE_RATE_MAX_SESSIONS): E[] {
+  const ts = (entry: E): number => {
+    const parsed = Date.parse(entry.updateTime ?? entry.createTime ?? "");
     return Number.isFinite(parsed) ? parsed : 0;
   };
   return entries
     .filter((entry) => !entry.isSilentSubagent)
-    .sort((a, b) => ts(b.updatedAt) - ts(a.updatedAt))
+    .sort((a, b) => ts(b) - ts(a))
     .slice(0, maxSessions);
 }
 

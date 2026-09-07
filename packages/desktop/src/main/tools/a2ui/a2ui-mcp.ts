@@ -30,6 +30,7 @@ import {
   isSafeDesignId,
   isSuiteNormalizedArtifact,
   readDesignSuite,
+  readDesignSuiteKind,
   readDesignSuiteVersion,
   saveDesignArtifact,
 } from "../design-store.js";
@@ -1036,8 +1037,10 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
         // otherwise compute kind "prototype" from the args heuristic and fail
         // against a ui suite (update_openui already derives it this way).
         const suiteId = stringArg(args, "suiteId");
-        const existingSuite = suiteId && projectRoot ? readDesignSuite(projectRoot, suiteId) : undefined;
-        const kind: DesignSuiteKind = existingSuite?.kind ?? (sourcePrototype || designSystemId ? "ui" : "prototype");
+        // Re-review L6: meta-only probe — a full readDesignSuite here loaded
+        // every version file just to learn the kind.
+        const existingKind = suiteId && projectRoot ? readDesignSuiteKind(projectRoot, suiteId) : null;
+        const kind: DesignSuiteKind = existingKind ?? (sourcePrototype || designSystemId ? "ui" : "prototype");
         const ref = persistSuiteContent(
           projectRoot,
           args,
@@ -1106,7 +1109,7 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
         const suiteId = stringArg(args, "suiteId");
         if (!suiteId) return suiteError("update_openui suite mode requires suiteId");
         const targetKind: DesignSuiteKind =
-          (projectRoot ? readDesignSuite(projectRoot, suiteId) : undefined)?.kind ?? "prototype";
+          (projectRoot && suiteId ? readDesignSuiteKind(projectRoot, suiteId) : null) ?? "prototype";
         const sourcePrototype = sourcePrototypeArg(args);
         const designSystemId = stringArg(args, "designSystemId");
         const ref = persistSuiteContent(
