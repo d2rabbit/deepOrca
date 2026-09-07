@@ -259,6 +259,11 @@ test("coord-chain e2e: device key rotation migrates the member and keeps signing
     false,
     "first rotated key is gone"
   );
+  await waitFor(
+    "rot2 seals on A",
+    () => (nodeA.ledgerView?.listMembers() ?? []).some((row) => row.key_id === second.newIdentity.keyId),
+    15_000
+  );
   nodeA.submitRecord("note", { text: "after second rotation" });
   await waitFor(
     "B seals the second-rotation note",
