@@ -1,0 +1,2620 @@
+<!doctype html>
+<html lang="zh" data-appearance="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>工作链 × 真实交互层 — 交互原型 v4（长在 ui-shell / HubSheet / TaskHub 上）</title>
+    <style>
+      /* ============================================================
+       * v4：设计与现渲染层同构 —— 令牌直接复刻 renderer/ui-css/tokens.css
+       * （--ui-* 语义令牌、--ui-taskhub 谱系令牌、双 appearance），
+       * 布局复刻 App.tsx 的 ui-shell（TopBar / HubSheet / ui-main / 右侧悬浮预览），
+       * 交互复刻真实组件：行内 fork/switch/merge 表单（TaskHubWorkspace）、
+       * 共享前右浮预览 + 确认（TaskQuickSheet 模式）。每个区域带「实现挂点」标注。
+       * ============================================================ */
+      :root {
+        --ui-bg: #f4f6fa;
+        --ui-surface: #ffffff;
+        --ui-surface-raised: #ffffff;
+        --ui-surface-sunken: #eef1f6;
+        --ui-surface-hover: rgba(0, 0, 0, 0.05);
+        --editor-canvas-bg: #f3f3ef;
+        --ui-text: #1b2129;
+        --ui-text-dim: #55606d;
+        --ui-text-faint: #8590a0;
+        --ui-text-on-accent: #ffffff;
+        --ui-accent: #1c6fe0;
+        --ui-accent-strong: #0f52bd;
+        --ui-accent-soft: rgba(28, 111, 224, 0.14);
+        --ui-focus-ring: rgba(60, 132, 235, 0.9);
+        --ui-border: #9aa7b6;
+        --ui-border-soft: #c3cdd9;
+        --ui-success: #2f9e44;
+        --ui-danger: #d1453b;
+        --ui-warning: #cf9310;
+        --ui-info: #7b4fe0;
+        --ui-radius-sm: 6px;
+        --ui-radius-md: 9px;
+        --ui-radius-lg: 12px;
+        --ui-radius-pill: 999px;
+        --ui-code-well: #f1f3f5;
+        --ui-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.16);
+        --ui-shadow-card: 0 1px 2px rgba(0, 0, 0, 0.2), 0 6px 20px rgba(20, 50, 100, 0.14);
+        --ui-shadow-modal: 0 18px 60px rgba(0, 0, 0, 0.32);
+        --ui-tool-hue-think: #b45309;
+        --ui-tool-hue-amber: #a16207;
+        --ui-tool-hue-purple: #7c3aed;
+        --ui-tool-hue-indigo: #4f46e5;
+        --ui-tool-hue-sky: #0369a1;
+        --ui-tool-hue-teal: #0f766e;
+        --ui-diagram-hue-0: #2563eb;
+        --ui-diagram-hue-1: #7c3aed;
+        --ui-diagram-hue-2: #0d9488;
+        --ui-diagram-hue-3: #d97706;
+        --ui-diagram-hue-4: #e11d48;
+        --ui-diagram-hue-5: #0891b2;
+        --ui-diagram-hue-6: #4f46e5;
+        --ui-diagram-hue-7: #65a30d;
+        --ui-space-1: 4px;
+        --ui-space-2: 8px;
+        --ui-space-3: 12px;
+        --ui-space-4: 16px;
+        --ui-space-5: 24px;
+        --ui-space-6: 32px;
+        --ui-ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+        --ui-font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+        --ui-font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+        --taskhub-trunk: #64798f;
+        --line-trunk: #64798f;
+        --line-fork: #9775fa;
+        --dot-session: #4d9aff;
+        --dot-review: #51cf66;
+        --dot-index: #ff922b;
+        --dot-prototype: #da77f2;
+        --dot-abandon: #8a94a3;
+        --dot-editor: #ffa94d;
+      }
+      :root[data-appearance="dark"] {
+        --ui-bg: #0e1116;
+        --ui-surface: #14181f;
+        --ui-surface-raised: #1a1f28;
+        --ui-surface-sunken: #10141a;
+        --ui-surface-hover: rgba(255, 255, 255, 0.06);
+        --editor-canvas-bg: #171a20;
+        --ui-text: #dfe4ea;
+        --ui-text-dim: #8b95a3;
+        --ui-text-faint: #5f6875;
+        --ui-accent: #5c8dff;
+        --ui-accent-strong: #79a1ff;
+        --ui-accent-soft: rgba(92, 141, 255, 0.16);
+        --ui-focus-ring: rgba(92, 141, 255, 0.65);
+        --ui-border: #343b47;
+        --ui-border-soft: #242a33;
+        --ui-success: #3ddc84;
+        --ui-danger: #ff6b6b;
+        --ui-warning: #e8b339;
+        --ui-info: #b18cff;
+        --ui-code-well: #2b2e34;
+        --ui-code-well-border: #3e434b;
+        --ui-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+        --ui-shadow-card: 0 1px 2px rgba(0, 0, 0, 0.42), 0 6px 20px rgba(0, 10, 30, 0.4);
+        --ui-shadow-modal: 0 18px 60px rgba(0, 0, 0, 0.6);
+        --ui-tool-hue-think: #fbbf24;
+        --ui-tool-hue-amber: #fcd34d;
+        --ui-tool-hue-purple: #d8b4fe;
+        --ui-tool-hue-indigo: #a5b4fc;
+        --ui-tool-hue-sky: #7dd3fc;
+        --ui-tool-hue-teal: #5eead4;
+        --taskhub-trunk: #64798f;
+        --line-trunk: #64798f;
+        --line-fork: #9775fa;
+        --dot-session: #4d9aff;
+        --dot-review: #51cf66;
+        --dot-index: #ff922b;
+        --dot-prototype: #da77f2;
+        --dot-abandon: #8a94a3;
+        --dot-editor: #ffa94d;
+        --editor-canvas-bg: #171a20;
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      html,
+      body {
+        height: 100%;
+      }
+      body {
+        background: var(--ui-bg);
+        color: var(--ui-text);
+        font-family: var(--ui-font-sans);
+        font-size: 13px;
+        overflow: hidden;
+      }
+      button,
+      input,
+      select,
+      textarea {
+        font-family: inherit;
+        font-size: inherit;
+      }
+      .ui-shell {
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+      ::-webkit-scrollbar {
+        width: 9px;
+        height: 9px;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: var(--ui-border);
+        border-radius: 6px;
+      }
+      ::-webkit-scrollbar-track {
+        background: transparent;
+      }
+
+      /* ================= 顶栏 TopBar（components/TopBar.tsx · ui-css/shell.css） ================= */
+      .ui-topbar {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 8px 14px;
+        background: var(--ui-surface);
+        border-bottom: 1px solid var(--ui-border-soft);
+        flex-shrink: 0;
+        position: relative;
+        z-index: 30;
+      }
+      .ui-gumdrops {
+        display: flex;
+        gap: 7px;
+        margin-right: 2px;
+      }
+      .ui-gumdrop {
+        width: 11px;
+        height: 11px;
+        border-radius: 50%;
+      }
+      .ui-gumdrop.r {
+        background: #ff5f57;
+      }
+      .ui-gumdrop.y {
+        background: #febc2e;
+      }
+      .ui-gumdrop.g {
+        background: #28c840;
+      }
+      .ui-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        padding: 5px 12px;
+        border-radius: var(--ui-radius-pill);
+        border: 1px solid var(--ui-border-soft);
+        background: var(--ui-surface-raised);
+        font-size: 12px;
+        color: var(--ui-text);
+        white-space: nowrap;
+        max-width: 240px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .ui-pill .pm {
+        color: var(--ui-text-faint);
+      }
+      .ui-pill.branch {
+        font-family: var(--ui-font-mono);
+        font-size: 11px;
+      }
+      .ui-pill select {
+        background: transparent;
+        border: none;
+        color: var(--ui-text);
+        outline: none;
+        font-size: 12px;
+        cursor: pointer;
+      }
+      .ui-topbar .center {
+        display: flex;
+        gap: 4px;
+        margin: 0 auto;
+        flex-wrap: wrap;
+      }
+      .ui-chip {
+        padding: 4px 12px;
+        border-radius: var(--ui-radius-pill);
+        font-size: 12px;
+        color: var(--ui-text-dim);
+        cursor: default;
+      }
+      .ui-chip.on {
+        color: var(--ui-text);
+        background: var(--ui-surface-raised);
+        border: 1px solid var(--ui-border-soft);
+      }
+      .ui-chip.chain {
+        color: var(--ui-accent);
+        font-weight: 600;
+      }
+      .ui-token-mini {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        border: 1px solid var(--ui-border-soft);
+        border-radius: var(--ui-radius-pill);
+        padding: 4px 10px;
+        background: var(--ui-surface-raised);
+        font-size: 11px;
+        color: var(--ui-text-dim);
+        font-family: var(--ui-font-mono);
+      }
+      .ui-token-mini .bar {
+        width: 56px;
+        height: 4px;
+        border-radius: 99px;
+        background: var(--ui-surface-sunken);
+        overflow: hidden;
+      }
+      .ui-token-mini .bar i {
+        display: block;
+        height: 100%;
+        width: 38%;
+        background: var(--ui-accent);
+        border-radius: 99px;
+      }
+      .ui-top-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .ui-icon-btn {
+        width: 30px;
+        height: 30px;
+        border-radius: var(--ui-radius-md);
+        border: 1px solid transparent;
+        background: transparent;
+        color: var(--ui-text-dim);
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 14px;
+      }
+      .ui-icon-btn:hover {
+        background: var(--ui-surface-hover);
+        color: var(--ui-text);
+      }
+      .ui-icon-btn.on {
+        color: var(--ui-accent);
+        background: var(--ui-accent-soft);
+      }
+
+      /* ================= 主体：HubSheet + ui-main ================= */
+      .ui-body {
+        display: flex;
+        flex: 1;
+        min-height: 0;
+      }
+      .ui-hub-rail {
+        width: 44px;
+        background: var(--ui-surface);
+        border-right: 1px solid var(--ui-border-soft);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+        padding: 8px 0;
+        flex-shrink: 0;
+      }
+      .ui-hub-item {
+        width: 34px;
+        height: 34px;
+        border-radius: var(--ui-radius-md);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--ui-text-faint);
+        cursor: pointer;
+        font-size: 15px;
+        position: relative;
+      }
+      .ui-hub-item:hover {
+        background: var(--ui-surface-hover);
+        color: var(--ui-text);
+      }
+      .ui-hub-item.on {
+        color: var(--ui-accent);
+        background: var(--ui-accent-soft);
+      }
+      .ui-hub-item .tip {
+        position: absolute;
+        left: 42px;
+        top: 50%;
+        transform: translateY(-50%);
+        background: var(--ui-surface-raised);
+        border: 1px solid var(--ui-border-soft);
+        padding: 3px 8px;
+        border-radius: 6px;
+        font-size: 11px;
+        color: var(--ui-text-dim);
+        white-space: nowrap;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.12s;
+        box-shadow: var(--ui-shadow-sm);
+        z-index: 60;
+      }
+      .ui-hub-item:hover .tip {
+        opacity: 1;
+      }
+      .ui-hub-rail .sp {
+        width: 20px;
+        height: 1px;
+        background: var(--ui-border-soft);
+        margin: 3px 0;
+      }
+      .ui-hub-rail .foot {
+        margin-top: auto;
+      }
+
+      /* Hub 二级浮层（链视图 = CoordChainPane 的宿主） */
+      .ui-hub-flyout {
+        width: 306px;
+        background: var(--ui-surface);
+        border-right: 1px solid var(--ui-border-soft);
+        display: flex;
+        flex-direction: column;
+        flex-shrink: 0;
+        min-height: 0;
+      }
+      .ui-hub-head {
+        padding: 12px 14px 10px;
+        border-bottom: 1px solid var(--ui-border-soft);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+      }
+      .ui-hub-title {
+        font-size: 13px;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 7px;
+      }
+      .ui-hub-title .mk {
+        color: var(--ui-accent);
+      }
+      .ui-hub-title .sub {
+        color: var(--ui-text-faint);
+        font-size: 10.5px;
+        font-weight: 400;
+      }
+      .ui-hub-body {
+        overflow-y: auto;
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        flex: 1;
+        min-height: 0;
+      }
+
+      /* ================= 工作链面板（ui-chain-* —— 本次设计新增，落 ui-css/chain.css） ================= */
+      .ui-chain-status {
+        border: 1px solid var(--ui-border-soft);
+        border-radius: var(--ui-radius-lg);
+        background: var(--ui-surface-raised);
+        padding: 11px 12px;
+        position: relative;
+      }
+      .ui-chain-id {
+        font-family: var(--ui-font-mono);
+        font-size: 11px;
+        color: var(--ui-accent);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        letter-spacing: 0.01em;
+      }
+      .ui-chain-id .cp {
+        cursor: copy;
+        color: var(--ui-text-faint);
+        font-size: 10px;
+        border: 1px solid var(--ui-border-soft);
+        border-radius: 5px;
+        padding: 1px 6px;
+        font-family: var(--ui-font-sans);
+      }
+      .ui-chain-id .cp:hover {
+        color: var(--ui-text);
+        border-color: var(--ui-border);
+      }
+      .ui-chain-theme {
+        margin-top: 7px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-wrap: wrap;
+      }
+      .ui-chain-tag {
+        font-size: 10px;
+        border-radius: var(--ui-radius-pill);
+        padding: 2px 8px;
+        background: var(--ui-accent-soft);
+        color: var(--ui-accent);
+        border: 1px solid color-mix(in srgb, var(--ui-accent) 35%, transparent);
+      }
+      .ui-chain-tag.sealed {
+        background: color-mix(in srgb, var(--ui-success) 12%, transparent);
+        color: var(--ui-success);
+        border-color: color-mix(in srgb, var(--ui-success) 35%, transparent);
+      }
+      .ui-chain-tag.dim {
+        background: transparent;
+        color: var(--ui-text-faint);
+        border-color: var(--ui-border-soft);
+      }
+      .ui-chain-facts {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 7px;
+        margin-top: 9px;
+      }
+      .ui-chain-fact {
+        border: 1px solid var(--ui-border-soft);
+        border-radius: var(--ui-radius-md);
+        padding: 7px 9px;
+        background: var(--ui-surface);
+      }
+      .ui-chain-fact dt {
+        font-size: 10px;
+        color: var(--ui-text-faint);
+      }
+      .ui-chain-fact dd {
+        font-size: 12px;
+        font-weight: 600;
+        font-family: var(--ui-font-mono);
+        margin-top: 2px;
+      }
+      .ui-chain-fact dd.ok {
+        color: var(--ui-success);
+      }
+      .ui-chain-actions {
+        display: flex;
+        gap: 6px;
+        margin-top: 10px;
+      }
+      .ui-btn {
+        padding: 5px 12px;
+        border-radius: var(--ui-radius-md);
+        border: 1px solid var(--ui-border);
+        background: var(--ui-surface-raised);
+        color: var(--ui-text);
+        font-size: 12px;
+        cursor: pointer;
+        transition: filter 0.1s;
+      }
+      .ui-btn:hover {
+        filter: brightness(1.08);
+      }
+      .ui-btn:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+      }
+      .ui-btn.ui-btn-primary {
+        background: var(--ui-accent);
+        border-color: var(--ui-accent);
+        color: var(--ui-text-on-accent);
+      }
+      .ui-btn.ui-btn-ghost {
+        background: transparent;
+      }
+      .ui-btn.sm {
+        padding: 3px 9px;
+        font-size: 11px;
+      }
+      .ui-chain-section {
+        border: 1px solid var(--ui-border-soft);
+        border-radius: var(--ui-radius-lg);
+        background: var(--ui-surface-raised);
+        padding: 10px 12px;
+      }
+      .ui-chain-section h4 {
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--ui-text-dim);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 7px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .ui-chain-section ul {
+        list-style: none;
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+      }
+      .ui-chain-section li {
+        font-size: 11.5px;
+        color: var(--ui-text);
+        padding: 4px 6px;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        line-height: 1.5;
+        min-width: 0;
+      }
+      .ui-chain-section li:hover {
+        background: var(--ui-surface-hover);
+      }
+      .ui-chain-section li .k {
+        font-family: var(--ui-font-mono);
+        color: var(--ui-text-dim);
+        font-size: 10.5px;
+      }
+      .ui-chain-pill {
+        font-size: 9.5px;
+        padding: 1px 7px;
+        border-radius: 99px;
+        border: 1px solid var(--ui-border-soft);
+        color: var(--ui-text-dim);
+        margin-left: auto;
+        flex-shrink: 0;
+      }
+      .ui-chain-pill.me {
+        color: var(--ui-accent);
+        border-color: color-mix(in srgb, var(--ui-accent) 40%, transparent);
+      }
+      .ui-chain-pill.online {
+        color: var(--ui-success);
+        border-color: color-mix(in srgb, var(--ui-success) 35%, transparent);
+      }
+      .ui-chain-share {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .ui-chain-share select {
+        flex: 1;
+        min-width: 90px;
+        background: var(--ui-surface);
+        border: 1px solid var(--ui-border-soft);
+        color: var(--ui-text);
+        border-radius: var(--ui-radius-md);
+        padding: 5px 8px;
+        font-size: 11.5px;
+        outline: none;
+      }
+      .ui-chain-share select:focus {
+        border-color: var(--ui-accent);
+      }
+      .ui-chain-error {
+        color: var(--ui-danger);
+        font-size: 11.5px;
+        padding: 6px 10px;
+        background: color-mix(in srgb, var(--ui-danger) 10%, transparent);
+        border-radius: var(--ui-radius-md);
+        border-left: 2px solid var(--ui-danger);
+      }
+      .ui-chain-genealogy .sel {
+        color: var(--ui-text-dim);
+      }
+      .ui-chain-genealogy .parent {
+        color: var(--ui-info);
+      }
+      .ui-chain-genealogy .rec {
+        font-family: var(--ui-font-mono);
+        font-size: 10px;
+        color: var(--ui-text-faint);
+      }
+
+      /* ================= ui-main：任务树 × 工作链 ================= */
+      .ui-main {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        background: var(--ui-bg);
+      }
+      .ui-stage {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        padding: 14px 18px 0;
+        overflow: auto;
+      }
+      .ui-stage-head {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 10px;
+        flex-wrap: wrap;
+      }
+      .ui-stage-head .t {
+        font-size: 14px;
+        font-weight: 600;
+      }
+      .ui-stage-head .where {
+        font-size: 11px;
+        color: var(--ui-text-faint);
+        font-family: var(--ui-font-mono);
+      }
+      .ui-seg {
+        display: inline-flex;
+        border: 1px solid var(--ui-border-soft);
+        border-radius: var(--ui-radius-pill);
+        overflow: hidden;
+        margin-left: auto;
+      }
+      .ui-seg button {
+        background: transparent;
+        border: none;
+        padding: 4px 13px;
+        font-size: 11.5px;
+        color: var(--ui-text-dim);
+        cursor: pointer;
+      }
+      .ui-seg button.on {
+        background: var(--ui-surface-raised);
+        color: var(--ui-text);
+      }
+
+      /* 任务树（Git-Graph 风格，对齐 TaskHubWorkspace：ui-taskhub-tracks 车道） */
+      .ui-taskhub {
+        border: 1px solid var(--ui-border-soft);
+        border-radius: var(--ui-radius-lg);
+        background: var(--ui-surface);
+        overflow: hidden;
+      }
+      .ui-taskhub-top {
+        padding: 9px 14px;
+        border-bottom: 1px solid var(--ui-border-soft);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 11.5px;
+        color: var(--ui-text-dim);
+        flex-wrap: wrap;
+      }
+      .ui-taskhub-top .n {
+        font-family: var(--ui-font-mono);
+        color: var(--ui-text);
+      }
+      .ui-taskhub-pills {
+        display: flex;
+        gap: 5px;
+        margin-left: auto;
+        flex-wrap: wrap;
+      }
+      .ui-taskhub-pill {
+        font-size: 10px;
+        padding: 2px 9px;
+        border-radius: var(--ui-radius-pill);
+        border: 1px solid var(--ui-border-soft);
+        color: var(--ui-text-dim);
+        cursor: pointer;
+      }
+      .ui-taskhub-pill.on {
+        color: var(--ui-text);
+        background: var(--ui-surface-raised);
+      }
+      .ui-taskhub-rows {
+        padding: 10px 14px 12px;
+        overflow: auto;
+        max-height: calc(100vh - 300px);
+        min-height: 420px;
+      }
+      .ui-taskhub-row {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        min-height: 30px;
+        position: relative;
+        cursor: pointer;
+        border-radius: var(--ui-radius-md);
+        padding: 2px 8px 2px 2px;
+      }
+      .ui-taskhub-row:hover {
+        background: var(--ui-surface-hover);
+      }
+      .ui-taskhub-row.sel::before {
+        content: "";
+        position: absolute;
+        inset: 2px -4px;
+        border: 1px solid var(--ui-accent);
+        border-radius: var(--ui-radius-md);
+        background: var(--ui-accent-soft);
+        pointer-events: none;
+      }
+      .ui-taskhub-row.dim {
+        opacity: 0.55;
+      }
+      .ui-track {
+        width: 44px;
+        align-self: stretch;
+        position: relative;
+        flex-shrink: 0;
+      }
+      .ui-track .line {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: 20px;
+        width: 2px;
+        border-radius: 2px;
+        background: var(--line-trunk);
+        opacity: 0.5;
+      }
+      .ui-track .line.fork {
+        left: 34px;
+        background: var(--line-fork);
+        opacity: 0.65;
+        width: 2px;
+      }
+      .ui-track .join {
+        position: absolute;
+        top: 46%;
+        left: 20px;
+        width: 16px;
+        height: 2px;
+        background: var(--line-trunk);
+        opacity: 0.5;
+      }
+      .ui-track .join.fork {
+        left: 22px;
+        width: 26px;
+        background: var(--line-fork);
+        opacity: 0.6;
+      }
+      .ui-glyph {
+        position: absolute;
+        top: 50%;
+        left: 20px;
+        transform: translate(-50%, -50%);
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        z-index: 2;
+      }
+      .ui-glyph.fork {
+        left: 34px;
+        border-radius: 3px;
+        transform: translate(-50%, -50%) rotate(45deg);
+        width: 9px;
+        height: 9px;
+      }
+      .ui-glyph.ring {
+        background: var(--ui-surface) !important;
+        box-shadow: inset 0 0 0 2px var(--dot-session);
+      }
+      .ui-glyph.pulse::after {
+        content: "";
+        position: absolute;
+        inset: -4px;
+        border-radius: inherit;
+        border: 1px solid currentColor;
+        opacity: 0.5;
+        animation: pulse 2s ease infinite;
+      }
+      @keyframes pulse {
+        0%,
+        100% {
+          transform: scale(1);
+          opacity: 0.5;
+        }
+        50% {
+          transform: scale(1.35);
+          opacity: 0.15;
+        }
+      }
+      .ui-node-main {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+        flex: 1;
+      }
+      .ui-node-name {
+        font-family: var(--ui-font-mono);
+        font-size: 12.5px;
+        font-weight: 600;
+        color: var(--ui-text);
+        white-space: nowrap;
+      }
+      .ui-node-name .ws {
+        color: var(--ui-text-dim);
+        font-weight: 400;
+      }
+      .ui-chain-node {
+        font-size: 9.5px;
+        border-radius: var(--ui-radius-pill);
+        padding: 1px 8px;
+        border: 1px solid var(--ui-border-soft);
+        color: var(--ui-text-dim);
+        white-space: nowrap;
+        flex-shrink: 0;
+      }
+      .ui-chain-node.main {
+        background: color-mix(in srgb, var(--dot-session) 12%, transparent);
+        color: var(--dot-session);
+        border-color: color-mix(in srgb, var(--dot-session) 40%, transparent);
+      }
+      .ui-chain-node.done {
+        background: color-mix(in srgb, var(--ui-success) 12%, transparent);
+        color: var(--ui-success);
+        border-color: color-mix(in srgb, var(--ui-success) 40%, transparent);
+      }
+      .ui-chain-node.merged {
+        background: color-mix(in srgb, var(--ui-warning) 12%, transparent);
+        color: var(--ui-warning);
+        border-color: color-mix(in srgb, var(--ui-warning) 40%, transparent);
+      }
+      .ui-chain-node.fork {
+        background: var(--ui-accent-soft);
+        color: var(--ui-accent);
+        border-color: color-mix(in srgb, var(--ui-accent) 40%, transparent);
+      }
+      .ui-chain-node.design {
+        background: color-mix(in srgb, var(--dot-prototype) 14%, transparent);
+        color: var(--dot-prototype);
+        border-color: color-mix(in srgb, var(--dot-prototype) 45%, transparent);
+      }
+      .ui-chain-node.lock {
+        background: color-mix(in srgb, var(--ui-danger) 10%, transparent);
+        color: var(--ui-danger);
+        border-color: color-mix(in srgb, var(--ui-danger) 35%, transparent);
+      }
+      .ui-node-meta {
+        font-size: 10.5px;
+        color: var(--ui-text-faint);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .ui-taskhub-row.sel .ui-node-name {
+        color: var(--ui-accent);
+      }
+      .ui-node-acts {
+        display: flex;
+        gap: 5px;
+        flex-shrink: 0;
+        opacity: 0;
+        transition: opacity 0.12s;
+      }
+      .ui-taskhub-row.sel .ui-node-acts,
+      .ui-taskhub-row.sticky .ui-node-acts {
+        opacity: 1;
+      }
+      .ui-node-acts button {
+        border: 1px solid var(--ui-border-soft);
+        background: var(--ui-surface-raised);
+        color: var(--ui-text-dim);
+        border-radius: var(--ui-radius-pill);
+        font-size: 10.5px;
+        padding: 2px 9px;
+        cursor: pointer;
+      }
+      .ui-node-acts button:hover {
+        color: var(--ui-text);
+        border-color: var(--ui-border);
+      }
+      .ui-node-acts button.primary {
+        color: var(--ui-accent);
+        border-color: color-mix(in srgb, var(--ui-accent) 45%, transparent);
+      }
+
+      /* 行内表单（真实 TaskHubWorkspace 交互：无浮层） */
+      .ui-taskhub-forkform {
+        border: 1px solid var(--ui-accent);
+        border-radius: var(--ui-radius-lg);
+        background: var(--ui-surface-raised);
+        box-shadow: var(--ui-shadow-card);
+        padding: 12px 14px;
+        margin: 6px 0 8px 30px;
+      }
+      .ui-taskhub-forkform h5 {
+        font-size: 12.5px;
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        margin-bottom: 9px;
+      }
+      .ui-taskhub-forkform .ff-src {
+        border: 1px solid var(--ui-border-soft);
+        border-radius: var(--ui-radius-md);
+        background: var(--ui-surface);
+        padding: 8px 10px;
+        font-size: 11px;
+        line-height: 1.7;
+        margin-bottom: 10px;
+      }
+      .ui-taskhub-forkform .ff-src .k {
+        color: var(--ui-text-faint);
+        font-size: 9.5px;
+        letter-spacing: 0.05em;
+      }
+      .ui-taskhub-forkform .ff-src .cl {
+        font-family: var(--ui-font-mono);
+        color: var(--ui-accent);
+      }
+      .ui-taskhub-forkform label.f {
+        display: block;
+        font-size: 10.5px;
+        color: var(--ui-text-dim);
+        margin: 9px 0 4px;
+      }
+      .ui-taskhub-forkform input[type="text"],
+      .ui-taskhub-forkform textarea {
+        width: 100%;
+        padding: 6px 9px;
+        border-radius: var(--ui-radius-md);
+        border: 1px solid var(--ui-border-soft);
+        background: var(--ui-surface);
+        color: var(--ui-text);
+        font-size: 12px;
+        outline: none;
+      }
+      .ui-taskhub-forkform input:focus,
+      .ui-taskhub-forkform textarea:focus {
+        border-color: var(--ui-accent);
+      }
+      .ui-taskhub-forkmode {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        margin-top: 2px;
+      }
+      .ui-taskhub-forkmode label {
+        font-size: 11px;
+        border: 1px solid var(--ui-border-soft);
+        border-radius: var(--ui-radius-pill);
+        padding: 4px 11px;
+        cursor: pointer;
+        color: var(--ui-text-dim);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .ui-taskhub-forkmode label.on {
+        border-color: var(--ui-accent);
+        color: var(--ui-text);
+        background: var(--ui-accent-soft);
+      }
+      .ui-taskhub-forkmode label.locked {
+        opacity: 0.5;
+        cursor: not-allowed;
+        border-style: dashed;
+        color: var(--ui-danger);
+      }
+      .ui-taskhub-forkmode-note {
+        font-size: 10px;
+        color: var(--ui-text-faint);
+        margin-top: 6px;
+        line-height: 1.6;
+      }
+      .ui-taskhub-forkmode-note b {
+        color: var(--ui-danger);
+      }
+      .ff-records {
+        border: 1px solid var(--ui-border-soft);
+        border-radius: var(--ui-radius-md);
+        background: var(--ui-surface);
+        padding: 8px 10px;
+        font-family: var(--ui-font-mono);
+        font-size: 10.5px;
+        line-height: 1.9;
+        color: var(--ui-text-dim);
+        margin-top: 8px;
+      }
+      .ff-records .ty {
+        color: var(--ui-accent);
+        display: inline-block;
+        width: 88px;
+      }
+      .ff-records .ty.a {
+        color: var(--ui-warning);
+      }
+      .ff-records .ty.g {
+        color: var(--ui-success);
+      }
+      .ff-actions {
+        display: flex;
+        gap: 7px;
+        justify-content: flex-end;
+        margin-top: 11px;
+      }
+      .ui-taskhub-mergeform {
+        border: 1px solid var(--ui-warning);
+        border-radius: var(--ui-radius-lg);
+        background: var(--ui-surface-raised);
+        box-shadow: var(--ui-shadow-card);
+        padding: 12px 14px;
+        margin: 6px 0 8px 30px;
+      }
+      .ui-taskhub-mergeform h5 {
+        font-size: 12.5px;
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        margin-bottom: 9px;
+        color: var(--ui-warning);
+      }
+      .diff-line {
+        font-family: var(--ui-font-mono);
+        font-size: 11px;
+        padding: 4px 8px;
+        border-radius: 6px;
+        background: var(--ui-surface);
+        border: 1px solid var(--ui-border-soft);
+        margin-bottom: 4px;
+        display: flex;
+        gap: 8px;
+      }
+      .diff-line .fn {
+        font-weight: 600;
+      }
+      .diff-line .ad {
+        color: var(--ui-success);
+      }
+      .diff-line .dl {
+        color: var(--ui-danger);
+      }
+      .diff-line .cf {
+        color: var(--ui-warning);
+        margin-left: auto;
+      }
+      .pick {
+        display: flex;
+        gap: 6px;
+        margin-top: 4px;
+      }
+      .pick label {
+        font-size: 11px;
+        border: 1px solid var(--ui-border-soft);
+        border-radius: var(--ui-radius-md);
+        padding: 5px 10px;
+        cursor: pointer;
+        color: var(--ui-text-dim);
+        flex: 1;
+      }
+      .pick label.on {
+        border-color: var(--ui-accent);
+        color: var(--ui-text);
+        background: var(--ui-accent-soft);
+      }
+
+      /* 追随域行（审查/知识库） */
+      .ui-taskhub-row.follow .ui-node-name {
+        color: var(--ui-text-faint);
+        font-weight: 400;
+        font-size: 12px;
+      }
+      .ui-taskhub-row.follow .ui-glyph {
+        border-radius: 2px;
+        transform: translate(-50%, -50%) rotate(45deg);
+      }
+
+      /* 链状态条（树底部，融合视图的锚） */
+      .ui-chain-strip {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 8px 16px;
+        border-top: 1px solid var(--ui-border-soft);
+        background: var(--ui-surface);
+        font-size: 11px;
+        color: var(--ui-text-dim);
+        font-family: var(--ui-font-mono);
+        flex-wrap: wrap;
+        flex-shrink: 0;
+      }
+      .ui-chain-strip b {
+        color: var(--ui-accent);
+      }
+      .ui-chain-strip .st {
+        color: var(--ui-text);
+      }
+      .ui-chain-strip .pend {
+        color: var(--ui-warning);
+      }
+      .ui-chain-strip .lk {
+        margin-left: auto;
+        font-size: 10.5px;
+        color: var(--ui-text-faint);
+        cursor: pointer;
+        font-family: var(--ui-font-sans);
+        border: 1px solid var(--ui-border-soft);
+        border-radius: var(--ui-radius-pill);
+        padding: 2px 10px;
+      }
+      .ui-chain-strip .lk:hover {
+        color: var(--ui-text);
+      }
+      .ui-chain-ticker {
+        display: flex;
+        gap: 5px;
+        align-items: center;
+        padding: 5px 14px;
+        border-top: 1px solid var(--ui-border-soft);
+        background: var(--ui-surface-sunken);
+        flex-wrap: wrap;
+        font-size: 10.5px;
+        flex-shrink: 0;
+        min-height: 30px;
+      }
+      .ui-chain-ticker .rk {
+        border: 1px solid var(--ui-border-soft);
+        border-radius: 999px;
+        padding: 1px 8px;
+        font-family: var(--ui-font-mono);
+        color: var(--ui-text-dim);
+        background: var(--ui-surface);
+      }
+      .ui-chain-ticker .rk .ty {
+        color: var(--ui-accent);
+      }
+      .ui-chain-ticker .rk.pending {
+        color: var(--ui-warning);
+        border-color: color-mix(in srgb, var(--ui-warning) 40%, transparent);
+      }
+      .ui-chain-ticker .rk.sealed {
+        color: var(--ui-success);
+        border-color: color-mix(in srgb, var(--ui-success) 35%, transparent);
+      }
+      .ui-chain-ticker .pause {
+        margin-left: auto;
+        background: transparent;
+        border: 1px solid var(--ui-border-soft);
+        color: var(--ui-text-faint);
+        border-radius: 6px;
+        padding: 1px 8px;
+        font-size: 10px;
+        cursor: pointer;
+        font-family: var(--ui-font-sans);
+      }
+
+      /* ================= 右侧悬浮预览（TaskQuickSheet 模式） ================= */
+      .ui-preview-panel {
+        width: 380px;
+        border-left: 1px solid var(--ui-border-soft);
+        background: var(--ui-surface);
+        display: none;
+        flex-direction: column;
+        flex-shrink: 0;
+        min-height: 0;
+      }
+      .ui-preview-panel.show {
+        display: flex;
+      }
+      .ui-pp-head {
+        padding: 12px 14px;
+        border-bottom: 1px solid var(--ui-border-soft);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+      }
+      .ui-pp-head .t {
+        font-size: 12.5px;
+        font-weight: 600;
+      }
+      .ui-pp-head .m {
+        color: var(--ui-text-faint);
+        font-size: 10.5px;
+      }
+      .ui-pp-body {
+        flex: 1;
+        overflow-y: auto;
+        padding: 12px 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .ui-pp-card {
+        border: 1px solid var(--ui-border-soft);
+        border-radius: var(--ui-radius-lg);
+        padding: 11px 12px;
+        background: var(--ui-surface-raised);
+      }
+      .ui-pp-card h5 {
+        font-size: 11.5px;
+        margin-bottom: 8px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .ui-pp-card .diff-line {
+        margin-bottom: 4px;
+      }
+      .ui-pp-card label.f {
+        display: block;
+        font-size: 10.5px;
+        color: var(--ui-text-dim);
+        margin: 9px 0 4px;
+      }
+      .ui-pp-card textarea {
+        width: 100%;
+        min-height: 52px;
+        border: 1px solid var(--ui-border-soft);
+        border-radius: var(--ui-radius-md);
+        background: var(--ui-surface);
+        color: var(--ui-text);
+        font-size: 12px;
+        padding: 7px 9px;
+        outline: none;
+        resize: vertical;
+      }
+      .ui-pp-card textarea:focus {
+        border-color: var(--ui-accent);
+      }
+      .ui-pp-actions {
+        display: flex;
+        gap: 7px;
+        justify-content: flex-end;
+        padding: 10px 14px 12px;
+        border-top: 1px solid var(--ui-border-soft);
+      }
+      .ui-pp-note {
+        font-size: 10.5px;
+        color: var(--ui-text-faint);
+        line-height: 1.6;
+      }
+      .ui-ledger-row {
+        font-family: var(--ui-font-mono);
+        font-size: 10.5px;
+        padding: 6px 8px;
+        border: 1px solid var(--ui-border-soft);
+        border-radius: 7px;
+        background: var(--ui-surface);
+        display: flex;
+        gap: 8px;
+        align-items: baseline;
+        line-height: 1.6;
+      }
+      .ui-ledger-row .ty {
+        color: var(--ui-accent);
+        flex-shrink: 0;
+        width: 92px;
+      }
+      .ui-ledger-row .st {
+        color: var(--ui-success);
+        margin-left: auto;
+        flex-shrink: 0;
+      }
+
+      /* ================= 设置模态（SettingsPanel：TABS 导航 + 新增「工作链」段） ================= */
+      .ui-scrim {
+        position: fixed;
+        inset: 0;
+        background: rgba(4, 6, 10, 0.55);
+        backdrop-filter: blur(3px);
+        display: none;
+        z-index: 98;
+        align-items: center;
+        justify-content: center;
+      }
+      .ui-scrim.show {
+        display: flex;
+      }
+      .ui-settings {
+        width: 720px;
+        max-width: calc(100vw - 60px);
+        max-height: calc(100vh - 70px);
+        border-radius: var(--ui-radius-lg);
+        border: 1px solid var(--ui-border);
+        background: var(--ui-surface);
+        box-shadow: var(--ui-shadow-modal);
+        display: flex;
+        overflow: hidden;
+        z-index: 99;
+        animation: pop 0.22s var(--ui-ease);
+      }
+      @keyframes pop {
+        from {
+          opacity: 0;
+          transform: scale(0.97) translateY(6px);
+        }
+        to {
+          opacity: 1;
+          transform: none;
+        }
+      }
+      .ui-settings-nav {
+        width: 168px;
+        background: var(--ui-surface-raised);
+        border-right: 1px solid var(--ui-border-soft);
+        padding: 10px 8px;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        overflow-y: auto;
+      }
+      .ui-settings-nav button {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        padding: 7px 10px;
+        border-radius: var(--ui-radius-md);
+        border: none;
+        background: transparent;
+        color: var(--ui-text-dim);
+        font-size: 12px;
+        cursor: pointer;
+        text-align: left;
+      }
+      .ui-settings-nav button.on {
+        background: var(--ui-accent-soft);
+        color: var(--ui-text);
+      }
+      .ui-settings-nav button.new {
+        position: relative;
+      }
+      .ui-settings-nav button.new::after {
+        content: "新";
+        position: absolute;
+        right: 8px;
+        font-size: 8.5px;
+        color: var(--ui-accent);
+        border: 1px solid var(--ui-accent);
+        border-radius: 5px;
+        padding: 0 4px;
+      }
+      .ui-settings-nav button.new.on::after {
+        color: var(--ui-text);
+        border-color: var(--ui-text-dim);
+      }
+      .ui-settings-body {
+        flex: 1;
+        min-width: 0;
+        overflow-y: auto;
+        padding: 18px 20px;
+      }
+      .ui-settings-body h2 {
+        font-size: 15px;
+        font-weight: 600;
+        margin-bottom: 4px;
+      }
+      .ui-settings-body .sg {
+        color: var(--ui-text-dim);
+        font-size: 12px;
+        line-height: 1.8;
+        margin-bottom: 16px;
+      }
+      .ui-field {
+        border: 1px solid var(--ui-border-soft);
+        border-radius: var(--ui-radius-lg);
+        background: var(--ui-surface-raised);
+        padding: 12px 14px;
+        margin-bottom: 12px;
+      }
+      .ui-field .fw {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+      }
+      .ui-field .ft {
+        font-size: 12.5px;
+        font-weight: 600;
+      }
+      .ui-field .fd {
+        font-size: 11px;
+        color: var(--ui-text-dim);
+        margin-top: 3px;
+        line-height: 1.6;
+      }
+      .ui-switch {
+        width: 38px;
+        height: 21px;
+        border-radius: 99px;
+        border: 1px solid var(--ui-border);
+        background: var(--ui-surface-sunken);
+        position: relative;
+        cursor: pointer;
+        flex-shrink: 0;
+        transition: background 0.15s;
+      }
+      .ui-switch::after {
+        content: "";
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        width: 15px;
+        height: 15px;
+        border-radius: 50%;
+        background: var(--ui-text-dim);
+        transition: transform 0.15s, background 0.15s;
+      }
+      .ui-switch.on {
+        background: var(--ui-accent);
+        border-color: var(--ui-accent);
+      }
+      .ui-switch.on::after {
+        transform: translateX(17px);
+        background: #fff;
+      }
+      .ui-settings-body input[type="text"] {
+        width: 100%;
+        padding: 7px 10px;
+        border-radius: var(--ui-radius-md);
+        border: 1px solid var(--ui-border-soft);
+        background: var(--ui-surface);
+        color: var(--ui-text);
+        font-size: 12px;
+        outline: none;
+        margin-top: 8px;
+        font-family: var(--ui-font-mono);
+      }
+      .ui-settings-body input:focus {
+        border-color: var(--ui-accent);
+      }
+      .ui-settings-footer {
+        padding: 11px 20px;
+        border-top: 1px solid var(--ui-border-soft);
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+        background: var(--ui-surface);
+      }
+
+      /* ================= 实现挂点标注 ================= */
+      .annot {
+        display: none;
+        position: absolute;
+        top: 4px;
+        right: 4px;
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: var(--ui-accent);
+        color: #fff;
+        font-size: 9px;
+        line-height: 16px;
+        text-align: center;
+        cursor: pointer;
+        z-index: 6;
+        font-weight: 700;
+      }
+      body.annot-on .annot {
+        display: block;
+      }
+      .annot:hover {
+        transform: scale(1.15);
+      }
+      .annot-card {
+        border: 1px solid var(--ui-border);
+        border-left: 3px solid var(--ui-accent);
+        border-radius: 10px;
+        background: var(--ui-surface-raised);
+        box-shadow: var(--ui-shadow-modal);
+        font-size: 11px;
+        line-height: 1.75;
+      }
+      .annot-card .at {
+        font-weight: 600;
+        font-size: 12px;
+        padding: 9px 12px 4px;
+      }
+      .annot-card .ab {
+        padding: 2px 12px 10px;
+        color: var(--ui-text-dim);
+      }
+      .annot-card .ab code {
+        font-family: var(--ui-font-mono);
+        font-size: 10px;
+        background: var(--ui-surface-sunken);
+        border-radius: 4px;
+        padding: 1px 5px;
+        color: var(--ui-text);
+        word-break: break-all;
+      }
+      .annot-card .ab .st-go {
+        color: var(--ui-success);
+      }
+      .annot-card .ab .st-todo {
+        color: var(--ui-warning);
+      }
+      .annot-card .ab .st-gap {
+        color: var(--ui-danger);
+      }
+
+      /* 模态（General Modal 组件形态） */
+      .ui-modal-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(4, 6, 10, 0.55);
+        backdrop-filter: blur(3px);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 100;
+      }
+      .ui-modal-overlay.show {
+        display: flex;
+      }
+      .ui-modal {
+        width: 440px;
+        max-width: calc(100vw - 40px);
+        border-radius: var(--ui-radius-lg);
+        border: 1px solid var(--ui-border);
+        background: var(--ui-surface);
+        box-shadow: var(--ui-shadow-modal);
+        overflow: hidden;
+        animation: pop 0.22s var(--ui-ease);
+      }
+      .ui-modal h3 {
+        font-size: 14.5px;
+        padding: 15px 18px 4px;
+      }
+      .ui-modal .m-sub {
+        font-size: 11.5px;
+        color: var(--ui-text-dim);
+        padding: 0 18px 12px;
+        line-height: 1.6;
+      }
+      .ui-modal .m-body {
+        padding: 4px 18px 12px;
+        font-size: 12px;
+        color: var(--ui-text-dim);
+        line-height: 1.8;
+      }
+      .ui-modal .m-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+        padding: 11px 18px 14px;
+        border-top: 1px solid var(--ui-border-soft);
+      }
+
+      /* Toast */
+      .ui-toasts {
+        position: fixed;
+        right: 18px;
+        bottom: 18px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        z-index: 200;
+        align-items: flex-end;
+      }
+      .ui-toast {
+        background: var(--ui-surface-raised);
+        border: 1px solid var(--ui-border);
+        border-left: 3px solid var(--ui-accent);
+        border-radius: 10px;
+        padding: 10px 14px;
+        font-size: 12px;
+        box-shadow: var(--ui-shadow-modal);
+        max-width: 400px;
+        line-height: 1.6;
+        animation: pop 0.2s var(--ui-ease);
+      }
+      .ui-toast.ok {
+        border-left-color: var(--ui-success);
+      }
+      .ui-toast.err {
+        border-left-color: var(--ui-danger);
+      }
+      .ui-toast .tt {
+        font-weight: 600;
+      }
+      .ui-toast .td {
+        color: var(--ui-text-faint);
+        font-size: 10.5px;
+        font-family: var(--ui-font-mono);
+        margin-top: 2px;
+      }
+
+      /* 故事弹层 */
+      .ui-story-step {
+        border: 1px solid var(--ui-border-soft);
+        border-radius: 10px;
+        padding: 10px 12px;
+        margin-bottom: 8px;
+        font-size: 12px;
+        line-height: 1.7;
+        display: flex;
+        gap: 10px;
+        background: var(--ui-surface-raised);
+      }
+      .ui-story-step .num {
+        color: var(--ui-accent);
+        font-family: var(--ui-font-mono);
+        flex-shrink: 0;
+      }
+      .ui-story-step.run {
+        border-color: var(--ui-accent);
+      }
+      .ui-story-step .ss-t {
+        font-weight: 600;
+      }
+      .ui-story-step .ss-d {
+        color: var(--ui-text-dim);
+        font-size: 11px;
+        margin-top: 2px;
+      }
+      .hl-row {
+        outline: 2px solid var(--ui-warning) !important;
+        outline-offset: -2px;
+        border-radius: 8px;
+      }
+
+      /* 页脚（结合点清单） */
+      .ui-foot {
+        padding: 7px 16px;
+        border-top: 1px solid var(--ui-border-soft);
+        background: var(--ui-surface);
+        font-size: 10.5px;
+        color: var(--ui-text-faint);
+        display: flex;
+        gap: 14px;
+        flex-wrap: wrap;
+        flex-shrink: 0;
+        line-height: 1.7;
+      }
+      .ui-foot b {
+        color: var(--ui-text-dim);
+      }
+      .ui-foot .tgl {
+        margin-left: auto;
+        font-size: 10.5px;
+        color: var(--ui-text-dim);
+        cursor: pointer;
+        border: 1px solid var(--ui-border-soft);
+        border-radius: var(--ui-radius-pill);
+        padding: 1px 10px;
+        background: transparent;
+        font-family: inherit;
+      }
+      .ui-foot .tgl.on {
+        color: var(--ui-accent);
+        border-color: var(--ui-accent);
+      }
+      @media (max-width: 1280px) {
+        .ui-preview-panel {
+          width: 320px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="ui-shell">
+      <!-- 顶栏 TopBar.tsx -->
+      <header class="ui-topbar">
+        <div class="ui-gumdrops"><span class="ui-gumdrop r"></span><span class="ui-gumdrop y"></span><span class="ui-gumdrop g"></span></div>
+        <span class="ui-pill"><span>📁</span> GVGL <span class="pm">·</span> <select id="pillWs" title="工作区"></select></span>
+        <span class="ui-pill branch">feat/passkey-check <span class="pm">·</span> <select id="pillBranch"><option>main</option><option>fork-passkey</option><option>wip/token-migration</option></select></span>
+        <span class="ui-pill">deepseek-v4-flash <span class="pm">· thinking</span></span>
+        <span class="ui-token-mini"><span>142k / 512k</span><span class="bar"><i></i></span><span>28%</span></span>
+        <div class="center">
+          <span class="ui-chip">聊天</span>
+          <span class="ui-chip on chain">任务树 × 工作链</span>
+          <span class="ui-chip">知识</span>
+          <span class="ui-chip">评审</span>
+          <span class="ui-chip">原型</span>
+          <span class="ui-chip">设计</span>
+        </div>
+        <div class="ui-top-actions">
+          <button class="ui-icon-btn" id="appearanceBtn" title="切换外观">🌓</button>
+          <button class="ui-icon-btn" id="settingsBtn" title="设置">⚙</button>
+          <button class="ui-icon-btn on" id="hubBtn" title="Hub（⌘B）">◈</button>
+        </div>
+      </header>
+
+      <div class="ui-body">
+        <!-- Hub rail（HubSheet Level 1） -->
+        <nav class="ui-hub-rail" id="hubRail"></nav>
+
+        <!-- Hub flyout：工作链（HubSheet Level 2 · CoordChainPane 宿主） -->
+        <aside class="ui-hub-flyout" id="chainFlyout">
+          <div class="ui-hub-head">
+            <div class="ui-hub-title"><span class="mk">⛓</span> 工作链 <span class="sub">去中心化工作区</span></div>
+            <span class="annot" id="map-flyout" data-map="hub-flyout">i</span>
+          </div>
+          <div class="ui-hub-body" id="flyoutBody"></div>
+        </aside>
+
+        <!-- 主区：任务树 × 工作链（TaskHubWorkspace 融合视图） -->
+        <main class="ui-main">
+          <div class="ui-stage">
+            <div class="ui-stage-head">
+              <span class="t">任务树 × 工作链</span>
+              <span class="where" id="stageWhere"></span>
+              <span class="annot" id="map-tree" data-map="tree">i</span>
+              <div class="ui-seg" id="mainSeg">
+                <button data-v="tree" class="on">任务树</button>
+                <button data-v="trail">行为轨迹</button>
+              </div>
+            </div>
+            <div class="ui-taskhub" id="taskHub"></div>
+          </div>
+          <div class="ui-chain-strip" id="chainStrip"></div>
+          <div class="ui-chain-ticker" id="ticker"></div>
+        </main>
+
+        <!-- 右侧悬浮预览（TaskQuickSheet 模式：共享前预览 + 确认） -->
+        <aside class="ui-preview-panel" id="previewPanel"></aside>
+      </div>
+
+      <footer class="ui-foot">
+        <span><b>结合点</b>：令牌 <code>tokens.css</code> · 壳 <code>App.tsx / HubSheet.tsx</code> · 面板宿主 <code>CoordChainPane.tsx</code>（ui-chain-* 样式为本次设计新增，落 <code>ui-css/chain.css</code>）</span>
+        <span><b>交互</b>：行内 fork/merge 表单（TaskHubWorkspace）· 右浮预览确认（TaskQuickSheet）· 设置段（SettingsPanel TABS）· 共享预览确认层与「协作链」设置段为待实现挂点</span>
+        <button class="tgl" id="annotTgl">ⓘ 显示实现映射</button>
+      </footer>
+    </div>
+
+    <div class="ui-scrim" id="settingsScrim"></div>
+    <div class="ui-modal-overlay" id="modalOverlay"></div>
+    <div class="ui-toasts" id="toasts"></div>
+
+    <script>
+      "use strict";
+      /* ============================================================
+       * 工作链 × 真实交互层 —— v4 交互原型（纯前端模拟状态机）
+       * 交互方言与真实渲染层同构：行内表单 / Hub 双级 / 右浮预览 / 双主题
+       * ============================================================ */
+      const $ = (id) => document.getElementById(id);
+      const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+      const ALPHA = "abcdefghijklmnopqrstuvwxyz234567";
+      const rid = (n) => Array.from({ length: n }, () => ALPHA[(Math.random() * 32) | 0]).join("");
+      const chainOf = () => {
+        const p = (n) => rid(n).replace(/(.{5})/g, "$1-").replace(/-$/, "");
+        return "orca1-" + p(5) + "-" + p(5) + "-" + p(5) + "-" + p(5);
+      };
+      const wsOf = () => "ws-" + rid(8);
+      const sha = (s) => {
+        let h = 2166136261;
+        for (let i = 0; i < s.length; i++) {
+          h ^= s.charCodeAt(i);
+          h = Math.imul(h, 16777619);
+        }
+        return (h >>> 0).toString(16).padStart(8, "0");
+      };
+      const keyId = () => "did:" + sha("k" + Math.random()).slice(0, 12);
+
+      let CLOCK = 9 * 60;
+      const fmt = (m) => String(Math.floor(m / 60)).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0");
+      const pass = (n) => (CLOCK += n);
+
+      const MEMBERS = { kel: { name: "kelthas-mbp", c: "#4d9aff" }, dev: { name: "dev-windows-01", c: "#9775fa" }, ipad: { name: "design-ipad", c: "#da77f2" }, kai: { name: "kai-linux", c: "#ffa94d" } };
+      const MEM_ORDER = ["kel", "dev", "ipad", "kai"];
+      let currentDevice = "kel";
+
+      /* 链上记录（封存动效） */
+      const recLog = [];
+      const pendingRecs = [];
+      let paused = false;
+      function pushRec(ty, who, text, chain) {
+        const rec = { ty, who: MEMBERS[who].name, text, chain: chain || activeWs.chain, recId: "r:" + sha(ty + text + recLog.length + CLOCK), state: "pending", at: fmt(CLOCK) };
+        recLog.push(rec);
+        pendingRecs.push(rec);
+        renderTicker();
+        renderStrip();
+      }
+      function sealOne() {
+        const rec = pendingRecs.shift();
+        if (!rec) return;
+        rec.state = "sealed";
+        const w = WORKSPACES.find((x) => x.chain === rec.chain);
+        if (w) {
+          w.height += 1;
+          w.lastBlock = "h" + w.height + " · " + sha(rec.recId).slice(0, 7);
+        }
+        renderTicker();
+        renderRail();
+        renderStrip();
+        renderTree();
+        renderFlyout();
+      }
+      function pump() {
+        if (!paused) sealOne();
+      }
+
+      /* ---------- 工作区 / 分支 / 轨迹 ---------- */
+      let WORKSPACES = [];
+      function seedWorkspaces() {
+        WORKSPACES = [
+          { key: "gvgl", label: "GVGL", sub: "主工作区", wsId: "ws-7f3a9c2e", chain: "orca1-wiymh-xraxv-a7ovu-yzdft", height: 7, members: ["kel", "dev", "ipad"], peers: 2, theme: "git:github.com/zshipu/gvgl" },
+          { key: "passkey", label: "passkey-lab", sub: "fork 自 GVGL", wsId: "ws-c41d88f1", chain: "orca1-8a41c-c02d9-1b773-3d91b", height: 3, members: ["dev"], peers: 1, theme: "name:passkey-lab", forkFrom: "orca1-wiymh…/main" },
+          { key: "docs", label: "docs-site", sub: "独立工作区", wsId: "ws-e92b04aa", chain: "orca1-e92b0-4aa21-9c1d3-7f08e", height: 12, members: ["kel", "kai"], peers: 1, theme: "git:github.com/zshipu/docs-site" },
+        ];
+      }
+      let BRANCHES = [];
+      function seedBranches() {
+        BRANCHES = [
+          { key: "main", name: "main", kind: "main", domain: "chat", owner: "kel", wsKey: "gvgl", state: "current", commitCount: 7, note: "登录重构完成 · 待 passkey 验证" },
+          { key: "fork-passkey", name: "fork-passkey", kind: "fork", domain: "chat", owner: "dev", wsKey: "passkey", state: "done", commitCount: 3, base: { wsKey: "gvgl", branch: "main" }, why: "验证 passkey 方案，与 main 隔离", files: ["src/auth/passkey.ts", "src/auth.ts", "src/session.ts"] },
+          { key: "editor-passkey", name: "editor/passkey-local", kind: "fork", domain: "editor", owner: "dev", wsKey: "passkey", state: "wip", commitCount: 1, base: { wsKey: "gvgl", branch: "main" }, note: "编辑器变种 · 代码已合入本地", files: ["src/auth/passkey.ts"] },
+          { key: "design-passkey-ui", name: "design/passkey-ui", kind: "design", domain: "design", owner: "ipad", wsKey: "gvgl", state: "wip", commitCount: 2, base: { wsKey: "gvgl", branch: "main" }, note: "视觉稿 fork（不牵动主会话代码）", files: ["design/passkey-ui.ddp"] },
+          { key: "wip-token", name: "wip/token-migration", kind: "wip", domain: "chat", owner: "kel", wsKey: "gvgl", state: "wip", commitCount: 2, files: ["src/tokens.ts"] },
+          { key: "fork-old", name: "fork-old-middleware", kind: "wip", domain: "chat", owner: "kel", wsKey: "gvgl", state: "abandoned", commitCount: 1, why: "旧方案走不通" },
+        ];
+      }
+      let TRAIL = [];
+      function seedTrail() {
+        TRAIL = [
+          { t: "09:00", op: "create", who: "kel", text: "创建任务链", what: "GVGL · 任务「登录重构」", where: "main", rec: { type: "genesis", theme: "git:github.com/zshipu/gvgl", creator: keyId() } },
+          { t: "10:32", op: "done", who: "kel", text: "完成了登录重构 · ws.commit", what: "src/auth.ts · src/middleware.ts · +3", where: "main", whereCls: "to", whereState: "已完成", rec: { type: "ws.commit", files: 3 } },
+          { t: "11:05", op: "fork", who: "dev", text: "⑂ fork 了 登录重构", what: "GVGL/main → passkey-lab（ws-c41d88f1）", where: "fork-passkey", whereCls: "to", whereState: "已检出基线", rec: { type: "task.share", parentRecordId: "r:8c11…", domain: "chat（编辑器变种）" } },
+          { t: "14:20", op: "wip", who: "dev", text: "进行中 · passkey 方案", what: "ws.commit ×2 · src/auth/passkey.ts", where: "fork-passkey", whereCls: "to", whereState: "进行中", rec: { type: "ws.commit", count: 2 } },
+          { t: "16:48", op: "done", who: "dev", text: "完成了 passkey 方案", what: "task.done · commitRef c:3d4e", where: "fork-passkey", whereCls: "to", whereState: "已完成 · 等待合并", rec: { type: "task.done", taskId: "r:9d44…" } },
+        ];
+      }
+      function seedRecs() {
+        const g = WORKSPACES[0].chain;
+        const mk = (ty, who, text, chain) => recLog.push({ ty, who: MEMBERS[who].name, text, chain, recId: "r:" + sha(ty + text + recLog.length), state: "sealed", at: "" });
+        mk("genesis", "kel", "GVGL 创世 · 主题锚定", g);
+        mk("member.join", "dev", "入链 · dev-windows-01", g);
+        mk("task.share", "dev", "fork 登录重构（⑂ 来源链断言）", g);
+        mk("task.done", "dev", "完成 fork-passkey", g);
+      }
+
+      let activeWs = null;
+      let selBranchKey = "main";
+      let selFollow = null;
+      let inlineForm = null; // { kind:'fork'|'merge', branchKey }
+      let preview = null; // { kind:'share'|'ledger'|'audit', branchKey? }
+      let settingsOpen = false;
+      let settingsTab = "chain";
+      let sharedOn = false;
+      let userOn = false;
+      const bt = (k) => BRANCHES.find((b) => b.key === k);
+
+      /* =============== 渲染：Hub =============== */
+      const RAIL = [
+        ["▤", "文件", null],
+        ["⑂", "Git 变更", null],
+        ["⛓", "工作链", "chain"],
+        ["✓", "任务", null],
+        ["◔", "令牌", null],
+        ["⌕", "检索", null],
+        ["⌑", "评审", null],
+        ["◎", "原型设计", null],
+        ["✎", "编辑器", null],
+      ];
+      function renderRail() {
+        const r = $("hubRail");
+        r.innerHTML =
+          RAIL.map(([ic, name, active], i) => {
+            if (ic === "-") return '<div class="sp"></div>';
+            return `<div class="ui-hub-item${active ? " on" : ""}" ${active ? 'id="chainHubItem"' : ""}>
+              <span>${ic}</span><span class="tip">${name}${active ? "（工作链 · 已注册）" : ""}</span>
+            </div>`;
+          }).join("") +
+          '<div class="sp"></div><div class="ui-hub-item foot" id="hubMin"><span>‹</span></div>';
+        $("hubMin")?.addEventListener("click", () => {
+          $("chainFlyout").style.display = "none";
+          toast("info", "Hub 收起（⌘B 唤出）", "HubSheet：Level 1 rail 常驻，Level 2 flyout 可收起/调宽");
+        });
+      }
+
+      /* =============== 渲染：链 flyout（CoordChainPane 宿主 = 新 ui-chain-* 设计） =============== */
+      function renderFlyout() {
+        const w = activeWs;
+        const running = true; // 演示态：已开启共享
+        const me = currentDevice;
+        const membersHtml = MEM_ORDER.filter((m) => w.members.includes(m))
+          .map((m) => `<li><span class="dot" style="width:7px;height:7px;border-radius:50%;background:${MEMBERS[m].color};display:inline-block"></span>${MEMBERS[m].name}<span class="k">${keyId().slice(0, 10)}</span><span class="ui-chain-pill ${m === me ? "me" : "online"}">${m === me ? "本机" : "在线"}</span></li>`)
+          .join("");
+        const blocksHtml = [1, 0].map((off) => {
+          const h = w.height - off;
+          return `<li><span class="k">#${h}</span><span>${keyId().slice(0, 12)}…</span><span class="ui-chain-pill">${off === 1 ? "联签 ✓" : "待联签"}</span></li>`;
+        }).join("");
+        const geneHtml =
+          `<li><span class="parent">⑂</span>登录重构 · <span class="k">kelthas-mbp</span><span class="ui-chain-pill">↳ r:8c11…</span></li>` +
+          `<li><span class="parent">⑂</span>passkey 方案 · <span class="k">dev-windows-01</span><span class="ui-chain-pill">↳ r:9d44…</span></li>` +
+          `<li>视觉稿 passkey-ui · <span class="k">design-ipad</span><span class="ui-chain-pill">设计域</span></li>`;
+        $("flyoutBody").innerHTML = `
+          <div class="ui-chain-status">
+            <div class="ui-chain-id"><span>⛓ ${w.chain}</span><span class="cp" id="copyChain">复制</span></div>
+            <div class="ui-chain-theme">
+              <span class="ui-chain-tag">主题 ${w.theme}</span>
+              <span class="ui-chain-tag">quorum 多数派</span>
+              <span class="ui-chain-tag">admission open</span>
+              <span class="ui-chain-tag sealed">锚点已绑定本机</span>
+            </div>
+            <dl class="ui-chain-facts">
+              <div class="ui-chain-fact"><dt>高度</dt><dd class="st">${w.height}</dd></div>
+              <div class="ui-chain-fact"><dt>成员 · 在线</dt><dd>${w.members.length} · ${w.members.length}</dd></div>
+              <div class="ui-chain-fact"><dt>peer</dt><dd>${w.peers}</dd></div>
+              <div class="ui-chain-fact"><dt>设备锚点</dt><dd>did:${sha(w.wsId).slice(0, 12)}</dd></div>
+            </dl>
+            <div class="ui-chain-actions">
+              <button class="ui-btn" id="flyStop">停止共享</button>
+              <button class="ui-btn" id="flyRotate">轮换设备密钥</button>
+              <button class="ui-btn ui-btn-ghost" style="margin-left:auto" id="flyAudit">⛁ 审计</button>
+            </div>
+          </div>
+          <section class="ui-chain-section"><h4>成员 <span>${w.members.length}</span></h4><ul>${membersHtml}</ul></section>
+          <section class="ui-chain-section"><h4>区块 <span>最近 ${Math.min(2, w.height)}</span></h4><ul>${blocksHtml}</ul></section>
+          <section class="ui-chain-section ui-chain-genealogy"><h4>任务谱系 <span>⑂ = parentRecordId</span></h4><ul>${geneHtml}</ul></section>
+          <section class="ui-chain-section"><h4>共享任务分支</h4>
+            <div class="ui-chain-share">
+              <select id="shareTree">${WORKSPACES.map((x) => `<option ${x.key === w.key ? "selected" : ""}>${x.label}</option>`).join("")}</select>
+              <select id="shareBranch">${BRANCHES.map((b) => `<option>${b.name}</option>`).join("")}</select>
+              <button class="ui-btn ui-btn-primary" id="shareGo">共享 → 预览</button>
+            </div>
+            <div class="ui-pp-note" style="margin-top:7px">先过右侧悬浮预览（TaskQuickSheet 模式）再确认上链：差异 → 结论/遗留编辑 → 确认。</div>
+          </section>`;
+        $("copyChain").addEventListener("click", () => toast("ok", "已复制链 ID", w.chain));
+        $("flyStop")?.addEventListener("click", () => toast("warn", "停止共享（演示）", "仅本机视角停止，链数据保留于 ~/.deeporca/coordchain/"));
+        $("flyRotate")?.addEventListener("click", () => {
+          pass(2);
+          pushRec("member.rotate", currentDevice, "轮换设备密钥", null);
+          toast("ok", "设备密钥已轮换", "旧钥历史仍可验 · 新钥 id " + keyId().slice(0, 14));
+        });
+        $("flyAudit")?.addEventListener("click", () => openPreview({ kind: "ledger" }));
+        $("shareGo")?.addEventListener("click", () => openPreview({ kind: "share", branchKey: selBranchKey }));
+      }
+
+      /* =============== 渲染：任务树（TaskHubWorkspace Git-Graph 融合视图） =============== */
+      const DOM_CLS = { chat: "session", editor: "editor", design: "prototype", review: "review", kb: "index" };
+      const stChip = (b) => {
+        const map = {
+          current: '<span class="ui-chain-node main">主域 · 当前</span>',
+          wip: '<span class="ui-chain-node">进行中</span>',
+          done: '<span class="ui-chain-node done">已完成 · 待并入</span>',
+          merged: '<span class="ui-chain-node merged">已并入 → main</span>',
+          abandoned: '<span class="ui-chain-node lock">已放弃</span>',
+        };
+        if (b.kind === "design") return '<span class="ui-chain-node design">🎨 视觉稿 · 独立域</span>';
+        return map[b.state] || "";
+      };
+      const glyphColor = (b) => ({
+        session: "var(--dot-session)",
+        editor: "var(--dot-editor)",
+        prototype: "var(--dot-prototype)",
+        review: "var(--dot-review)",
+        index: "var(--dot-index)",
+        abandon: "var(--dot-abandon)",
+      }[DOM_CLS[b.domain] || "session"]);
+
+      function treeRows() {
+        const w = activeWs;
+        return BRANCHES.filter((b) => {
+          if (b.wsKey === w.key) return true;
+          if (b.base) {
+            const bw = WORKSPACES.find((x) => x.key === b.base.wsKey);
+            if (bw && bw.chain === w.chain) return true;
+          }
+          return false;
+        });
+      }
+
+      function renderTree() {
+        const hub = $("taskHub");
+        const w = activeWs;
+        const rows = treeRows();
+        const html = [];
+        const isForkOfOther = (b) => b.base && b.base.wsKey !== w.key;
+        rows.forEach((b) => {
+          const forkLane = b.kind === "fork" || b.kind === "design" || isForkOfOther(b);
+          const owner = MEMBERS[b.owner].name;
+          const who =
+            (b.kind === "main" ? " · h" + w.height : b.commitCount ? " · " + b.commitCount + " commit" : "") +
+            (b.note ? " · " + b.note : "") +
+            (isForkOfOther(b) ? " · fork 自 " + b.base.wsKey : "");
+          const pulse = b.state === "wip" && b.owner === currentDevice;
+          html.push(`<div class="ui-taskhub-row${b.key === selBranchKey ? " sel" : ""}${b.state === "abandoned" ? " dim" : ""}" data-br="${b.key}">
+            <div class="ui-track">
+              <span class="line${forkLane ? " fork" : ""}"></span>
+              ${forkLane ? '<span class="join fork"></span>' : ""}
+              <span class="ui-glyph${forkLane ? " fork" : ""}${b.state === "current" ? " ring" : ""}${pulse ? " pulse" : ""}" style="background:${glyphColor(b)};color:${glyphColor(b)}"></span>
+            </div>
+            <div class="ui-node-main">
+              <span class="ui-node-name">${b.name}</span>
+              ${stChip(b)}
+              <span class="ui-node-meta">${owner}${esc(who)}</span>
+            </div>
+            <div class="ui-node-acts" data-acts="${b.key}"></div>
+          </div>`);
+          // 声明行（fork/design/跨区）
+          if (b.kind === "fork" || b.kind === "design" || isForkOfOther(b)) {
+            const baseWs = WORKSPACES.find((x) => x.key === b.base && b.base.wsKey) || w;
+            html.push(`<div class="ui-taskhub-row sticky" style="cursor:default;min-height:22px;opacity:.85;padding-left:74px">
+              <span style="font-family:var(--ui-font-mono);font-size:10.5px;color:var(--ui-text-faint)">
+                ${b.kind === "design" ? "🎨 独立域" : "⑂ 声明来源"}： ${baseWs.wsId} / ${baseWs.chain.slice(0, 12)}… / branch ${b.base ? b.base.branch : ""}
+                ${b.why ? " · why: " + b.why : ""}
+              </span>
+            </div>`);
+          }
+          if (b.state === "merged") {
+            html.push(`<div class="ui-taskhub-row sticky" style="cursor:default;min-height:22px;padding-left:74px">
+              <span style="font-family:var(--ui-font-mono);font-size:10.5px;color:var(--ui-success)">✓ 已并入 main（${MEMBERS[b.mergeBy].name}）· merge commit 双亲 [main, ${b.name}]</span>
+            </div>`);
+          }
+        });
+        // 追随域锚行 + 主会话域说明
+        html.push(`<div class="ui-taskhub-row follow" data-follow="review">
+          <div class="ui-track"><span class="line"></span><span class="ui-glyph" style="background:var(--dot-review)"></span></div>
+          <div class="ui-node-main"><span class="ui-node-name">审查报告</span><span class="ui-chain-node lock">追随 main · 不可独立 fork</span><span class="ui-node-meta">随 main 自动更新</span></div>
+        </div>`);
+        html.push(`<div class="ui-taskhub-row follow" data-follow="kb">
+          <div class="ui-track"><span class="line"></span><span class="ui-glyph" style="background:var(--dot-index)"></span></div>
+          <div class="ui-node-main"><span class="ui-node-name">知识库</span><span class="ui-chain-node lock">追随 main · 不可独立 fork</span><span class="ui-node-meta">随 main 自动更新</span></div>
+        </div>`);
+
+        hub.innerHTML = `
+          <div class="ui-taskhub-top">
+            <span>工作区 <b class="n">${w.label}</b> <span class="n">${w.wsId}</span> · 任务链 <span class="n" style="color:var(--ui-accent)">${w.chain}</span></span>
+            ${isForkOfOther ? "" : ""}
+            <div class="ui-taskhub-pills">
+              <span class="ui-taskhub-pill on">全部域</span>
+              <span class="ui-taskhub-pill">会话</span>
+              <span class="ui-taskhub-pill">设计</span>
+              <span class="ui-taskhub-pill">编辑器</span>
+            </div>
+          </div>
+          <div class="ui-taskhub-rows">${html.join("")}${inlineForm ? renderInlineForm() : ""}</div>`;
+
+        hub.querySelectorAll("[data-br]").forEach((el) => {
+          el.addEventListener("click", (ev) => {
+            if (ev.target.closest("button")) return;
+            selBranchKey = el.dataset.br;
+            inlineForm = null;
+            renderAll();
+          });
+        });
+        hub.querySelectorAll("[data-follow]").forEach((el) => {
+          el.addEventListener("click", () => {
+            selFollow = el.dataset.follow;
+            inlineForm = null;
+            renderAll();
+            openModal(
+              selFollow === "review" ? "审查报告（追随域）" : "知识库（追随域）",
+              "追随 main 的只读域——没有独立分支。审查报告/知识库与代码编辑强绑定，fork 时必须随主会话 main 一并跟随；跨工作区 fork 时随来源链 main 自动跟进。",
+              [{ label: "关闭", primary: true }]
+            );
+          });
+        });
+        // 行内动作
+        rows.forEach((b) => {
+          const barEl = hub.querySelector(`[data-acts="${b.key}"]`);
+          if (!barEl) return;
+          barEl.innerHTML = actsOf(b);
+          barEl.querySelectorAll("button").forEach((btn) => {
+            btn.addEventListener("click", () => {
+              if (btn.dataset.act === "fork") openForkForm(b);
+              else if (btn.dataset.act === "merge") openMergeForm(b);
+              else if (btn.dataset.act === "share") openPreview({ kind: "share", branchKey: b.key });
+              else doQuick(btn.dataset.act, b);
+            });
+          });
+        });
+      }
+
+      function actsOf(b) {
+        const me = currentDevice;
+        const a = [];
+        if (b.state === "wip" && b.owner === me) a.push('<button data-act="wip">上报进度</button><button data-act="done">✓ 完成</button>');
+        if (b.state === "current" && b.owner === me) a.push('<button data-act="note">✎ 附注</button>');
+        if (b.state === "abandoned" && b.owner === me) a.push('<button data-act="reopen">↺ 重开</button>');
+        if (b.owner !== me) {
+          if (b.state !== "merged") a.push('<button data-act="fork">⑂ fork</button>');
+          a.push('<button data-act="pull">▼ 拉取</button>');
+        }
+        if (b.state === "done" && b.owner !== me && b.kind !== "design") a.push('<button data-act="merge">⇄ 并入 main</button>');
+        if (b.owner !== me) a.push('<button data-act="share">↗ 共享任务记录</button>');
+        return a.join("");
+      }
+
+      function doQuick(op, b) {
+        const me = currentDevice;
+        if (op === "wip") {
+          pass(4);
+          TRAIL.push({ t: fmt(CLOCK), op: "wip", who: me, text: "上报进度 · " + b.name, what: "task.progress " + (55 + Math.floor(Math.random() * 30)) + "%", where: b.name, rec: { type: "task.progress" } });
+          toast("ok", "进度已上链", "task.progress · gossip 全链");
+        } else if (op === "done") {
+          if (b.owner !== me) return toast("err", "只能完成自己的分支", "签名必须来自分支持有者");
+          pass(5);
+          b.state = "done";
+          b.commitCount += 1;
+          pushRec("task.done", me, "完成 " + b.name, null);
+          pushRec("ws.commit", me, b.name + " c:" + rid(4), null);
+          TRAIL.push({ t: fmt(CLOCK), op: "done", who: me, text: "完成了 " + b.name, what: "task.done + ws.commit", where: b.name, whereState: "已完成 · 可并入", whereCls: "to", rec: { type: "task.done" } });
+          toast("ok", "任务完成已上链", "task.done + ws.commit · 等待并入");
+        } else if (op === "note") {
+          pass(1);
+          pushRec("note", me, "附注 on " + b.name, null);
+          toast("info", "附注已上链", "note ≤2KB");
+        } else if (op === "reopen") {
+          b.state = "wip";
+          toast("ok", "分支重新打开", b.name + " → wip");
+        } else if (op === "pull") {
+          pass(1);
+          pushRec("ws.checkout", me, "拉取 " + b.name, null);
+          toast("ok", "已检出到本地 worktree", "对象逐块校验通过 · worktrees/" + b.name);
+        } else if (op === "abandon") {
+          b.state = "abandoned";
+          pushRec("task.share", me, "放弃 " + b.name, null);
+          toast("warn", "分支已放弃", "abandoned 仅改视图，账本不可删");
+        }
+        renderAll();
+      }
+
+      /* 行内 fork 表单（TaskHubWorkspace 交互：无浮层） */
+      let forkDom = "chat";
+      let forkAlign = "checkout";
+      function openForkForm(b) {
+        selBranchKey = b.key;
+        inlineForm = { kind: "fork", branchKey: b.key };
+        forkDom = b.kind === "design" ? "design" : "chat";
+        forkAlign = "checkout";
+        renderAll();
+      }
+      function renderInlineForm() {
+        if (!inlineForm) return "";
+        if (inlineForm.kind === "fork") {
+          const b = bt(inlineForm.branchKey);
+          const baseWs = WORKSPACES.find((x) => x.key === b.base && b.base.wsKey) || activeWs;
+          return `<div class="ui-taskhub-forkform" data-form="fork">
+            <h5><span style="color:var(--ui-accent)">⑂</span> 声明 Fork — 树上操作，链上声明（来源链自动携带）</h5>
+            <div class="ff-src">
+              <div class="k">来源（自动携带 · 只读）</div>
+              <div>${b.name} · ${MEMBERS[b.owner].name} · ws.commit ${b.commitCount}</div>
+              <div class="cl">来源链：${baseWs.chain}</div>
+              <div class="k" style="margin-top:3px">来源工作区 · 分支</div>
+              <div class="cl">${baseWs.wsId} / ${b.name}</div>
+            </div>
+            <label class="f">fork 域范围</label>
+            <div class="ui-taskhub-forkmode" id="forkDomMode">
+              <label class="${forkDom === "chat" ? "on" : ""}" data-dom="chat">💬 主会话（审查/知识库追随）</label>
+              <label class="${forkDom === "editor" ? "on" : ""}" data-dom="editor">✏️ 编辑器变种（代码合入本地）</label>
+              <label class="${forkDom === "design" ? "on" : ""}" data-dom="design">🎨 设计独立域</label>
+              <label class="locked" data-dom="review">📋 审查/知识库 · 锁定</label>
+            </div>
+            <label class="f">fork 到（我的工作区 · 自动新建）</label>
+            <input type="text" id="ffName" value="${b.name.replace(/^fork-/, "").replace(/^design\//, "design-").replace(/[^a-z0-9-]/gi, "") + "-lab"}" />
+            <label class="f">一句话理由（必填）</label>
+            <textarea id="ffWhy" rows="2" placeholder="例如：验证 passkey 方案，与 main 隔离"></textarea>
+            <label class="f">对齐选项</label>
+            <div class="ui-taskhub-forkmode">
+              <label class="${forkAlign === "checkout" ? "on" : ""}" data-align="checkout">检出对面 ws.commit → 本地 worktree</label>
+              <label class="${forkAlign === "empty" ? "on" : ""}" data-align="empty">空分支起步</label>
+            </div>
+            <div class="ff-records">
+              <div><span class="ty">task.claim</span>→ 声明性软锁（来源侧可见）</div>
+              <div><span class="ty">task.share</span>→ parentRecordId ⑂ 谱系边</div>
+              <div><span class="ty a">ws.checkout</span>→ 对面版本检出到 worktrees/${b.name}/</div>
+              <div><span class="ty g">member.join</span>→ 跨链 fork：新工作区入链</div>
+            </div>
+            <div class="ui-taskhub-forkmode-note">规则：<b>审查报告/知识库自动追随来源 main</b>（fork 后即可查看，不可独立分叉）；设计模块才可独立 fork；编辑器 = chat 变种。</div>
+            <div class="ff-actions">
+              <button class="ui-btn" id="ffCancel">取消</button>
+              <button class="ui-btn ui-btn-primary" id="ffGo">⑂ 声明 Fork</button>
+            </div>
+          </div>`;
+        }
+        if (inlineForm.kind === "merge") {
+          const b = bt(inlineForm.branchKey);
+          return `<div class="ui-taskhub-mergeform" data-form="merge">
+            <h5>⇄ 并入 main — merge commit 双亲上链 · 谱系回边</h5>
+            <div class="diff-line"><span>${b.name === "main" ? "main" : MEMBERS[b.owner].name + "/" + b.name}</span></div>
+            ${(b.files || ["src/auth/passkey.ts", "src/auth.ts"]).map((f, i) =>
+              `<div class="diff-line"><span class="fn">${f}</span><span class="ad">+${8 + i * 4}</span><span class="dl">${f === "src/auth.ts" ? "−3" : ""}</span>${f === "src/auth.ts" ? '<span class="cf">⚠ 双方都改过 → 冲突</span>' : ""}</div>`
+            ).join("")}
+            <label class="f">冲突择边（src/auth.ts）</label>
+            <div class="pick">
+              <label><input type="radio" name="pick" value="A" /> A · main 版（中间件收敛）</label>
+              <label class="on"><input type="radio" name="pick" value="B" checked /> B · fork-passkey 版（passkey 落地）</label>
+            </div>
+            <div class="ui-taskhub-forkmode-note">merge 后：fork-passkey → <b>已并入</b>；审查/知识库随 main 自动推进。</div>
+            <div class="ff-actions">
+              <button class="ui-btn" id="mgCancel">取消</button>
+              <button class="ui-btn ui-btn-primary" id="mgGo">⇄ 确认并入</button>
+            </div>
+          </div>`;
+        }
+        return "";
+      }
+
+      function bindInlineForm() {
+        const f = $("taskHub").querySelector("[data-form]");
+        if (!f) return;
+        if (f.dataset.form === "fork") {
+          f.querySelectorAll('[data-dom]').forEach((l) => {
+            l.addEventListener("click", () => {
+              if (l.classList.contains("locked")) {
+                toast("err", "追随域不能独立分叉", "审查报告与知识库与代码编辑强绑定，随主会话 fork 自动附带");
+                return;
+              }
+              forkDom = l.dataset.dom;
+              f.querySelectorAll('[data-dom]').forEach((x) => x.classList.toggle("on", x === l));
+            });
+          });
+          f.querySelectorAll("[data-align]").forEach((l) =>
+            l.addEventListener("click", () => {
+              forkAlign = l.dataset.align;
+              f.querySelectorAll("[data-align]").forEach((x) => x.classList.toggle("on", x === l));
+            })
+          );
+          $("ffCancel")?.addEventListener("click", () => { inlineForm = null; renderAll(); });
+          $("ffGo")?.addEventListener("click", doFork);
+        } else {
+          f.querySelectorAll(".pick label").forEach((l) =>
+            l.addEventListener("click", () => f.querySelectorAll(".pick label").forEach((x) => x.classList.toggle("on", x === l)))
+          );
+          $("mgCancel")?.addEventListener("click", () => { inlineForm = null; renderAll(); });
+          $("mgGo")?.addEventListener("click", doMerge);
+        }
+      }
+
+      function doFork() {
+        const b = bt(inlineForm.branchKey);
+        const name = $("ffName").value.trim();
+        const why = $("ffWhy").value.trim();
+        if (!name) return toast("err", "需要给新工作区起名", "fork 目标不能为空");
+        if (!why) return toast("err", "一句话理由必填", "理由进链上声明（可审计）");
+        const dom = forkDom === "design" ? "design" : forkDom === "editor" ? "editor" : "chat";
+        const align = dom === "design" ? "empty" : forkAlign;
+        pass(3);
+        const srcWs = WORKSPACES.find((x) => x.key === b.base && b.base.wsKey) || activeWs;
+        const key = "w" + rid(4);
+        const nws = { key, label: name, sub: "fork 自 " + srcWs.label, wsId: wsOf(), chain: chainOf(), height: 0, members: [currentDevice], peers: 0, theme: "name:" + name, forkFrom: srcWs.chain.slice(0, 12) + "/" + b.name };
+        WORKSPACES.push(nws);
+        const nbKey = dom === "design" ? "design/" + name : "fork-" + name;
+        BRANCHES.push({ key: nbKey, name: nbKey, kind: dom === "design" ? "design" : "fork", domain: dom, owner: currentDevice, wsKey: key, state: "wip", commitCount: 1, base: { wsKey: srcWs.key, branch: b.name }, why, files: (b.files || []).slice(0, 2), note: dom === "design" ? "设计 fork（不牵动主会话）" : dom === "editor" ? "编辑器变种 · 代码已合入本地" : "fork 自 " + srcWs.label });
+        pushRec("task.claim", currentDevice, "认领 " + b.name, srcWs.chain);
+        pushRec("task.share", currentDevice, "fork " + b.name + " → " + nbKey, srcWs.chain);
+        pushRec("ws.checkout", currentDevice, align === "checkout" ? "检出 " + b.name + " 基线" : "空分支起步", nws.chain);
+        pushRec("member.join", currentDevice, "入链 " + nws.label, nws.chain);
+        TRAIL.push({ t: fmt(CLOCK), op: "fork", who: currentDevice, text: "⑂ fork 了 " + b.name, what: srcWs.label + "/" + b.name + " → " + nws.label + "（" + nws.wsId + "）", where: nbKey, whereState: b.state === "done" ? "接续（parentRecordId 谱系）" : "并行", whereCls: "to", rec: { type: "task.share", parentRecordId: "r:" + rid(5), domain: dom } });
+        activeWs = nws;
+        selBranchKey = nbKey;
+        inlineForm = null;
+        toast("ok", "Fork 声明完成 → " + nws.label, nws.wsId + " · " + nws.chain + " · 来源链 " + srcWs.chain.slice(0, 14) + "…");
+        renderAll();
+      }
+
+      function openMergeForm(b) {
+        selBranchKey = b.key;
+        inlineForm = { kind: "merge", branchKey: b.key };
+        renderAll();
+      }
+      function doMerge() {
+        const b = bt(inlineForm.branchKey);
+        const pickEl = document.querySelector('input[name="pick"]:checked');
+        const pick = pickEl ? pickEl.value : "B";
+        pass(4);
+        b.state = "merged";
+        b.mergeBy = currentDevice;
+        b.mergeNote = "冲突 src/auth.ts 择边 " + pick;
+        const main = bt("main");
+        main.commitCount += 1;
+        pushRec("ws.commit", currentDevice, "merge " + b.name + " → main", null);
+        pushRec("task.done", currentDevice, "合并完成 " + b.name, null);
+        TRAIL.push({ t: fmt(CLOCK), op: "merge", who: currentDevice, text: "合并了 " + b.name + " → main", what: "merge commit（双亲）· 冲突 src/auth.ts 择边 " + pick, where: "main", whereState: "已并入 ✓", whereCls: "ok", rec: { type: "ws.commit", merge: true, parents: ["main", b.name] } });
+        selBranchKey = "main";
+        inlineForm = null;
+        toast("ok", "已并入 main ✓", "标签 → 已并入 · 谱系回边已锚定 · 审查/知识库随 main 推进");
+        renderAll();
+      }
+
+      /* =============== 渲染：链状态条 + ticker =============== */
+      function renderStrip() {
+        const w = activeWs;
+        $("chainStrip").innerHTML =
+          `<span>⛓ <b>${w.chain.slice(0, 14)}…</b></span>` +
+          `<span>高度 <b class="st">${w.height}</b></span>` +
+          `<span>成员 ${w.members.length} · 在线 ${w.members.length}</span>` +
+          `<span>peer ${w.peers}</span>` +
+          (pendingRecs.length ? `<span class="pend">▣ 待封存 ${pendingRecs.length}</span>` : `<span>pending 0</span>`) +
+          `<span class="lk" id="stripLedger">⛁ 链浏览器</span>`;
+        $("stripLedger").addEventListener("click", () => openPreview({ kind: "ledger" }));
+      }
+      function renderTicker() {
+        const tk = $("ticker");
+        tk.innerHTML =
+          recLog.slice(-5).reverse().map((r) => `<span class="rk ${r.state}"><span class="ty">${r.ty}</span>${esc(r.text.slice(0, 22))}${r.state === "pending" ? "…▣" : " ✓"}</span>`).join("") +
+          `<button class="pause" id="pauseBtn">${paused ? "▶ 播放" : "⏸ 暂停"}</button>`;
+        $("pauseBtn").addEventListener("click", () => { paused = !paused; if (!paused) setTimeout(pump, 400); renderTicker(); });
+      }
+
+      /* =============== 渲染：右侧悬浮预览（TaskQuickSheet 模式） =============== */
+      function openPreview(p) {
+        preview = p;
+        const pn = $("previewPanel");
+        pn.classList.add("show");
+        pn.innerHTML = renderPreview();
+        pn.querySelectorAll("[data-close]").forEach((el) => el.addEventListener("click", () => { pn.classList.remove("show"); preview = null; }));
+        const go = pn.querySelector("#ppGo");
+        if (go) go.addEventListener("click", () => { pn.classList.remove("show"); preview = null; });
+      }
+      function renderPreview() {
+        if (!preview) return "";
+        if (preview.kind === "ledger") {
+          const w = activeWs;
+          return `<div class="ui-pp-head"><div><div class="t">⛁ 链浏览器 · 审计</div><div class="m">重放校验 · 记录原文 · 区块封存</div></div><button class="ui-icon-btn" data-close>✕</button></div>
+          <div class="ui-pp-body">
+            <div class="ui-pp-card"><h5>链</h5>
+              <div style="font-family:var(--ui-font-mono);font-size:11.5px;color:var(--ui-accent)">${w.chain}</div>
+              <div class="ui-pp-note" style="margin-top:6px">${w.label} · ${w.wsId} · 主题 ${w.theme} · 高度 ${w.height}</div>
+            </div>
+            <div class="ui-pp-card"><h5>最近记录（${recLog.length}）</h5>
+              ${recLog.slice().reverse().slice(0, 8).map((r) => `<div class="ui-ledger-row"><span class="ty">${r.ty}</span><span>${esc(r.text)}</span><span class="st">${r.state === "sealed" ? "✓ 封存" : "▣ 待联签"}</span></div>`).join("")}
+              <div class="ui-pp-note" style="margin-top:8px">账本 = 唯一事实源；SQLite 视图可随时重建；重放失败报告首个不一致位置。</div>
+            </div>
+          </div>
+          <div class="ui-pp-actions"><button class="ui-btn ui-btn-primary" data-close>关闭</button></div>`;
+        }
+        const b = bt(preview.branchKey);
+        if (!b) return "";
+        const srcWs = WORKSPACES.find((x) => x.key === b.base && b.base.wsKey) || activeWs;
+        return `<div class="ui-pp-head"><div><div class="t">↗ 共享前预览 · 确认</div><div class="m">TaskQuickSheet 模式 · 面向 R20 规则</div></div><button class="ui-icon-btn" data-close>✕</button></div>
+          <div class="ui-pp-body">
+            <div class="ui-pp-card"><h5>将共享到</h5>
+              <div style="font-family:var(--ui-font-mono);font-size:11.5px;color:var(--ui-accent)">⛓ ${activeWs.chain}</div>
+              <div class="ui-pp-note">${activeWs.label}（${activeWs.members.length} 名成员）· 主题 ${activeWs.theme} · quorum 多数派</div>
+            </div>
+            <div class="ui-pp-card"><h5>任务记录负载（TaskTrajectory 摘要 · 不含对话原文）</h5>
+              <div class="diff-line"><span class="fn">${b.name}</span><span class="ad">${b.commitCount} commit</span><span class="cf">${MEMBERS[b.owner].name}</span></div>
+              ${(b.files || []).map((f) => `<div class="diff-line"><span class="fn">${f}</span><span class="ad">+…</span></div>`).join("")}
+              <label class="f">结论（可编辑）</label>
+              <textarea>passkey 方案已验证可用（WebAuthn …），剩余迁移与文档。</textarea>
+              <label class="f">遗留事项（可编辑）</label>
+              <textarea>1) token-migration 需对齐；2) 视觉稿待采纳为审查基线</textarea>
+            </div>
+            <div class="ui-pp-card"><h5>随行变更（ws.commit → taskRef 互链）</h5>
+              <div class="ui-ledger-row"><span class="ty">ws.commit</span><span>c:3d4e · ${b.files ? b.files.join(" · ") : b.name}</span><span class="st">✓ 校验</span></div>
+              <div class="ui-pp-note" style="margin-top:6px">确认后：task.share + ws.commit 两记录上链，谱系 ⑂ 边自动携带来源链断言。</div>
+            </div>
+          </div>
+          <div class="ui-pp-actions">
+            <button class="ui-btn" data-close>取消</button>
+            <button class="ui-btn ui-btn-primary" id="ppGo">✓ 确认共享 → 上链</button>
+          </div>`;
+      }
+
+      /* =============== 渲染：行为轨迹（子页） =============== */
+      let tlFilter = "all";
+      function renderTrailInto() {
+        const seg = $("mainSeg");
+        if (seg.querySelector('[data-v="trail"]').classList.contains("on")) {
+          const hub = $("taskHub");
+          const items = TRAIL.filter((t) => tlFilter === "all" || t.op === tlFilter);
+          hub.innerHTML = `<div class="ui-taskhub-top">行为轨迹 —— 操作流程级（谁 fork 谁 / 到哪一步 / 是否并入；数据源 = 链上记录聚合；点行展开记录原文）
+            <div class="ui-taskhub-pills">${["all", "create", "fork", "wip", "done", "merge"].map((f) => `<span class="ui-taskhub-pill${tlFilter === f ? " on" : ""}" data-tf="${f}">${f === "all" ? "全部" : f}</span>`).join("")}</div>
+          </div><div class="ui-taskhub-rows">
+            ${items.map((t, i) => `<div class="ui-taskhub-row" data-tl="${i}" style="cursor:pointer;min-height:auto;padding:6px 10px;align-items:flex-start">
+              <span style="font-family:var(--ui-font-mono);font-size:10.5px;color:var(--ui-text-faint);width:44px;flex-shrink:0">${t.t}</span>
+              <span style="font-family:var(--ui-font-mono);font-size:10.5px">${t.op}</span>
+              <div style="flex:1;min-width:0;line-height:1.7">
+                <div><b>${MEMBERS[t.who].name}</b> ${t.text}</div>
+                <div style="font-size:11px;color:var(--ui-text-dim)">${t.what || ""}</div>
+                <div style="font-size:10.5px;color:var(--ui-text-faint);font-family:var(--ui-font-mono)">${t.where || ""} ${t.whereState ? `<span style="color:${t.whereCls === "ok" ? "var(--ui-success)" : t.whereCls === "to" ? "var(--ui-warning)" : "inherit"}">${t.whereState}</span>` : ""}</div>
+                <div class="tl-rec" style="display:none;margin-top:5px;border:1px solid var(--ui-border-soft);border-radius:6px;background:var(--ui-surface-sunken);padding:6px 8px;font-family:var(--ui-font-mono);font-size:10px;white-space:pre-wrap;word-break:break-all;color:var(--ui-text-dim)">${esc(JSON.stringify(t.rec, null, 2))}</div>
+              </div>
+            </div>`).join("") || '<div class="ui-taskhub-empty" style="padding:30px;color:var(--ui-text-faint);text-align:center">无匹配记录</div>'}
+          </div>`;
+          hub.querySelectorAll("[data-tl]").forEach((el) => el.addEventListener("click", () => { const r = el.querySelector(".tl-rec"); if (r) r.style.display = r.style.display === "none" ? "block" : "none"; }));
+          hub.querySelectorAll("[data-tf]").forEach((el) => el.addEventListener("click", () => { tlFilter = el.dataset.tf; renderAll(); }));
+        }
+      }
+
+      /* =============== 设置（SettingsPanel TABS + 新增「工作链」段） =============== */
+      const SET_TABS = [["endpoints", "⇅", "端点"], ["model", "◈", "模型"], ["entities", "▦", "实体"], ["appearance", "🌓", "外观"], ["memory", "▤", "记忆"], ["permissions", "⚑", "权限"], ["actions", "⚡", "动作"], ["chain", "⛓", "工作链"], ["lane", "◔", "通道"], ["about", "ⓘ", "关于"]];
+      function renderSettings() {
+        $("settingsScrim").innerHTML = `<div class="ui-settings">
+          <nav class="ui-settings-nav">${SET_TABS.map(([k, ic, label]) => `<button data-st="${k}" class="${k === settingsTab ? "on" : ""}${k === "chain" ? " new" : ""}"><span>${ic}</span>${label}</button>`).join("")}</nav>
+          <div style="flex:1;min-width:0;display:flex;flex-direction:column;min-height:0">
+            <div class="ui-settings-body">${settingsTab === "chain" ? renderChainSettings() : renderOtherSettings()}</div>
+            <div class="ui-settings-footer"><button class="ui-btn" id="setClose">完成</button></div>
+          </div>
+        </div>`;
+        $("settingsScrim").classList.add("show");
+        $("settingsScrim").querySelectorAll("[data-st]").forEach((b) => b.addEventListener("click", () => { settingsTab = b.dataset.st; renderSettings(); }));
+        $("setClose")?.addEventListener("click", closeSettings);
+        $("settingsScrim").querySelector(".ui-settings-nav")?.querySelectorAll("button[data-st=chain]")[0]?.focus();
+        bindSettings();
+      }
+      function renderOtherSettings() {
+        const names = { endpoints: "端点", model: "模型", entities: "实体", appearance: "外观", memory: "记忆", permissions: "权限", actions: "动作", lane: "通道", about: "关于" };
+        return `<h2>${names[settingsTab]}</h2><div class="sg">真实设置段（SettingsPanel TABS）。此处为设计稿占位——「工作链」是新增段（标记"新"），其余段沿用现状。</div>
+          <div class="ui-field" style="color:var(--ui-text-dim);font-size:12px">本段内容未展开（与设计无耦合）。</div>`;
+      }
+      function renderChainSettings() {
+        const userOnCls = userOn ? " on" : "";
+        const sharedOnCls = sharedOn ? " on" : "";
+        return `<h2>工作链 · 协作（新增段）</h2><div class="sg">双层开关：用户级总闸（设备身份/配额，默认关）+ 项目级「本工作区开启共享」（每工作区独立，可主题覆盖）。链数据写入 <code>~/.deeporca/coordchain/&lt;chainId&gt;/</code>，不进入项目目录。</div>
+          <div class="ui-field"><div class="fw"><div><div class="ft">用户级总闸（coordination.enabled）</div><div class="fd">设备身份生成、链数据配额与心率都受此控制。默认关：任何字节不经显式操作不会离开本机。</div></div><span class="ui-switch${userOnCls}" id="swUser"></span></div>
+            ${userOn ? `<input type="text" value="${MEMBERS[currentDevice].name}" />` : ""}
+          </div>
+          <div class="ui-field"><div class="fw"><div><div class="ft">存储配额</div><div class="fd">blob 对象库配额 · LRU 清理不影响账本完整性</div></div><span class="ui-pill" style="margin-left:auto">2048 MB</span></div></div>
+          <div class="ui-field"><div class="fw"><div><div class="ft">项目级：本工作区开启共享（shared）</div><div class="fd">每工作区独立开关；开启即以工作区主题入链/建链（git remote 自动锚定，可 themeOverride 覆盖）。</div></div><span class="ui-switch${sharedOnCls}" id="swShared"></span></div>
+            ${sharedOn ? `<input type="text" value="${activeWs.theme}" />` : ""}
+          </div>
+          <div class="ui-field"><div class="ft">透明性</div><div class="fd" style="margin-top:4px">共享前预览确认（R20）· 自动共享任务记录独立子开关（默认关）· 链浏览器全量可审计。</div></div>`;
+      }
+      function bindSettings() {
+        $("swUser")?.addEventListener("click", () => { userOn = !userOn; renderSettings(); });
+        $("swShared")?.addEventListener("click", () => { sharedOn = !sharedOn; renderSettings(); });
+        $("swShared") && sharedOn && toast("info", "项目级共享已开启", "主题 " + activeWs.theme + " · 本机视角切到对应链");
+      }
+      function closeSettings() {
+        $("settingsScrim").classList.remove("show");
+        settingsOpen = false;
+        toast("info", "设置已保存（脏值守卫演示）", "任意关闭路径统一走 discard 确认");
+      }
+
+      /* =============== 标注（实现挂点映射） =============== */
+      const MAPS = {
+        "hub-flyout": { title: "Hub 二级浮层 · 工作链面板", st: "go", lines: ["宿主：<code>components/CoordChainPane.tsx</code>（start/stop/rotateKey/members/blocks/genealogy/taskTrees/share）", "样式：<code>ui-chain-*</code> 本次设计新增 → <code>ui-css/chain.css</code>（现为无样式素排，缺口）", "注册：<code>HubSheet.tsx</code> chain 视图（报表中已在 dock 第二位）", "IPC：<code>shared/ipc.ts</code> chain:* 一批 + <code>preload/index.ts</code> 绑定"] },
+        tree: { title: "任务树 × 工作链（融合视图）", st: "go", lines: ["布局/行内表单：<code>components/TaskHubWorkspace.tsx</code>（ui-taskhub-*；fork/switch/merge 行内表单）", "谱系令牌：<code>--line-trunk / --line-fork / --dot-{session,review,index,prototype,abandon,editor}</code>", "链状态徽章/声明行/追随域锚行：本次设计新增（ui-chain-node）", "数据：<code>TaskTreeService</code>（只读导出 TaskTreeSource）+ chain IPC 聚合"] },
+        "branch-row": { title: "树节点 = 分支任务 + 链上状态", st: "go", lines: ["分支状态：TaskTree branch（current/wip/done/merged/abandoned）", "链上状态签：<code>ws.commit / task.done / member.rotate</code> 记录聚合视图"] },
+        "share-preview": { title: "共享前预览 + 确认（右侧悬浮窗）", st: "todo", lines: ["模式：<code>TaskQuickSheet.tsx</code>（右浮只读预览 + 确认/取消）", "当前实现直发无预览（ui-chain-share select → chainShareTaskBranch）——<b class='st-todo'>待实现</b>", "负载：TaskTrajectory 摘要 + 结论/遗留编辑 + 随行 ws.commit 预览"] },
+        "chain-strip": { title: "链状态条 + 封存 ticker", st: "go", lines: ["高度/成员/peer/pending：<code>ChainStatePayload</code>（shared/ipc.ts）", "event：<code>chain:stateChanged</code> → 面板刷新", "ticker/封存动效：设计新增"] },
+        "settings-chain": { title: "设置 · 工作链段（新增）", st: "todo", lines: ["挂点：<code>components/SettingsPanel.tsx</code> TABS 数组（当前 9 段无协作链段）——<b class='st-todo'>待实现</b>", "双层开关：用户级 coordination.enabled/deviceName/quota + 项目级 coordination.shared/themeOverride", "i18n：6 套 locale 增 settings.chain.* 键"] },
+        "hub-rail": { title: "Hub rail（Level 1）", st: "go", lines: ["<code>HubSheet.tsx</code> · <code>IconChain</code>（ui/icons/rail.tsx）· duck chain 视图已注册", "⌘B 召唤/收起；Level 2 flyout 可拖拽调宽 200–300px"] },
+      };
+      function bindAnnot() {
+        document.querySelectorAll("[data-map]").forEach((el) => el.addEventListener("click", () => {
+          const m = MAPS[el.dataset.map];
+          if (!m) return;
+          openModal(m.title, `<div class="annot-card"><div class="at" style="color:${m.st === "go" ? "var(--ui-success)" : m.st === "todo" ? "var(--ui-warning)" : "var(--ui-danger)"}">${m.st === "go" ? "已实现挂点" : "待实现挂点"}</div><div class="ab">${m.lines.join("<br/>")}</div></div>`, [{ label: "关闭", primary: true }]);
+        }));
+      }
+
+      /* =============== 通用 =============== */
+      function openModal(title, sub, actions) {
+        const ov = $("modalOverlay");
+        ov.innerHTML = `<div class="ui-modal"><h3>${title}</h3><div class="m-sub">${sub}</div><div class="m-actions">${actions.map((a, i) => `<button class="ui-btn${a.primary ? " ui-btn-primary" : ""}" data-m-i="${i}">${a.label}</button>`).join("")}</div></div>`;
+        ov.classList.add("show");
+        ov.querySelectorAll("button").forEach((b) => b.addEventListener("click", () => ov.classList.remove("show")));
+        ov.addEventListener("click", (e) => { if (e.target === ov) ov.classList.remove("show"); });
+      }
+      function toast(kind, title, sub) {
+        const el = document.createElement("div");
+        el.className = "ui-toast " + kind;
+        el.innerHTML = `<div class="tt">${title}</div><div class="td">${esc(sub || "")}</div>`;
+        $("toasts").appendChild(el);
+        setTimeout(() => el.remove(), 4200);
+      }
+      function copyText(s) {
+        if (navigator.clipboard) navigator.clipboard.writeText(s);
+        toast("ok", "已复制", s);
+      }
+
+      function renderAll() {
+        renderRail();
+        renderFlyout();
+        renderTree();
+        renderTrailInto();
+        renderStrip();
+        renderTicker();
+        $("stageWhere").textContent = activeWs.label + " · " + activeWs.wsId + " · " + activeWs.theme;
+        const pw = $("pillWs");
+        if (pw && pw.options.length === 0) {
+          WORKSPACES.forEach((w) => { const o = document.createElement("option"); o.value = w.key; o.text = w.label + "（" + w.wsId + "）"; pw.appendChild(o); });
+        }
+        if (pw) {
+          pw.value = activeWs.key;
+          pw.onchange = () => {
+            activeWs = WORKSPACES.find((w) => w.key === pw.value) || activeWs;
+            selBranchKey = "main";
+            inlineForm = null;
+            renderAll();
+            toast("info", "已切换到工作区 " + activeWs.label, activeWs.wsId + " · " + activeWs.chain);
+          };
+        }
+        bindInlineForm();
+        bindAnnot();
+      }
+
+      /* =============== 演示故事（贴合真实交互方言） =============== */
+      const STORY = [
+        { title: "1 · 链在树上：任务树就是链的宿主", desc: "工作区 GVGL（ws-7f3a9c2e）自动持有链 orca1-wiymh-…；树节点 = 分支任务，标签 = 链上状态；底部链状态条与封存 ticker 是融合视图的锚。", do: () => { activeWs = WORKSPACES[0]; selBranchKey = "main"; $("chainFlyout").style.display = ""; highlightRow("main"); } },
+        { title: "2 · ⑂ 行内声明 fork：来源链自动携带", desc: "选中 dev 的 fork-passkey（已完成·待并入）→ 行内出 fork 表单：来源链/工作区/分支只读断言 + 域范围（审查/知识库锁定）+ 自动 4 条链上记录。", do: () => { switchDevice("dev"); activeWs = WORKSPACES[0]; selBranchKey = "fork-passkey"; inlineForm = null; highlightRow("fork-passkey"); toast("info", "▶ 2 · 已选中 fork-passkey", "点行内「⑂ fork」出声明表单（或直接看声明行）"); } },
+        { title: "3 · 共享 = 右浮预览确认（不直发）", desc: "共享任务分支先过右侧悬浮预览：目标链 + 差异 + 结论/遗留编辑 + 随行 ws.commit；确认后才上链（R20）。", do: () => { switchDevice("dev"); openPreview({ kind: "share", branchKey: "fork-passkey" }); } },
+        { title: "4 · 设计独立域 + 追随域锁定", desc: "design/passkey-ui 是 design-ipad 的独立视觉稿线（不牵动 main）；审查/知识库没有独立分支——锁定的追随行。", do: () => { switchDevice("ipad"); $("previewPanel")?.classList.remove("show"); activeWs = WORKSPACES[0]; selBranchKey = "design-passkey-ui"; highlightRow("design-passkey-ui"); } },
+        { title: "5 · 行内合并：冲突择边 + merge commit 双亲", desc: "kelthas-mbp 对 fork-passkey 点「⇄ 并入 main」→ 行内择边（src/auth.ts A/B）→ 确认后标签→已并入、谱系回边、审查/知识库随 main 推进。", do: () => { switchDevice("kel"); const b = bt("fork-passkey"); selBranchKey = "fork-passkey"; if (b.state === "done") openMergeForm(b); else toast("info", "▶ 5 · 已完成过合并", "看轨迹里的 merge 行，或 fork 接力"); } },
+      ];
+      let storyIdx = -1;
+      let storyTimer = null;
+      function openStory() {
+        openModal("▶ 演示故事 · 五个操作步骤", STORY.map((s, i) => `<div class="ui-story-step"><span class="num">${i + 1}</span><div><div class="ss-t">${s.title}</div><div class="ss-d">${s.desc}</div></div></div>`).join("") + '<div style="color:var(--ui-text-faint);font-size:11px;margin-top:10px">逐步自动执行：切设备/切工作区/高亮节点；状态与轨迹实时推进。「↺ 重置」恢复初始态。</div>', [{ label: "关闭" }, { label: "▶ 开始逐步演示", primary: true }]);
+        $("modalOverlay").querySelector('.ui-btn-primary').addEventListener("click", () => { $("modalOverlay").classList.remove("show"); resetAll(); storyIdx = -1; storyNext(); });
+      }
+      function storyNext() {
+        if (storyTimer) clearTimeout(storyTimer);
+        storyIdx += 1;
+        if (storyIdx >= STORY.length) {
+          storyIdx = -1;
+          toast("ok", "演示故事完成", "可通过「行为轨迹」子页与链浏览器复核每一步的链上记录");
+          return;
+        }
+        const s = STORY[storyIdx];
+        toast("info", "▶ " + s.title, s.desc.replace(/<[^>]+>/g, "").slice(0, 60));
+        s.do();
+        storyTimer = setTimeout(storyNext, 3600);
+      }
+      function highlightRow(key) {
+        const el = document.querySelector(`[data-br="${key}"]`);
+        if (el) { el.classList.add("hl-row"); setTimeout(() => el.classList.remove("hl-row"), 2200); }
+      }
+      function switchDevice(k) {
+        currentDevice = k;
+        renderAll();
+      }
+      function resetAll() {
+        paused = false;
+        recLog.length = 0;
+        pendingRecs.length = 0;
+        CLOCK = 9 * 60;
+        currentDevice = "kel";
+        selBranchKey = "main";
+        selFollow = null;
+        inlineForm = null;
+        preview = null;
+        userOn = false;
+        sharedOn = false;
+        seedWorkspaces();
+        seedBranches();
+        seedTrail();
+        seedRecs();
+        activeWs = WORKSPACES[0];
+        $("previewPanel").classList.remove("show");
+        $("chainFlyout").style.display = "";
+        renderAll();
+        toast("ok", "已重置到初始演示态", "GVGL · h7 · 3 成员");
+      }
+
+      /* =============== 事件 =============== */
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") {
+          $("modalOverlay").classList.remove("show");
+          $("settingsScrim").classList.remove("show");
+          $("previewPanel").classList.remove("show");
+        }
+        if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "b") {
+          e.preventDefault();
+          const f = $("chainFlyout");
+          f.style.display = f.style.display === "none" ? "" : "none";
+        }
+        if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
+        if (e.key.toLowerCase() === "f") { const b = bt(selBranchKey); if (b && b.owner !== currentDevice) openForkForm(b); }
+        if (e.key.toLowerCase() === "m") { const b = bt(selBranchKey); if (b && b.state === "done" && b.owner !== currentDevice) openMergeForm(b); }
+      });
+      $("appearanceBtn").addEventListener("click", () => {
+        const root = document.documentElement;
+        root.dataset.appearance = root.dataset.appearance === "dark" ? "light" : "dark";
+        toast("info", "外观已切换（Appearance · applyAppearance）", "令牌与 ui-css/tokens.css 同构");
+      });
+      $("settingsBtn").addEventListener("click", renderSettings);
+      $("hubBtn").addEventListener("click", () => {
+        const f = $("chainFlyout");
+        f.style.display = f.style.display === "none" ? "" : "none";
+        if (f.style.display !== "none") toast("info", "Hub 工作链视图", "HubSheet Level 2 · CoordChainPane 宿主（ui-chain-* 新样式）");
+      });
+      $("mainSeg").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => {
+        $("mainSeg").querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === b));
+        renderTree();
+        renderTrailInto();
+      }));
+      $("annotTgl").addEventListener("click", () => {
+        const on = document.body.classList.toggle("annot-on");
+        $("annotTgl").classList.toggle("on", on);
+        if (on) toast("info", "实现映射已显示", "橙色 ⓘ = 待实现挂点 · 蓝色 ⓘ = 已有实现");
+      });
+
+      /* 首次渲染 */
+      seedWorkspaces();
+      seedBranches();
+      seedTrail();
+      seedRecs();
+      activeWs = WORKSPACES[0];
+      renderAll();
+      setInterval(pump, 1600);
+    </script>
+  </body>
+</html>
