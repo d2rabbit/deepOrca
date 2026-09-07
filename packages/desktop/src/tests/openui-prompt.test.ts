@@ -7,38 +7,55 @@ import { buildDesignerPrompt, applyPromptToSkill, SKILL_PATH } from "../../../..
 
 const here = path.dirname(url.fileURLToPath(import.meta.url));
 
-test("the SKILL.md component table is in sync with library-schema.ts (drift guard)", async () => {
+test("the SKILL.md component table is in sync with the generated prompt (drift guard)", async () => {
   const skillMd = fs.readFileSync(SKILL_PATH, "utf8");
   const regenerated = applyPromptToSkill(skillMd, await buildDesignerPrompt());
   assert.equal(
     regenerated,
     skillMd,
-    "pm-designer-openui SKILL.md is out of sync with library-schema.ts — run `npm run openui:prompt` and commit."
+    "pm-designer-openui SKILL.md is out of sync — run `npm run openui:prompt` and commit."
   );
 });
 
-test("the generated prompt reflects the real schema (signatures, not stubs)", async () => {
+test("the generated prompt comes from the official openuiLibrary (signatures, not stubs)", async () => {
   const prompt = await buildDesignerPrompt();
-  // Real TextContent variants — the old hand-written stub had different enums.
-  assert.match(prompt, /"small" \| "body" \| "large" \| "large-heavy" \| "title" \| "caption" \| "muted"/);
-  // All 11 components present.
+  // Official TextContent sizes (the old hand-written stub had different enums).
+  assert.match(prompt, /"small" \| "default" \| "large" \| "small-heavy" \| "large-heavy"/);
+  // Key official components present across the roster's families.
   for (const name of [
-    "Column",
-    "Row",
     "Stack",
     "Card",
-    "TextContent",
-    "Badge",
+    "CardHeader",
     "Button",
-    "TextField",
-    "Metric",
-    "Divider",
-    "Spacer",
+    "Input",
+    "Select",
+    "Form",
+    "Table",
+    "Col",
+    "Tabs",
+    "Modal",
+    "LineChart",
+    "TextContent",
   ]) {
     assert.match(prompt, new RegExp(`\\b${name}\\(`));
   }
   // The standalone-agent system preamble is trimmed (we call tools, not raw DSL).
   assert.doesNotMatch(prompt, /Your ENTIRE response must be valid openui-lang/);
+});
+
+test("the generated prompt teaches interactive single-app prototypes", async () => {
+  const prompt = await buildDesignerPrompt();
+  // bindings flag → lang-core's state-syntax rule is present.
+  assert.match(prompt, /\$varName = defaultValue/);
+  assert.match(prompt, /@Set/);
+  assert.match(prompt, /@Reset/);
+  // toolCalls flag + tool list → Query workflow docs and the tool whitelist.
+  assert.match(prompt, /Available Tools/);
+  assert.match(prompt, /design\.readWiki/);
+  // The single-app navigation example and hard rule are embedded verbatim.
+  assert.match(prompt, /\$page == "home" \? homeView : ordersView/);
+  assert.match(prompt, /ONE interactive application/);
+  assert.match(prompt, /Action\(\[@Set\(\$page/);
 });
 
 test("applyPromptToSkill is idempotent across regenerations", async () => {

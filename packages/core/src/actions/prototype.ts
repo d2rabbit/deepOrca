@@ -327,8 +327,13 @@ export const prototypeMaterializeRun: ActionRun<PrototypeMaterializeInput, Proto
     const generated = await ctx.runSubagent({
       skill: "pm-designer-openui",
       prompt:
-        "Create the complete OpenUI Lang prototype for the requirements document below. Cover its page list and flows " +
-        "strictly without inventing scope. Do not call tools. Return only the OpenUI Lang program in one code fence.\n\n" +
+        "Create the complete OpenUI Lang prototype for the requirements document below. " +
+        "Build ONE directly interactive application, never a stack of separate screens: declare " +
+        '`$page = "<first-page>"`, give each page of the requirements\' page list its own view variable, ' +
+        'render exactly one view in root behind a ternary (`$page == "orders" ? ordersView : null`), keep a ' +
+        'persistent navigation shell, and switch views with buttons carrying `Action([@Set($page, "target")])`. ' +
+        "Cover its page list and flows strictly without inventing scope. Do not call tools. " +
+        "Return only the OpenUI Lang program in one code fence.\n\n" +
         spec,
       silent: true,
     });
@@ -534,6 +539,9 @@ export const prototypeReviseRun: ActionRun<PrototypeReviseInput, PrototypeSpecOu
     skill,
     prompt:
       `Revise only the ${input.part} content below. Target: ${target}. Instruction: ${instruction}. ` +
+      (input.part === "openui"
+        ? "Preserve the $page state, ternary view switching, and Action([@Set...]) navigation — the result must stay ONE interactive application, not stacked screens. "
+        : "") +
       "Preserve unrelated content and return only the complete revised document in one code fence. Do not call tools.\n\n" +
       current,
     silent: true,

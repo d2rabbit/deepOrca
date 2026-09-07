@@ -8,6 +8,8 @@ skills:
     description: "DeepDesign — .dd 格式 UI 设计稿（自包含 HTML，可脱离宿主交付）"
   - name: pm-designer-openui
     description: "OpenUI Lang 交互原型 — Designer 默认原型管线"
+  - name: openui
+    description: "OpenUI 官方参考技能（vendored thesysdev/skills）— OpenUI Lang 语法/运行时/组件库/主题/可靠性的权威参考"
   - name: taste
     description: "设计纪律规范 — 减少常见设计错误"
   - name: spec-writer
@@ -25,7 +27,8 @@ mcp:
 ### 技能
 
 - **deep-design** — DeepDesign 格式 UI 设计稿。使用 `.dd` 格式 + Tailwind CSS 生成自包含 HTML 设计稿，可脱离 DeepOrca 独立交付。适用于落地页/海报/品牌页等纯展示场景。
-- **pm-designer-openui** — OpenUI Lang 交互原型（**Designer 默认管线**）。紧凑行式 DSL，支持 11 组件库、增量编辑。适用于表单/看板/仪表盘/多页面等交互场景。
+- **pm-designer-openui** — OpenUI Lang 交互原型（**Designer 默认管线**）。紧凑行式 DSL，基于官方 openuiLibrary 组件库（60+ 组件，含表格/图表/表单/Tabs/Modal）。适用于表单/看板/仪表盘/多页面等交互场景。
+- **openui** — OpenUI 官方参考技能（vendored thesysdev/skills，勿手改，见其 README.md）。OpenUI Lang 语法、运行时、组件库、ThemeProvider 与可靠性实践的权威参考。
 - **taste** — 设计质量纪律规范。11 条 P0 规则（含 anti-slop 多样性）+ 排版阶梯 + 五维自评评分卡 + 颜色/动效/布局规范，适用于所有 UI 生成。
 
 ### MCP 服务器

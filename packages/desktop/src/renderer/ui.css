@@ -49,6 +49,10 @@
 /* Prototype and UI design workspaces: directory, version rail, preview selection, reports */
 @import url("./ui-css/design-workspaces.css");
 
+/* OpenUI canvas bridge — DeepOrca --ui-* tokens onto the official --openui-*
+   vocabulary. Must load AFTER openui-defaults.css (main.tsx inject order). */
+@import url("./ui-css/openui-bridge.css");
+
 /* Risk board — the review tab's flat risk map (chips, groups, popover) */
 @import url("./ui-css/risk-board.css");
 

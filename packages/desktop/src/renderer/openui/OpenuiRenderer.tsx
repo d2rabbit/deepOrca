@@ -1,10 +1,11 @@
 /**
- * OpenuiRenderer — wraps @openuidev/react-lang's <Renderer> with DeepOrca's
- * component library and error handling.
+ * OpenuiRenderer — wraps @openuidev/react-lang's <Renderer> with the official
+ * @openuidev/react-ui component library (openuiLibrary, imported from the
+ * lean genui-lib entry) and DeepOrca's error handling.
  *
  * This is the OpenUI Lang equivalent of A2uiSurface. It takes raw OpenUI Lang
- * code (the compact `root = Column([...])` syntax) and renders it into React
- * components styled with DeepOrca's --ui-* CSS variables.
+ * code and renders it into the official components; DeepOrca's `--openui-*`
+ * token bridge (ui-css/openui-bridge.css) re-tints them to the active theme.
  *
  * Used exclusively by Designer (PM-Design pipeline) when mode === "openui".
  */
@@ -12,11 +13,28 @@
 import { type JSX, useEffect, useMemo, useRef, useState } from "react";
 import { Renderer, type ActionEvent } from "@openuidev/react-lang";
 import type { OpenUIError } from "@openuidev/lang-core";
+import { openuiLibrary } from "@openuidev/react-ui/genui-lib";
 import { useI18n } from "../i18n";
 import { deeporcaLibrary } from "./library";
 import { createDesignerToolProvider } from "./tool-provider";
 import { annotateActTags } from "./act-annotation";
 import { splitOpenuiErrors } from "./correction";
+
+/**
+ * Route code to its rendering library.
+ *
+ * New prototypes are authored against the OFFICIAL openuiLibrary (see
+ * pm-designer-openui SKILL.md, generated from openuiLibrary.prompt()). Suites
+ * generated before the switch use DeepOrca's first-party component names —
+ * Column/Row/Metric/Badge/Divider/Spacer/TextField exist ONLY in the legacy
+ * deeporcaLibrary, so their presence is a reliable legacy marker; shared
+ * names (Stack/Card/Button/TextContent) never trigger the fallback.
+ */
+const LEGACY_COMPONENT_PATTERN = /\b(?:Column|Row|Metric|Badge|Divider|Spacer|TextField)\(/;
+
+function resolveLibrary(code: string) {
+  return LEGACY_COMPONENT_PATTERN.test(code) ? deeporcaLibrary : openuiLibrary;
+}
 
 type Props = {
   /** Raw OpenUI Lang code from the agent's tool output. */
@@ -49,6 +67,8 @@ export function OpenuiRenderer({
 
   // Create the tool provider once (stable reference for the SDK).
   const toolProvider = useMemo(() => (enableTools ? createDesignerToolProvider() : undefined), [enableTools]);
+  // Official library for new code; legacy fallback for pre-switch suites.
+  const library = useMemo(() => resolveLibrary(code), [code]);
 
   // F6: Clear errors when code becomes empty (SDK's onError([]) doesn't fire
   // for empty response — see react-lang useOpenUIState early return).
@@ -130,7 +150,7 @@ export function OpenuiRenderer({
       ) : null}
       <Renderer
         response={code}
-        library={deeporcaLibrary}
+        library={library}
         isStreaming={false}
         onAction={onAction}
         onError={(errs) => {

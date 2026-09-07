@@ -267,6 +267,23 @@ async function copyStaticAssets() {
   } catch (err) {
     console.warn(`[desktop] @a2ui/react v0_9 stylesheet missing — a2ui surfaces render unstyled (${err.message})`);
   }
+  // Official OpenUI (react-ui) stylesheets: --openui-* token defaults,
+  // component styles, and the cascade-layered override styles. main.tsx
+  // injects them BEFORE ui.css so ui-css/openui-bridge.css re-binding wins.
+  // Copied from the installed dependency (same hoisting caveat as @a2ui).
+  try {
+    const openuiCandidates = [
+      resolve(__dirname, "../../node_modules/@openuidev/react-ui/dist"),
+      resolve(__dirname, "node_modules/@openuidev/react-ui/dist"),
+    ];
+    const openuiDist = openuiCandidates.find((c) => existsSync(c));
+    if (!openuiDist) throw new Error(`not found in ${openuiCandidates.join(" | ")}`);
+    await cp(resolve(openuiDist, "styles/openui-defaults.css"), resolve(outdir, "renderer/openui-defaults.css"));
+    await cp(resolve(openuiDist, "components/index.css"), resolve(outdir, "renderer/openui-components.css"));
+    await cp(resolve(openuiDist, "layered/styles/index.css"), resolve(outdir, "renderer/openui-styles.css"));
+  } catch (err) {
+    console.warn(`[desktop] @openuidev/react-ui stylesheets missing — OpenUI canvas renders unstyled (${err.message})`);
+  }
   await cp(resolve(__dirname, "src/renderer/styles.css"), resolve(outdir, "renderer/styles.css"));
   // Brand icon (orca): main process rasterizes dist/orca-icon.svg; renderer uses it as favicon.
   const orcaSvg = resolve(__dirname, "src/assets/orca-icon.svg");

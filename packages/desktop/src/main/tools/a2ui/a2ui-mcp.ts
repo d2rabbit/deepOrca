@@ -989,18 +989,21 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
     {
       description:
         "Render an OpenUI Lang program as an interactive prototype. " +
-        "OpenUI Lang is a compact, line-oriented language (e.g. `root = Column([title, form])`) " +
-        "that is ~3x more token-efficient than JSON. Use this for PM-Designer prototypes.\n\n" +
-        "Available components: Column, Row, Stack, Card, TextContent, Badge, Button, TextField, Metric, Divider, Spacer.\n" +
-        "Syntax: `identifier = ComponentName(prop1, prop2, ...)` where props are positional or named.\n" +
-        "Children are arrays: `[child1, child2]`. Forward references allowed.\n" +
+        "OpenUI Lang is a compact, line-oriented language that is ~3x more token-efficient than JSON. " +
+        "Use this for PM-Designer prototypes.\n\n" +
+        "Official component library (root = Stack): layout Stack/Card/CardHeader/Tabs/Accordion/Modal/Separator; " +
+        "content TextContent/MarkDownRenderer/Tag/Callout/CodeBlock/Image/ImageGallery/Carousel/Steps/ListBlock/SectionBlock; " +
+        "data Table/Col and charts (LineChart/BarChart/AreaChart/PieChart/RadarChart/...); " +
+        "forms Form/FormControl/Input/TextArea/Select/DatePicker/Slider/RadioGroup/CheckBoxGroup/SwitchGroup/Buttons.\n" +
+        "Syntax: `identifier = ComponentName(positional args)`, children are arrays, forward references allowed. " +
+        'State: `$page = "home"` + ternary views + `Action([@Set($page, "target")])` navigation — ONE interactive app, never stacked screens.\n' +
         "Example:\n" +
         "```\n" +
-        "root = Column([title, emailField, passwordField, submitBtn])\n" +
-        'title = TextContent("Sign In", "title")\n' +
-        'emailField = TextField("Email", "you@example.com", "text", "email")\n' +
-        'passwordField = TextField("Password", "", "password", "password")\n' +
-        'submitBtn = Button("Sign In", "submit:login", "primary")\n' +
+        '$page = "home"\n' +
+        'root = Stack([nav, $page == "home" ? homeView : loginView])\n' +
+        'nav = Stack([Button("登录", Action([@Set($page, "login")]))], "row")\n' +
+        'homeView = TextContent("概览", "large-heavy")\n' +
+        'loginView = TextContent("登录页", "large-heavy")\n' +
         "```",
       inputSchema: {
         code: z
@@ -1096,7 +1099,9 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
       description:
         "Replace an existing OpenUI Lang prototype with updated code. " +
         "Send the complete updated program (full replacement). " +
-        "To iterate efficiently, copy the previous code and modify only the parts that need changing.",
+        "To iterate efficiently, copy the previous code and modify only the parts that need changing. " +
+        "Preserve the $page state, ternary view switching, and Action([@Set...]) navigation — " +
+        "the result must stay ONE interactive application, not stacked screens.",
       inputSchema: {
         code: z.string().describe("Complete updated OpenUI Lang program (full replacement, not delta)."),
         ...suiteLineageSchema,

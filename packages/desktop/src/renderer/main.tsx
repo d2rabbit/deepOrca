@@ -1,5 +1,8 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
+// Must stay the FIRST import: pre-arms @openuidev/react-lang's DevTools
+// auto-mount guard before the SDK is evaluated (see openui/devtools-guard.ts).
+import "./openui/devtools-guard";
 import { App } from "./App";
 import { I18nProvider, useI18n } from "./i18n";
 import { MotionProvider } from "./ui/motion";
@@ -74,6 +77,13 @@ async function bootstrap(): Promise<void> {
   applyAppearance(resolveAppearance(platform, theme));
   if (theme === "line") applyLineVariant(getStoredLineVariant());
   await Promise.all([
+    // Official OpenUI stylesheets BEFORE our app css: defaults (the --openui-*
+    // token baseline), then component styles, then the layered override
+    // styles. ui.css loads last so ui-css/openui-bridge.css re-binds the
+    // tokens to DeepOrca's theme system and wins the cascade.
+    injectStylesheet("./openui-defaults.css"),
+    injectStylesheet("./openui-components.css"),
+    injectStylesheet("./openui-styles.css"),
     injectStylesheet("./ui.css"),
     // Official A2UI basic-catalog structural styles (copied by build.mjs).
     injectStylesheet("./a2ui-basic.css"),
