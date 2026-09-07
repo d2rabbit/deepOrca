@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../api";
 import { parseDesignHash, type DesignWorkspaceTabKind, type DesignWorkspaceTabSegment } from "../lib/design-deep-link";
 import type { MainTab } from "../lib/app-models";
@@ -73,20 +73,28 @@ export function useDesignWorkspaceTabs(
     setActiveTab((tab) => (tab.kind === "prototype" || tab.kind === "design" ? { kind: "chat" } : tab));
   }, [setActiveTab]);
 
-  // Hash deep links (mockup v2.1 demo states): open the named workspace for
-  // the most recent known root, then clear the hash so it stays inert. Kept
-  // here so App's composition root stays at its file-length ceiling.
+  // Hash deep links (mockup v2.1 demo states): open the named workspace, then
+  // clear the hash so it stays inert. Re-review M4: when a workspace of that
+  // kind is already open, REUSE its root+suiteId instead of force-switching to
+  // the most-recent workspace root (which could silently re-target the viewed
+  // suite); the most-recent root is only the fallback when nothing is open.
+  // Kept here so App's composition root stays at its file-length ceiling.
+  const openTabsRef = useRef<{ design: DesignWorkspaceTab[]; prototype: DesignWorkspaceTab[] }>({
+    design: [],
+    prototype: [],
+  });
+  openTabsRef.current = { design: designTabs, prototype: prototypeTabs };
   useEffect(() => {
     let cancelled = false;
     const open = async () => {
       const parsed = parseDesignHash(window.location.hash);
       if (!parsed) return;
       try {
-        const listing = await api.listWorkspaceSessions();
-        const root = listing.workspaces[0]?.root;
+        const existingTab = openTabsRef.current[parsed.kind][0];
+        const root = existingTab?.root ?? (await api.listWorkspaceSessions()).workspaces[0]?.root;
         if (!root || cancelled) return;
-        if (parsed.kind === "design") openDesignTab(root, undefined, parsed.tab);
-        else openPrototypeTab(root, undefined, parsed.tab);
+        if (parsed.kind === "design") openDesignTab(root, existingTab?.suiteId, parsed.tab);
+        else openPrototypeTab(root, existingTab?.suiteId, parsed.tab);
         window.history.replaceState(null, "", window.location.pathname + window.location.search);
       } catch {
         /* fail-open: a malformed hash is inert */

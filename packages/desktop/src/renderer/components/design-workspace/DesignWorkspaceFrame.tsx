@@ -32,8 +32,10 @@ function rootLabel(root: string): string {
 }
 
 /**
- * Store versions are oldest-first; the rail displays newest-first, so the
- * label for store index i is `v{length - i}` (v1 = oldest, newest = vN).
+ * Store versions are oldest-first: the label for store index i is `v{i + 1}`
+ * (v1 = oldest, newest = vN). Re-review L15 catch — the previous
+ * `v{length - i}` formula was inverted and mislabeled every hint/badge/meta
+ * surface (the rail itself renders over the reversed array and was correct).
  */
 export function versionLabel(
   versions: readonly { versionId: string }[] | undefined,
@@ -41,7 +43,7 @@ export function versionLabel(
 ): string | null {
   if (!versions || !versionId) return null;
   const index = versions.findIndex((version) => version.versionId === versionId);
-  return index === -1 ? null : `v${versions.length - index}`;
+  return index === -1 ? null : `v${index + 1}`;
 }
 
 export function DesignWorkspaceFrame<T extends string>({

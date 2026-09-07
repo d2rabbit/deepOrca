@@ -7,9 +7,12 @@
  *   - act-tag hover labels can be styled by CSS elsewhere (ui-css).
  *
  * OpenUI Lang sources already carry `data-sem`/`data-semantic-id` when the
- * author annotated a node semantically; those elements keep their identity and
- * are never touched here. This module only fills the gap for unlabeled
- * buttons/forms/anchors, deriving the action label from visible text.
+ * author annotated a node semantically; those identities are never
+ * overwritten. `data-sem` elements are skipped entirely; elements carrying
+ * ONLY `data-semantic-id` additionally RECEIVE `data-act` (additive, the
+ * semantic id is preserved) so the execute chip fires with a concrete action
+ * label. Everything else — unlabeled buttons/forms/anchors — gets its action
+ * label derived from visible text.
  */
 
 /** Longest slug accepted in a `data-act` value (keeps hover tags readable). */

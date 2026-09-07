@@ -7,7 +7,7 @@ import { PrototypePanel, type PrototypeSelection } from "../PrototypePanel";
 import { subscribeToSuiteChanges, suiteApi } from "./api";
 import { DesignWorkspaceFrame, versionLabel } from "./DesignWorkspaceFrame";
 import { FloatingDesignAgent } from "./FloatingDesignAgent";
-import { progressLabel } from "./progress-label";
+import { isTerminalProgress, progressLabel } from "./progress-label";
 import { SelectionPopover, type WorkspaceSelection } from "./SelectionPopover";
 import { diffLines, summarizeDiff } from "./diff";
 import type { DesignSuite, DesignSuiteVersion, PrototypeSuiteContent } from "./types";
@@ -95,6 +95,8 @@ export function PrototypeWorkspace({
   const [diff, setDiff] = useState<{ added: number; removed: number; lines: string[] } | null>(null);
 
   const loadSeq = useRef(0);
+  /** Suite currently viewed — re-targets clear the per-suite surfaces (M5). */
+  const viewedSuiteIdRef = useRef<string | null>(null);
   const load = useCallback(async () => {
     const seq = ++loadSeq.current;
     setLoading(true);
@@ -110,6 +112,14 @@ export function PrototypeWorkspace({
       }
       const next = await suiteApi.designSuiteRead(root, targetId);
       if (seq !== loadSeq.current) return;
+      if ((next?.id ?? null) !== viewedSuiteIdRef.current) {
+        // Re-target (suiteId prop change): clear the stale selection/diff so
+        // an old-canvas popover cannot revise the NEW suite (re-review M5).
+        viewedSuiteIdRef.current = next?.id ?? null;
+        setSelection(null);
+        setDiff(null);
+        setConfirmedSpecItems(new Set());
+      }
       setSuite(next);
       // Keep the user's version selection across background refreshes.
       setSelectedVersion((prev) =>
@@ -156,6 +166,8 @@ export function PrototypeWorkspace({
       if (event.actionId !== busy) return;
       // Per-workspace multiplexing: ignore runs belonging to another root.
       if (event.root && event.root !== root) return;
+      // Re-review L7: skip the raw unlocalized terminal "done" marker.
+      if (isTerminalProgress(event)) return;
       setProgress(progressLabel(event, t));
     });
   }, [busy, root, t]);
@@ -299,20 +311,14 @@ export function PrototypeWorkspace({
   };
 
   const executePrototypeAction = (action: string) => {
-    revise(t("prototypeWorkspace.executeInstruction", { action }), selection?.nodePath);
+    void revise(t("prototypeWorkspace.executeInstruction", { action }), selection?.nodePath);
   };
 
-  const handlePrototypeSelection = (next: PrototypeSelection | null) => {
-    setSelection(
-      next
-        ? {
-            nodePath: next.nodePath,
-            action: next.action,
-            bounds: next.bounds,
-          }
-        : null
-    );
-  };
+  // Memoized (re-review M3): a fresh identity per render made PrototypePanel's
+  // selection-effect resubscribe and re-emit on every workspace re-render.
+  const handlePrototypeSelection = useCallback((next: PrototypeSelection | null) => {
+    setSelection(next ? { nodePath: next.nodePath, action: next.action, bounds: next.bounds } : null);
+  }, []);
 
   const tabLabels = useMemo(
     () => ({
@@ -613,7 +619,7 @@ export function PrototypeWorkspace({
                         <button
                           type="button"
                           disabled={readOnly || busy !== null}
-                          onClick={() => revise(check.observation ?? check.label)}
+                          onClick={() => void revise(check.observation ?? check.label)}
                         >
                           <IconSparkle /> {t("prototypeWorkspace.fixFinding")}
                         </button>

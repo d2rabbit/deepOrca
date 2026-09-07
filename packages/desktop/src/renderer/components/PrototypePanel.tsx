@@ -218,6 +218,8 @@ export function PrototypePanel({
 
   /** Selected canvas element + metadata, kept for scroll-follow re-measure. */
   const selectionRef = useRef<{ element: HTMLElement; nodePath: string; action?: string } | null>(null);
+  /** Last emitted selection bounds — scroll-follow dedupe (re-review M3). */
+  const lastBoundsRef = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
 
   const handleSelectionCapture = useCallback(
     (event: MouseEvent<HTMLDivElement>) => {
@@ -230,6 +232,7 @@ export function PrototypePanel({
       // instead of re-selecting the whole canvas root (mockup: 点空白取消).
       if (!selectable || !root.contains(selectable) || selectable === root) {
         selectionRef.current = null;
+        lastBoundsRef.current = null;
         onSelectionChange(null);
         return;
       }
@@ -240,11 +243,13 @@ export function PrototypePanel({
         nodePath: prototypeNodePath(selectable, root),
         action: selectable.dataset.action ?? selectable.getAttribute("data-act") ?? undefined,
       };
-      const bounds = selectable.getBoundingClientRect();
+      const rect = selectable.getBoundingClientRect();
+      const bounds = { x: rect.left, y: rect.top, width: rect.width, height: rect.height };
+      lastBoundsRef.current = bounds;
       onSelectionChange({
         nodePath: selectionRef.current.nodePath,
         ...(selectionRef.current.action ? { action: selectionRef.current.action } : {}),
-        bounds: { x: bounds.left, y: bounds.top, width: bounds.width, height: bounds.height },
+        bounds,
       });
     },
     [mode, onSelectionChange, selectionEnabled]
@@ -252,7 +257,9 @@ export function PrototypePanel({
 
   // Scroll-follow (mockup placePop): re-measure the selected element on any
   // scroll (capture phase catches every scrolling ancestor); the selection is
-  // dropped only when the element itself left the DOM.
+  // dropped only when the element itself left the DOM. Re-review M3: emit only
+  // when the bounds actually moved — identical frames must not churn the
+  // workspace re-render loop.
   useEffect(() => {
     if (!selectionEnabled || mode !== "openui" || !onSelectionChange) return;
     const remeasure = () => {
@@ -260,14 +267,27 @@ export function PrototypePanel({
       if (!current) return;
       if (!current.element.isConnected) {
         selectionRef.current = null;
+        lastBoundsRef.current = null;
         onSelectionChange(null);
         return;
       }
-      const bounds = current.element.getBoundingClientRect();
+      const rect = current.element.getBoundingClientRect();
+      const last = lastBoundsRef.current;
+      if (
+        last &&
+        last.x === rect.left &&
+        last.y === rect.top &&
+        last.width === rect.width &&
+        last.height === rect.height
+      ) {
+        return;
+      }
+      const bounds = { x: rect.left, y: rect.top, width: rect.width, height: rect.height };
+      lastBoundsRef.current = bounds;
       onSelectionChange({
         nodePath: current.nodePath,
         ...(current.action ? { action: current.action } : {}),
-        bounds: { x: bounds.left, y: bounds.top, width: bounds.width, height: bounds.height },
+        bounds,
       });
     };
     document.addEventListener("scroll", remeasure, { capture: true, passive: true });

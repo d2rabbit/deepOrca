@@ -55,7 +55,9 @@ export function WorkspaceDirectory({ activeRoot, kind, title }: Props): JSX.Elem
 
   // Known workspace roots, read inside the subscription without re-subscribing
   // on every refresh (the subscription must stay mounted for the app lifetime).
-  const knownRootsRef = useRef<ReadonlySet<string>>(new Set());
+  // Seeded with the ACTIVE root so events arriving before the first groups
+  // commit are not dropped (re-review L9).
+  const knownRootsRef = useRef<ReadonlySet<string>>(new Set([activeRoot]));
   useEffect(() => {
     knownRootsRef.current = new Set(groups.map((group) => group.root));
   }, [groups]);
@@ -64,9 +66,15 @@ export function WorkspaceDirectory({ activeRoot, kind, title }: Props): JSX.Elem
     return subscribeToSuiteChanges((event) => {
       if (!knownRootsRef.current.has(event.root)) return;
       // Per-root incremental refresh (mockup: 目录分组随事件只更新本组).
-      void suiteApi.designSuiteList(event.root, kind).then((suites) => {
-        setGroups((current) => current.map((group) => (group.root === event.root ? { ...group, suites } : group)));
-      });
+      void suiteApi
+        .designSuiteList(event.root, kind)
+        .then((suites) => {
+          setGroups((current) => current.map((group) => (group.root === event.root ? { ...group, suites } : group)));
+        })
+        .catch(() => {
+          // re-review L9: an unhandled rejection on a failed refresh must not
+          // surface as a renderer error — the next event retries.
+        });
     });
   }, [kind]);
 

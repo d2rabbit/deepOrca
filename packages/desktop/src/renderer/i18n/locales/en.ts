@@ -1681,7 +1681,8 @@ export const en = {
   "designWorkspace.progressTokensRender": "Rendering the page and extracting tokens…",
   "designWorkspace.progressTokensDone": "Token extraction complete",
   "designWorkspace.progressDriftCompare": "Comparing the current design against the baseline…",
-  "designWorkspace.progressDriftDone": "Drift check complete",
+  "designWorkspace.progressDriftDetected": "Brand drift detected — see the result chip for the score.",
+  "designWorkspace.progressDriftDone": "Drift check complete — within baseline.",
   "designWorkspace.toastThemeSwitched":
     "Theme switched — preview chrome re-tinted; generate a new version to apply the full system.",
   "designWorkspace.status.draft": "Draft",

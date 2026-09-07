@@ -26,12 +26,17 @@ export function FloatingDesignAgent({ tabLabel, quickItems, disabled, busy, onSu
   const [typing, setTyping] = useState(false);
   const bodyRef = useRef<HTMLDivElement | null>(null);
 
-  // Welcome bubble on first expand (mockup pdlgBody first agent message).
+  // Welcome bubble on first expand (mockup pdlgBody first agent message), and
+  // re-injected in the new language on locale switch while the log is still
+  // just the welcome (re-review L8 — it used to freeze the first locale).
+  // Guards on the TEXT: setMessages makes a new array, so an unguarded
+  // length-only check would re-fire its own effect forever.
   useEffect(() => {
-    if (!collapsed && messages.length === 0) {
-      setMessages([{ role: "agent", text: t("prototypeWorkspace.agentWelcome") }]);
-    }
-  }, [collapsed, messages.length, t]);
+    if (collapsed || messages.length > 1) return;
+    const welcome = t("prototypeWorkspace.agentWelcome");
+    if (messages[0]?.text === welcome) return;
+    setMessages([{ role: "agent", text: welcome }]);
+  }, [collapsed, messages, t]);
 
   // Keep the newest message visible (mockup scrolls the body); jsdom has no
   // Element.scrollTo, so guard on the capability.

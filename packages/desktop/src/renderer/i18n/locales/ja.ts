@@ -1682,7 +1682,8 @@ export const ja: Record<MessageKey, string> = {
   "designWorkspace.progressTokensRender": "ページを描画してトークンを抽出中…",
   "designWorkspace.progressTokensDone": "トークン抽出完了",
   "designWorkspace.progressDriftCompare": "ベースラインとドリフト比較中…",
-  "designWorkspace.progressDriftDone": "ドリフトチェック完了",
+  "designWorkspace.progressDriftDetected": "ブランドドリフトを検出 — スコアは結果バッジを参照。",
+  "designWorkspace.progressDriftDone": "ドリフトチェック完了 — ベースライン内。",
   "designWorkspace.toastThemeSwitched":
     "テーマを切り替えました — プレビューコンテナを再染色。「プロトタイプから生成」でシステム全体を適用します。",
   "designWorkspace.status.draft": "下書き",

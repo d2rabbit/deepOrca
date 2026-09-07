@@ -1674,7 +1674,8 @@ export const ko: Record<MessageKey, string> = {
   "designWorkspace.progressTokensRender": "페이지를 렌더링하고 토큰을 추출 중…",
   "designWorkspace.progressTokensDone": "토큰 추출 완료",
   "designWorkspace.progressDriftCompare": "기준선과 드리프트 비교 중…",
-  "designWorkspace.progressDriftDone": "드리프트 검사 완료",
+  "designWorkspace.progressDriftDetected": "브랜드 드리프트 감지 — 점수는 결과 배지 참조.",
+  "designWorkspace.progressDriftDone": "드리프트 검사 완료 — 기준선 내.",
   "designWorkspace.toastThemeSwitched":
     "테마가 전환되었습니다 — 미리보기 컨테이너가 다시 채색되었습니다. 전체 시스템 적용은 「프로토타입에서 생성」을 실행하세요.",
   "designWorkspace.status.draft": "초안",

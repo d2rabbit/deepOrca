@@ -17,14 +17,22 @@ const PROGRESS_KEYS: Record<string, MessageKey> = {
   "design.tokens.rendering": "designWorkspace.progressTokensRender",
   "design.tokens.extracted": "designWorkspace.progressTokensDone",
   "design.drift.comparing": "designWorkspace.progressDriftCompare",
-  "design.drift.done": "designWorkspace.progressDriftDone",
+  "design.drift.detected": "designWorkspace.progressDriftDetected",
+  "design.drift.clean": "designWorkspace.progressDriftDone",
 };
+
+export { PROGRESS_KEYS };
 
 type ProgressEventLike = {
   message: string;
   percent?: number;
   data?: unknown;
 };
+
+/** True for the terminal marker the action runner stamps (raw "done"). */
+export function isTerminalProgress(event: ProgressEventLike): boolean {
+  return typeof event.data === "object" && event.data !== null && (event.data as { done?: unknown }).done === true;
+}
 
 /** Localized `${percent}% — label` for a progress event (raw message fallback). */
 export function progressLabel(event: ProgressEventLike, translate: (key: MessageKey) => string): string {

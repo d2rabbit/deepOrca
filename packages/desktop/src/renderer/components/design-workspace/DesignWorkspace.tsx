@@ -8,7 +8,7 @@ import { subscribeToSuiteChanges, suiteApi } from "./api";
 import { DesignWorkspaceFrame, versionLabel } from "./DesignWorkspaceFrame";
 import { FloatingDesignAgent } from "./FloatingDesignAgent";
 import { paletteFor } from "./palettes";
-import { progressLabel } from "./progress-label";
+import { isTerminalProgress, progressLabel } from "./progress-label";
 import { SelectionPopover, type WorkspaceSelection } from "./SelectionPopover";
 import { diffLines, summarizeDiff } from "./diff";
 import type { DesignSuite, DesignSuiteVersion, DesignSystemCatalogItem, UiSuiteContent } from "./types";
@@ -107,11 +107,17 @@ export function DesignWorkspace({
     return api.onActionProgress((event) => {
       if (event.actionId !== busy) return;
       if (event.root && event.root !== root) return;
+      // Re-review L7: the terminal {done:true} marker would flash a raw
+      // unlocalized "100% — done" before busy clears — skip it.
+      if (isTerminalProgress(event)) return;
       setProgress(progressLabel(event, t));
     });
   }, [busy, root, t]);
 
   const loadSeq = useRef(0);
+  /** Id of the suite the workspaces currently view — a re-target (suiteId prop
+   *  change) must clear the selection/drift/diff surfaces (re-review M5). */
+  const viewedSuiteIdRef = useRef<string | null>(null);
   const load = useCallback(async () => {
     const seq = ++loadSeq.current;
     setLoading(true);
@@ -156,6 +162,12 @@ export function DesignWorkspace({
       }
       const next = await suiteApi.designSuiteRead(root, targetId);
       if (seq !== loadSeq.current) return;
+      if ((next?.id ?? null) !== viewedSuiteIdRef.current) {
+        viewedSuiteIdRef.current = next?.id ?? null;
+        setSelection(null);
+        setDrift(null);
+        setDiff(null);
+      }
       setSuite(next);
       // Keep the user's version selection across background refreshes (mockup
       // 版本漫游); only snap back when the viewed version no longer exists.
@@ -379,9 +391,10 @@ export function DesignWorkspace({
     });
   };
 
-  const handleSelection = (next: PrototypeSelection | null) => {
+  // Memoized (re-review M3): stable identity for PrototypePanel's effect deps.
+  const handleSelection = useCallback((next: PrototypeSelection | null) => {
     setSelection(next ? { nodePath: next.nodePath, action: next.action, bounds: next.bounds } : null);
-  };
+  }, []);
 
   /** Rendered atom wall tinted by the version's design tokens. */
   const atomStyle = useMemo(() => {
@@ -572,6 +585,9 @@ export function DesignWorkspace({
                   value={designSystemId}
                   disabled={readOnly || busy !== null}
                   onChange={(event) => {
+                    // Re-review L12: keyboard browsing fires change per arrow
+                    // key — toast only on an actual value switch.
+                    if (event.target.value === designSystemId) return;
                     setDesignSystemId(event.target.value);
                     pushDesignToast("success", t("designWorkspace.toastThemeSwitched"));
                   }}
@@ -789,7 +805,7 @@ export function DesignWorkspace({
                       <button
                         type="button"
                         disabled={readOnly || busy !== null}
-                        onClick={() => revise(finding.suggestion ?? finding.message, finding.nodePath)}
+                        onClick={() => void revise(finding.suggestion ?? finding.message, finding.nodePath)}
                       >
                         <IconSparkle /> {t("prototypeWorkspace.fixFinding")}
                       </button>
