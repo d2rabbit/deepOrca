@@ -465,6 +465,13 @@ function resolveArtifactDir(root: string, id: string): string | null {
   return resolved === path.join(base, id) ? resolved : null;
 }
 
+/** Suite directory on disk (containment-checked) — home of derivative files
+ *  such as slides.html / slides.pdf (specs/artifact-landing 链路 B). Null
+ *  when the id is unsafe. */
+export function designSuiteDir(root: string, id: string): string | null {
+  return resolveArtifactDir(root, id);
+}
+
 function resolveContainedFile(dir: string, ...segments: string[]): string | null {
   const base = path.resolve(dir);
   const resolved = path.resolve(base, ...segments);

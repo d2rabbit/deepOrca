@@ -1,4 +1,5 @@
 import { readFileSync, readdirSync } from "node:fs";
+import { writeFile } from "node:fs/promises";
 import { dirname, extname, join, parse } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -30,6 +31,7 @@ import {
 import {
   deleteDesignArtifact,
   deleteDesignSuite,
+  designSuiteDir,
   listDesignArtifacts,
   listDesignSuites,
   onDesignStoreChange,
@@ -40,6 +42,8 @@ import {
   readFormState,
   saveFormState,
 } from "./tools/design-store.js";
+import { buildSlidesHtml, renderSpecSlides, type SpecSlidesAppearance } from "./tools/spec-slides.js";
+import { buildImplementationBrief } from "./tools/prototype-brief.js";
 
 export interface DesignIpcHelpers {
   handle: <T>(channel: string, fn: (...args: never[]) => T | Promise<T>) => void;
@@ -70,6 +74,9 @@ export interface DesignIpcDeps {
   resolveRegisteredRoot(root?: string): string | null;
   emit(channel: string, payload: unknown): void;
   savePackage(data: Buffer, options: DesignPackageSaveOptions): Promise<{ ok: boolean; path?: string; error?: string }>;
+  /** Offscreen Chromium print-to-PDF (specs/artifact-landing B9) — injected by
+   *  main/index.ts where Electron lives; design-ipc stays Electron-free. */
+  renderPdf?: (htmlPath: string) => Promise<Uint8Array>;
   store?: DesignStoreOps;
   readCatalog?: () => DesignSystemCatalogItem[];
 }
@@ -309,4 +316,94 @@ export function registerDesignIpc(helpers: DesignIpcHelpers, deps: DesignIpcDeps
     return state && typeof state === "object" && !Array.isArray(state) ? (state as Record<string, unknown>) : null;
   });
   handle(IpcRequest.DesignSystemCatalog, () => (deps.readCatalog ?? readDesignSystemCatalog)());
+
+  // ── Spec → slides (specs/artifact-landing 链路 B) ────────────────────────
+  /** Resolve the spec markdown of a suite version (current when versionId is
+   *  omitted) — null when anything is missing or the spec is empty. */
+  const suiteSpecSource = (root: string, id: string, versionId?: string) => {
+    const suite = store.readSuite(root, id);
+    if (!suite || suite.kind !== "prototype") return null;
+    const version = versionId ? store.readSuiteVersion(root, id, versionId) : suite.currentVersion;
+    if (!version) return null;
+    const spec = (version.content as PrototypeSuiteContent).spec;
+    return typeof spec === "string" && spec.trim() ? { spec, title: suite.title } : null;
+  };
+
+  handle(
+    IpcRequest.PrototypeSpecSlides,
+    (root: string, id: string, versionId?: string, appearance?: SpecSlidesAppearance) => {
+      const resolved = pinned(root);
+      const source = resolved ? suiteSpecSource(resolved, id, versionId) : null;
+      if (!source) return { ok: false, error: "spec not found" };
+      try {
+        return { ok: true, ...renderSpecSlides(source.spec, { title: source.title, appearance }) };
+      } catch (error) {
+        return { ok: false, error: `slide render failed: ${error instanceof Error ? error.message : String(error)}` };
+      }
+    }
+  );
+
+  handlePrivileged(
+    IpcRequest.PrototypeSpecExportSlides,
+    async (
+      root: string,
+      id: string,
+      kind: "html" | "pdf",
+      versionId?: string,
+      appearance?: SpecSlidesAppearance
+    ): Promise<{ ok: boolean; path?: string; blockedRemote?: number; error?: string }> => {
+      const resolved = pinned(root);
+      if (!resolved) return { ok: false, error: "unregistered workspace" };
+      const source = suiteSpecSource(resolved, id, versionId);
+      if (!source) return { ok: false, error: "spec not found" };
+      const dir = designSuiteDir(resolved, id);
+      if (!dir) return { ok: false, error: "unsafe suite id" };
+      if (kind === "pdf" && !deps.renderPdf) return { ok: false, error: "pdf renderer unavailable" };
+      try {
+        const rendered = renderSpecSlides(source.spec, { title: source.title, appearance });
+        // The HTML derivative is always written (it is the PDF's source too);
+        // the versioned content model is never touched (B11).
+        const htmlPath = join(dir, "slides.html");
+        await writeFile(htmlPath, buildSlidesHtml(rendered.html, rendered.css, source.title), "utf-8");
+        if (kind === "pdf") {
+          const bytes = await deps.renderPdf!(htmlPath);
+          const pdfPath = join(dir, "slides.pdf");
+          await writeFile(pdfPath, bytes);
+          return { ok: true, path: pdfPath, blockedRemote: rendered.remoteImages };
+        }
+        return { ok: true, path: htmlPath, blockedRemote: rendered.remoteImages };
+      } catch (error) {
+        return { ok: false, error: `slide export failed: ${error instanceof Error ? error.message : String(error)}` };
+      }
+    }
+  );
+
+  // Implementation brief (specs/artifact-landing 链路 C): deterministic
+  // template engine over the suite's spec — gaps block generation (C14) and
+  // the derivative brief.md never touches the versioned content model.
+  handlePrivileged(
+    IpcRequest.PrototypeBuildBrief,
+    async (root: string, id: string, versionId?: string, locale?: string) => {
+      const resolved = pinned(root);
+      if (!resolved) return { ok: false, error: "unregistered workspace" };
+      const source = suiteSpecSource(resolved, id, versionId);
+      if (!source) return { ok: false, error: "spec not found" };
+      const dir = designSuiteDir(resolved, id);
+      if (!dir) return { ok: false, error: "unsafe suite id" };
+      try {
+        const brief = buildImplementationBrief({
+          kind: "spec",
+          specMd: source.spec,
+          title: source.title,
+          locale: locale ?? "zh",
+        });
+        if (!brief.ok) return { ok: false, gaps: brief.gaps ?? [], error: "brief has unresolved gaps" };
+        const briefPath = join(dir, "brief.md");
+        await writeFile(briefPath, brief.briefMd ?? "", "utf-8");
+        return { ok: true, briefMd: brief.briefMd, path: briefPath };
+      } catch (error) {
+        return { ok: false, error: `brief build failed: ${error instanceof Error ? error.message : String(error)}` };
+      }
+    }
+  );
 }

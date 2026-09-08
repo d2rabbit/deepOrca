@@ -93,6 +93,18 @@ export function PrototypeWorkspace({
   /** Confirmed 待确认 items (per selected version, session scope). */
   const [confirmedSpecItems, setConfirmedSpecItems] = useState<ReadonlySet<string>>(new Set());
   const [diff, setDiff] = useState<{ added: number; removed: number; lines: string[] } | null>(null);
+  /** Spec → slides view (specs/artifact-landing 链路 B): lazily rendered by
+   *  the main process on first open per version; keyed cache per versionId. */
+  const [specView, setSpecView] = useState<"doc" | "slides">("doc");
+  const [slides, setSlides] = useState<{
+    html: string;
+    css: string;
+    pages: number;
+    remoteImages: number;
+  } | null>(null);
+  const [slidesBusy, setSlidesBusy] = useState(false);
+  const [slidesPage, setSlidesPage] = useState(1);
+  const slidesFrameRef = useRef<HTMLIFrameElement | null>(null);
 
   const loadSeq = useRef(0);
   /** Suite currently viewed — re-targets clear the per-suite surfaces (M5). */
@@ -196,6 +208,122 @@ export function PrototypeWorkspace({
     () => specTodos.filter((item) => !confirmedSpecItems.has(item)),
     [specTodos, confirmedSpecItems]
   );
+
+  // ── Spec → slides (specs/artifact-landing 链路 B) ────────────────────────
+  const slidesPagesRef = useRef(0);
+  /** Lazy main-process render: first open of the slides view per version —
+   *  the document view never pays for it. Appearance read from the DOM root
+   *  (same channel every leaf component uses). */
+  useEffect(() => {
+    if (tab !== "spec" || specView !== "slides" || !suite || !selectedVersion || !content.spec) return;
+    if (slides) return;
+    let alive = true;
+    setSlidesBusy(true);
+    const appearance = document.documentElement.dataset.appearance === "dark" ? "dark" : "light";
+    api
+      .prototypeSpecSlides(root, suite.id, selectedVersion.versionId, appearance)
+      .then((res) => {
+        if (!alive) return;
+        if (res.ok && res.html && res.css) {
+          const data = { html: res.html, css: res.css, pages: res.pages ?? 0, remoteImages: res.remoteImages ?? 0 };
+          slidesPagesRef.current = data.pages;
+          setSlides(data);
+        } else {
+          setError(res.error ?? "slide render failed");
+          setSpecView("doc");
+        }
+      })
+      .catch((cause: unknown) => {
+        if (alive) setError(cause instanceof Error ? cause.message : String(cause));
+      })
+      .finally(() => {
+        if (alive) setSlidesBusy(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [tab, specView, slides, suite, selectedVersion, content.spec, root]);
+  /** Reset the per-version cache when the viewed version changes. */
+  useEffect(() => {
+    setSlides(null);
+    setSlidesPage(1);
+  }, [selectedVersion?.versionId, suite?.id]);
+  /** ←/→ paging: the deck is a stack of 100vh SVG slides inside the frame;
+   *  scroll it viewport-by-viewport (sandbox keeps the frame script-free). */
+  const slideStep = (dir: 1 | -1): void => {
+    const win = slidesFrameRef.current?.contentWindow;
+    if (!win) return;
+    win.scrollBy({ top: dir * win.innerHeight, behavior: "smooth" });
+  };
+  const handleSlidesFrameLoad = (): void => {
+    const win = slidesFrameRef.current?.contentWindow;
+    if (!win) return;
+    win.addEventListener("scroll", () => {
+      const page = Math.round(win.scrollY / Math.max(1, win.innerHeight)) + 1;
+      setSlidesPage(Math.min(Math.max(1, page), Math.max(1, slidesPagesRef.current)));
+    });
+  };
+  const exportSlides = (kind: "html" | "pdf"): void => {
+    if (!suite || !selectedVersion || !content.spec) return;
+    const appearance = document.documentElement.dataset.appearance === "dark" ? "dark" : "light";
+    api
+      .prototypeSpecExportSlides(root, suite.id, kind, selectedVersion.versionId, appearance)
+      .then((res) => {
+        if (res.ok && res.path) {
+          pushDesignToast("success", t("prototypeWorkspace.slidesExported", { path: res.path }));
+          if (res.blockedRemote) {
+            pushDesignToast("error", t("prototypeWorkspace.slidesRemoteBlocked", { count: res.blockedRemote }));
+          }
+        } else {
+          pushDesignToast("error", t("prototypeWorkspace.slidesExportFailed", { error: res.error ?? "" }));
+        }
+      })
+      .catch((cause: unknown) => {
+        pushDesignToast(
+          "error",
+          t("prototypeWorkspace.slidesExportFailed", { error: cause instanceof Error ? cause.message : String(cause) })
+        );
+      });
+  };
+
+  // ── Implementation brief (specs/artifact-landing 链路 C) ─────────────────
+  const [briefMd, setBriefMd] = useState<string | null>(null);
+  /** Reset the brief when the viewed version changes (it documents one spec). */
+  useEffect(() => {
+    setBriefMd(null);
+  }, [selectedVersion?.versionId, suite?.id]);
+
+  const buildBrief = async (): Promise<void> => {
+    if (!suite || !selectedVersion || !content.spec || readOnly) return;
+    const locale = document.documentElement.lang || "zh";
+    try {
+      const res = await api.prototypeBuildBrief(root, suite.id, selectedVersion.versionId, locale);
+      if (res.ok && res.briefMd) {
+        setBriefMd(res.briefMd);
+        pushDesignToast("success", t("prototypeWorkspace.briefOk", { path: res.path ?? "" }));
+      } else if (res.gaps && res.gaps.length > 0) {
+        pushDesignToast("error", t("prototypeWorkspace.briefGaps", { gaps: res.gaps.join("、") }));
+      } else {
+        pushDesignToast("error", t("prototypeWorkspace.briefFailed", { error: res.error ?? "" }));
+      }
+    } catch (cause) {
+      pushDesignToast(
+        "error",
+        t("prototypeWorkspace.briefFailed", { error: cause instanceof Error ? cause.message : String(cause) })
+      );
+    }
+  };
+
+  /** C15: hand the brief to the composer (prefill keeps the user in control —
+   *  a direct cross-workspace auto-send would risk posting to the wrong root). */
+  const injectBrief = (brief: string): void => {
+    if (onQuoteToChat) {
+      onQuoteToChat(brief);
+      pushDesignToast("success", t("prototypeWorkspace.briefInjectOk"));
+    } else {
+      pushDesignToast("error", t("prototypeWorkspace.briefInjectUnavailable"));
+    }
+  };
 
   /** Report grouping (mockup rp-file): checks clustered by their action's
    *  namespace ("auth:submit" → "auth"); checks without an action land in
@@ -441,6 +569,20 @@ export function PrototypeWorkspace({
                   })}
                 </span>
               ) : null}
+              {content.spec ? (
+                <div className="seg ui-design-spec-viewseg" role="tablist">
+                  <button type="button" className={specView === "doc" ? "on" : ""} onClick={() => setSpecView("doc")}>
+                    {t("prototypeWorkspace.specViewDoc")}
+                  </button>
+                  <button
+                    type="button"
+                    className={specView === "slides" ? "on" : ""}
+                    onClick={() => setSpecView("slides")}
+                  >
+                    {t("prototypeWorkspace.specViewSlides")}
+                  </button>
+                </div>
+              ) : null}
             </div>
             <div className="ui-design-spec-card">
               <label htmlFor="ui-design-spec-input">{t("prototypeWorkspace.requirementPrompt")}</label>
@@ -459,7 +601,55 @@ export function PrototypeWorkspace({
               </footer>
               {busy === "prototype.spec" && progress ? <div className="ui-design-gen-progress">{progress}</div> : null}
             </div>
-            {content.spec ? (
+            {specView === "slides" && content.spec ? (
+              <div className="ui-design-slides">
+                <div className="ui-design-slides-toolbar">
+                  <span className="ui-design-vbadge">
+                    {versionLabel(suite?.versions, selectedVersion?.versionId ?? "") ?? "-"}
+                  </span>
+                  <button type="button" onClick={() => slideStep(-1)} aria-label={t("prototypeWorkspace.slidesPrev")}>
+                    ‹
+                  </button>
+                  <span className="ui-design-slides-page">
+                    {t("prototypeWorkspace.slidesPage", {
+                      current: Math.min(slidesPage, Math.max(1, slides?.pages ?? 1)),
+                      total: slides?.pages ?? 0,
+                    })}
+                  </span>
+                  <button type="button" onClick={() => slideStep(1)} aria-label={t("prototypeWorkspace.slidesNext")}>
+                    ›
+                  </button>
+                  <span className="ui-design-slides-spacer" />
+                  <button type="button" disabled={!slides || slidesBusy} onClick={() => exportSlides("html")}>
+                    {t("prototypeWorkspace.slidesExportHtml")}
+                  </button>
+                  <button
+                    type="button"
+                    className="primary"
+                    disabled={!slides || slidesBusy}
+                    onClick={() => exportSlides("pdf")}
+                  >
+                    {t("prototypeWorkspace.slidesExportPdf")}
+                  </button>
+                </div>
+                {slidesBusy ? (
+                  <div className="ui-design-slides-state">
+                    <span className="ui-spinner" />
+                  </div>
+                ) : slides ? (
+                  <iframe
+                    ref={slidesFrameRef}
+                    className="ui-design-slides-frame"
+                    title={t("prototypeWorkspace.specViewSlides")}
+                    sandbox="allow-same-origin"
+                    srcDoc={`<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;padding:0}${slides.css}</style></head><body>${slides.html}</body></html>`}
+                    onLoad={handleSlidesFrameLoad}
+                  />
+                ) : (
+                  <div className="ui-design-slides-state">{t("prototypeWorkspace.noSpec")}</div>
+                )}
+              </div>
+            ) : content.spec ? (
               markdownSections(content.spec).map((section, index) => (
                 <section className="ui-design-spec-section" key={`${section.heading}-${index}`}>
                   {section.heading ? <h2>{section.heading}</h2> : null}
@@ -470,7 +660,7 @@ export function PrototypeWorkspace({
               <div className="ui-report-empty">{t("prototypeWorkspace.noSpec")}</div>
             )}
             {/* 待确认逐条勾选（页内定稿流，确认不派发动作/不建版本）。 */}
-            {specTodos.length > 0 ? (
+            {specView === "doc" && specTodos.length > 0 ? (
               <section className="ui-design-spec-section ui-design-spec-todos">
                 <header className="ui-design-spec-todos-head">
                   <h2>{t("prototypeWorkspace.todosTitle")}</h2>
@@ -495,7 +685,7 @@ export function PrototypeWorkspace({
                 })}
               </section>
             ) : null}
-            {content.spec ? (
+            {specView === "doc" && content.spec ? (
               <div className="ui-design-spec-cta">
                 <button
                   type="button"
@@ -505,6 +695,14 @@ export function PrototypeWorkspace({
                 >
                   <IconPalette /> {t("prototypeWorkspace.materialize")}
                 </button>
+                <button type="button" disabled={busy !== null || readOnly} onClick={() => void buildBrief()}>
+                  {t("prototypeWorkspace.briefGenerate")}
+                </button>
+                {briefMd ? (
+                  <button type="button" className="primary" onClick={() => injectBrief(briefMd)}>
+                    {t("prototypeWorkspace.briefInject")}
+                  </button>
+                ) : null}
               </div>
             ) : null}
           </article>
