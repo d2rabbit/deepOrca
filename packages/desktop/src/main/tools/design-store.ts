@@ -105,6 +105,8 @@ export interface PrototypeSuiteContent {
   spec?: string;
   openui?: string;
   verification?: PrototypeVerificationResult;
+  /** Technical architecture document (user ask 2026-09-08 技术架构模块). */
+  arch?: string;
 }
 
 export interface UiSuiteContent {

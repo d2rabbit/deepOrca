@@ -72,6 +72,8 @@ import {
   prototypeVerifyRun,
   prototypeReviseDefinition,
   prototypeReviseRun,
+  prototypeArchDefinition,
+  prototypeArchRun,
   taskCreateDefinition,
   taskCreateRun,
   taskStepDefinition,
@@ -475,6 +477,7 @@ export abstract class SessionManagerBase {
     this.actionRegistry.register(prototypeSpecDefinition, prototypeSpecRun);
     this.actionRegistry.register(prototypeMaterializeDefinition, prototypeMaterializeRun);
     this.actionRegistry.register(prototypeVerifyDefinition, prototypeVerifyRun);
+    this.actionRegistry.register(prototypeArchDefinition, prototypeArchRun);
     this.actionRegistry.register(prototypeReviseDefinition, prototypeReviseRun);
     // ── Phase 3: task trajectory actions (specs/task-tree P0) ────────────────
     // The tree service is the single writer of .deeporca/task-trees/** and is

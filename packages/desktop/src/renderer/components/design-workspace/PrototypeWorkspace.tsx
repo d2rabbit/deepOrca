@@ -12,8 +12,9 @@ import { SelectionPopover, type WorkspaceSelection } from "./SelectionPopover";
 import { diffLines, summarizeDiff } from "./diff";
 import type { DesignSuite, DesignSuiteVersion, PrototypeSuiteContent } from "./types";
 import { isPrototypeContent } from "./types";
+import { StreamdownView } from "../StreamdownView";
 
-type PrototypeTab = "spec" | "proto" | "report";
+type PrototypeTab = "spec" | "proto" | "report" | "arch";
 
 export type PrototypeWorkspaceProps = {
   root: string;
@@ -43,29 +44,7 @@ function artifactRefFromResult(
     : null;
 }
 
-function markdownSections(markdown: string): Array<{ heading: string; body: string }> {
-  const sections: Array<{ heading: string; body: string }> = [];
-  let heading = "";
-  let body: string[] = [];
-  const flush = () => {
-    const text = body.join("\n").trim();
-    if (heading || text) sections.push({ heading, body: text });
-    body = [];
-  };
-  for (const line of markdown.split("\n")) {
-    const match = /^#{1,3}\s+(.+)$/.exec(line);
-    if (match) {
-      flush();
-      heading = match[1];
-    } else {
-      body.push(line);
-    }
-  }
-  flush();
-  return sections;
-}
-
-const tabs: readonly PrototypeTab[] = ["spec", "proto", "report"];
+const tabs: readonly PrototypeTab[] = ["spec", "proto", "report", "arch"];
 
 export function PrototypeWorkspace({
   root,
@@ -77,11 +56,15 @@ export function PrototypeWorkspace({
   const { t, locale } = useI18n();
   const [suite, setSuite] = useState<DesignSuite | null>(null);
   const [selectedVersion, setSelectedVersion] = useState<DesignSuiteVersion | null>(null);
-  const validInitial: PrototypeTab = initialTab === "proto" || initialTab === "report" ? initialTab : "spec";
+  const validInitial: PrototypeTab =
+    initialTab === "proto" || initialTab === "report" || initialTab === "arch" ? initialTab : "spec";
   const [tab, setTab] = useState<PrototypeTab>(validInitial);
   useEffect(() => {
-    // Mid-session deep links (#prototype/report) retarget the open workspace.
-    if (initialTab === "spec" || initialTab === "proto" || initialTab === "report") setTab(initialTab);
+    // Mid-session deep links (#prototype/report, #prototype/arch) retarget the
+    // open workspace.
+    if (initialTab === "spec" || initialTab === "proto" || initialTab === "report" || initialTab === "arch") {
+      setTab(initialTab);
+    }
   }, [initialTab]);
   const [requirement, setRequirement] = useState("");
   const [selection, setSelection] = useState<WorkspaceSelection | null>(null);
@@ -94,7 +77,9 @@ export function PrototypeWorkspace({
   const [confirmedSpecItems, setConfirmedSpecItems] = useState<ReadonlySet<string>>(new Set());
   const [diff, setDiff] = useState<{ added: number; removed: number; lines: string[] } | null>(null);
   /** Spec → slides view (specs/artifact-landing 链路 B): lazily rendered by
-   *  the main process on first open per version; keyed cache per versionId. */
+   *  the main process; the DOCUMENT view is the default (user ask 2026-09-08:
+   *  标准 markdown 展示优先于演示形态),「幻灯片」是切换项。Keyed cache per
+   *  versionId. */
   const [specView, setSpecView] = useState<"doc" | "slides">("doc");
   const [slides, setSlides] = useState<{
     html: string;
@@ -250,16 +235,37 @@ export function PrototypeWorkspace({
   }, [selectedVersion?.versionId, suite?.id]);
   /** ←/→ paging: the deck is a stack of 100vh SVG slides inside the frame;
    *  scroll it viewport-by-viewport (sandbox keeps the frame script-free). */
+  /** 幻灯片模式(user ask 2026-09-09):marp 页面固定 1280×720,按容器宽度
+   *  zoom 适配——否则要么超宽溢出、要么右侧留出大片死区。ResizeObserver
+   *  防抖到 0.1% 精度,避免 srcDoc 频繁重载。 */
+  const slidesBoxRef = useRef<HTMLDivElement | null>(null);
+  const [slidesZoom, setSlidesZoom] = useState(1);
+  useEffect(() => {
+    if (tab !== "spec" || specView !== "slides") return;
+    const box = slidesBoxRef.current;
+    if (!box || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver((entries) => {
+      const width = entries[0]?.contentRect.width ?? 0;
+      if (width <= 0) return;
+      const next = Math.round(Math.min(Math.max(width / 1280, 0.3), 1.6) * 1000) / 1000;
+      setSlidesZoom((prev) => (Math.abs(prev - next) > 0.005 ? next : prev));
+    });
+    observer.observe(box);
+    return () => observer.disconnect();
+  }, [tab, specView]);
+
+  /** 分页以 marp 固定的文档像素(每页 720)计——html{zoom} 只缩放渲染,
+   *  不改变文档坐标,滚动偏移与缩放因子无关。 */
   const slideStep = (dir: 1 | -1): void => {
     const win = slidesFrameRef.current?.contentWindow;
     if (!win) return;
-    win.scrollBy({ top: dir * win.innerHeight, behavior: "smooth" });
+    win.scrollBy({ top: dir * 720 * slidesZoom, behavior: "smooth" });
   };
   const handleSlidesFrameLoad = (): void => {
     const win = slidesFrameRef.current?.contentWindow;
     if (!win) return;
     win.addEventListener("scroll", () => {
-      const page = Math.round(win.scrollY / Math.max(1, win.innerHeight)) + 1;
+      const page = Math.round(win.scrollY / 720) + 1;
       setSlidesPage(Math.min(Math.max(1, page), Math.max(1, slidesPagesRef.current)));
     });
   };
@@ -332,6 +338,25 @@ export function PrototypeWorkspace({
     }
   };
 
+  /** 技术架构模块 (user ask 2026-09-08): 原型验收成功之后,基于 PRD 派生技术
+   *  架构文档(prototype.arch 动作,arch-writer 技能),存为新版本并切到
+   *  「技术架构」tab。验收未通过时按钮禁用 + 提示。 */
+  const generateArch = async (): Promise<void> => {
+    if (!suite || !selectedVersion) return;
+    if (content.verification?.status !== "passed") {
+      pushDesignToast("error", t("prototypeWorkspace.archLocked"));
+      return;
+    }
+    const ref = await runAction("prototype.arch", {
+      suiteId: suite.id,
+      versionId: selectedVersion.versionId,
+    });
+    if (ref) {
+      pushDesignToast("success", t("prototypeWorkspace.archOk"));
+      setTab("arch");
+    }
+  };
+
   /** Report grouping (mockup rp-file): checks clustered by their action's
    *  namespace ("auth:submit" → "auth"); checks without an action land in
    *  「通用」. Insertion-ordered so first appearance drives group order. */
@@ -349,12 +374,16 @@ export function PrototypeWorkspace({
   const failedCheckCount = (content.verification?.checks ?? []).filter((check) => check.status === "failed").length;
 
   /** mockup ✦一键修复全部未过项：逐项派发修订（每次自愈生成一个新版本），
-   *  单项失败即停——错误已在工作区错误条可见。 */
+   *  单项失败即停——错误已在工作区错误条可见。每轮修订都会推进 suite head，
+   *  下一轮必须建在上一轮返回的版本上——闭包里的 selectedVersion 第二轮就
+   *  过期了，重发会被 store 的 head-moved 守卫拒绝（M2）。 */
   const fixAllFailed = async (): Promise<void> => {
     const failed = (content.verification?.checks ?? []).filter((check) => check.status === "failed");
+    let base: string | undefined = selectedVersion?.versionId;
     for (const check of failed) {
-      const applied = await revise(check.observation ?? check.label);
-      if (!applied) break;
+      const next = await revise(check.observation ?? check.label, undefined, base);
+      if (!next) break;
+      base = next;
     }
   };
 
@@ -447,26 +476,40 @@ export function PrototypeWorkspace({
     }
   };
 
-  const revise = async (instruction: string, target?: string): Promise<boolean> => {
-    if (!suite || !selectedVersion) return false;
+  /** Revise one part against `baseVersionId` (default: the selected version).
+   *  Returns the NEW version id, or null on failure — multi-step callers
+   *  (fix-all) thread it forward so every round builds on the current head. */
+  const revise = async (instruction: string, target?: string, baseVersionId?: string): Promise<string | null> => {
+    if (!suite) return null;
+    const base = baseVersionId ?? selectedVersion?.versionId;
+    if (!base) return null;
     const part = tab === "proto" ? "openui" : tab === "report" ? "verification" : "spec";
-    const before = part === "spec" ? (content.spec ?? null) : part === "openui" ? (content.openui ?? null) : null;
+    // The inline diff is only honest when the base IS the version this panel
+    // is showing — a threaded fix-all base has moved on, so skip it there.
+    const before =
+      base === selectedVersion?.versionId
+        ? part === "spec"
+          ? (content.spec ?? null)
+          : part === "openui"
+            ? (content.openui ?? null)
+            : null
+        : null;
     const ref = await runAction("prototype.revise", {
       suiteId: suite.id,
-      versionId: selectedVersion.versionId,
+      versionId: base,
       part,
       target: target ?? part,
       instruction,
     });
-    if (!ref) return false;
+    if (!ref) return null;
     pushDesignToast("success", t("designWorkspace.toastRevised"));
-    if (!before) return true;
+    if (!before) return ref.versionId;
     try {
       const version = await suiteApi.designSuiteReadVersion(root, ref.suiteId, ref.versionId);
       const next = version && isPrototypeContent(version.content) ? version.content : null;
-      if (!next) return true;
+      if (!next) return ref.versionId;
       const after = part === "spec" ? (next.spec ?? null) : part === "openui" ? (next.openui ?? null) : null;
-      if (!after) return true;
+      if (!after) return ref.versionId;
       const { added, removed } = diffLines(before, after);
       if (added.length || removed.length) setDiff(summarizeDiff({ added, removed }));
     } catch {
@@ -474,7 +517,7 @@ export function PrototypeWorkspace({
       // reject — fire-and-forget `void revise(...)` call sites would surface
       // it as an unhandled rejection and fix-all would abort mid-loop.
     }
-    return true;
+    return ref.versionId;
   };
 
   const executePrototypeAction = (action: string) => {
@@ -492,10 +535,12 @@ export function PrototypeWorkspace({
       spec: t("prototypeWorkspace.tabSpec"),
       proto: t("prototypeWorkspace.tabPrototype"),
       report: t("prototypeWorkspace.tabReport"),
+      arch: t("prototypeWorkspace.tabArch"),
     }),
     [t]
   );
-  const quickItems: Record<PrototypeTab, readonly string[]> = {
+  /** arch tab 无快捷指令(FloatingDesignAgent 在该 tab 停用,收到空列表);其余 tab 各自维护。 */
+  const quickItems: Partial<Record<PrototypeTab, readonly string[]>> = {
     spec: [
       t("prototypeWorkspace.quickSpecOne"),
       t("prototypeWorkspace.quickSpecTwo"),
@@ -543,6 +588,7 @@ export function PrototypeWorkspace({
             <i className={version.content.verification ? undefined : "miss"}>
               {t("prototypeWorkspace.setTitleReport")}
             </i>
+            <i className={version.content.arch ? undefined : "miss"}>{t("prototypeWorkspace.setTitleArch")}</i>
           </span>
         );
       }}
@@ -566,7 +612,12 @@ export function PrototypeWorkspace({
           </aside>
         ) : null}
         {tab === "spec" ? (
-          <article className="ui-report-doc ui-design-spec-document">
+          <article
+            className={
+              "ui-report-doc ui-design-spec-document" +
+              (specView === "slides" ? " ui-design-spec-document--slides" : "")
+            }
+          >
             <div className="ui-report-doc-head">
               <h1>{t("prototypeWorkspace.specTitle")}</h1>
               {selectedVersion ? (
@@ -609,7 +660,7 @@ export function PrototypeWorkspace({
               {busy === "prototype.spec" && progress ? <div className="ui-design-gen-progress">{progress}</div> : null}
             </div>
             {specView === "slides" && content.spec ? (
-              <div className="ui-design-slides">
+              <div className="ui-design-slides" ref={slidesBoxRef}>
                 <div className="ui-design-slides-toolbar">
                   <span className="ui-design-vbadge">
                     {versionLabel(suite?.versions, selectedVersion?.versionId ?? "") ?? "-"}
@@ -655,7 +706,7 @@ export function PrototypeWorkspace({
                     className="ui-design-slides-frame"
                     title={t("prototypeWorkspace.specViewSlides")}
                     sandbox="allow-same-origin"
-                    srcDoc={`<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;padding:0}${slides.css}</style></head><body>${slides.html}</body></html>`}
+                    srcDoc={`<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;padding:0}html{zoom:${slidesZoom}}${slides.css}</style></head><body>${slides.html}</body></html>`}
                     onLoad={handleSlidesFrameLoad}
                   />
                 ) : (
@@ -663,12 +714,9 @@ export function PrototypeWorkspace({
                 )}
               </div>
             ) : content.spec ? (
-              markdownSections(content.spec).map((section, index) => (
-                <section className="ui-design-spec-section" key={`${section.heading}-${index}`}>
-                  {section.heading ? <h2>{section.heading}</h2> : null}
-                  <p>{section.body}</p>
-                </section>
-              ))
+              // 标准 markdown 渲染:表格 / Mermaid 图 / 代码块正经展示
+              // (user ask 2026-09-08,与 chat 同一条 Streamdown 管线)。
+              <StreamdownView markdown={content.spec} className="ui-design-spec-md" />
             ) : (
               <div className="ui-report-empty">{t("prototypeWorkspace.noSpec")}</div>
             )}
@@ -857,6 +905,15 @@ export function PrototypeWorkspace({
                 <button
                   type="button"
                   className="ui-review-run-btn"
+                  disabled={busy !== null || readOnly || content.verification?.status !== "passed"}
+                  title={content.verification?.status !== "passed" ? t("prototypeWorkspace.archLocked") : undefined}
+                  onClick={() => void generateArch()}
+                >
+                  {content.arch ? t("prototypeWorkspace.archRegenerate") : t("prototypeWorkspace.archGenerate")}
+                </button>
+                <button
+                  type="button"
+                  className="ui-review-run-btn"
                   disabled={!suite || !selectedVersion || busy !== null}
                   onClick={() => void exportVersion()}
                 >
@@ -963,12 +1020,55 @@ export function PrototypeWorkspace({
             ) : null}
           </article>
         ) : null}
+
+        {tab === "arch" ? (
+          <article className="ui-report-doc ui-design-spec-document">
+            <div className="ui-report-doc-head">
+              <h1>{t("prototypeWorkspace.tabArch")}</h1>
+              {selectedVersion ? (
+                <span className="ui-report-meta">
+                  {t("prototypeWorkspace.specMeta", {
+                    version: versionLabel(suite?.versions, selectedVersion.versionId) ?? "-",
+                  })}
+                </span>
+              ) : null}
+              <div className="ui-design-doc-actions">
+                <button
+                  type="button"
+                  disabled={busy !== null || readOnly || content.verification?.status !== "passed" || !content.arch}
+                  title={content.verification?.status !== "passed" ? t("prototypeWorkspace.archLocked") : undefined}
+                  onClick={() => void generateArch()}
+                >
+                  {t("prototypeWorkspace.archRegenerate")}
+                </button>
+              </div>
+            </div>
+            {content.arch ? (
+              // 与需求文档同一条 Streamdown 管线:架构图(Mermaid)/表格正经渲染。
+              <StreamdownView markdown={content.arch} className="ui-design-spec-md" />
+            ) : (
+              <div className="ui-report-empty-state">
+                <p>{t("prototypeWorkspace.archEmpty")}</p>
+                <button
+                  type="button"
+                  className="primary"
+                  disabled={busy !== null || readOnly || content.verification?.status !== "passed"}
+                  title={content.verification?.status !== "passed" ? t("prototypeWorkspace.archLocked") : undefined}
+                  onClick={() => void generateArch()}
+                >
+                  {t("prototypeWorkspace.archGenerate")}
+                </button>
+                {content.verification?.status !== "passed" ? <small>{t("prototypeWorkspace.archLocked")}</small> : null}
+              </div>
+            )}
+          </article>
+        ) : null}
         <FloatingDesignAgent
           tabLabel={tabLabels[tab]}
-          quickItems={quickItems[tab]}
-          disabled={readOnly || !suite}
+          quickItems={quickItems[tab] ?? []}
+          disabled={readOnly || !suite || tab === "arch"}
           busy={busy !== null}
-          onSubmit={(instruction) => revise(instruction)}
+          onSubmit={(instruction) => revise(instruction).then((done) => done !== null)}
         />
       </div>
     </DesignWorkspaceFrame>

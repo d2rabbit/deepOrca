@@ -170,6 +170,9 @@ export {
   prototypeVerifyRun,
   prototypeReviseDefinition,
   prototypeReviseRun,
+  prototypeArchDefinition,
+  prototypeArchRun,
+  looksLikeArchDoc,
 } from "./prototype";
 export type {
   PrototypeSpecInput,
@@ -179,6 +182,8 @@ export type {
   PrototypeVerifyInput,
   PrototypeVerifyOutput,
   PrototypeReviseInput,
+  PrototypeArchInput,
+  PrototypeArchOutput,
   ArtifactRef,
   PrototypeSuiteContent,
   UiSuiteContent,

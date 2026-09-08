@@ -2399,3 +2399,18 @@
 .ui-editor-binary-state button:hover {
   background: var(--ui-surface-hover, #f2f4f8);
 }
+
+/* 快查面板入场(user ask 2026-09-09):淡入+上浮,与 toast 的 house 曲线一致。 */
+.ui-preview-panel.ui-task-quick {
+  animation: ui-sheet-in 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes ui-sheet-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

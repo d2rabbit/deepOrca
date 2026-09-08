@@ -11,6 +11,8 @@ const PROGRESS_KEYS: Record<string, MessageKey> = {
   "prototype.spec.saved": "prototypeWorkspace.progressSpecSaved",
   "prototype.materialize.generating": "prototypeWorkspace.progressMaterialize",
   "prototype.materialize.saved": "prototypeWorkspace.progressMaterializeSaved",
+  "prototype.arch.generating": "prototypeWorkspace.progressArch",
+  "prototype.arch.saved": "prototypeWorkspace.progressArchSaved",
   "design.materialize.generating": "designWorkspace.progressGenerate",
   "design.materialize.saved": "designWorkspace.progressSaved",
   "design.tokens.extracting": "designWorkspace.progressTokensExtract",

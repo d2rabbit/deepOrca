@@ -403,7 +403,17 @@ export function buildImplementationBrief(input: ImplementationBriefInput): Imple
 function firstLine(text: string): string {
   for (const line of text.split(/\r?\n/)) {
     const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#") || trimmed.startsWith("|") || /^[-*]\s/.test(trimmed)) continue;
+    // Fence lines are structure, not content — a section opening with a
+    // mermaid/table block must not surface "```mermaid" as its first line.
+    if (
+      !trimmed ||
+      trimmed.startsWith("#") ||
+      trimmed.startsWith("|") ||
+      trimmed.startsWith("```") ||
+      /^[-*]\s/.test(trimmed)
+    ) {
+      continue;
+    }
     return trimmed;
   }
   return "";

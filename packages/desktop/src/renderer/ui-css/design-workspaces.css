@@ -342,11 +342,12 @@
 }
 
 .ui-design-version-set i {
-  padding: 1px 6px;
+  padding: 2px 7px;
   border: 1px solid var(--ui-border-soft);
   border-radius: 99px;
   color: var(--ui-text-faint);
-  font-size: 9px;
+  font-size: 10px;
+  line-height: 1.4;
   font-style: normal;
 }
 
@@ -661,6 +662,8 @@
 }
 
 .ui-design-selection-popover {
+  animation: ui-pop-in 0.18s cubic-bezier(0.16, 1, 0.3, 1) both;
+  transform-origin: top left;
   position: fixed;
   z-index: 20;
   width: min(280px, calc(100vw - 16px));
@@ -1762,4 +1765,75 @@
 /* 主题重染：设备壳圆点吃 --ds-*（palette 由 stage 容器下沉）。 */
 .ui-design-device-chrome i {
   background: var(--ds-accent, var(--ui-text-faint));
+}
+
+/* 幻灯片模式(user ask 2026-09-09):文档列切换为满幅不滚动画布,播放器
+   按容器宽度 zoom 适配(marp 页面固定 1280×720);翻页滚动在 iframe 内部
+   完成,文档列本体不再出现"内容条只占一半 + 右侧死区"。 */
+.ui-report-doc.ui-design-spec-document--slides {
+  display: flex;
+  flex-direction: column;
+  overflow-y: hidden;
+  padding: 12px 16px 14px;
+}
+.ui-report-doc.ui-design-spec-document--slides .ui-design-slides {
+  flex: 1;
+  min-height: 320px;
+}
+.ui-report-doc.ui-design-spec-document--slides .ui-design-slides-frame {
+  min-height: 0;
+}
+
+/* 动效细节(user ask 2026-09-09,improve-animations 审计):锚定弹层从触发处
+   淡入+微缩放(AUDIT §3 物理性);设计面板按钮补按压反馈(AUDIT §3,与
+   .ui-btn:active 的 translateY(1px) 惯例一致)。 */
+@keyframes ui-pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+.ui-design-workspace-content button {
+  transition: transform 0.12s ease-out;
+}
+.ui-design-workspace-content button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+/* ── 幻灯片工具栏(user ask 2026-09-09):按钮此前是无样式裸 <button>,与
+   设计系统脱节;补齐尺寸/边框/悬停,导出 PDF 走主强调。 ── */
+.ui-design-slides-toolbar button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 28px;
+  padding: 4px 11px;
+  border: 1px solid var(--ui-border-soft);
+  border-radius: var(--ui-radius-sm);
+  background: var(--ui-surface-raised);
+  color: var(--ui-text);
+  font-size: 11.5px;
+  transition:
+    background 0.12s ease-out,
+    border-color 0.12s ease-out;
+}
+.ui-design-slides-toolbar button:hover:not(:disabled) {
+  background: var(--ui-surface-hover);
+  border-color: var(--ui-border);
+}
+.ui-design-slides-toolbar button.primary {
+  border-color: var(--ui-accent-55);
+  background: var(--ui-accent-soft);
+  color: var(--ui-accent-strong, var(--ui-accent));
+  font-weight: 600;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ui-design-selection-popover,
+  .ui-preview-panel.ui-task-quick {
+    animation: none;
+  }
 }

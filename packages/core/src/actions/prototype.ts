@@ -39,6 +39,8 @@ export interface PrototypeSuiteContent {
   spec?: string;
   openui?: string;
   verification?: PrototypeVerificationResult;
+  /** Technical architecture document (user ask 2026-09-08 技术架构模块). */
+  arch?: string;
 }
 
 export interface UiSuiteContent {
@@ -116,6 +118,39 @@ export function looksLikeOpenuiProgram(code: string): boolean {
 /** A structured spec must carry at least one markdown section heading. */
 export function looksLikeSpecDocument(markdown: string): boolean {
   return /^#{1,6}\s+\S/m.test(markdown);
+}
+
+/**
+ * Extract a complete markdown document (PRD / 技术架构文档) from subagent
+ * output. These documents nest ```mermaid fences, and models wrap the whole
+ * document in a ```markdown fence — the single-fence lazy extractor
+ * (extractGeneratedBody) truncates at the first inner fence. Decision tree:
+ *   wrapped + balanced fence count  → unwrap (first fence line … last fence),
+ *   wrapped + unbalanced            → null (truncated output: refuse, never
+ *                                     salvage a half document),
+ *   bare markdown starting with "#" → the whole trimmed content is the doc,
+ *   anything else                   → the single-fence extraction result.
+ */
+function extractMarkdownDocument(result: unknown): string | null {
+  const direct = extractGeneratedBody(result);
+  const raw =
+    typeof (result as { content?: unknown })?.content === "string" ? (result as { content: string }).content : null;
+  if (raw === null) return direct;
+  const trimmed = raw.trim();
+  const fenceCount = (raw.match(/^[ \t]*```/gm) ?? []).length;
+  if (trimmed.startsWith("```")) {
+    if (fenceCount >= 2 && fenceCount % 2 === 0) {
+      const openerEnd = trimmed.indexOf("\n");
+      const closerStart = trimmed.lastIndexOf("```");
+      if (openerEnd !== -1 && closerStart > openerEnd) {
+        const body = trimmed.slice(openerEnd + 1, closerStart).trim();
+        if (body) return body;
+      }
+    }
+    return null;
+  }
+  if (fenceCount > 0 && trimmed.startsWith("#")) return trimmed;
+  return direct;
 }
 
 function parseJsonRecord(text: string | undefined): Record<string, unknown> | null {
@@ -245,7 +280,9 @@ export const prototypeSpecRun: ActionRun<PrototypeSpecInput, PrototypeSpecOutput
         requirement,
       silent: true,
     });
-    const document = extractGeneratedBody(generated);
+    // PRD 内嵌 ```mermaid 图(标准化格式),必须用嵌套围栏感知抽取,否则文档
+    // 在第一张图处被截断且 looksLikeSpecDocument 拦不住(任意标题即过)。
+    const document = extractMarkdownDocument(generated);
     if (!document || !looksLikeSpecDocument(document)) {
       return {
         ok: false,
@@ -547,7 +584,7 @@ export const prototypeReviseRun: ActionRun<PrototypeReviseInput, PrototypeSpecOu
       current,
     silent: true,
   });
-  const revised = extractGeneratedBody(generated);
+  const revised = input.part === "spec" ? extractMarkdownDocument(generated) : extractGeneratedBody(generated);
   const structurallyValid =
     revised !== null && (input.part === "spec" ? looksLikeSpecDocument(revised) : looksLikeOpenuiProgram(revised));
   if (!structurallyValid) {
@@ -575,3 +612,97 @@ export const prototypeReviseRun: ActionRun<PrototypeReviseInput, PrototypeSpecOu
 };
 
 export { executeA2ui, extractGeneratedBody, hasPageList, parseArtifactRef, readArtifactFile };
+
+export interface PrototypeArchInput {
+  suiteId: string;
+  versionId: string;
+  note?: string;
+}
+
+export type PrototypeArchOutput = PrototypeSpecOutput;
+
+export const prototypeArchDefinition: ActionDefinition<PrototypeArchInput> = {
+  id: "prototype.arch",
+  description:
+    "Derive the standardized technical architecture document from an APPROVED prototype suite version " +
+    "(runs only after verification passed; user ask 2026-09-08 技术架构模块).",
+  category: "design",
+  parameters: {
+    type: "object",
+    properties: {
+      suiteId: { type: "string", description: "Prototype suite id" },
+      versionId: { type: "string", description: "Prototype suite version whose PRD seeds the document" },
+      note: { type: "string", description: "Optional version note" },
+    },
+    required: ["suiteId", "versionId"],
+    additionalProperties: false,
+  },
+  sideEffects: ["write-in-cwd"],
+};
+
+/** An architecture document must be a real markdown doc AND carry at least one
+ *  Mermaid diagram — the 标准化 format contract (架构图/数据模型/流程必有图). */
+export function looksLikeArchDoc(markdown: string): boolean {
+  return /^#{1,6}\s+\S/m.test(markdown) && /```[ \t]*mermaid/i.test(markdown);
+}
+
+export const prototypeArchRun: ActionRun<PrototypeArchInput, PrototypeArchOutput> = async (input, ctx) => {
+  const suiteId = input?.suiteId?.trim();
+  const versionId = input?.versionId?.trim();
+  if (!suiteId || !versionId) return { ok: false, error: "suiteId and versionId are required" };
+  if (!ctx.runSubagent) return { ok: false, error: "runSubagent not available" };
+
+  const read = await readSuiteVersion(ctx, suiteId, versionId);
+  if (!read.ok) return read;
+  if (read.value.artifactRef.kind !== "prototype") return { ok: false, error: "suite is not a prototype suite" };
+  const content = read.value.content as PrototypeSuiteContent;
+  // 原型验收成功之后才允许生成技术架构文档(user ask 2026-09-08)。
+  if (content.verification?.status !== "passed") {
+    return { ok: false, error: "verification must pass before the technical architecture document can be generated" };
+  }
+  const spec = content.spec?.trim() ?? "";
+  if (!spec) return { ok: false, error: "requirements document not found; run prototype.spec first" };
+
+  ctx.emit({
+    message: "Generating the technical architecture document from the approved PRD",
+    percent: 50,
+    data: { code: "prototype.arch.generating" },
+  });
+  try {
+    const generated = await ctx.runSubagent({
+      skill: "arch-writer",
+      prompt:
+        "Write the complete standardized technical architecture document derived from the approved PRD below. " +
+        "Follow the arch-writer document contract exactly (技术选型表 / 系统架构 Mermaid / 数据模型 erDiagram / " +
+        "核心流程图 / 模块拆分表 / 非功能设计 / 风险与对策表; every diagram followed by a companion table). " +
+        "Do not call tools. Return only the complete markdown document in one markdown code fence.\n\n" +
+        spec,
+      silent: true,
+    });
+    // 架构文档内嵌 ```mermaid 围栏,单围栏惰性抽取会在第一个内层围栏处截断;
+    // 此时剥掉外层围栏重取(首行 ```lang 到最后一个 ```)。
+    // 奇数围栏 = 外层未闭合 = 截断输出:拒绝,而不是抢救半份文档。
+    const document = extractMarkdownDocument(generated);
+    if (!document || !looksLikeArchDoc(document)) {
+      return {
+        ok: false,
+        error: "arch-writer returned an empty or diagram-less architecture document (truncated output?) — regenerate",
+      };
+    }
+    const saved = await executeA2ui(ctx, "save_suite_arch", {
+      suiteId,
+      versionId,
+      document,
+      note: input.note?.trim() || "technical architecture document",
+    });
+    if (!saved.ok) return saved;
+    ctx.emit({
+      message: "Technical architecture document saved",
+      percent: 100,
+      data: { code: "prototype.arch.saved" },
+    });
+    return { ok: true, artifactRef: saved.artifactRef, refreshStore: !saved.artifactRef };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) };
+  }
+};

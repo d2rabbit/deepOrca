@@ -66,6 +66,13 @@ before(async () => {
   stub = createApiStub({
     designSuiteList: async () => [SUITE],
     designSuiteRead: async () => SUITE,
+    prototypeSpecSlides: async () => ({
+      ok: true,
+      html: "<section>slide</section>",
+      css: "section{color:#000}",
+      pages: 1,
+      remoteImages: 0,
+    }),
     prototypeBuildBrief: async () => ({ ok: true, briefMd: BRIEF_MD, path: "/x/brief.md" }),
   });
   (globalThis as unknown as { window: { deeporca: unknown } }).window.deeporca = stub.api;
@@ -100,10 +107,23 @@ test("brief inject (C15): 生成落地简报 → 注入实现会话 reaches the 
     )
   );
   // React.lazy + suite load resolve asynchronously — poll through waitFor.
-  // Generous timeout: tsx cold-compiles the lazy chunk on first import and
-  // can flirt with the 1s default.
+  // Doc view is the default; the toggle click below is a defensive no-op so
+  // the suite still has a spec; switch via the exact-text seg toggle (the
+  // 需求文档 tab also contains 文档).
   const findButton = (label: string): HTMLButtonElement | undefined =>
     [...utils.container.querySelectorAll("button")].find((b) => b.textContent?.includes(label));
+  const findExactButton = (label: string): HTMLButtonElement | undefined =>
+    [...utils.container.querySelectorAll("button")].find((b) => b.textContent?.trim() === label);
+  await rtl.waitFor(
+    () => {
+      if (!findExactButton("文档")) throw new Error("view toggle not mounted yet");
+    },
+    { timeout: 10000 }
+  );
+  await rtl.act(async () => {
+    findExactButton("文档")!.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+    await Promise.resolve();
+  });
   const generate = await rtl.waitFor(
     () => {
       const btn = findButton("生成落地简报");

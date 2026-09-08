@@ -1296,6 +1296,57 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
     }
   );
 
+  registerTool(
+    "save_suite_arch",
+    {
+      description:
+        "Persist the technical architecture document (standardized markdown) for a prototype suite version. " +
+        "The product flow gates this on verification passed (user ask 2026-09-08 技术架构模块).",
+      inputSchema: {
+        suiteId: z.string().describe("Suite id"),
+        versionId: z.string().describe("Immutable version used as the update base"),
+        document: z.string().describe("Complete technical architecture markdown document"),
+        note: z.string().optional().describe("Version note"),
+      },
+    },
+    async (args) => {
+      if (!projectRoot) return suiteError("suite writes require a project root");
+      const suiteId = stringArg(args, "suiteId");
+      const versionId = stringArg(args, "versionId");
+      const document = stringArg(args, "document");
+      if (!suiteId || !versionId || !document) {
+        return suiteError("suiteId, versionId and document are required");
+      }
+      const suite = readDesignSuite(projectRoot, suiteId);
+      const version = readDesignSuiteVersion(projectRoot, suiteId, versionId);
+      if (!suite || !version) return suiteError("suite or version not found");
+      if (suite.kind !== "prototype") return suiteError("suite is not a prototype suite");
+      const note = stringArg(args, "note");
+      // Same model-supplied-payload clamp as save_suite_result.
+      const documentReason = suitePayloadError(document);
+      if (documentReason) return suiteError(`document: ${documentReason}`);
+      // Same head-moved contract as save_suite_result: never roll the head back.
+      if (suite.currentVersionId !== versionId) {
+        return suiteError(
+          `suite head has moved: the latest version of "${suiteId}" is "${suite.currentVersionId}", ` +
+            `not "${versionId}". Re-read the latest version and retry against it.`
+        );
+      }
+      const base = version.content as PrototypeSuiteContent;
+      const content: PrototypeSuiteContent = { ...base, arch: document };
+      const updated = appendDesignSuiteVersion(projectRoot, {
+        suiteId,
+        content,
+        ...(note ? { note } : {}),
+        // Appending the arch doc must not downgrade an already-verified suite.
+        status: base.verification?.status === "passed" ? "verified" : "ready",
+      });
+      if (!updated) return suiteError("could not append suite arch");
+      const ref: DesignArtifactRef = { suiteId, versionId: updated.currentVersionId, kind: suite.kind };
+      return artifactResult(ref, "Technical architecture document saved.");
+    }
+  );
+
   // Register DeepDesign (.dd format) tools on the same server.
   registerDesignTools(registerTool, projectRoot);
 

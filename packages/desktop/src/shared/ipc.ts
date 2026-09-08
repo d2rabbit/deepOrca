@@ -1003,6 +1003,9 @@ export type PrototypeSuiteContent = {
   spec?: string;
   openui?: string;
   verification?: PrototypeVerificationResult;
+  /** Technical architecture document (user ask 2026-09-08 技术架构模块):
+   *  standardized markdown derived from the PRD once verification passes. */
+  arch?: string;
 };
 
 export type UiSuiteContent = {
