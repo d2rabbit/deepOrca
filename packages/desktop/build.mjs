@@ -114,6 +114,50 @@ const lspBridgeServerConfig = {
  */
 const rendererOutdir = resolve(outdir, "renderer");
 
+/**
+ * specs/artifact-landing A6 — @open-file-viewer's single-file SDK statically
+ * carries every plugin's dynamic-import statement, so unmounted format
+ * engines (three/leaflet/hls.js/…) would still be emitted as dead chunks.
+ * The mounted plugins never import them (import sites live inside unmounted
+ * plugins' render paths), so every path of these packages resolves to one
+ * empty module — the dead weight disappears and assertRendererGuards holds
+ * the line. A build.mjs-local plugin is required because esbuild alias
+ * cannot map package SUBPATHS (`three/examples/jsm/…`) to one file.
+ */
+function emptyShimPlugin() {
+  const shim = resolve(__dirname, "src/renderer/shims/empty/empty.js");
+  const packages = [
+    "three",
+    "hls\\.js",
+    "leaflet",
+    "topojson-client",
+    "@mapbox/togeojson",
+    "shpjs",
+    "heic2any",
+    "mpegts\\.js",
+    "postal-mime",
+    "@kenjiuno/msgreader",
+    "ag-psd",
+    "emf-converter",
+    "hyparquet",
+    "seek-bzip",
+    "xz-decompress",
+    "utif",
+    "prismjs",
+    // NOTE: `marked` and `mermaid` are NOT shimmed — existing product code
+    // (streamdown / @codemirror/lsp-client / chat diagrams) imports them.
+    "util",
+    "buffer",
+  ];
+  const filter = new RegExp(`^(?:${packages.join("|")})(?:/|$)`);
+  return {
+    name: "empty-shim",
+    setup(build) {
+      build.onResolve({ filter }, () => ({ path: shim }));
+    },
+  };
+}
+
 const rendererConfig = {
   ...shared,
   // Use an object entry so the output is named `renderer.js` (matching the
@@ -128,7 +172,16 @@ const rendererConfig = {
   jsx: "automatic",
   splitting: true,
   chunkNames: "chunks/[name]-[hash]",
+  // Metafile feeds assertRendererGuards (specs/artifact-landing A6/B8).
+  metafile: true,
+  plugins: [emptyShimPlugin()],
   loader: { ".png": "dataurl", ".svg": "dataurl", ".ttf": "dataurl", ".woff": "dataurl", ".woff2": "dataurl" },
+  alias: {
+    // pdfjs-dist is nested under the workspace (version-conflict hoisting) and
+    // invisible from @open-file-viewer's hoisted root location — pin the exact
+    // copy the preview plugin documents (specs/artifact-landing A).
+    "pdfjs-dist": resolve(__dirname, "node_modules/pdfjs-dist"),
+  },
 };
 
 /**
@@ -242,6 +295,30 @@ async function aliasChunkCss() {
   }
 }
 
+/**
+ * specs/artifact-landing A6/B8 build guard: banned modules must never reach
+ * the renderer graph. three/leaflet/hls.js are @open-file-viewer's unmounted
+ * format engines (mounted-plugin tree-shaking must hold); @marp-team/marp is
+ * main-process-only. Metafile-based — exact module paths, not heuristics.
+ */
+async function assertRendererGuards(metaPath) {
+  if (!existsSync(metaPath)) {
+    console.warn("[desktop] renderer metafile missing — A6/B8 bundle guard skipped");
+    return;
+  }
+  const meta = JSON.parse(readFileSync(metaPath, "utf8"));
+  const banned = ["node_modules/three/", "node_modules/leaflet/", "node_modules/hls.js/", "node_modules/@marp-team/"];
+  const offenders = Object.keys(meta.inputs ?? {})
+    .map((k) => k.replaceAll("\\", "/"))
+    .filter((k) => banned.some((b) => k.includes(b)));
+  if (offenders.length > 0) {
+    console.error(
+      `[desktop] GUARD FAIL — banned modules in renderer bundle (A6/B8):\n  ${offenders.slice(0, 8).join("\n  ")}`
+    );
+    process.exit(1);
+  }
+}
+
 async function copyStaticAssets() {
   await mkdir(resolve(outdir, "renderer"), { recursive: true });
   await cp(resolve(__dirname, "src/renderer/index.html"), resolve(outdir, "renderer/index.html"));
@@ -266,6 +343,33 @@ async function copyStaticAssets() {
     await cp(src, resolve(outdir, "renderer/a2ui-basic.css"));
   } catch (err) {
     console.warn(`[desktop] @a2ui/react v0_9 stylesheet missing — a2ui surfaces render unstyled (${err.message})`);
+  }
+  // pdf.js worker (specs/artifact-landing 链路 A): served next to index.html
+  // so the preview plugin's workerSrc stays a same-dir relative URL — offline,
+  // no CDN (A5). Missing worker degrades PDF preview to the fallback UI.
+  try {
+    const workerCandidates = [
+      resolve(__dirname, "../../node_modules/pdfjs-dist/build/pdf.worker.min.mjs"),
+      resolve(__dirname, "node_modules/pdfjs-dist/build/pdf.worker.min.mjs"),
+    ];
+    const workerSrc = workerCandidates.find((c) => existsSync(c));
+    if (!workerSrc) throw new Error(`not found in ${workerCandidates.join(" | ")}`);
+    await cp(workerSrc, resolve(rendererOutdir, "pdf.worker.min.mjs"));
+  } catch (err) {
+    console.warn(`[desktop] pdf.worker missing — PDF preview degrades to fallback (${err.message})`);
+  }
+  // @open-file-viewer core stylesheet — same build-time copy pattern as
+  // @a2ui/react (the exports map's css subpath can't ride an esbuild chunk).
+  try {
+    const ofvCandidates = [
+      resolve(__dirname, "../../node_modules/@open-file-viewer/core/dist/style.css"),
+      resolve(__dirname, "node_modules/@open-file-viewer/core/dist/style.css"),
+    ];
+    const ofvCss = ofvCandidates.find((c) => existsSync(c));
+    if (!ofvCss) throw new Error(`not found in ${ofvCandidates.join(" | ")}`);
+    await cp(ofvCss, resolve(rendererOutdir, "ofv-core.css"));
+  } catch (err) {
+    console.warn(`[desktop] @open-file-viewer/core style.css missing — previews render unstyled (${err.message})`);
   }
   // Official OpenUI (react-ui) stylesheet — ONE unlayered copy carries both
   // the --openui-* token defaults and every component rule. In the installed
@@ -407,7 +511,7 @@ async function run() {
   }
 
   await cleanRendererChunks();
-  await Promise.all([
+  const results = await Promise.all([
     build(mainConfig),
     build(preloadConfig),
     build(prototypePreloadConfig),
@@ -415,8 +519,15 @@ async function run() {
     build(lspBridgeServerConfig),
     build(rendererConfig),
   ]);
+  const rendererMetafile = results[5]?.metafile;
+  if (rendererMetafile) {
+    await (
+      await import("node:fs/promises")
+    ).writeFile(resolve(rendererOutdir, "renderer-meta.json"), JSON.stringify(rendererMetafile));
+  }
   await aliasChunkCss();
   await copyStaticAssets();
+  await assertRendererGuards(resolve(rendererOutdir, "renderer-meta.json"));
   console.log("[desktop] build complete → dist/");
 }
 

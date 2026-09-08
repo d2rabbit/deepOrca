@@ -1,10 +1,47 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import type { EditorFileEntry } from "../shared/ipc";
+import type { EditorFileEntry, EditorReadBinaryResult } from "../shared/ipc";
 import { safePathWithinRoot } from "./safe-path";
 
 /** Max file size we'll read into the editor (2 MB). */
 const MAX_FILE_SIZE = 2 * 1024 * 1024;
+
+/** Max size for the binary fallback preview (specs/artifact-landing A2) —
+ *  a preview-quality dial, independent of the text reader's cap. */
+const MAX_BINARY_SIZE = 64 * 1024 * 1024;
+
+/** Extensions the embedded fallback viewer can render (specs/artifact-landing
+ *  链路 A) — mirrors the mounted open-file-viewer plugin set (pdf / office /
+ *  image / archive). Media streams and special formats are deliberately NOT
+ *  previewable; they fall through to the system-open escape hatch. */
+const PREVIEW_EXTENSIONS = new Set([
+  "pdf",
+  "docx",
+  "docm",
+  "rtf",
+  "odt",
+  "xls",
+  "xlsx",
+  "xlsm",
+  "csv",
+  "ods",
+  "ppt",
+  "pptx",
+  "odp",
+  "png",
+  "jpg",
+  "jpeg",
+  "svg",
+  "webp",
+  "gif",
+  "avif",
+  "bmp",
+  "zip",
+  "7z",
+  "tar",
+  "gz",
+  "tgz",
+]);
 
 /** Extensions we treat as binary without inspecting content. */
 const BINARY_EXTENSIONS = new Set([
@@ -123,6 +160,26 @@ export async function handleEditorReadFile(
     return { ok: true, content };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+/** Read a whitelisted binary file's bytes for the embedded fallback viewer
+ *  (specs/artifact-landing A2). Path containment + extension whitelist +
+ *  size cap all fail closed; bytes ride Electron structured clone. */
+export async function handleEditorReadBinary(projectRoot: string, filePath: string): Promise<EditorReadBinaryResult> {
+  const absPath = safePath(projectRoot, filePath);
+  if (!absPath) return { ok: false, reason: "escaped" };
+  const ext = path.extname(absPath).slice(1).toLowerCase();
+  if (!PREVIEW_EXTENSIONS.has(ext)) return { ok: false, reason: "extension-unsupported", ext };
+
+  try {
+    const stat = await fs.stat(absPath);
+    if (!stat.isFile()) return { ok: false, reason: "not-file" };
+    if (stat.size > MAX_BINARY_SIZE) return { ok: false, reason: "too-large", size: stat.size };
+    const bytes = await fs.readFile(absPath);
+    return { ok: true, bytes, name: path.basename(absPath), ext, size: stat.size };
+  } catch {
+    return { ok: false, reason: "not-file" };
   }
 }
 

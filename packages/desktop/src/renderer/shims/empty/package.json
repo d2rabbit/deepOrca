@@ -1,0 +1,11 @@
+{
+  "name": "deeporca-empty-shim",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Browser shim for unmounted SDK parser packages (specs/artifact-landing A6) — every entry resolves to the same empty module.",
+  "exports": {
+    ".": "./empty.js",
+    "./*": "./empty.js"
+  }
+}

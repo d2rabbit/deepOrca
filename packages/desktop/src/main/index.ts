@@ -122,11 +122,16 @@ import { registerDesignIpc as registerDesignStoreIpc } from "./design-ipc.js";
 import { listDesignArtifacts } from "./tools/design-store.js";
 import { a2uiServerBuilder } from "./tools/a2ui/index.js";
 import { buildActivityFramesServer } from "./tools/activity-frames/index.js";
-import { handleEditorReadFile, handleEditorWriteFile, handleEditorListFiles } from "./editor-handlers.js";
+import {
+  handleEditorReadBinary,
+  handleEditorReadFile,
+  handleEditorWriteFile,
+  handleEditorListFiles,
+} from "./editor-handlers.js";
 import { createRendererPolicy, createElectronEventAdapter, type RendererPolicy } from "./ipc-security.js";
 import { registerKnowledgeIpc, resolveRegisteredRoot, closeAllArchPreviewWindows } from "./knowledge-ipc.js";
 import { configureArchifyLanguage } from "@deeporca/core";
-import { safeWikiPath } from "./safe-path.js";
+import { safeWikiPath, safePathWithinRoot } from "./safe-path.js";
 import { orderWikiPagesIndexFirst } from "./wiki-page-order.js";
 import * as gitService from "./git-service.js";
 
@@ -1519,6 +1524,20 @@ function registerDesignIpc(helpers: IpcHelpers): void {
         return { ok: false, error: error instanceof Error ? error.message : String(error) };
       }
     },
+    // specs/artifact-landing B9: print the exported deck offscreen at the
+    // slide's native 1280×720 @96dpi (13.333×7.5in) — no scaling, no margins.
+    renderPdf: async (htmlPath) => {
+      const win = new BrowserWindow({ show: false, webPreferences: { sandbox: true } });
+      try {
+        await win.loadFile(htmlPath);
+        return await win.webContents.printToPDF({
+          pageSize: { width: 13.333, height: 7.5 },
+          printBackground: true,
+        });
+      } finally {
+        win.destroy();
+      }
+    },
   });
 
   // Background build jobs (R2-1): manager owns jobs in the MAIN process —
@@ -2398,6 +2417,14 @@ function registerGitmcpIpc({ handle, handlePrivileged }: IpcHelpers): void {
 function registerEditorIpc({ handle, handlePrivileged }: IpcHelpers): void {
   // ── Editor module ───────────────────────────────────────────────────────
   handle(IpcRequest.EditorReadFile, (filePath: string) => handleEditorReadFile(getBridge().projectRoot, filePath));
+  handle(IpcRequest.EditorReadBinary, (filePath: string) => handleEditorReadBinary(getBridge().projectRoot, filePath));
+  handlePrivileged(IpcRequest.EditorOpenSystem, async (filePath: string) => {
+    // Containment-checked hand-off to the OS shell (A3 escape hatch).
+    const absPath = safePathWithinRoot(getBridge().projectRoot, filePath);
+    if (!absPath) return { ok: false, error: "Path escapes project root" };
+    const openError = await shell.openPath(absPath);
+    return openError ? { ok: false, error: openError } : { ok: true };
+  });
   handlePrivileged(IpcRequest.EditorWriteFile, (filePath: string, content: string) =>
     handleEditorWriteFile(getBridge().projectRoot, filePath, content).then((res) => {
       // 链路 D 最小修 (audit D-b): editor writes must reach the workspace

@@ -20,6 +20,7 @@ import { LanePanel } from "./LanePanel";
 import { EditorPalette } from "./EditorPalette";
 import { ExplainCard } from "./ExplainCard";
 import { EditorReviewPreview } from "./EditorReviewPreview";
+import { BinaryFileViewer } from "./BinaryFileViewer";
 import { fileBaseName } from "../../ui/path-utils";
 
 /** Enclosing-symbol heuristic for the breadcrumb trail — one declaration
@@ -699,7 +700,9 @@ export function EditorWorkspace({
         ) : state.error ? (
           <div className="ui-editor-empty ui-editor-error">{state.error}</div>
         ) : state.binary ? (
-          <div className="ui-editor-empty">{t("editor.binary")}</div>
+          // Binary fallback preview (specs/artifact-landing 链路 A) — replaces
+          // the bare "cannot edit" placeholder.
+          <BinaryFileViewer file={activeFile} />
         ) : draft === undefined ? (
           <div className="ui-editor-empty">{t("editor.empty")}</div>
         ) : (

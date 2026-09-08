@@ -2361,3 +2361,41 @@
 .cm-tooltip-autocomplete .cm-completionDetail {
   color: color-mix(in srgb, #e8a013 80%, var(--ui-text-faint));
 }
+
+/* ── Binary fallback preview (specs/artifact-landing 链路 A) ── */
+.ui-editor-binary {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+.ui-editor-binary > * {
+  width: 100%;
+  height: 100%;
+}
+.ui-editor-binary-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 240px;
+  color: var(--ui-text-dim, #66707d);
+  font-size: 12.5px;
+}
+.ui-editor-binary-state svg {
+  width: 22px;
+  height: 22px;
+}
+.ui-editor-binary-state button {
+  padding: 5px 14px;
+  border-radius: var(--ui-radius-pill, 999px);
+  border: 1px solid var(--ui-border-soft, #e3e6eb);
+  background: var(--ui-surface-raised, #fff);
+  color: var(--ui-text);
+  font-size: 12px;
+  cursor: pointer;
+}
+.ui-editor-binary-state button:hover {
+  background: var(--ui-surface-hover, #f2f4f8);
+}
