@@ -1,7 +1,7 @@
 # AI 协调工作链（Coord Chain）— 实施计划
 
-> 日期：2026-08-27 · 状态：规划中（未启动）· 分期代号 OC1–OC4 与 [`docs/features/coord-chain-plan.md`](../../../docs/features/coord-chain-plan.md) 对齐 · 追溯目标：[requirements.md](./requirements.md) R1–R40
-> **2026-09-03 注**：OC1–OC2 已在 `next/coord-chain` 分支实现（协议核心 + 组网同步 + 双节点 e2e，未合并主线）；本清单勾选状态未随分支同步，合并时以分支实况回写。
+> 日期：2026-08-27 · 状态：规划中（未启动）· 分期代号 OC1–OC4 与 [`docs/features/coord-chain-plan.md`](../../docs/features/coord-chain-plan.md) 对齐 · 追溯目标：[requirements.md](./requirements.md) R1–R40
+> **2026-09-08 注（替代 2026-09-03 分支口径）**：coord-chain 调整为**本阶段方案**，不再经 `next/coord-chain` 分支实现与合并；该分支已完成的 OC1–OC2 底层（协议核心 + 组网同步 + 双节点 e2e）**保留为实现参考**——OC1/OC2 对应任务实施时对照分支实况取材校准，**上层交互任务（OC3 起）以设计稿 v6 / §11 为准实施**。
 > **2026-09-08 修正批（对照真实 UI，R32–R39）**：任务 15/16/18 按新共享模型改写（工作区级开关 + 节点级 opt-out + 自动记账，废除逐模块上链按钮与逐动作确认）；新增任务 23–25（知识库追随代码 / 编辑器本地历史 / 会话对齐 + 链 id 弹窗 + 任务树 hub 二分）。
 > **数据落点修正（2026-09-08 补充，R40）**：任务 7 改为项目数据根落点——链数据随 `.deeporca/`（类比 `.git`）入工作区，gitignore 隔离，设备密钥留用户级。
 > **链上行为深化（2026-09-08 · 交互定稿后）**：交互面（§10 矩阵 + 设计稿 v6）定稿；任务 26 承接 design.md §11 协议深化（记录生命周期/share.rule+task.stub/编辑器投影/KB 判定机械化/fork 物化/轨迹图树/outbox）。

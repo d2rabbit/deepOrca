@@ -1,9 +1,9 @@
 # 右键菜单与快捷交互体系（context-menu-interaction）· 技术设计
 
-> **状态**：**方案稿（只出方案，不改代码）** · **日期**：2026-09-05 · 分支 `feat/modern-ui-redesign`。
-> **上游调研**：[`docs/research/2026-09-05-interaction-redesign.md`](../../docs/research/2026-09-05-interaction-redesign.md)（全部表面一手盘点 + 设计论证，本 spec 的直接依据）。
+> **状态**：**方案稿（只出方案，不改代码）** · **日期**：2026-09-05 · 分支 `feat/modern-ui-redesign` · **2026-09-08 移入 next-version 规划区（储备项，启动时 `git mv` 回 `specs/context-menu-interaction/` 转活跃）**。
+> **上游调研**：[`docs/research/2026-09-05-interaction-redesign.md`](../../../docs/research/2026-09-05-interaction-redesign.md)（全部表面一手盘点 + 设计论证，本 spec 的直接依据）。
 > **用户定调**：① 任务树**保持现状**——现有交互（节点点击→timeline、轨迹行→详情面板）已够用，本 spec 完全不涉及；② 每个右键菜单只放"当前对象特有的操作"；③ 删除走**废纸篓语义**（`shell.trashItem`，可恢复）。
-> **对应实现域**：`packages/desktop/src/renderer/`（ContextMenu 组件 + 各表面接线）与 `packages/desktop/src/main/`（ShellRevealInFolder / EditorFileOps 两个 IPC）。**活跃 spec，不属 next-version 规划区。编辑器交互以 [`specs/editor-copilot`](../editor-copilot/design.md) 为唯一权威——本 spec 不替换任何既有编辑器交互，仅在文件树/tab/既有菜单追加。**
+> **对应实现域**：`packages/desktop/src/renderer/`（ContextMenu 组件 + 各表面接线）与 `packages/desktop/src/main/`（ShellRevealInFolder / EditorFileOps 两个 IPC）。编辑器交互以 [`specs/editor-copilot`](../../editor-copilot/design.md) 为唯一权威——本 spec 不替换任何既有编辑器交互，仅在文件树/tab/既有菜单追加。
 
 ---
 

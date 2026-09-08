@@ -1,7 +1,8 @@
 # 王牌路线：AI 协调工作链（Coord Chain）专属规划
 
-> 日期：2026-08-27 · 状态：**规划中（专属路线，优先级高于 [`next-version-plan.md`](./next-version-plan.md) 的 A–D 主线）**
+> 日期：2026-08-27 · 状态：**本阶段方案（2026-09-08 调整；专属路线，优先级高于 [`next-version-plan.md`](./next-version-plan.md) 的 A–D 主线）**
 > 来源：用户方向确立（2026-08-27）：「内置区块链的 AI 协调工作链」为与其他 coding agent 的核心区分点，与 next-version 并列双王牌。
+> **实施路线调整（2026-09-08 用户拍板）**：coord-chain 为**本阶段方案**，**不再通过 `next/coord-chain` 分支实现与合并**——上层交互逻辑以设计稿 v6（2026-09-08 交互定稿 + §11 链上行为协议）为准实施；该分支已完成的 OC1–OC2 协议底层（Ed25519/X25519+AES-GCM 协议核心、ws 加密传输、ChainNode 建链/重放、mDNS 发现+邀请码、SQLite 视图接线、双节点 e2e）**保留为实现参考**（快照 `specs/branch-implemented/coord-chain/`），OC1/OC2 视作「有参考实现的地基」而非待办。
 > 依据口径：现状以 [`feature-roadmap.md`](./feature-roadmap.md) §0 为准；实现以 [`specs/coord-chain/`](../../specs/coord-chain/design.md) 为准；调研 [`2026-08-27-coord-chain-technology-survey.md`](../research/2026-08-27-coord-chain-technology-survey.md)。
 
 ## 0. 定位与优先级声明
@@ -77,6 +78,6 @@
 ## 6. 启动顺序
 
 1. **冻结期内（现在）**：OC0——spec 三件套 + 本文档评审定稿；与主线 C 地基协调会；`docs/spec-open-items-status.md` 台账登记本路线条目。
-2. **H 预生产切换完成后**：开 `next/coord-chain`（或并入统一 next 集成分支的 OC 线），OC1 协议库先行——纯离线、零依赖、可单测，不受任何网络环境制约。
+2. **（2026-09-08 修订）本阶段直接实施**：不再另开 `next/coord-chain` 分支——上层交互（OC3 语义与 UI，按 v6 定稿）在当前工作线实施；OC1/OC2 底层对照分支参考实现取材校准；真实局域网双机验证（原 OC2 手测项）尽早安排。
 3. OC1 后半程并行准备 OC2 的双机测试环境（真实局域网 + Windows/macOS 各一）。
 4. OC2 端到端打通即内部 dogfood（本团队自己的需求文档与任务记录先上链），OC3 完成后对外可演示——差异化叙事成立的最小闭环。

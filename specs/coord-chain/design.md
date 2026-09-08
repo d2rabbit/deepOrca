@@ -1,11 +1,11 @@
 # AI 协调工作链（Coord Chain）— 设计文档
 
-> 日期：2026-08-27 · 状态：调研定稿（未实现）· 归属：**王牌路线 OC**（优先级高于 next-version，见 `docs/features/coord-chain-plan.md`）
-> **分支实现归档（2026-09-03 用户拍板）**——已在 `next/coord-chain` 分支实施至 OC2（Ed25519/X25519+AES-GCM 协议核心、ws 加密传输、ChainNode 建链/重放、mDNS 发现+邀请码、SQLite 视图接线、双节点 e2e），**未合并回主线**；分支合并后转正式归档。
+> 日期：2026-08-27 · 状态：**本阶段方案（设计稿 v6 交互定稿，2026-09-08）** · 归属：**王牌路线 OC**（优先级高于 next-version，见 `docs/features/coord-chain-plan.md`）
+> **分支实现 → 底层实现参考（2026-09-08 用户拍板；原 2026-09-03「分支实现归档、合并后转正」口径废止）**——coord-chain 回归**本阶段方案**，不再通过 `next/coord-chain` 分支实现与合并；该分支已完成的协议底层（Ed25519/X25519+AES-GCM 协议核心、ws 加密传输、ChainNode 建链/重放、mDNS 发现+邀请码、SQLite 视图接线、双节点 e2e）**保留为实现参考**（快照归档 `specs/branch-implemented/coord-chain/`），**上层交互逻辑以本设计稿 v6 + §11 链上行为协议为准实施**。
 > **2026-09-08 对照真实 UI 修正（用户拍板）**——共享模型改为「工作区级开关（会话模块打开工作区时决定）+ 任务树节点级 opt-out」；废除逐模块「上链」动作与逐动作确认，改为**自动记账**（R32/R33）；新增 知识库追随代码（R35）、编辑器本地历史（R36）、会话模块对齐本地 UI + 链 id 弹窗（R37）、会话 fork 记忆摘要注入（R38）、会话文件快照（R39）、任务树 hub 本地/链上二分（R34）。见 §10 与设计稿 v6（`screen-workchain.html`）。
 > **数据落点修正（2026-09-08 补充，R40）**——`.deeporca/` 是项目数据根（类比 `.git`）：本项目全部历史数据（会话/审查报告/知识库/设计稿/任务树等）与链上行为数据统一落工作区 `.deeporca/`；coord-chain 账本/blob/视图随之迁入 `<workspace>/.deeporca/coordchain/<chainId>/`（原 `~/.deeporca/coordchain/` 仅保留设备密钥）。
 > **链上行为深化（2026-09-08 · 交互定稿后）**——模块交互（§10 矩阵 + 设计稿 v6）定稿后，§11 把每个链行为落成精确协议：记录生命周期总表、share.rule/task.stub 节点共享协议（标题占位 + 视图遮蔽 + 不回收边界）、编辑器链上条目 = ws.commit 文件级投影（editor.snapshot 记录类型废止）、KB 覆盖/合并的机械判定（commit 谱系时间线 + AGENTS.md 标记块合并 + 符号图 hook 触发集）、会话文件快照与 fork 物化、轨迹图树构建算法、离线 outbox 与一致性总则。
-> 配套：[requirements.md](./requirements.md)（R1–R40）· [tasks.md](./tasks.md)（OC1–OC4）· 调研 [2026-08-27-coord-chain-technology-survey.md](../../../docs/research/2026-08-27-coord-chain-technology-survey.md)
+> 配套：[requirements.md](./requirements.md)（R1–R40）· [tasks.md](./tasks.md)（OC1–OC4）· 调研 [2026-08-27-coord-chain-technology-survey.md](../../docs/research/2026-08-27-coord-chain-technology-survey.md)
 
 ## 1. 定位与总原则
 

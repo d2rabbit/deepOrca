@@ -1,6 +1,6 @@
 # AI 协调工作链（Coord Chain）— 需求文档
 
-> 日期：2026-08-27 · 状态：调研定稿（未实现）· 归属：**王牌路线 OC**（优先级高于 next-version，见 `docs/features/coord-chain-plan.md`）· 调研：`docs/research/2026-08-27-coord-chain-technology-survey.md`
+> 日期：2026-08-27 · 状态：**本阶段方案（R32–R40 修正批，2026-09-08 交互定稿）** · 归属：**王牌路线 OC**（优先级高于 next-version，见 `docs/features/coord-chain-plan.md`）· 调研：`docs/research/2026-08-27-coord-chain-technology-survey.md`
 
 ## 1. 问题与背景
 

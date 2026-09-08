@@ -32,9 +32,9 @@
 
 见 [../review-ing/README.md](../review-ing/README.md)——task-tree-hub（收尾清单+真机走查待复核）· skill-eval（T2.3 对拍待真实 LLM）。
 
-## 🌿 分支实现归档（分支合并后转正）
+## 🌿 分支实现参考（2026-09-08 起：不再走「分支合并后转正」流转）
 
-见 [../branch-implemented/README.md](../branch-implemented/README.md)——coord-chain（OC1–OC2 已在 `next/coord-chain` 实现，未合并主线）。
+见 [../branch-implemented/README.md](../branch-implemented/README.md)——coord-chain（OC1–OC2 已在 `next/coord-chain` 实现；**2026-09-08 用户拍板改为本阶段方案、不再经分支实现与合并**，该快照降级为协议底层实现参考，上层交互以活跃 spec 设计稿 v6 为准）。
 
 ## ❌ 废弃归档（保留供溯源）
 

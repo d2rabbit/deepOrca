@@ -1,7 +1,7 @@
 # 右键菜单与快捷交互（context-menu-interaction）— 任务清单
 
 > 对应设计：[design.md](./design.md)。2026-09-05 立稿，方案稿（未开工）。
-> 上游调研：[docs/research/2026-09-05-interaction-redesign.md](../../docs/research/2026-09-05-interaction-redesign.md)。
+> 上游调研：[docs/research/2026-09-05-interaction-redesign.md](../../../docs/research/2026-09-05-interaction-redesign.md)。
 > 红线：任务树保持现状（零改动）；**编辑器交互以 specs/editor-copilot 为唯一权威**（结对画布组件零改动、既有 ui-edctx 菜单只追加不替换）；删除走废纸篓；reveal 全部 root-pinned；消息流工具行不做右键。
 
 ## P0 基建 + 高频表面
