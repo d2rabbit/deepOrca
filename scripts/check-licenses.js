@@ -78,6 +78,11 @@ const EXCEPTIONS = [
     license: "MIT AND CC-BY-3.0",
     why: "Code MIT + SPDX range data CC-BY-3.0, pulled in by the license-checker dev tool. Build-time only, never shipped; attribution satisfied by this notice.",
   },
+  {
+    match: (name) => name === "duck",
+    license: "BSD",
+    why: "Transitive helper of @marp-team/marp-core (math rendering for the main-process spec→slides exporter, specs/artifact-landing 链路 B). Upstream (mwilliamson/duck.js) declares a permissive BSD license; the metadata records the bare 'BSD' form, which the SPDX evaluation cannot split into an allow-listed clause. Main-process only.",
+  },
 ];
 
 /** Evaluate an SPDX expression against the allow list (`OR` accepts when ANY
