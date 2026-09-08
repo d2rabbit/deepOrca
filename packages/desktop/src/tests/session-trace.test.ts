@@ -6,7 +6,9 @@
  *   - skill-load system messages become 🧩 skill steps,
  *   - mcp__server__tool calls carry the MCP badge and the bare tool name,
  *   - assistant text becomes an assistant step,
- *   - only the newest KEEP_TURNS turns survive (truncated flag).
+ *   - only the newest KEEP_TURNS turns survive (truncated flag),
+ *   - a call with no recorded result at log end is marked interrupted —
+ *     a landed trace is never "in progress" (user ask 2026-09-08).
  */
 
 import { test } from "node:test";
@@ -124,6 +126,41 @@ test("session-trace: keeps ALL turns and never flags truncation (user ask 2026-0
   assert.equal(trace.truncated, undefined);
   assert.match(trace.turns[0].user, /turn 1/);
   assert.match(trace.turns[4].user, /turn 5/);
+});
+
+test("session-trace: call with no recorded result at log end → interrupted (user ask 2026-09-08: a landed trace is never in progress); argFull carries the untruncated args", () => {
+  const long = JSON.stringify({ command: "x".repeat(300) });
+  const trace = normalizeSessionTrace("s1", "demo", [
+    msg({ role: "user", content: "跑一下", createTime: "2026-09-01T10:00:00.000Z" }, 1),
+    msg(
+      {
+        role: "assistant",
+        messageParams: { tool_calls: [call("c1", "bash", long), call("c2", "read", '{"file_path":"a.ts"}')] },
+        createTime: "2026-09-01T10:00:05.000Z",
+      },
+      2
+    ),
+    msg(
+      {
+        role: "tool",
+        content: '{"ok":true}',
+        messageParams: { tool_call_id: "c1" },
+        createTime: "2026-09-01T10:00:06.000Z",
+      },
+      3
+    ),
+  ] as never);
+  const [bash, read] = trace.turns[0].steps;
+  // c1 got its result → completed; c2 never did → interrupted/abandoned
+  assert.equal(bash.ok, true);
+  assert.equal(bash.interrupted, undefined);
+  assert.equal(read.interrupted, true);
+  assert.equal(read.ok, undefined);
+  assert.equal(read.fail, undefined);
+  // argFull keeps the full payload for the detail panel; arg stays clipped
+  assert.equal(bash.argFull, long);
+  assert.ok((bash.arg?.length ?? 0) <= 110);
+  assert.ok(bash.arg?.endsWith("…"));
 });
 
 // ── readSessionTraceSource (cross-workspace JSONL fetch) ────────────────────

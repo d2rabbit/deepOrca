@@ -54,8 +54,13 @@ export type TaskHubQuickView =
       step: {
         tool: string;
         arg: string;
+        /** Full untruncated argument JSON — per-tool detail rendering source. */
+        argFull?: string;
         ok?: boolean;
         fail?: boolean;
+        /** No result recorded before the log ended — rendered 已中断, never
+         *  进行中 (a landed trace has no in-progress state). */
+        interrupted?: boolean;
         ms?: string;
         mcp?: string;
         cls: string;
@@ -852,8 +857,10 @@ export function TaskHubWorkspace({
                                                 step: {
                                                   tool: step.tool,
                                                   arg: step.arg,
+                                                  argFull: step.argFull,
                                                   ok: step.ok,
                                                   fail: step.fail,
+                                                  interrupted: step.interrupted,
                                                   ms: step.ms,
                                                   mcp: step.mcp,
                                                   cls: step.cls,
@@ -889,8 +896,9 @@ export function TaskHubWorkspace({
 
 /** 轨迹步骤图标与会话流/实时活动同源（user ask 2026-09-03 十一轮 图3：
  *  三处一律用同一套 SVG 工具族图标，弃用 trace 数据里的 emoji 字形）。
- *  cls 由主进程 classifyTool 归类（t-bash/t-read/…）。 */
-const TRACE_ICONS: Record<string, JSX.Element> = {
+ *  cls 由主进程 classifyTool 归类（t-bash/t-read/…）；step-detail 悬浮窗
+ *  （TaskQuickSheet）共用同一映射。 */
+export const TRACE_ICONS: Record<string, JSX.Element> = {
   "t-bash": <IconBashTerminal />,
   "t-read": <IconToolRead />,
   "t-write": <IconToolWrite />,
@@ -910,6 +918,7 @@ function TraceStepRow({
   step: TaskTraceStep;
   onSelect?: (step: TaskTraceStep) => void;
 }): JSX.Element {
+  const { t } = useI18n();
   const mcp = step.mcp ? <span className="mcp-badge">MCP · {step.mcp}</span> : null;
   return (
     <>
@@ -928,7 +937,14 @@ function TraceStepRow({
             {mcp}
             <span className="tool">{step.tool}</span>
             <span className="arg">{step.arg}</span>
+            {/* 终态三选一（user ask 2026-09-08）：已落地轨迹没有「进行中」
+                —— 有结果 ✓/✗，无结果即被中断 ⊘。 */}
             {step.fail ? <span className="fail">✗</span> : step.ok ? <span className="ok">✓</span> : null}
+            {step.interrupted ? (
+              <span className="intr" title={t("taskhub.status.interrupted")}>
+                ⊘
+              </span>
+            ) : null}
             <span className="ms">{step.ms || ""}</span>
           </div>
         </div>

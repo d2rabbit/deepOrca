@@ -138,6 +138,8 @@ const api: DesktopApi = {
 
   // ── Editor module ─────────────────────────────────────────────────────
   editorReadFile: (filePath) => ipcRenderer.invoke(IpcRequest.EditorReadFile, filePath),
+  editorReadBinary: (filePath) => ipcRenderer.invoke(IpcRequest.EditorReadBinary, filePath),
+  editorOpenSystem: (filePath) => ipcRenderer.invoke(IpcRequest.EditorOpenSystem, filePath),
   editorWriteFile: (filePath, content) => ipcRenderer.invoke(IpcRequest.EditorWriteFile, filePath, content),
   editorListFiles: (dirPath) => ipcRenderer.invoke(IpcRequest.EditorListFiles, dirPath),
 
@@ -183,6 +185,12 @@ const api: DesktopApi = {
     ipcRenderer.invoke(IpcRequest.DesignSuiteSaveFormState, root, id, state),
   designSuiteReadFormState: (root, id) => ipcRenderer.invoke(IpcRequest.DesignSuiteReadFormState, root, id),
   designSystemCatalog: () => ipcRenderer.invoke(IpcRequest.DesignSystemCatalog),
+  prototypeSpecSlides: (root, suiteId, versionId, appearance) =>
+    ipcRenderer.invoke(IpcRequest.PrototypeSpecSlides, root, suiteId, versionId, appearance),
+  prototypeSpecExportSlides: (root, suiteId, kind, versionId, appearance) =>
+    ipcRenderer.invoke(IpcRequest.PrototypeSpecExportSlides, root, suiteId, kind, versionId, appearance),
+  prototypeBuildBrief: (root, suiteId, versionId, locale) =>
+    ipcRenderer.invoke(IpcRequest.PrototypeBuildBrief, root, suiteId, versionId, locale),
 
   // ── Task trajectory (read-only panel surface) ────────────────────────────
   taskTreeList: (workspaceRoot) => ipcRenderer.invoke(IpcRequest.TaskTreeList, workspaceRoot),

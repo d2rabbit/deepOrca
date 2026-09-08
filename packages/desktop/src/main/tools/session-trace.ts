@@ -22,8 +22,16 @@ export interface TraceStep {
   tool: string;
   /** One-line argument/summary snippet. */
   arg: string;
+  /** Full untruncated argument JSON — the detail panel's data source; the
+   *  inline row keeps the clipped `arg` (display-noise only). Capped at
+   *  ARG_FULL_MAX so a pathological write payload can't stall the sheet. */
+  argFull?: string;
   ok?: boolean;
   fail?: boolean;
+  /** Terminal-state marker (user ask 2026-09-08): a trace that has landed in
+   *  the task tree is never "in progress" — a tool call with no recorded
+   *  result when the log ends was interrupted/abandoned mid-flight. */
+  interrupted?: boolean;
   ms?: string;
   mcp?: string;
   /** Truncated result markdown (meta.resultMd, ≤2000 chars) — used by the
@@ -51,6 +59,10 @@ export interface SessionTrace {
 
 const ARG_MAX = 110;
 const TEXT_MAX = 150;
+/** Detail-panel argument cap — full enough for any command/path/question
+ *  payload, bounded enough that a megabyte write can't cross IPC for a
+ *  view the user may never open. */
+const ARG_FULL_MAX = 20_000;
 // user ask 2026-09-03 九轮：任务树轨迹就是为了看完整内容 —— 不再截断
 // turn 数（旧值 3 只留最近三个 turn）。参数/文本的行内裁剪保留（显示层
 // 降噪，完整原文在会话 JSONL 里）。
@@ -84,23 +96,24 @@ interface OpenCall {
 }
 
 /** Parse one OpenAI-style tool_call ({id, function:{name, arguments}}). */
-function readCall(raw: unknown): { id: string; name: string; arg: string } | null {
+function readCall(raw: unknown): { id: string; name: string; arg: string; argFull: string } | null {
   if (raw == null || typeof raw !== "object") return null;
   const c = raw as Record<string, unknown>;
   const fn = c.function as Record<string, unknown> | undefined;
   const name = typeof fn?.name === "string" ? fn.name : typeof c.name === "string" ? (c.name as string) : "";
   if (!name) return null;
-  let arg = "";
+  let rawArgs = "";
   if (typeof fn?.arguments === "string") {
-    arg = fn.arguments;
+    rawArgs = fn.arguments;
   } else if (fn?.arguments != null) {
     try {
-      arg = JSON.stringify(fn.arguments);
+      rawArgs = JSON.stringify(fn.arguments);
     } catch {
-      arg = "";
+      rawArgs = "";
     }
   }
-  return { id: typeof c.id === "string" ? c.id : "", name, arg: clip(arg) };
+  const argFull = rawArgs.length > ARG_FULL_MAX ? `${rawArgs.slice(0, ARG_FULL_MAX)}…` : rawArgs;
+  return { id: typeof c.id === "string" ? c.id : "", name, arg: clip(rawArgs), argFull };
 }
 
 /** Tool result verdict: the serialized envelope is { ok, error?, output? }. */
@@ -192,7 +205,7 @@ export function normalizeSessionTrace(sessionId: string, title: string, messages
         const call = readCall(raw);
         if (!call) continue;
         const { cls, ic } = classifyTool(call.name);
-        const step: TraceStep = { cls, ic, tool: call.name, arg: call.arg, at: msg.createTime };
+        const step: TraceStep = { cls, ic, tool: call.name, arg: call.arg, argFull: call.argFull, at: msg.createTime };
         if (call.name.startsWith("mcp__")) {
           const parts = call.name.split("__");
           step.mcp = parts[1] || "mcp";
@@ -211,6 +224,8 @@ export function normalizeSessionTrace(sessionId: string, title: string, messages
           ic: "💬",
           tool: "assistant",
           arg: clip(text, TEXT_MAX),
+          // Full message for the detail panel (same cap as tool args).
+          argFull: text.length > ARG_FULL_MAX ? `${text.slice(0, ARG_FULL_MAX)}…` : text,
         });
       }
       continue;
@@ -239,6 +254,12 @@ export function normalizeSessionTrace(sessionId: string, title: string, messages
       continue;
     }
   }
+
+  // Terminal-state sweep (user ask 2026-09-08): a landed trace is never "in
+  // progress". Any tool call still unmatched when the message log ends never
+  // recorded a result — the run was interrupted/abandoned mid-flight. Mark it
+  // so the UI renders 已中断 instead of guessing from a missing verdict.
+  for (const o of open) o.step.interrupted = true;
 
   return { sessionId, title, turns };
 }

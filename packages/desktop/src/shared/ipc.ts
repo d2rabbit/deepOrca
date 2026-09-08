@@ -144,6 +144,11 @@ export const IpcRequest = {
   EditorReadFile: "editor:readFile",
   EditorWriteFile: "editor:writeFile",
   EditorListFiles: "editor:listFiles",
+  /** Binary fallback preview (specs/artifact-landing 链路 A): bytes for the
+   *  embedded viewer. Whitelisted extensions only, 64MB cap. */
+  EditorReadBinary: "editor:readBinary",
+  /** Hand non-previewable files to the OS shell (containment-checked). */
+  EditorOpenSystem: "editor:openSystem",
 
   // Memory (in-process L0-L3 pipeline)
   MemoryCheckAvailable: "memory:checkAvailable",
@@ -183,6 +188,14 @@ export const IpcRequest = {
   DesignSuiteSaveFormState: "design:suiteSaveFormState",
   DesignSuiteReadFormState: "design:suiteReadFormState",
   DesignSystemCatalog: "design:systemCatalog",
+  /** Spec → Marp slides (specs/artifact-landing 链路 B): in-place preview of
+   *  one suite version's spec.md rendered as a slide deck (main-process). */
+  PrototypeSpecSlides: "prototype:specSlides",
+  /** Export the rendered deck as derivative files in the suite dir (html/pdf). */
+  PrototypeSpecExportSlides: "prototype:specExportSlides",
+  /** Deterministic implementation brief (specs/artifact-landing 链路 C):
+   *  spec.md → brief.md (six-section, anti-collapse wording, gap-checked). */
+  PrototypeBuildBrief: "prototype:buildBrief",
 
   // Task trajectory (specs/task-tree) — panel surface (workspace-scoped)
   TaskTreeList: "tasktree:list",
@@ -430,8 +443,13 @@ export type TaskTraceStep = {
   ic: string;
   tool: string;
   arg: string;
+  /** Full untruncated argument JSON for the detail panel (inline keeps `arg`). */
+  argFull?: string;
   ok?: boolean;
   fail?: boolean;
+  /** Terminal marker: no tool result was recorded before the log ended —
+   *  a landed trace is never "in progress", this call was interrupted. */
+  interrupted?: boolean;
   ms?: string;
   mcp?: string;
   /** Truncated result markdown for the detail panel. */
@@ -999,6 +1017,43 @@ export type UiSuiteContent = {
 
 export type DesignSuiteContent = PrototypeSuiteContent | UiSuiteContent;
 
+/** Spec → slides preview payload (specs/artifact-landing 链路 B): rendered in
+ *  the main process by @marp-team/marp-core; the renderer only ever receives
+ *  self-contained strings — marp never enters the renderer bundle (B8). */
+export type PrototypeSpecSlidesResult = {
+  ok: boolean;
+  html?: string;
+  css?: string;
+  /** Number of `<section>` slides. */
+  pages?: number;
+  /** `http(s)://` image references in the spec — CSP-blocked on export. */
+  remoteImages?: number;
+  error?: string;
+};
+
+/** Slide-deck export target: standalone HTML, or PDF printed from it. */
+export type PrototypeSpecSlidesKind = "html" | "pdf";
+
+export type PrototypeSpecExportSlidesResult = {
+  ok: boolean;
+  /** Suite-dir path of the derivative file (slides.html / slides.pdf). */
+  path?: string;
+  /** Remote images blocked by the export CSP (B10, reported to the user). */
+  blockedRemote?: number;
+  error?: string;
+};
+
+/** Implementation brief (specs/artifact-landing 链路 C): deterministic
+ *  six-section brief from a spec document. gaps non-empty ⇒ no brief (C14). */
+export type PrototypeBuildBriefResult = {
+  ok: boolean;
+  briefMd?: string;
+  /** Suite-dir path of the derivative file (brief.md). */
+  path?: string;
+  gaps?: string[];
+  error?: string;
+};
+
 export type DesignSuiteVersionSummary = {
   versionId: string;
   savedAt: string;
@@ -1182,6 +1237,19 @@ export type EditorFileEntry = {
   type: "file" | "directory";
   /** File size in bytes (0 for directories). */
   size: number;
+};
+
+/** Binary fallback preview read (specs/artifact-landing 链路 A). Bytes ride
+ *  Electron structured clone (no base64); whitelist + size cap enforced in
+ *  the main handler. */
+export type EditorReadBinaryResult = {
+  ok: boolean;
+  bytes?: Uint8Array;
+  name?: string;
+  ext?: string;
+  size?: number;
+  reason?: "escaped" | "not-file" | "too-large" | "extension-unsupported";
+  error?: string;
 };
 
 /** A file match for @file mention autocomplete. */
@@ -1462,6 +1530,10 @@ export type DesktopApi = {
   editorWriteFile(filePath: string, content: string): Promise<{ ok: boolean; error?: string }>;
   /** List files and directories under a path within the project root. */
   editorListFiles(dirPath: string): Promise<{ ok: boolean; entries?: EditorFileEntry[]; error?: string }>;
+  /** Read whitelisted binary files (bytes) for the embedded fallback viewer. */
+  editorReadBinary(filePath: string): Promise<EditorReadBinaryResult>;
+  /** Hand a non-previewable file to the OS shell (containment-checked). */
+  editorOpenSystem(filePath: string): Promise<{ ok: boolean; error?: string }>;
 
   // ── Memory (in-process L0-L3 pipeline) ─────────────────────────────────
   /** Check whether the memory pipeline is available and healthy. */
@@ -1532,6 +1604,29 @@ export type DesktopApi = {
   designSuiteSaveFormState(root: string, id: string, state: Record<string, unknown>): Promise<boolean>;
   designSuiteReadFormState(root: string, id: string): Promise<Record<string, unknown> | null>;
   designSystemCatalog(): Promise<DesignSystemCatalogItem[]>;
+
+  /** Render one suite version's spec.md into a slide deck (main-process marp). */
+  prototypeSpecSlides(
+    root: string,
+    suiteId: string,
+    versionId?: string,
+    appearance?: "light" | "dark"
+  ): Promise<PrototypeSpecSlidesResult>;
+  /** Export the deck as a derivative file in the suite dir (html/pdf). */
+  prototypeSpecExportSlides(
+    root: string,
+    suiteId: string,
+    kind: PrototypeSpecSlidesKind,
+    versionId?: string,
+    appearance?: "light" | "dark"
+  ): Promise<PrototypeSpecExportSlidesResult>;
+  /** Build the implementation brief for one suite version's spec. */
+  prototypeBuildBrief(
+    root: string,
+    suiteId: string,
+    versionId?: string,
+    locale?: string
+  ): Promise<PrototypeBuildBriefResult>;
 
   // ── Task trajectory (read-only panel surface) ────────────────────────────
   /** List task trees (id, title, active branch, counts). */

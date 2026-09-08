@@ -459,6 +459,11 @@
   color: #e03131;
   font-weight: 700;
 }
+/* 已中断（无结果落地）——琥珀 ⊘，与 ✓/✗ 同级的终态标记 */
+.ui-taskhub-trace .step .intr {
+  color: #e8890c;
+  font-weight: 700;
+}
 .ui-taskhub-trace .step .ic.t-bash {
   color: var(--dot-index, #e8590c);
 }
@@ -1189,4 +1194,262 @@
   max-height: 300px;
   overflow-y: auto;
   line-height: 1.5;
+}
+
+/* ── step-detail 渲染强化（user ask 2026-09-08：不同 hub 分型渲染）── */
+
+/* 状态三终态：ok 绿 / fail 红 / interrupted 琥珀 —— 已落地轨迹没有「进行中」 */
+.ui-depth-op-status.interrupted {
+  background: color-mix(in srgb, #e8890c 15%, transparent);
+  color: #e8890c;
+}
+/* 头部工具族图标芯片 —— 与轨迹行同色系（t-* 分类） */
+.ui-depth-op-ic {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ui-surface-raised, #fff);
+  border: 1px solid var(--ui-border-soft, #444);
+}
+.ui-depth-op-ic svg {
+  width: 15px;
+  height: 15px;
+}
+.ui-depth-op-ic.t-bash {
+  color: var(--dot-index, #e8590c);
+}
+.ui-depth-op-ic.t-read {
+  color: var(--ui-accent, #3b82f6);
+}
+.ui-depth-op-ic.t-write,
+.ui-depth-op-ic.t-edit {
+  color: #f76707;
+}
+.ui-depth-op-ic.t-skill {
+  color: #be4bdb;
+}
+.ui-depth-op-ic.t-web {
+  color: #0ca678;
+}
+.ui-depth-op-ic.t-mcp {
+  color: #1098ad;
+}
+.ui-depth-op-ic.t-agent {
+  color: var(--taskhub-fork, #a78bfa);
+}
+.ui-depth-op-ic.t-assistant {
+  color: var(--ui-text-dim, #66707d);
+}
+.ui-depth-op-ic.t-question {
+  color: #e64980;
+}
+/* 中断提示条 —— 解释为什么没有时长/结果 */
+.ui-depth-op-interrupted {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 14px 0;
+  padding: 8px 11px;
+  border-radius: 8px;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: #e8890c;
+  background: color-mix(in srgb, #e8890c 8%, transparent);
+  border: 1px dashed color-mix(in srgb, #e8890c 45%, transparent);
+}
+.ui-depth-op-interrupted svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+/* bash：终端风命令块（$ 提示符 + 深底 mono），说明文字作注脚 */
+.ui-depth-op-cmd {
+  margin: 0;
+  padding: 9px 11px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--ui-border-soft, #333) 40%, transparent);
+  border-left: 3px solid var(--dot-index, #e8590c);
+  font-family: var(--ui-font-mono);
+  font-size: 11.5px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  line-height: 1.55;
+  max-height: 260px;
+  overflow-y: auto;
+}
+.ui-depth-op-cmd .prompt {
+  color: var(--dot-index, #e8590c);
+  font-weight: 700;
+  user-select: none;
+}
+.ui-depth-op-cmd-note {
+  margin-top: 5px;
+  font-size: 11px;
+  color: var(--ui-text-dim, #888);
+}
+/* read/write/edit：文件路径芯片 */
+.ui-depth-op-file {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--ui-accent, #3b82f6) 7%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ui-accent, #3b82f6) 22%, transparent);
+  min-width: 0;
+}
+.ui-depth-op-file svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  color: var(--ui-accent, #3b82f6);
+}
+.ui-depth-op-file code {
+  font-family: var(--ui-font-mono);
+  font-size: 11.5px;
+  overflow-wrap: anywhere;
+}
+/* edit：−/+ 变更对（红旧绿新，diff 直读） */
+.ui-depth-op-diff {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ui-depth-op-diff-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  border-radius: 6px;
+  overflow: hidden;
+}
+.ui-depth-op-diff-row .tag {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--ui-font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  margin-top: 2px;
+}
+.ui-depth-op-diff-row.old {
+  background: color-mix(in srgb, #e03131 8%, transparent);
+}
+.ui-depth-op-diff-row.old .tag {
+  background: color-mix(in srgb, #e03131 16%, transparent);
+  color: #e03131;
+}
+.ui-depth-op-diff-row.new {
+  background: color-mix(in srgb, #2f9e44 8%, transparent);
+}
+.ui-depth-op-diff-row.new .tag {
+  background: color-mix(in srgb, #2f9e44 16%, transparent);
+  color: #2f9e44;
+}
+.ui-depth-op-diff-row pre {
+  margin: 0;
+  padding: 5px 0;
+  font-family: var(--ui-font-mono);
+  font-size: 11px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  line-height: 1.5;
+  max-height: 200px;
+  overflow-y: auto;
+  flex: 1;
+  min-width: 0;
+}
+/* search/fetch/skill：查询引用块 + 可点链接 */
+.ui-depth-op-quote {
+  padding: 8px 11px;
+  border-radius: 8px;
+  border-left: 3px solid #0ca678;
+  background: color-mix(in srgb, #0ca678 7%, transparent);
+  font-size: 12.5px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.ui-depth-op-link {
+  display: inline-block;
+  padding: 7px 11px;
+  border-radius: 8px;
+  border-left: 3px solid #0ca678;
+  background: color-mix(in srgb, #0ca678 7%, transparent);
+  font-family: var(--ui-font-mono);
+  font-size: 11.5px;
+  color: var(--ui-accent, #3b82f6);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+.ui-depth-op-link:hover {
+  text-decoration: underline;
+}
+/* askuserquestion：问答卡（题头 + 选项列表） */
+.ui-depth-op-question {
+  padding: 9px 11px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, #e64980 28%, transparent);
+  background: color-mix(in srgb, #e64980 5%, transparent);
+  margin-bottom: 6px;
+}
+.ui-depth-op-question .q {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.ui-depth-op-question .q-header {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: color-mix(in srgb, #e64980 14%, transparent);
+  color: #e64980;
+}
+.ui-depth-op-question .q-text {
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+.ui-depth-op-question .q-options {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ui-depth-op-question .q-option {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 5px 9px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--ui-border-soft, #333) 25%, transparent);
+}
+.ui-depth-op-question .q-option-label {
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.ui-depth-op-question .q-option-desc {
+  font-size: 11px;
+  color: var(--ui-text-dim, #888);
+  line-height: 1.4;
+}
+/* assistant/plan：可读文本块（非 mono，保换行） */
+.ui-depth-op-text {
+  font-size: 12.5px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  padding: 9px 11px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--ui-border-soft, #333) 25%, transparent);
+  max-height: 320px;
+  overflow-y: auto;
 }
