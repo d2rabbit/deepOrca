@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="zh" data-appearance="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>工作链设计稿 · 真实 UI 基底 · 七模块切换</title>
+    <link rel="stylesheet" href="../../packages/desktop/src/renderer/ui.css" />
+    <style>
+      html, body { height: 100%; margin: 0; overflow: hidden; background: var(--ui-bg, #0e1116); font-family: var(--ui-font-sans, system-ui); }
+      .bar { display: flex; gap: 6px; align-items: center; padding: 8px 14px; border-bottom: 1px solid var(--ui-border-soft, #2c3037); background: var(--ui-surface, #26292e); }
+      .tab { padding: 4px 13px; border-radius: 999px; border: 1px solid var(--ui-border-soft, #2c3037); background: transparent; color: var(--ui-text-dim, #a7b0bd); font-size: 12px; cursor: pointer; }
+      .tab.on { background: var(--ui-accent-soft, rgba(90,150,240,.18)); color: var(--ui-text, #e7ebf1); border-color: color-mix(in srgb, var(--ui-accent, #5c8dff) 50%, transparent); font-weight: 600; }
+      .hint { margin-left: auto; font-size: 10px; color: var(--ui-text-faint, #6f7a89); font-family: var(--ui-font-mono, monospace); }
+      iframe { flex: 1; width: 100%; border: 0; background: var(--ui-bg, #0e1116); }
+      .wrap { height: 100vh; display: flex; flex-direction: column; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="bar">
+<button class="tab on" data-src="real-ui/views/05-tree.html?v=11">⑂ 任务树（核心 · 全链共享）</button><button class="tab" data-src="real-ui/views/04-sessions.html?v=11">💬 会话</button><button class="tab" data-src="real-ui/views/10-prototype.html?v=11">◎ 原型设计</button><button class="tab" data-src="real-ui/views/06-design.html?v=11">✦ UI 设计</button><button class="tab" data-src="real-ui/views/07-review.html?v=11">✓ 审查报告</button><button class="tab" data-src="real-ui/views/08-kb.html?v=11">▤ 知识库</button><button class="tab" data-src="real-ui/views/09-editor.html?v=11">✎ 编辑器</button>
+        <span class="hint">基底 = 运行中应用真实 DOM（CDP 提取）· 链注入层：任务树节点链 id/链操作日志/fork pop · 会话声明链 id · 设计/原型链上版本 · 审查/知识库随代码链上版本 · 编辑器链上快照</span>
+      </div>
+      <iframe id="frame" src="real-ui/views/05-tree.html?v=11"></iframe>
+    </div>
+    <script>
+      var tabs = document.querySelectorAll(".tab");
+      tabs.forEach(function (b) {
+        b.addEventListener("click", function () {
+          tabs.forEach(function (x) { x.classList.toggle("on", x === b); });
+          document.getElementById("frame").src = b.dataset.src;
+        });
+      });
+    </script>
+  </body>
+</html>

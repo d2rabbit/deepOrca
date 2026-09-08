@@ -1,0 +1,147 @@
+[
+  {
+    "t": "",
+    "tip": "",
+    "cls": "ui-gumdrop close"
+  },
+  {
+    "t": "",
+    "tip": "",
+    "cls": "ui-gumdrop min"
+  },
+  {
+    "t": "",
+    "tip": "",
+    "cls": "ui-gumdrop zoom"
+  },
+  {
+    "t": "StepFun Plan / step-",
+    "tip": "StepFun Plan / step-3.7-flash",
+    "cls": "ui-dd-trigger ui-topbar-model"
+  },
+  {
+    "t": "StepFun Plan / step-",
+    "tip": "",
+    "cls": "ui-dd-item ui-dd-item--selected"
+  },
+  {
+    "t": "DeepSeek / deepseek-",
+    "tip": "",
+    "cls": "ui-dd-item"
+  },
+  {
+    "t": "配置模型池…",
+    "tip": "",
+    "cls": "ui-dd-item"
+  },
+  {
+    "t": "High",
+    "tip": "High",
+    "cls": "ui-dd-trigger ui-topbar-thinking"
+  },
+  {
+    "t": "Low",
+    "tip": "",
+    "cls": "ui-dd-item"
+  },
+  {
+    "t": "Medium",
+    "tip": "",
+    "cls": "ui-dd-item"
+  },
+  {
+    "t": "High",
+    "tip": "",
+    "cls": "ui-dd-item ui-dd-item--selected"
+  },
+  {
+    "t": "关闭思考",
+    "tip": "",
+    "cls": "ui-dd-item"
+  },
+  {
+    "t": "上下文0工作区1.10M",
+    "tip": "",
+    "cls": "ui-topbar-pill ui-topbar-tokens"
+  },
+  {
+    "t": "",
+    "tip": "命令面板 (⌘K)",
+    "cls": "ui-cockpit-icon-btn"
+  },
+  {
+    "t": "",
+    "tip": "深色外观 — 点击切换浅色",
+    "cls": "ui-cockpit-icon-btn"
+  },
+  {
+    "t": "",
+    "tip": "撤销 / 恢复 (⌘Z)",
+    "cls": "ui-cockpit-icon-btn"
+  },
+  {
+    "t": "",
+    "tip": "设置 (⌘,)",
+    "cls": "ui-cockpit-icon-btn"
+  },
+  {
+    "t": "先规划",
+    "tip": "",
+    "cls": "ui-welcome-chip"
+  },
+  {
+    "t": "生成 AGENTS.md",
+    "tip": "",
+    "cls": "ui-welcome-chip"
+  },
+  {
+    "t": "知识库",
+    "tip": "",
+    "cls": "ui-welcome-chip"
+  },
+  {
+    "t": "代码审查",
+    "tip": "",
+    "cls": "ui-welcome-chip"
+  },
+  {
+    "t": "技能与 MCP",
+    "tip": "",
+    "cls": "ui-welcome-chip"
+  },
+  {
+    "t": "撤销与恢复",
+    "tip": "",
+    "cls": "ui-welcome-chip"
+  },
+  {
+    "t": "",
+    "tip": "",
+    "cls": "ui-btn ui-btn--sm ui-btn--icon ui-compos"
+  },
+  {
+    "t": "发送",
+    "tip": "",
+    "cls": "ui-btn ui-btn--primary ui-btn--sm"
+  },
+  {
+    "t": "",
+    "tip": "会话",
+    "cls": "ui-quickdock-btn ui-quickdock-sessions"
+  },
+  {
+    "t": "",
+    "tip": "新建会话 (⌘N)",
+    "cls": "ui-quickdock-btn"
+  },
+  {
+    "t": "",
+    "tip": "新建工作区",
+    "cls": "ui-quickdock-btn ui-quickdock-workspace"
+  },
+  {
+    "t": "◈",
+    "tip": "",
+    "cls": "ui-orb"
+  }
+]

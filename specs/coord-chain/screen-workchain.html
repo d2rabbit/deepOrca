@@ -1,0 +1,2215 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-appearance="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>DeepOrca — 工作链设计稿 v5（Hub 底部坞 · 说明设计稿 · 链融于模块）</title>
+<!--
+  工作链（Coord Chain）HTML 交互视觉稿 · v5（2026-09-08）
+  ═══════════════════════════════════════════════════════════
+  定位：specs/coord-chain 的说明设计稿（annotated spec）。仅设计，不落地实现。
+        v1 = 真实 DOM + 链注入（基础稿）；v2 = 链融于模块 + 版本融合概念定稿；
+        v3 = 全模块按运行中应用真实组件结构重建（类词汇同名）；
+        v4 = 说明化 + 交互闭环（标注层 · toast · 范围↔报告联动 · 版本 rail 状态机修复 ·
+             编辑器三动作）；v5（本稿）= 导航归位。
+
+  v5 相对 v4（评审意见 2026-09-08「为啥功能切换还在顶部」）：
+  ① 真实应用的模块/面板切换从来不在顶栏，而在底部悬浮玻璃坞（shell.css .ui-hub-rail：
+     absolute · bottom 14px · 高 52px · 品牌 mark + 图标列 + ⟨ 收起；active 双色渐变）。
+     本稿照此重建：七模块图标入坞，点 ⟨ 收成左下角 tide orb，点 orb 召唤回坞
+     （真实 hub 的两级交互），舞台随坞收放让出/收回底部空间。
+  ② 顶栏 cockpit 回归真实 TopBar 语义：只放状态与控制胶囊（品牌/模型/上下文 +
+     标注/图例/浅深切换/窗口控制），不再承担功能切换。
+  ③ 标注层补 Hub 坞说明（两级 hub 交互 · 链没有自己的坞图标）。
+  ④ 链概念不变：链不作为独立模块（恒定主题条底座 + 模块内融合表面）；●本地 / ⛓链上 /
+     ◆随代码 三种版本节点；fork=checkout 即上链；无 merge 择线。
+
+  交互演示：
+   ① Hub 底部坞：图标切模块 · ⟨ 收起 → tide orb 召唤 · theme-seg 浅/深 · 标注/图例开关
+   ② 标注模式：pin 编号 → 设计说明弹层（交互逻辑 + R 条款）
+   ③ 任务树：域 pills/成员过滤 · 节点详情 · 轨迹常开 · ⑂ fork 弹层 · 链操作日志实时追加
+   ④ 会话：选中联动 · 上链共享预览确认 · 接续上下文卡
+   ⑤ 原型/UI 设计：三段页签 · 融合 rail（⛓ 版本 = 溯源 diff 视图）· 发布为链上版本
+   ⑥ 审查报告：子页切换 · 范围下拉联动报告 · 报告全结构 · CRG 定位 ◎ ↔ 图谱双向闪烁 ·
+      图例严重度过滤器 · ⛓ 批注回链 · 一键修复 → 任务树
+   ⑦ 知识库：三子页 · 构建历史（本地 ∪ 链上同步）· 应用前差异预览
+   ⑧ 编辑器：文件树/页签联动 · 历史（checkpoint ∪ ⛓ 快照）· 快照上链/恢复/对比
+-->
+<style>
+  /* ── Aqua 语义 token（styles.css 同源 · 双外观） ── */
+  :root {
+    --pinstripe-a: #eef2f7; --pinstripe-b: #e5eaf1;
+    --pinstripes: repeating-linear-gradient(0deg, var(--pinstripe-a) 0px, var(--pinstripe-a) 1px, var(--pinstripe-b) 1px, var(--pinstripe-b) 2px);
+    --gel-top: #7fb2f7; --gel-mid: #3f86ef; --gel-bot: #1862d8;
+    --ui-bg: var(--pinstripes);
+    --ui-surface: #f7f9fc; --ui-surface-raised: #ffffff; --ui-surface-sunken: #eef1f6;
+    --ui-surface-hover: rgba(20, 60, 130, 0.07);
+    --ui-text: #1b2129; --ui-text-dim: #55606d; --ui-text-faint: #8590a0; --ui-text-on-accent: #ffffff;
+    --ui-accent: #1c6fe0; --ui-accent-strong: #0f52bd; --ui-accent-soft: rgba(28, 111, 224, 0.12);
+    --ui-accent-fill: linear-gradient(var(--gel-top), var(--gel-mid) 52%, var(--gel-bot));
+    --ui-focus-ring: rgba(60, 132, 235, 0.6);
+    --ui-border: #9aa7b6; --ui-border-soft: #c3cdd9;
+    --ui-success: #2f9e44; --ui-danger: #d1453b; --ui-warning: #cf9310; --ui-info: #7b4fe0;
+    --ui-radius-sm: 6px; --ui-radius-md: 9px; --ui-radius-lg: 12px; --ui-radius-pill: 999px;
+    --ui-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
+    --ui-shadow-card: 0 1px 2px rgba(0, 0, 0, 0.18), 0 6px 20px rgba(20, 50, 100, 0.14);
+    --ui-shadow-modal: 0 18px 60px rgba(20, 40, 80, 0.3);
+    --ui-ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+    --ui-font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, "PingFang SC", "Microsoft YaHei", sans-serif;
+    --ui-font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    --taskhub-trunk: #9fb3cc; --line-trunk: #9fb3cc; --line-fork: #7048e8;
+    --dot-session: #1c6fe0; --dot-review: #2f9e44; --dot-index: #e8590c;
+    --dot-prototype: #be4bdb; --dot-editor: #f08c00;
+    --git-fg: #d63865;
+    --mem-self: var(--ui-accent); --mem-dev: #0d9488; --mem-design: #e11d48;
+    --rb-tier-hi: #dc2626; --rb-tier-md: #d97706; --rb-tier-lo: #94a3b8; --rb-tier-sec: #f59e0b;
+  }
+  :root[data-appearance="dark"] {
+    --pinstripe-a: #23262b; --pinstripe-b: #1f2226;
+    --pinstripes: repeating-linear-gradient(0deg, var(--pinstripe-a) 0px, var(--pinstripe-a) 1px, var(--pinstripe-b) 1px, var(--pinstripe-b) 2px);
+    --ui-surface: #26292e; --ui-surface-raised: #2c3037; --ui-surface-sunken: #1e2126;
+    --ui-surface-hover: rgba(255, 255, 255, 0.06);
+    --ui-text: #e7ebf1; --ui-text-dim: #a7b0bd; --ui-text-faint: #6f7a89;
+    --ui-accent: #5c9dff; --ui-accent-soft: rgba(90, 150, 240, 0.18);
+    --ui-border: #3a3f47; --ui-border-soft: #2c3037;
+    --ui-success: #4cc266; --ui-danger: #ff6a5f; --ui-warning: #e6b23a; --ui-info: #a583f0;
+    --ui-shadow-card: 0 1px 2px rgba(0, 0, 0, 0.5), 0 8px 24px rgba(0, 0, 0, 0.4);
+    --ui-shadow-modal: 0 18px 60px rgba(0, 0, 0, 0.6);
+    --taskhub-trunk: #64798f; --line-trunk: #64798f; --line-fork: #9775fa;
+    --dot-session: #4d9aff; --dot-review: #51cf66; --dot-index: #ff922b;
+    --dot-prototype: #da77f2; --dot-editor: #ffa94d;
+    --git-fg: #ff8ba0;
+    --mem-dev: #2dd4bf; --mem-design: #fb7185;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: var(--ui-font-sans); font-size: 13.5px; line-height: 1.5;
+    color: var(--ui-text); background: var(--ui-bg); overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+    transition: background 0.2s var(--ui-ease), color 0.2s var(--ui-ease);
+  }
+  button { font-family: inherit; cursor: pointer; border: none; background: none; color: inherit; }
+  input, textarea, select { font-family: inherit; }
+  .mono { font-family: var(--ui-font-mono); }
+  .spacer { flex: 1; }
+
+  .shell { position: relative; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+  .shell::before { content: ""; position: absolute; inset: 0; pointer-events: none;
+    background:
+      radial-gradient(1100px 760px at 16% -8%, color-mix(in srgb, var(--ui-accent) 8%, transparent), transparent 62%),
+      radial-gradient(900px 680px at 102% 108%, color-mix(in srgb, var(--ui-info) 7%, transparent), transparent 58%);
+    z-index: 0; }
+  .shell > * { position: relative; z-index: 1; }
+
+  /* ══ Cockpit（dock 模式 · 对齐 screen-ui-design.html） ══ */
+  .cockpit { display: flex; align-items: center; gap: 8px; padding: 10px 14px 6px 16px; flex-wrap: wrap; }
+  .c-pill { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 11px;
+    border-radius: var(--ui-radius-pill);
+    background: color-mix(in srgb, var(--ui-surface) 72%, transparent);
+    border: 1px solid color-mix(in srgb, var(--ui-border-soft) 55%, transparent);
+    box-shadow: var(--ui-shadow-sm); backdrop-filter: blur(14px);
+    font-size: 11.5px; font-weight: 500; color: var(--ui-text-dim); white-space: nowrap; }
+  .c-pill b { color: var(--ui-text); }
+  .c-pill .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ui-accent); }
+  .surface-chips { display: inline-flex; align-items: center; gap: 4px; padding: 3px;
+    border-radius: var(--ui-radius-pill);
+    background: color-mix(in srgb, var(--ui-surface) 72%, transparent);
+    border: 1px solid color-mix(in srgb, var(--ui-border-soft) 55%, transparent);
+    box-shadow: var(--ui-shadow-sm); backdrop-filter: blur(14px); max-width: min(58vw, 100%); }
+  .s-chip { display: inline-flex; align-items: center; gap: 5px; height: 26px; max-width: 210px;
+    padding: 0 10px; border-radius: var(--ui-radius-pill); font-size: 11.5px; font-weight: 500;
+    color: var(--ui-text-dim); white-space: nowrap; overflow: hidden; transition: all 0.13s var(--ui-ease); }
+  .s-chip:hover { background: var(--ui-surface-hover); color: var(--ui-text); }
+  .s-chip.active { background: linear-gradient(135deg, color-mix(in srgb, var(--ui-accent) 22%, transparent), color-mix(in srgb, var(--ui-info) 16%, transparent));
+    color: var(--ui-accent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-accent) 34%, transparent); font-weight: 650; }
+  .theme-seg { display: inline-flex; padding: 2px; border-radius: var(--ui-radius-pill);
+    background: color-mix(in srgb, var(--ui-surface) 72%, transparent);
+    border: 1px solid color-mix(in srgb, var(--ui-border-soft) 55%, transparent);
+    box-shadow: var(--ui-shadow-sm); backdrop-filter: blur(14px); font-size: 10.5px; }
+  .theme-seg button { padding: 3px 10px; border-radius: var(--ui-radius-pill); color: var(--ui-text-faint); font-size: 10.5px; }
+  .theme-seg button.on { background: var(--ui-surface-raised); color: var(--ui-accent); font-weight: 600; box-shadow: var(--ui-shadow-sm); }
+  .dock-btn { display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 11px;
+    border-radius: var(--ui-radius-pill); font-size: 11.5px; color: var(--ui-text-dim);
+    background: color-mix(in srgb, var(--ui-surface) 72%, transparent);
+    border: 1px solid color-mix(in srgb, var(--ui-border-soft) 55%, transparent);
+    box-shadow: var(--ui-shadow-sm); transition: all 0.13s var(--ui-ease); }
+  .dock-btn:hover { color: var(--ui-text); }
+  .dock-btn.on { color: var(--ui-accent); border-color: color-mix(in srgb, var(--ui-accent) 45%, transparent);
+    background: var(--ui-accent-soft); font-weight: 650; }
+  .win-controls { display: flex; gap: 6px; margin-left: 2px; }
+  .win-controls i { width: 12px; height: 12px; border-radius: 50%; display: block; }
+  .wc-min { background: #e6b23a; } .wc-max { background: #4cc266; } .wc-close { background: #ff6a5f; }
+
+  /* ══ Hub 底部坞（真实 .ui-hub-rail 形态：bottom 悬浮玻璃舱 · 模块切换在此） ══ */
+  .wc-hub { position: absolute; left: 16px; right: 16px; bottom: 12px; height: 52px; z-index: 90;
+    display: flex; flex-direction: row; align-items: center; padding: 5px 10px;
+    border-radius: 16px;
+    background: color-mix(in srgb, var(--ui-surface, #fff) 86%, transparent);
+    backdrop-filter: blur(20px) saturate(1.25);
+    border: 1px solid color-mix(in srgb, var(--ui-border-soft, #c3cdd9) 62%, transparent);
+    box-shadow: var(--ui-shadow-modal);
+    overflow: hidden; transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s var(--ui-ease); }
+  .wc-hub.hidden { transform: translateY(84px); opacity: 0; pointer-events: none; }
+  .wc-hub-mark { flex: none; font-size: 17px; line-height: 1; margin: 0 10px 0 2px; color: var(--ui-accent); }
+  .wc-hub-items { flex: 1; min-width: 0; width: 100%; display: flex; flex-direction: row;
+    justify-content: center; gap: 2px; overflow-x: auto; overflow-y: hidden;
+    overscroll-behavior-x: contain; scrollbar-width: none; }
+  .wc-hub-items::-webkit-scrollbar { display: none; }
+  .wc-hub-item { display: flex; flex-direction: row; align-items: center; justify-content: center; gap: 7px;
+    min-height: 34px; padding: 5px 12px; border: 1px solid transparent; border-radius: 9px;
+    background: transparent; color: var(--ui-text-dim); font-size: 11.5px; line-height: 1.2;
+    white-space: nowrap; cursor: pointer;
+    transition: background 0.14s var(--ui-ease), color 0.14s var(--ui-ease),
+      border-color 0.14s var(--ui-ease), transform 0.12s var(--ui-ease), box-shadow 0.14s var(--ui-ease); }
+  .wc-hub-item:hover { background: var(--ui-surface-hover); color: var(--ui-text); }
+  .wc-hub-item:active { transform: scale(0.95); }
+  .wc-hub-item.active { background: linear-gradient(135deg,
+      color-mix(in srgb, var(--ui-accent) 18%, transparent),
+      color-mix(in srgb, var(--ui-info, #a78bfa) 12%, transparent));
+    color: var(--ui-accent); border-color: color-mix(in srgb, var(--ui-accent) 30%, transparent); font-weight: 650; }
+  .wc-hub-item .ic { display: grid; place-items: center; font-size: 15px; }
+  .wc-hub-collapse { flex: none; margin: 0 0 0 8px; width: 26px; height: 26px; border-radius: 8px;
+    display: grid; place-items: center; color: var(--ui-text-faint); font-size: 12px;
+    transition: background 0.14s var(--ui-ease), color 0.14s var(--ui-ease); }
+  .wc-hub-collapse:hover { background: var(--ui-surface-hover); color: var(--ui-text); }
+  /* tide orb —— hub 收起后左下角的召唤球 */
+  .wc-orb { position: absolute; left: 18px; bottom: 14px; z-index: 90; width: 44px; height: 44px;
+    border-radius: 50%; display: grid; place-items: center; font-size: 19px; color: #fff;
+    background: var(--ui-accent-fill);
+    box-shadow: 0 6px 22px color-mix(in srgb, var(--ui-accent) 45%, transparent), var(--ui-shadow-card);
+    opacity: 0; transform: scale(0.5); pointer-events: none;
+    transition: all 0.28s cubic-bezier(0.16, 1, 0.3, 1); }
+  .wc-orb.show { opacity: 1; transform: scale(1); pointer-events: auto; }
+  .wc-orb:hover { filter: brightness(1.08); }
+
+  /* ══ 底座层：恒定主题条 ══ */
+  .wc-themebar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    margin: 0 16px 8px; padding: 7px 14px;
+    border: 1px solid color-mix(in srgb, var(--ui-accent) 30%, var(--ui-border-soft));
+    border-radius: var(--ui-radius-lg);
+    background: color-mix(in srgb, var(--ui-surface-raised) 82%, transparent);
+    box-shadow: var(--ui-shadow-card); }
+  .wc-tb-cap { display: inline-flex; align-items: center; gap: 6px; font-size: 10px; font-weight: 700;
+    letter-spacing: 0.05em; color: var(--ui-accent);
+    border: 1px solid color-mix(in srgb, var(--ui-accent) 40%, transparent); border-radius: var(--ui-radius-pill);
+    padding: 1px 9px; background: var(--ui-accent-soft); white-space: nowrap; }
+  .wc-theme { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--ui-text-dim); }
+  .wc-theme .src { font-size: 9.5px; padding: 0 6px; border: 1px solid var(--ui-border-soft); border-radius: var(--ui-radius-pill); color: var(--ui-text-faint); }
+  .wc-theme .val { font-family: var(--ui-font-mono); font-size: 11px; color: var(--ui-text); }
+  .wc-chainid { display: inline-flex; align-items: center; gap: 5px; font-family: var(--ui-font-mono); font-size: 10.5px;
+    color: var(--ui-accent); border: 1px solid color-mix(in srgb, var(--ui-accent) 35%, transparent);
+    border-radius: var(--ui-radius-sm); padding: 2px 8px; background: var(--ui-accent-soft); cursor: pointer; }
+  .wc-chainid:hover { border-color: var(--ui-accent); }
+  .wc-mems { display: flex; align-items: center; }
+  .wc-mem { width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+    font-size: 9.5px; font-weight: 700; color: #fff; border: 2px solid var(--ui-surface-raised); margin-left: -6px; }
+  .wc-mem:first-child { margin-left: 0; }
+  .wc-sync { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--ui-success); }
+  .wc-sync .pulse { width: 7px; height: 7px; border-radius: 50%; background: var(--ui-success);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-success) 22%, transparent); }
+  .wc-tb-meta { font-size: 10.5px; color: var(--ui-text-faint); }
+  .wc-tb-btn { height: 24px; padding: 0 10px; border-radius: var(--ui-radius-pill); font-size: 11px;
+    border: 1px solid var(--ui-border-soft); color: var(--ui-text-dim); transition: all 0.13s var(--ui-ease); }
+  .wc-tb-btn:hover { color: var(--ui-text); background: var(--ui-surface-hover); }
+  .wc-tb-btn.on { color: var(--ui-accent); border-color: color-mix(in srgb, var(--ui-accent) 45%, transparent); background: var(--ui-accent-soft); }
+  .wc-share-pill { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 11px;
+    border-radius: var(--ui-radius-pill); font-size: 11px; font-weight: 650;
+    background: var(--ui-accent-fill); color: #fff; box-shadow: var(--ui-shadow-sm); }
+
+  .wc-legend { display: none; flex-wrap: wrap; gap: 8px 18px; align-items: center; margin: 0 16px 8px;
+    padding: 7px 14px; border: 1px dashed var(--ui-border-soft); border-radius: var(--ui-radius-lg);
+    background: color-mix(in srgb, var(--ui-surface) 70%, transparent); font-size: 11px; color: var(--ui-text-dim); }
+  .wc-legend.open { display: flex; }
+  .wc-legend .it { display: inline-flex; align-items: center; gap: 6px; }
+  .wc-legend .sw { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+  .wc-legend .sw.chain { background: transparent; border: 1.6px dashed var(--ui-accent); }
+  .wc-legend .sw.bound { transform: rotate(45deg); border-radius: 2px; background: var(--dot-review); }
+  .wc-legend .lk { width: 16px; height: 0; border-top: 2px dashed var(--line-fork); }
+
+  /* ══ 标注层（说明设计稿） ══ */
+  .annoted { position: relative; }
+  .a-pin { position: absolute; z-index: 60; top: -9px; right: -9px; width: 18px; height: 18px;
+    border-radius: 50%; background: var(--ui-accent-fill); color: #fff; font-size: 10px; font-weight: 800;
+    display: inline-flex; align-items: center; justify-content: center;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35), 0 0 0 2px var(--ui-surface-raised);
+    animation: pin-pop 0.25s var(--ui-ease); cursor: pointer; }
+  .a-pin:hover { transform: scale(1.12); }
+  @keyframes pin-pop { from { transform: scale(0.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  .a-hintbar { display: none; align-items: center; gap: 10px; margin: 0 16px 8px; padding: 6px 14px;
+    border: 1px dashed color-mix(in srgb, var(--ui-accent) 50%, transparent); border-radius: var(--ui-radius-lg);
+    background: var(--ui-accent-soft); font-size: 11px; color: var(--ui-text-dim); flex-wrap: wrap; }
+  .a-hintbar.open { display: flex; }
+  .a-hintbar b { color: var(--ui-accent); }
+
+  /* ══ 舞台 ══ */
+  .stage { flex: 1; min-height: 0; padding: 0 16px 14px; overflow: hidden; transition: padding 0.3s var(--ui-ease); }
+  .stage.dock-up { padding-bottom: 74px; }
+  .mv { display: none; height: 100%; min-height: 0; }
+  .mv.on { display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+  .mv-note { font-size: 11px; color: var(--ui-text-faint); padding: 0 4px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .mv-note b { color: var(--ui-text-dim); font-weight: 650; }
+
+  /* toast */
+  .toast { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%) translateY(16px);
+    z-index: 700; display: flex; align-items: center; gap: 8px; padding: 7px 16px;
+    border-radius: var(--ui-radius-pill); background: var(--ui-surface-raised);
+    border: 1px solid color-mix(in srgb, var(--ui-accent) 45%, transparent);
+    box-shadow: var(--ui-shadow-modal); font-size: 12px; color: var(--ui-text);
+    opacity: 0; pointer-events: none; transition: all 0.25s var(--ui-ease); }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast .td { width: 7px; height: 7px; border-radius: 50%; background: var(--ui-success); flex-shrink: 0; }
+
+  /* 链层通用词汇（wc-） */
+  .wc-chip { display: inline-flex; align-items: center; gap: 4px; font-family: var(--ui-font-mono); font-size: 9.5px;
+    color: var(--ui-accent); border: 1px solid color-mix(in srgb, var(--ui-accent) 35%, transparent);
+    border-radius: 5px; padding: 0 6px; background: var(--ui-accent-soft); white-space: nowrap; flex-shrink: 0; }
+  .wc-chip.ghost { color: var(--ui-text-faint); border-color: var(--ui-border-soft); background: transparent; }
+  .wc-prov { font-family: var(--ui-font-mono); font-size: 9px; color: var(--ui-text-faint); line-height: 1.6; padding-top: 2px; }
+  .wc-prov b { color: var(--ui-accent); font-weight: 400; }
+  .wc-banner { border: 1px solid color-mix(in srgb, var(--ui-accent) 40%, transparent); border-radius: var(--ui-radius-md);
+    background: color-mix(in srgb, var(--ui-accent) 5%, transparent); padding: 9px 13px; }
+  .wc-banner .t { font-size: 12px; font-weight: 650; display: flex; gap: 7px; align-items: center; flex-wrap: wrap; }
+  .wc-banner .s { font-family: var(--ui-font-mono); font-size: 9.5px; color: var(--ui-text-faint); margin-top: 4px; }
+  .wc-memdot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+  /* 弹层 */
+  .wc-pop-mask { position: fixed; inset: 0; z-index: 500; background: rgba(0, 0, 0, 0.42); display: none;
+    align-items: flex-start; justify-content: center; padding: 7vh 16px 16px; backdrop-filter: blur(3px); }
+  .wc-pop-mask.open { display: flex; }
+  .wc-pop { width: 530px; max-width: 94vw; max-height: 84vh; overflow-y: auto;
+    background: var(--ui-surface-raised); border: 1px solid color-mix(in srgb, var(--ui-accent) 40%, transparent);
+    border-radius: 12px; box-shadow: var(--ui-shadow-modal); }
+  .wc-pop-hd { display: flex; align-items: center; gap: 8px; padding: 10px 14px 9px; border-bottom: 1px solid var(--ui-border-soft); }
+  .wc-pop-hd .cap { font-size: 10px; font-weight: 700; letter-spacing: 0.06em; color: var(--ui-text-faint); }
+  .wc-pop-hd .sem { font-size: 12.5px; font-weight: 650; flex: 1; }
+  .wc-pop-hd .x { color: var(--ui-text-faint); font-size: 14px; padding: 0 2px; }
+  .wc-pop-bd { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 10px; }
+  .wc-box { border: 1px solid var(--ui-border-soft); border-radius: var(--ui-radius-md); padding: 9px 11px;
+    background: var(--ui-surface); font-size: 11.5px; line-height: 1.7; }
+  .wc-box .k { font-size: 9.5px; font-weight: 700; letter-spacing: 0.04em; color: var(--ui-text-faint);
+    text-transform: uppercase; margin-bottom: 4px; }
+  .wc-box .cl { font-family: var(--ui-font-mono); font-size: 10.5px; color: var(--ui-accent); }
+  .wc-doms { display: flex; flex-direction: column; gap: 6px; }
+  .wc-doms label { display: flex; align-items: center; gap: 8px; font-size: 11.5px; padding: 7px 10px;
+    border: 1px solid var(--ui-border-soft); border-radius: var(--ui-radius-md); background: var(--ui-surface);
+    cursor: pointer; color: var(--ui-text-dim); transition: all 0.12s var(--ui-ease); }
+  .wc-doms label .cb { width: 13px; height: 13px; border-radius: 4px; border: 1.4px solid var(--ui-border);
+    display: inline-flex; align-items: center; justify-content: center; font-size: 9px; color: #fff; flex-shrink: 0; }
+  .wc-doms label.on { color: var(--ui-text); border-color: color-mix(in srgb, var(--ui-accent) 45%, transparent); background: var(--ui-accent-soft); }
+  .wc-doms label.on .cb { background: var(--ui-accent); border-color: var(--ui-accent); }
+  .wc-doms label.locked { opacity: 0.62; cursor: not-allowed; border-style: dashed; }
+  .wc-doms label .why { margin-left: auto; font-size: 9.5px; color: var(--ui-text-faint); text-align: right; }
+  .wc-input { width: 100%; padding: 6px 10px; border-radius: 7px; border: 1px solid var(--ui-border-soft);
+    background: var(--ui-surface-sunken); color: var(--ui-text); font-size: 12px; outline: none; }
+  .wc-input:focus { border-color: color-mix(in srgb, var(--ui-accent) 55%, transparent); }
+  textarea.wc-input { min-height: 46px; resize: vertical; line-height: 1.6; }
+  .wc-record { font-family: var(--ui-font-mono); font-size: 10px; color: var(--ui-text-dim); background: var(--ui-surface-sunken);
+    border: 1px solid var(--ui-border-soft); border-radius: var(--ui-radius-sm); padding: 8px 10px; white-space: pre-wrap; line-height: 1.65; }
+  .wc-record b { color: var(--ui-accent); font-weight: 400; }
+  .wc-pop-acts { display: flex; gap: 8px; justify-content: flex-end; align-items: center; }
+  .wc-pop-acts .hint { margin-right: auto; font-size: 10px; color: var(--ui-text-faint); }
+  .wc-btn { font-size: 12px; font-weight: 600; padding: 5px 13px; border-radius: 8px;
+    border: 1px solid var(--ui-border-soft); color: var(--ui-text-dim); background: var(--ui-surface-raised); transition: all 0.13s var(--ui-ease); }
+  .wc-btn:hover { color: var(--ui-text); border-color: var(--ui-border); }
+  .wc-btn.gel { background: var(--ui-accent-fill); border-color: transparent; color: #fff; }
+  .wc-btn.gel:hover { filter: brightness(1.06); }
+  .wc-btn.accent { color: var(--ui-accent); border-color: color-mix(in srgb, var(--ui-accent) 40%, transparent); background: var(--ui-accent-soft); }
+  .wc-btn.sm { font-size: 11px; padding: 3px 10px; }
+  .wc-warnline { font-size: 10.5px; color: var(--ui-warning); display: flex; gap: 6px; align-items: center; }
+
+  .pane-card { flex: 1; min-height: 0; display: flex; flex-direction: column;
+    background: var(--ui-surface-raised); border: 1px solid var(--ui-border-soft);
+    border-radius: 14px; box-shadow: var(--ui-shadow-card); overflow: hidden; }
+
+  /* ══ 任务树 ══ */
+  .th-top { display: flex; align-items: center; gap: 10px; padding: 8px 14px 6px; flex-wrap: wrap;
+    border-bottom: 1px solid var(--ui-border-soft); }
+  .th-ws { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700; }
+  .th-ws .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--dot-session); }
+  .th-pills { display: flex; gap: 6px; flex-wrap: wrap; }
+  .th-pill { display: inline-flex; align-items: center; gap: 5px; padding: 3px 12px; border-radius: var(--ui-radius-pill);
+    border: 1px solid var(--ui-border-soft); color: var(--ui-text-dim); font-size: 11.5px; transition: all 0.13s var(--ui-ease); }
+  .th-pill .sw { width: 8px; height: 8px; border-radius: 50%; }
+  .th-pill.on { background: var(--ui-accent-soft); border-color: color-mix(in srgb, var(--ui-accent) 38%, var(--ui-border-soft));
+    color: var(--ui-text); font-weight: 650; }
+  .th-body { flex: 1; min-height: 0; display: flex; }
+  .th-graphwrap { flex: 1; min-width: 0; overflow: auto; padding: 12px 14px 16px 6px;
+    background-image: radial-gradient(color-mix(in srgb, var(--ui-text-faint) 26%, transparent) 1px, transparent 1.2px);
+    background-size: 22px 22px; }
+  .mem-filter { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 6px 14px;
+    border-bottom: 1px dashed var(--ui-border-soft); font-size: 11px; color: var(--ui-text-faint); }
+  .mem-filter .lab { font-weight: 700; letter-spacing: 0.04em; }
+  .mf-chip { display: inline-flex; align-items: center; gap: 5px; padding: 2px 10px; border-radius: var(--ui-radius-pill);
+    border: 1px solid var(--ui-border-soft); color: var(--ui-text-dim); font-size: 10.5px; transition: all 0.12s var(--ui-ease); }
+  .mf-chip.on { color: var(--ui-text); border-color: color-mix(in srgb, var(--mem-c, var(--ui-accent)) 55%, transparent);
+    background: color-mix(in srgb, var(--mem-c, var(--ui-accent)) 12%, transparent); font-weight: 650; }
+  .mf-chip .sw { width: 7px; height: 7px; border-radius: 50%; background: var(--mem-c, var(--ui-accent)); }
+
+  .g-row { display: grid; grid-template-columns: 56px minmax(0, 1fr); align-items: stretch; transition: opacity 0.16s var(--ui-ease); }
+  .g-row.dim { opacity: 0.16; filter: saturate(0.15); }
+  .g-cell { position: relative; }
+  .g-content { display: flex; flex-direction: column; min-width: 0; padding-left: 8px; }
+  .g-card { display: flex; flex-direction: column; justify-content: center; gap: 3px; padding: 7px 12px;
+    border-radius: 10px; border: 1px solid transparent; cursor: pointer; min-height: 50px; margin: 3px 0;
+    transition: background 0.12s var(--ui-ease), border-color 0.12s var(--ui-ease); }
+  .g-card:hover { background: var(--ui-accent-soft); }
+  .g-card.sel { border-color: var(--ui-accent); background: var(--ui-accent-soft); }
+  .g-card .t { display: flex; align-items: center; gap: 7px; min-width: 0; flex-wrap: wrap; }
+  .g-card .name { font-weight: 650; font-size: 12.5px; }
+  .g-card .meta { font-size: 11px; color: var(--ui-text-dim); display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .chip { display: inline-flex; align-items: center; gap: 5px; padding: 1px 9px; border-radius: var(--ui-radius-pill);
+    font-size: 10px; font-weight: 700; flex-shrink: 0; }
+  .chip.tag-session { color: var(--dot-session); background: color-mix(in srgb, var(--dot-session) 12%, transparent); }
+  .chip.tag-review { color: var(--dot-review); background: color-mix(in srgb, var(--dot-review) 13%, transparent); }
+  .chip.tag-editor { color: var(--dot-editor); background: color-mix(in srgb, var(--dot-editor) 13%, transparent); }
+  .chip.st-running { color: var(--ui-accent); background: var(--ui-accent-soft); }
+  .chip.st-merged { color: var(--line-fork); background: color-mix(in srgb, var(--line-fork) 12%, transparent); }
+  .git-chip { display: inline-flex; align-items: center; gap: 5px; padding: 1px 8px; border-radius: 6px;
+    font-family: var(--ui-font-mono); font-size: 10px; font-weight: 600; color: var(--git-fg);
+    background: color-mix(in srgb, var(--git-fg) 11%, transparent); flex-shrink: 0; }
+  .tag { font-size: 10px; color: var(--ui-text-faint); }
+  svg.tracks { position: absolute; left: 0; top: 0; pointer-events: none; overflow: visible; }
+  .edge { fill: none; stroke-width: 2; }
+  .edge.trunk { stroke: var(--taskhub-trunk); }
+  .edge.fork { stroke: var(--line-fork); }
+  .node { cursor: pointer; pointer-events: all; }
+  .node .halo { opacity: 0; transition: opacity 0.2s var(--ui-ease); }
+  .node:hover .halo, .node.sel .halo { opacity: 1; }
+  .node.running .pulse { animation: pulse 1.8s ease-out infinite; transform-origin: center; }
+  @keyframes pulse { 0% { opacity: 0.55; r: 10; } 100% { opacity: 0; r: 17; } }
+
+  .trace { margin: 2px 0 10px; border: 1px solid var(--ui-border-soft); border-radius: 12px;
+    background: var(--ui-surface); overflow: hidden; }
+  .trace .tr-head { display: flex; align-items: center; gap: 8px; padding: 6px 12px;
+    border-bottom: 1px solid var(--ui-border-soft); font-size: 10.5px; font-weight: 700;
+    color: var(--ui-text-dim); letter-spacing: 0.04em; text-transform: uppercase; background: var(--ui-surface-sunken); }
+  .trace .tr-body { padding: 8px 12px 10px; display: flex; flex-direction: column; gap: 8px; }
+  .turn-head { display: flex; align-items: center; gap: 8px; font-size: 10px; font-weight: 700;
+    color: var(--ui-text-faint); letter-spacing: 0.05em; text-transform: uppercase; }
+  .turn-head .ln { flex: 1; height: 0; border-top: 1px dashed var(--ui-border-soft); }
+  .user-msg { display: flex; gap: 9px; padding: 7px 11px; border-radius: 10px;
+    background: var(--ui-accent-soft); border: 1px solid color-mix(in srgb, var(--ui-accent) 26%, transparent); }
+  .user-msg .who { font-size: 10px; font-weight: 700; color: var(--ui-accent); margin-bottom: 2px; }
+  .user-msg .txt { font-size: 12px; line-height: 1.45; }
+  .steps { display: flex; flex-direction: column; gap: 3px; padding-left: 6px; }
+  .step { position: relative; display: flex; align-items: flex-start; gap: 9px; padding: 4px 9px;
+    border-radius: 8px; font-size: 11.5px; line-height: 1.4; }
+  .step::before { content: ""; position: absolute; left: 13px; top: 0; bottom: -4px; width: 1.5px; background: var(--ui-border-soft); }
+  .step:last-child::before { display: none; }
+  .step .ic { width: 20px; height: 20px; border-radius: 6px; flex-shrink: 0; z-index: 1;
+    display: inline-flex; align-items: center; justify-content: center; font-size: 10.5px;
+    background: var(--ui-surface-raised); border: 1px solid var(--ui-border-soft); }
+  .step .tool { font-weight: 700; font-family: var(--ui-font-mono); font-size: 11px; }
+  .step .arg { color: var(--ui-text-dim); font-family: var(--ui-font-mono); font-size: 10.5px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 52ch; }
+  .step .ms { margin-left: auto; font-size: 10px; color: var(--ui-text-faint); font-variant-numeric: tabular-nums; }
+  .step .ok { color: var(--dot-review); font-weight: 700; }
+  .step .fail { color: var(--ui-danger); font-weight: 700; }
+  .ic.t-bash { color: var(--dot-index); } .ic.t-read { color: var(--ui-accent); }
+  .ic.t-write, .ic.t-edit { color: #f76707; } .ic.t-assistant { color: var(--ui-text-dim); }
+
+  .th-detail { width: 300px; flex: none; overflow-y: auto; border-left: 1px solid var(--ui-border-soft);
+    background: var(--ui-surface); padding: 14px; }
+  .th-detail .head { display: flex; align-items: center; gap: 9px; margin-bottom: 2px; }
+  .th-detail .glyph { width: 30px; height: 30px; border-radius: 9px; display: inline-flex; align-items: center;
+    justify-content: center; font-size: 14px; flex-shrink: 0; background: var(--ui-accent-soft); color: var(--ui-accent); }
+  .th-detail h2 { font-size: 13.5px; overflow-wrap: anywhere; }
+  .th-detail .sub { font-size: 11px; color: var(--ui-text-dim); margin: 2px 0 10px; }
+  .drow { display: flex; justify-content: space-between; gap: 12px; padding: 3.5px 0; font-size: 12px; align-items: baseline; }
+  .drow .k { color: var(--ui-text-dim); flex-shrink: 0; font-size: 11.5px; }
+  .dsec { margin-top: 11px; padding-top: 10px; border-top: 1px solid var(--ui-border-soft); }
+  .dsec .hd { font-size: 10px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
+    color: var(--ui-text-faint); margin-bottom: 6px; }
+  .acts { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 10px; }
+  .th-oplog { border-top: 1px solid var(--ui-border-soft); background: var(--ui-surface); max-height: 148px; overflow-y: auto; }
+  .th-oplog .cap { display: flex; gap: 8px; align-items: center; padding: 6px 14px; font-size: 10.5px; font-weight: 700; color: var(--ui-text-dim); }
+  .th-oplog .cap .sub { font-weight: 400; font-size: 9.5px; color: var(--ui-text-faint); font-family: var(--ui-font-mono); }
+  .th-oplog table { width: 100%; border-collapse: collapse; font-size: 10.5px; }
+  .th-oplog td { padding: 3.5px 14px; border-top: 1px solid var(--ui-border-soft); font-family: var(--ui-font-mono); color: var(--ui-text-dim); }
+  .th-oplog .t { width: 44px; color: var(--ui-text-faint); }
+  .th-oplog .op { color: var(--ui-accent); }
+  .th-oplog .who { color: var(--ui-text-faint); display: flex; align-items: center; gap: 6px; }
+
+  /* ══ 会话 ══ */
+  .ss-wrap { flex: 1; min-height: 0; display: flex; gap: 12px; }
+  .ss-panel { width: 380px; flex: none; border: 1px solid var(--ui-border-soft); border-radius: 14px;
+    background: var(--ui-surface-raised); box-shadow: var(--ui-shadow-card); padding: 6px; overflow-y: auto; }
+  .ss-head { display: flex; align-items: center; gap: 8px; padding: 7px 10px; font-size: 12.5px; font-weight: 700; }
+  .ss-count { font-size: 10px; font-weight: 700; color: var(--ui-text-faint); border: 1px solid var(--ui-border-soft);
+    border-radius: var(--ui-radius-pill); padding: 0 7px; }
+  .ss-item { padding: 9px 10px; border-radius: 10px; cursor: pointer; transition: background 0.12s var(--ui-ease); }
+  .ss-item:hover { background: var(--ui-surface-hover); }
+  .ss-item.sel { background: var(--ui-accent-soft); }
+  .ss-title { display: flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 650; }
+  .ss-meta { display: flex; align-items: center; gap: 8px; font-size: 10.5px; color: var(--ui-text-dim); margin-top: 2px; }
+  .ss-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .ss-dot.run { background: var(--dot-session); box-shadow: 0 0 0 3px color-mix(in srgb, var(--dot-session) 20%, transparent); }
+  .ss-dot.ok { background: var(--ui-success); }
+  .ss-time { margin-left: auto; color: var(--ui-text-faint); }
+  .ss-right { flex: 1; min-width: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
+
+  /* ══ 设计工作区壳 ══ */
+  .dw-head { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-bottom: 1px solid var(--ui-border-soft); flex-wrap: wrap; }
+  .dw-tabs { display: flex; gap: 6px; }
+  .dw-tab { min-height: 26px; padding: 3px 12px; border: 1px solid transparent; border-radius: var(--ui-radius-pill);
+    color: var(--ui-text-dim); font-size: 12px; transition: all 0.13s var(--ui-ease); }
+  .dw-tab:hover { color: var(--ui-text); }
+  .dw-tab.active { border-color: var(--ui-border-soft); background: var(--ui-surface); color: var(--ui-text); box-shadow: var(--ui-shadow-sm); font-weight: 600; }
+  .dw-badge { padding: 2px 9px; border: 1px solid var(--ui-border-soft); border-radius: var(--ui-radius-pill);
+    color: var(--ui-text-faint); font-size: 10px; white-space: nowrap; }
+  .dw-body { display: flex; flex: 1; min-height: 0; gap: 10px; padding: 10px 12px 12px; }
+  .dw-rail { width: 252px; min-width: 210px; flex: none; overflow-y: auto; padding: 6px;
+    border: 1px solid var(--ui-border-soft); border-radius: var(--ui-radius-md); background: var(--ui-surface); }
+  .dw-rail-cap { display: flex; align-items: center; gap: 6px; padding: 4px 7px 6px; color: var(--ui-text-faint);
+    font-size: 10px; font-weight: 700; text-transform: uppercase; flex-wrap: wrap; }
+  .rail-filter { display: flex; gap: 4px; padding: 0 4px 7px; }
+  .rf-chip { flex: 1; padding: 2px 4px; border-radius: var(--ui-radius-pill); border: 1px solid var(--ui-border-soft);
+    font-size: 9.5px; color: var(--ui-text-dim); text-align: center; transition: all 0.12s var(--ui-ease); }
+  .rf-chip.on { color: var(--ui-accent); border-color: color-mix(in srgb, var(--ui-accent) 45%, transparent); background: var(--ui-accent-soft); font-weight: 650; }
+  .dw-ver { display: block; width: 100%; text-align: left; padding: 8px; border-radius: var(--ui-radius-sm);
+    border-left: 3px solid transparent; transition: background 0.12s var(--ui-ease); }
+  .dw-ver:hover, .dw-ver.active { background: var(--ui-surface-hover); }
+  .dw-ver.active { box-shadow: inset 2px 0 var(--ui-accent); }
+  .dw-ver.chain { border-left-color: var(--mem-c, var(--ui-accent)); }
+  .dw-ver-line { display: flex; align-items: center; gap: 6px; }
+  .dw-ver-line strong { color: var(--ui-accent); font-family: var(--ui-font-mono); font-size: 11px; }
+  .dw-ver.chain .dw-ver-line strong { color: var(--mem-c, var(--ui-accent)); }
+  .dw-ver-line time { flex: 1; color: var(--ui-text-dim); font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dw-ver-line .new { color: var(--ui-success); font-size: 9px; font-style: normal; }
+  .dw-ver-note { display: block; margin-top: 3px; color: var(--ui-text-dim); font-size: 10.5px; line-height: 1.35; }
+  .dw-ver-src { display: block; margin-top: 2px; font-family: var(--ui-font-mono); font-size: 9px; color: var(--ui-text-faint); }
+  .dw-ver-set { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
+  .dw-ver-set i { padding: 1px 6px; border: 1px solid var(--ui-border-soft); border-radius: 99px;
+    color: var(--ui-text-faint); font-size: 9px; font-style: normal; }
+  .dw-ver-set i.miss { border: 1px dashed color-mix(in srgb, var(--ui-warning) 45%, transparent); color: var(--ui-warning); }
+  .dw-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 10px; overflow-y: auto;
+    border: 1px solid var(--ui-border-soft); border-radius: var(--ui-radius-md); background: var(--ui-surface); padding: 12px; }
+  .dw-doc { border: 1px solid var(--ui-border-soft); border-radius: var(--ui-radius-md); background: var(--ui-surface-raised); padding: 12px 14px; }
+  .dw-doc h3 { font-size: 13px; margin-bottom: 6px; }
+  .dw-doc p { font-size: 11.5px; color: var(--ui-text-dim); line-height: 1.7; }
+  .diffbox { font-family: var(--ui-font-mono); font-size: 10.5px; border: 1px solid var(--ui-border-soft);
+    border-radius: var(--ui-radius-sm); overflow: hidden; }
+  .diffbox .dl { padding: 3px 10px; border-top: 1px solid var(--ui-border-soft); color: var(--ui-text-dim); white-space: pre-wrap; }
+  .diffbox .dl:first-child { border-top: 0; }
+  .diffbox .dl.add { background: color-mix(in srgb, var(--ui-success) 12%, transparent); color: var(--ui-success); }
+  .diffbox .dl.del { background: color-mix(in srgb, var(--ui-danger) 10%, transparent); color: var(--ui-danger); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--ui-danger) 45%, transparent); }
+  .diffbox .dl.fn { background: var(--ui-surface-sunken); color: var(--ui-text-faint); }
+  .kv-rows { display: flex; flex-direction: column; }
+  .kv { display: flex; justify-content: space-between; gap: 12px; padding: 5px 0; border-top: 1px dashed var(--ui-border-soft); font-size: 11.5px; }
+  .kv:first-child { border-top: 0; }
+  .kv .k { color: var(--ui-text-dim); }
+  .kv .v { font-family: var(--ui-font-mono); font-size: 10.5px; text-align: right; }
+
+  .spec-doc { border: 1px solid var(--ui-border-soft); border-radius: var(--ui-radius-md); background: var(--ui-surface-raised); padding: 14px 16px; }
+  .spec-doc h2 { font-size: 14px; margin: 12px 0 4px; }
+  .spec-doc h2:first-child { margin-top: 0; }
+  .spec-doc p, .spec-doc li { font-size: 12px; color: var(--ui-text-dim); line-height: 1.75; }
+  .spec-todo { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border: 1px dashed var(--ui-border);
+    border-radius: var(--ui-radius-md); margin-top: 6px; font-size: 12px; color: var(--ui-text-dim); transition: all 0.15s var(--ui-ease); }
+  .spec-todo.done { opacity: 0.55; text-decoration: line-through; }
+  .spec-todo button { margin-left: auto; }
+  .spec-cta { display: flex; justify-content: flex-end; margin-top: 12px; }
+  .device-chrome { border: 1px solid var(--ui-border-soft); border-radius: 18px; background: var(--ui-surface-raised);
+    box-shadow: var(--ui-shadow-card); overflow: hidden; width: 240px; flex: none; }
+  .device-chrome .bar { height: 22px; display: flex; align-items: center; justify-content: center; gap: 4px;
+    background: var(--ui-surface-sunken); border-bottom: 1px solid var(--ui-border-soft); font-size: 9px; color: var(--ui-text-faint); }
+  .device-chrome .screen { height: 300px; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+  .skel { border-radius: 6px; background: var(--ui-surface-sunken); }
+  .skel.accent { background: var(--ui-accent-soft); border: 1px solid color-mix(in srgb, var(--ui-accent) 30%, transparent); }
+
+  .ds-wrap { display: flex; gap: 10px; min-height: 0; flex: 1; }
+  .ds-tokens { flex: 1.2; min-width: 0; border: 1px solid var(--ui-border-soft); border-radius: var(--ui-radius-md);
+    background: var(--ui-surface-raised); padding: 10px 12px; overflow-y: auto; }
+  .ds-tokens h4 { font-size: 12px; margin: 8px 0 4px; color: var(--ui-text-dim); }
+  .ds-trow { display: flex; align-items: center; gap: 8px; padding: 3px 0; font-size: 10.5px; border-top: 1px dashed var(--ui-border-soft); }
+  .ds-trow .sw { width: 14px; height: 14px; border-radius: 4px; border: 1px solid var(--ui-border-soft); flex-shrink: 0; }
+  .ds-trow .nm { font-family: var(--ui-font-mono); color: var(--ui-text); }
+  .ds-trow .vl { margin-left: auto; font-family: var(--ui-font-mono); color: var(--ui-text-faint); }
+  .ds-atoms { flex: 1; min-width: 0; border: 1px solid var(--ui-border-soft); border-radius: var(--ui-radius-md);
+    background: var(--ui-surface-raised); padding: 10px 12px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+  .ds-atoms h4 { font-size: 12px; color: var(--ui-text-dim); }
+  .atom-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+  /* ══ 审查报告 ══ */
+  .ui-review-tab { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  .ui-review-tab-head { display: flex; align-items: center; gap: 10px; padding: 8px 14px 0; flex-wrap: wrap; }
+  .ui-knowledge-subtabs { display: flex; gap: 6px; flex-wrap: wrap; }
+  .ui-knowledge-subtab { display: inline-flex; align-items: center; gap: 7px; padding: 3.5px 13px;
+    border-radius: var(--ui-radius-pill); border: 1px solid transparent; color: var(--ui-text-dim); font-size: 12px;
+    transition: all 0.13s var(--ui-ease); }
+  .ui-knowledge-subtab::before { content: ""; width: 7px; height: 7px; border-radius: 50%;
+    background: var(--tab-hue, var(--ui-accent)); opacity: 0.85; }
+  .ui-knowledge-subtab:hover { color: var(--ui-text); }
+  .ui-knowledge-subtab.active { border-color: var(--ui-border-soft); background: var(--ui-surface);
+    color: var(--ui-text); font-weight: 650; box-shadow: var(--ui-shadow-sm); }
+  .ui-review-scope { display: flex; align-items: center; gap: 5px; margin-left: auto; font-size: 11px; color: var(--ui-text-faint); flex-wrap: wrap; }
+  .ui-review-scope select { font-size: 11px; padding: 3px 6px; border: 1px solid var(--ui-border-soft);
+    border-radius: 6px; background: var(--ui-surface); color: var(--ui-text); max-width: 250px; }
+  .ui-review-run-btn { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 650;
+    padding: 4px 12px; border-radius: 8px; border: 1px solid var(--ui-border-soft); color: var(--ui-accent);
+    background: var(--ui-surface-raised); transition: all 0.13s var(--ui-ease); }
+  .ui-review-run-btn:hover { border-color: color-mix(in srgb, var(--ui-accent) 50%, transparent); }
+  .ui-review-run-btn.primary { background: var(--ui-accent-fill); border-color: transparent; color: #fff; }
+  .ui-review-tab-body { flex: 1; min-height: 0; display: flex; gap: 10px; padding: 8px 14px 12px; }
+  .ui-review-history { width: 232px; flex: none; overflow-y: auto; border: 1px solid var(--ui-border-soft);
+    border-radius: 10px; padding: 6px; background: var(--ui-surface); }
+  .ui-review-history-item { padding: 7px 9px; border-radius: 7px; cursor: pointer; border-left: 3px solid transparent;
+    transition: background 0.12s var(--ui-ease); }
+  .ui-review-history-item:hover { background: var(--ui-surface-hover); }
+  .ui-review-history-item.active { background: color-mix(in srgb, var(--ui-accent) 12%, transparent); }
+  .ui-review-history-item.chain { border-left-color: var(--mem-c, var(--ui-accent)); }
+  .ui-review-history-time { font-size: 12px; color: var(--ui-text); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .ui-review-history-meta { font-size: 11px; color: var(--ui-text-faint); margin-top: 2px; }
+  .ui-review-tab-content { flex: 1; min-width: 0; border: 1px solid var(--ui-border-soft); border-radius: 10px;
+    overflow-y: auto; display: block; background: var(--ui-surface); }
+  .ui-report-doc { padding: 18px 22px 26px; }
+  .ui-report-doc-head { display: flex; align-items: center; gap: 10px; margin: 0 0 4px; }
+  .ui-report-doc-head h1 { font-size: 19px; margin: 0; }
+  .ui-report-meta { color: var(--ui-text-dim); font-size: 12.5px; margin-bottom: 14px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .ui-report-cards { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
+  .ui-report-card { min-width: 92px; border: 1px solid var(--ui-border-soft); border-radius: 10px;
+    padding: 8px 14px; background: var(--ui-surface-raised); }
+  .ui-report-card .num { font-size: 19px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .ui-report-card .lbl { font-size: 11px; color: var(--ui-text-dim); }
+  .ui-report-card.excluded { border-color: color-mix(in srgb, #d97706 45%, transparent); }
+  .ui-report-card.excluded .num { color: #d97706; }
+  .ui-report-file { margin-bottom: 14px; }
+  .ui-report-file h2 { display: flex; align-items: center; gap: 8px; font-size: 13px; margin: 0 0 6px; }
+  .ui-report-file h2 code { background: var(--ui-surface-sunken); border-radius: 6px; padding: 2px 8px;
+    font-family: var(--ui-font-mono); font-size: 12px; }
+  .ui-report-file .cnt { font-size: 11.5px; color: var(--ui-text-dim); }
+  .ui-report-finding { border: 1px solid var(--ui-border-soft); border-radius: 9px; padding: 9px 12px;
+    margin: 8px 0; background: var(--ui-surface-raised); }
+  .ui-report-finding .head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
+  .ui-report-finding .loc { font-family: var(--ui-font-mono); font-size: 12px; color: var(--ui-text-dim); }
+  .chip.sev-critical { background: color-mix(in srgb, #dc2626 13%, transparent); color: #dc2626; }
+  .chip.sev-high { background: color-mix(in srgb, #ea580c 14%, transparent); color: #ea580c; }
+  .chip.sev-medium { background: color-mix(in srgb, #d97706 15%, transparent); color: #b45309; }
+  .chip.sev-low { background: color-mix(in srgb, #64748b 14%, transparent); color: #64748b; }
+  :root[data-appearance="dark"] .chip.sev-critical { background: color-mix(in srgb, #f87171 20%, transparent); color: #fca5a5; }
+  :root[data-appearance="dark"] .chip.sev-high { background: color-mix(in srgb, #fb923c 20%, transparent); color: #fdba74; }
+  :root[data-appearance="dark"] .chip.sev-medium { background: color-mix(in srgb, #fbbf24 18%, transparent); color: #fcd34d; }
+  :root[data-appearance="dark"] .chip.sev-low { background: color-mix(in srgb, #94a3b8 20%, transparent); color: #cbd5e1; }
+  .chip.crg { background: color-mix(in srgb, var(--ui-accent) 14%, transparent); color: var(--ui-accent); }
+  .chip.crg.locate { cursor: pointer; background: transparent;
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-accent) 32%, transparent); transition: all 0.14s var(--ui-ease); }
+  .chip.crg.locate:hover { background: color-mix(in srgb, var(--ui-accent) 18%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-accent) 60%, transparent); }
+  .chip.crg.locate .lnk { font-weight: 800; margin-left: 2px; }
+  .ui-report-finding .body { white-space: pre-wrap; font-size: 12.5px; line-height: 1.55; }
+  .ui-report-finding .body code.inline { font-family: var(--ui-font-mono); font-size: 11.5px;
+    background: var(--ui-surface-sunken); border-radius: 4px; padding: 0 4px; }
+  .ui-report-codeblock { border: 1px solid var(--ui-border-soft); border-radius: 9px; overflow: hidden; margin: 8px 0 0; }
+  .ui-report-codeblock .cb-head { display: flex; align-items: center; gap: 8px; padding: 4px 10px;
+    background: var(--ui-surface-sunken); border-bottom: 1px solid var(--ui-border-soft); font-size: 11px; color: var(--ui-text-dim); }
+  .ui-report-codeblock .cb-kind { font-weight: 700; flex: none; }
+  .ui-report-codeblock .cb-kind.k-exist { color: var(--ui-danger); }
+  .ui-report-codeblock .cb-kind.k-sugg { color: var(--ui-success); }
+  .ui-report-codeblock pre { font-family: var(--ui-font-mono); font-size: 11.5px; padding: 8px 10px;
+    overflow-x: auto; white-space: pre; color: var(--ui-text-dim); line-height: 1.6; }
+  .ui-report-finding .f-acts { display: flex; gap: 6px; margin-top: 8px; }
+  .ui-report-finding.flash { animation: ui-find-flash 1.8s var(--ui-ease); }
+  @keyframes ui-find-flash {
+    0%, 55% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-accent) 45%, transparent);
+      border-color: color-mix(in srgb, var(--ui-accent) 60%, transparent); }
+    100% { box-shadow: none; }
+  }
+
+  /* ══ 风险图谱 ══ */
+  .ui-risk-board { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 0; }
+  .ui-risk-board-top { display: flex; align-items: center; gap: 10px; padding: 10px 18px 4px; flex-wrap: wrap; }
+  .ui-risk-board-meta { font-size: 12px; color: var(--ui-text-dim); font-variant-numeric: tabular-nums; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .ui-risk-board-legend { display: flex; align-items: center; gap: 8px; padding: 2px 18px 10px;
+    font-size: 11.5px; color: var(--ui-text-dim); flex-wrap: wrap; }
+  .ui-risk-legend-chip { display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px;
+    border-radius: var(--ui-radius-pill); border: 1px solid color-mix(in srgb, var(--ui-border-soft) 72%, transparent);
+    cursor: pointer; transition: opacity 0.12s var(--ui-ease); }
+  .ui-risk-legend-chip:not(.on) { opacity: 0.38; text-decoration: line-through; }
+  .ui-risk-board-hint { margin-left: auto; opacity: 0.72; font-size: 11px; }
+  .ui-risk-board-scroll { flex: 1; min-height: 0; overflow: auto; padding: 2px 18px 18px;
+    background-image: radial-gradient(color-mix(in srgb, var(--ui-text-dim) 16%, transparent) 1px, transparent 1px);
+    background-size: 22px 22px; background-position: 9px 9px; }
+  .rb-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; background: var(--rb-tier-lo); }
+  .rb-dot.tier-hi { background: var(--rb-tier-hi); }
+  .rb-dot.tier-md { background: var(--rb-tier-md); }
+  .rb-node { cursor: pointer; }
+  .rb-node rect.chipbox { fill: var(--ui-surface-raised); stroke: var(--ui-border-soft); stroke-width: 1; }
+  .rb-node:hover rect.chipbox, .rb-node.sel rect.chipbox { stroke: var(--ui-accent); stroke-width: 1.4; }
+  .rb-node text { font-size: 10px; fill: var(--ui-text-dim); font-family: var(--ui-font-sans); }
+  .rb-node text.loc { font-family: var(--ui-font-mono); font-size: 8.5px; fill: var(--ui-text-faint); }
+  .rb-edge { fill: none; stroke: color-mix(in srgb, var(--ui-text-dim) 58%, transparent); stroke-width: 1.3; opacity: 0.7; }
+  .rb-edge.cross { stroke: color-mix(in srgb, #a78bfa 78%, transparent); }
+
+  /* ══ 知识库 ══ */
+  .ui-knowledge-view { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  .ui-knowledge-view .ui-knowledge-subtabs { padding: 8px 14px 0; }
+  .ui-knowledge-buildbar { display: flex; align-items: center; gap: 8px; padding: 6px 14px;
+    font-size: 11.5px; color: var(--ui-text-dim); flex-wrap: wrap; }
+  .ui-knowledge-body { flex: 1; min-height: 0; display: flex; gap: 10px; padding: 4px 14px 12px; }
+  .ui-knowledge-list { width: 258px; flex: none; overflow-y: auto; border: 1px solid var(--ui-border-soft);
+    border-radius: 10px; background: var(--ui-surface); padding: 6px; }
+  .kl-item { display: block; width: 100%; text-align: left; padding: 7px 9px; border-radius: 7px;
+    border-left: 3px solid transparent; transition: background 0.12s var(--ui-ease); }
+  .kl-item:hover { background: var(--ui-surface-hover); }
+  .kl-item.active { background: color-mix(in srgb, var(--ui-accent) 12%, transparent); }
+  .kl-item.chain { border-left-color: var(--mem-c, var(--ui-accent)); }
+  .kl-item .tt { font-size: 12px; color: var(--ui-text); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .kl-item .mm { font-size: 10.5px; color: var(--ui-text-faint); margin-top: 2px; font-family: var(--ui-font-mono); }
+  .ui-knowledge-preview { flex: 1; min-width: 0; border: 1px solid var(--ui-border-soft); border-radius: 10px;
+    background: var(--ui-surface); overflow-y: auto; padding: 14px 18px; }
+  .ui-knowledge-preview h2 { font-size: 16px; margin-bottom: 8px; }
+  .ui-knowledge-preview p { font-size: 12.5px; color: var(--ui-text-dim); line-height: 1.75; }
+  .arch-node { fill: var(--ui-surface-raised); stroke: var(--ui-border); rx: 7; }
+  .arch-edge { stroke: var(--ui-border); fill: none; stroke-width: 1.3; }
+  .arch-label { font-size: 9.5px; fill: var(--ui-text-dim); }
+
+  /* ══ 编辑器 ══ */
+  .ed-wrap { flex: 1; min-height: 0; display: flex; gap: 10px; }
+  .ed-tree { width: 200px; flex: none; border: 1px solid var(--ui-border-soft); border-radius: var(--ui-radius-md);
+    background: var(--ui-surface); padding: 8px; overflow-y: auto; font-size: 12px; }
+  .ed-tree .cap { font-size: 10px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ui-text-faint); padding: 2px 6px 7px; }
+  .ed-file { display: flex; align-items: center; gap: 7px; padding: 5px 8px; border-radius: 7px; cursor: pointer; color: var(--ui-text-dim); }
+  .ed-file:hover { background: var(--ui-surface-hover); }
+  .ed-file.sel { background: var(--ui-accent-soft); color: var(--ui-text); font-weight: 650; }
+  .ed-file .n { font-family: var(--ui-font-mono); font-size: 11px; }
+  .ed-canvas { flex: 1; min-width: 0; border: 1px solid var(--ui-border-soft); border-radius: var(--ui-radius-md);
+    background: var(--ui-surface-raised); overflow: auto; display: flex; flex-direction: column; }
+  .ed-tabs { display: flex; gap: 2px; padding: 5px 8px 0; border-bottom: 1px solid var(--ui-border-soft); }
+  .ed-tab { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; font-size: 11px;
+    font-family: var(--ui-font-mono); color: var(--ui-text-dim); border: 1px solid transparent; border-bottom: 0;
+    border-radius: 7px 7px 0 0; }
+  .ed-tab.on { background: var(--ui-surface-raised); border-color: var(--ui-border-soft); color: var(--ui-text); font-weight: 650; }
+  .ed-code { font-family: var(--ui-font-mono); font-size: 11.5px; line-height: 1.75; padding: 12px 0; min-width: max-content; }
+  .ed-code .ln { display: flex; }
+  .ed-code .no { width: 44px; flex-shrink: 0; text-align: right; padding-right: 14px; color: var(--ui-text-faint);
+    font-size: 10px; line-height: inherit; user-select: none; }
+  .ed-code .tx { color: var(--ui-text-dim); white-space: pre; }
+  .ed-code .ln.add { background: color-mix(in srgb, var(--ui-success) 12%, transparent); }
+  .ed-code .ln.add .tx { color: var(--ui-success); }
+  .ed-code .ln.add .no { color: var(--ui-success); }
+  .ed-hist { width: 268px; flex: none; border: 1px solid var(--ui-border-soft); border-radius: var(--ui-radius-md);
+    background: var(--ui-surface); padding: 6px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
+  .ed-hist .cap { font-size: 10px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ui-text-faint); padding: 4px 6px 6px; }
+  .h-item { text-align: left; width: 100%; padding: 7px 9px; border-radius: var(--ui-radius-sm); border-left: 3px solid transparent;
+    transition: background 0.12s var(--ui-ease); }
+  .h-item:hover { background: var(--ui-surface-hover); }
+  .h-item.sel { background: var(--ui-accent-soft); }
+  .h-item.local { border-left-color: var(--dot-session); }
+  .h-item.chain { border-left-color: var(--mem-c, var(--ui-accent)); }
+  .h-line { display: flex; align-items: center; gap: 6px; font-size: 10.5px; }
+  .h-line .hash { font-family: var(--ui-font-mono); font-weight: 700; color: var(--ui-text); }
+  .h-line time { margin-left: auto; color: var(--ui-text-faint); font-size: 9.5px; }
+  .h-sub { display: flex; align-items: center; gap: 6px; font-size: 10px; color: var(--ui-text-dim); margin-top: 2px; flex-wrap: wrap; }
+  .h-delta { font-family: var(--ui-font-mono); font-size: 9px; }
+  .h-delta .plus { color: var(--ui-success); }
+  .h-delta .minus { color: var(--ui-danger); }
+  .ed-hist-acts { display: flex; gap: 5px; padding: 6px 4px 2px; flex-wrap: wrap; border-top: 1px dashed var(--ui-border-soft); }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- ═══ Cockpit（顶栏 = 状态与控制 · 模块切换在底部 hub dock） ═══ -->
+  <header class="cockpit">
+    <span class="c-pill"><span class="dot"></span><b>DeepOrca</b></span>
+    <span class="c-pill"><span class="dot" style="background:var(--ui-success)"></span>DeepSeek V4 <span style="opacity:.7">· think</span></span>
+    <span class="c-pill"><span class="dot"></span><span class="mono">▮▮▮▯▯ 62%</span></span>
+    <span class="spacer"></span>
+    <button class="dock-btn" id="annotBtn">📌 标注说明</button>
+    <button class="dock-btn" id="legendBtn">图例</button>
+    <div class="theme-seg" id="themeSeg">
+      <button data-app="light">浅色</button>
+      <button data-app="dark" class="on">深色</button>
+    </div>
+    <div class="win-controls"><i class="wc-min"></i><i class="wc-max"></i><i class="wc-close"></i></div>
+  </header>
+
+  <!-- ═══ 底座层：恒定主题条 ═══ -->
+  <div class="wc-themebar">
+    <span class="wc-tb-cap">⛓ 链底座 · 共享中</span>
+    <span class="wc-theme"><span class="src">git remote</span>主题 <span class="val">git:github.com/zshipu/gvgl</span></span>
+    <button class="wc-chainid" id="chainId" title="点击复制链 ID">orca1-wiymh-xraxv-a7ovu-yzdft</button>
+    <span class="wc-mems" title="kelthas-mbp（本机） · dev-windows-01 · design-ipad">
+      <span class="wc-mem" style="background:var(--mem-self)">K</span>
+      <span class="wc-mem" style="background:var(--mem-dev)">D</span>
+      <span class="wc-mem" style="background:var(--mem-design)">S</span>
+    </span>
+    <span class="wc-sync"><span class="pulse"></span>已同步</span>
+    <span class="wc-tb-meta mono">块高 #1042 · 多数派 2/3 · 出块 2s</span>
+    <span class="spacer"></span>
+    <button class="wc-tb-btn on" id="oplogBtn">⛓ 链操作日志</button>
+    <span class="wc-share-pill" title="项目级设置 coordination.shared = true · 用户级总闸开启中">共享开 · 本工作区</span>
+  </div>
+
+  <div class="a-hintbar" id="annotHint">
+    <b>📌 标注说明模式</b> —— 点击表面右上角的编号 pin 查看该处的设计说明（交互逻辑 · 链语义 · R 条款对照）
+    <span class="spacer"></span>
+    <span>● 本地版本 · ⛓ 链上版本（联签封存） · ◆ 随代码版本 · ⑂ fork=checkout 即上链 · 无 merge 择线</span>
+  </div>
+
+  <div class="wc-legend" id="legend">
+    <span class="it"><span class="sw" style="background:var(--dot-session)"></span>● 本地版本（私有 · 随时产生 · 永不出机）</span>
+    <span class="it"><span class="sw chain"></span>⛓ 链上版本（Ed25519 签名 + 联签封存 · 来源设备可溯）</span>
+    <span class="it"><span class="sw bound"></span>◆ 随代码版本（审查/知识库自动构建 · 不可独立 fork）</span>
+    <span class="it"><span class="lk"></span>⑂ fork = checkout 新分支（即上链 · 声明式）</span>
+    <span class="it" style="color:var(--ui-warning)">第一版无 merge：并行提交 = 分叉保留 · head 可择线</span>
+  </div>
+
+  <main class="stage">
+
+    <!-- ═══════════ ⑂ 任务树 ═══════════ -->
+    <section class="mv on" id="mv-tree">
+      <div class="mv-note">
+        <b>任务树 = 整条共享链</b>（本地谱系 ∪ 链上 task.share 谱系，一树混排）
+        <span>·</span> 链上节点 = 虚线环（成员色）<span>·</span> 域 pills / 成员过滤真实生效
+      </div>
+      <div class="pane-card">
+        <div class="th-top">
+          <span class="th-ws"><span class="dot"></span>GVGL</span>
+          <div class="th-pills" id="thDomains">
+            <button class="th-pill on" data-d="all">全部 · 9</button>
+            <button class="th-pill" data-d="session"><span class="sw" style="background:var(--dot-session)"></span>会话任务 · 2</button>
+            <button class="th-pill" data-d="review"><span class="sw" style="background:var(--dot-review)"></span>代码审查 · 1</button>
+            <button class="th-pill" data-d="editor"><span class="sw" style="background:var(--dot-editor)"></span>编辑器结对 · 1</button>
+            <button class="th-pill" data-d="chain"><span style="font-size:10px">⛓</span>链上记录 · 4</button>
+          </div>
+          <span class="spacer"></span>
+          <span class="git-chip">⎇ refactor/login-token</span>
+        </div>
+        <div class="mem-filter">
+          <span class="lab">成员过滤</span>
+          <button class="mf-chip on" data-mem="all">全部成员</button>
+          <button class="mf-chip" data-mem="kel" style="--mem-c:var(--mem-self)"><span class="sw"></span>kelthas-mbp · 本机</button>
+          <button class="mf-chip" data-mem="dev" style="--mem-c:var(--mem-dev)"><span class="sw"></span>dev-windows-01</button>
+          <button class="mf-chip" data-mem="design" style="--mem-c:var(--mem-design)"><span class="sw"></span>design-ipad</button>
+          <span style="margin-left:auto;font-size:10px">链上节点随过滤淡化 · 本地节点不受成员过滤影响</span>
+        </div>
+        <div class="th-body">
+          <div class="th-graphwrap">
+            <div id="graph" style="position:relative"></div>
+          </div>
+          <aside class="th-detail" id="detail"></aside>
+        </div>
+        <div class="th-oplog" id="oplog">
+          <div class="cap">⛓ 链操作日志 <span class="sub">每个链历史操作 = 链 id + 操作（fork / task.share / design.version / editor.snapshot / kb.sync / merge / 创世） · 全量可审计</span></div>
+          <table><tbody id="oplogBody">
+            <tr><td class="t">14:20</td><td class="op">task.share · 接续</td><td>⛓ r:9d44…</td><td class="who"><span class="wc-memdot" style="background:var(--mem-design)"></span>design-ipad</td></tr>
+            <tr><td class="t">13:05</td><td class="op">merge · fork B 汇入</td><td>⛓ r:c2e8…</td><td class="who"><span class="wc-memdot" style="background:var(--mem-self)"></span>kelthas-mbp（本机）</td></tr>
+            <tr><td class="t">12:05</td><td class="op">task.share</td><td>⛓ r:8c11…</td><td class="who"><span class="wc-memdot" style="background:var(--mem-dev)"></span>dev-windows-01</td></tr>
+            <tr><td class="t">11:44</td><td class="op">editor.snapshot</td><td>⛓ c:51aa07…</td><td class="who"><span class="wc-memdot" style="background:var(--mem-dev)"></span>dev-windows-01</td></tr>
+            <tr><td class="t">09:00</td><td class="op">创世</td><td>⛓ genesis</td><td class="who">主题 git:github.com/zshipu/gvgl · 3 成员</td></tr>
+          </tbody></table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════ 💬 会话 ═══════════ -->
+    <section class="mv" id="mv-sessions">
+      <div class="mv-note">
+        <b>会话模块的链表面</b>：链溯源行（来源 fork/接续自动标注）· 本地会话「⛓ 上链共享」· 接续会话注入上下文卡
+      </div>
+      <div class="ss-wrap">
+        <div class="ss-panel">
+          <div class="ss-head">会话 <span class="ss-count">3</span><span class="spacer"></span>
+            <button class="wc-tb-btn" id="ssShareBtn" style="font-size:10.5px">⛓ 上链共享</button></div>
+          <div id="ssList"></div>
+        </div>
+        <div class="ss-right" id="ssRight"></div>
+      </div>
+    </section>
+
+    <!-- ═══════════ ◎ 原型设计 ═══════════ -->
+    <section class="mv" id="mv-prototype">
+      <div class="pane-card">
+        <div class="dw-head">
+          <div class="dw-tabs" id="protoTabs">
+            <button class="dw-tab active" data-t="spec">需求文档</button>
+            <button class="dw-tab" data-t="proto">交互原型</button>
+            <button class="dw-tab" data-t="accept">验收报告</button>
+          </div>
+          <span class="spacer"></span>
+          <span class="dw-badge" id="protoSelBadge">当前 · 本地 v3</span>
+          <button class="wc-btn accent sm" id="protoPublishBtn">⛓ 发布为链上版本</button>
+        </div>
+        <div class="dw-body">
+          <aside class="dw-rail">
+            <div class="dw-rail-cap">版本历史 · 本地 ∪ 链上</div>
+            <div class="rail-filter" id="protoFilter">
+              <button class="rf-chip on" data-f="all">全部</button>
+              <button class="rf-chip" data-f="local">● 本地</button>
+              <button class="rf-chip" data-f="chain">⛓ 链上</button>
+            </div>
+            <div id="protoRail"></div>
+          </aside>
+          <main class="dw-main" id="protoMain"></main>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════ ✦ UI 设计 ═══════════ -->
+    <section class="mv" id="mv-design">
+      <div class="pane-card">
+        <div class="dw-head">
+          <div class="dw-tabs" id="uiTabs">
+            <button class="dw-tab active" data-t="visual">视觉稿</button>
+            <button class="dw-tab" data-t="ds">设计系统</button>
+            <button class="dw-tab" data-t="quality">质量与评审</button>
+          </div>
+          <span class="dw-badge">主题 · 现代极简</span>
+          <span class="spacer"></span>
+          <span class="dw-badge" id="uiSelBadge">当前 · 本地 v2</span>
+          <button class="wc-btn accent sm" id="uiPublishBtn">⛓ 发布为链上版本</button>
+        </div>
+        <div class="dw-body">
+          <aside class="dw-rail">
+            <div class="dw-rail-cap">版本历史 · 本地 ∪ 链上</div>
+            <div class="rail-filter" id="uiFilter">
+              <button class="rf-chip on" data-f="all">全部</button>
+              <button class="rf-chip" data-f="local">● 本地</button>
+              <button class="rf-chip" data-f="chain">⛓ 链上</button>
+            </div>
+            <div id="uiRail"></div>
+          </aside>
+          <main class="dw-main" id="uiMain"></main>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════ ✓ 审查报告 ═══════════ -->
+    <section class="mv" id="mv-review">
+      <div class="ui-review-tab pane-card">
+        <div class="ui-review-tab-head">
+          <div class="ui-knowledge-subtabs">
+            <button class="ui-knowledge-subtab subtab-reports active" style="--tab-hue:var(--dot-review)" data-rv="reports">审查报告</button>
+            <button class="ui-knowledge-subtab subtab-graph" style="--tab-hue:#a78bfa" data-rv="graph">风险图谱</button>
+          </div>
+          <div class="ui-review-scope">
+            <span>审查范围</span>
+            <select id="rvScope">
+              <option value="local">● 未提交变更（a2c1e9f）</option>
+              <option value="chain" selected>⛓ 链上版本 c:b7e2f1…（dev-windows-01）</option>
+              <option value="commit">提交 1f9c77a（feat: rate limiting）</option>
+            </select>
+            <button class="ui-review-run-btn primary" id="rvRun">▶ 运行审查</button>
+          </div>
+        </div>
+        <div class="ui-review-tab-body" id="rvReports">
+          <div class="ui-review-history" id="rvHistory"></div>
+          <div class="ui-review-tab-content" id="rvDoc"></div>
+        </div>
+        <div class="ui-risk-board" id="rvGraph" style="display:none">
+          <div class="ui-risk-board-top">
+            <span class="ui-risk-board-meta" id="rbMeta"></span>
+          </div>
+          <div class="ui-risk-board-legend" id="rbLegend">
+            <button class="ui-risk-legend-chip on" data-tier="hi"><span class="rb-dot tier-hi"></span>高</button>
+            <button class="ui-risk-legend-chip on" data-tier="md"><span class="rb-dot tier-md"></span>中</button>
+            <button class="ui-risk-legend-chip on" data-tier="lo"><span class="rb-dot tier-lo"></span>低</button>
+            <span class="ui-risk-board-hint">点节点看意见 · 「跳转报告 ◎」回到原文并闪烁 · 图例 chip = 真实层级过滤器</span>
+          </div>
+          <div class="ui-risk-board-scroll">
+            <svg id="rbSvg" width="100%" height="430"></svg>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════ ▤ 知识库 ═══════════ -->
+    <section class="mv" id="mv-kb">
+      <div class="ui-knowledge-view pane-card">
+        <div class="ui-knowledge-subtabs">
+          <button class="ui-knowledge-subtab active" style="--tab-hue:var(--dot-index)" data-kb="wiki">Deep Wiki</button>
+          <button class="ui-knowledge-subtab" style="--tab-hue:#0ca678" data-kb="arch">架构图</button>
+          <button class="ui-knowledge-subtab" style="--tab-hue:var(--dot-prototype)" data-kb="symbols">符号表</button>
+        </div>
+        <div class="ui-knowledge-buildbar">
+          <span>⛓ 构建历史（本地 ∪ 链上同步 · 随代码基线对齐）：</span>
+          <span class="wc-chip">#13 本地 · 基线 ⎇ 8be12d4</span>
+          <span class="wc-chip" style="color:var(--mem-dev);border-color:color-mix(in srgb,var(--mem-dev) 40%,transparent)">⛓ #12 design-ipad · c:f31a8b…</span>
+          <span class="spacer"></span>
+          <button class="wc-btn sm" id="kbApplyBtn">应用链上知识版本…</button>
+        </div>
+        <div class="ui-knowledge-body">
+          <div class="ui-knowledge-list" id="kbList"></div>
+          <div class="ui-knowledge-preview" id="kbPreview"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════ ✎ 编辑器 ═══════════ -->
+    <section class="mv" id="mv-editor">
+      <div class="ed-wrap">
+        <div class="ed-tree">
+          <div class="cap">src/auth</div>
+          <div class="ed-file sel" data-f="token.ts"><span>🔑</span><span class="n">token.ts</span></div>
+          <div class="ed-file" data-f="login.ts"><span>📄</span><span class="n">login.ts</span></div>
+          <div class="ed-file" data-f="token.test.ts"><span>🧪</span><span class="n">token.test.ts</span></div>
+        </div>
+        <div class="ed-canvas">
+          <div class="ed-tabs" id="edTabs"></div>
+          <div class="ed-code" id="edCode"></div>
+        </div>
+        <div class="ed-hist">
+          <div class="cap" id="edHistCap">token.ts · 历史（本地 ∪ 链上）</div>
+          <div id="edHist" style="display:flex;flex-direction:column;gap:3px;padding:0 2px 4px"></div>
+          <div class="ed-hist-acts" id="edHistActs">
+            <button class="wc-btn sm" id="edSnapBtn">⛓ 快照上链</button>
+            <button class="wc-btn sm" id="edRestoreBtn">↺ 恢复此点</button>
+            <button class="wc-btn sm" id="edDiffBtn">⇄ 与当前对比</button>
+          </div>
+          <div style="padding:6px 8px 4px;font-size:9.5px;color:var(--ui-text-faint);line-height:1.6;border-top:1px dashed var(--ui-border-soft)">
+            本地 checkpoint = 自动撤销点（永不出机）<br>
+            ⛓ 链上快照 = 显式动作（恢复前逐块 CID 校验 + 预览确认）
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ═══ Hub 底部坞（真实 .ui-hub-rail：模块切换在此 · ⟨ 收起 → tide orb） ═══ -->
+  <nav class="wc-hub" id="hub" aria-label="功能坞">
+    <span class="wc-hub-mark">🐋</span>
+    <div class="wc-hub-items" id="tabs">
+      <button class="wc-hub-item active" data-mv="tree"><span class="ic">⑂</span>任务树</button>
+      <button class="wc-hub-item" data-mv="sessions"><span class="ic">💬</span>会话</button>
+      <button class="wc-hub-item" data-mv="prototype"><span class="ic">◎</span>原型设计</button>
+      <button class="wc-hub-item" data-mv="design"><span class="ic">✦</span>UI 设计</button>
+      <button class="wc-hub-item" data-mv="review"><span class="ic">✓</span>审查报告</button>
+      <button class="wc-hub-item" data-mv="kb"><span class="ic">▤</span>知识库</button>
+      <button class="wc-hub-item" data-mv="editor"><span class="ic">✎</span>编辑器</button>
+    </div>
+    <button class="wc-hub-collapse" id="hubCollapse" title="收起为 tide orb">⟨</button>
+  </nav>
+  <button class="wc-orb" id="orb" title="召唤功能坞">🐋</button>
+</div>
+
+<!-- 弹层挂载点 -->
+<div class="wc-pop-mask" id="popMask"><div class="wc-pop" id="popHost"></div></div>
+<div class="toast" id="toast"><span class="td"></span><span id="toastMsg"></span></div>
+
+<script>
+"use strict";
+/* ═══════════ 共享数据 ═══════════ */
+var MEMBERS = {
+  kel:    { name: "kelthas-mbp",    c: "var(--mem-self)",   init: "K" },
+  dev:    { name: "dev-windows-01", c: "var(--mem-dev)",    init: "D" },
+  design: { name: "design-ipad",    c: "var(--mem-design)", init: "S" }
+};
+var CHAIN_ID = "orca1-wiymh-xraxv-a7ovu-yzdft";
+var $ = function (s, r) { return (r || document).querySelector(s); };
+var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
+function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+
+/* toast */
+var toastTimer = null;
+function toast(msg) {
+  $("#toastMsg").textContent = msg;
+  $("#toast").classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function () { $("#toast").classList.remove("show"); }, 2200);
+}
+function oplogAppend(op, ref, memKey, who) {
+  var m = MEMBERS[memKey || "kel"];
+  var tr = document.createElement("tr");
+  tr.innerHTML = '<td class="t">刚刚</td><td class="op">' + esc(op) + '</td><td>⛓ ' + esc(ref) + '</td>'
+    + '<td class="who"><span class="wc-memdot" style="background:' + m.c + '"></span>' + esc(who || m.name) + '</td>';
+  var tb = $("#oplogBody");
+  tb.insertBefore(tr, tb.firstChild);
+}
+
+/* ── 弹层 ── */
+function openPop(html) { $("#popHost").innerHTML = html; $("#popMask").classList.add("open"); }
+function closePop() { $("#popMask").classList.remove("open"); }
+$("#popMask").addEventListener("click", function (e) { if (e.target === $("#popMask")) closePop(); });
+document.addEventListener("keydown", function (e) { if (e.key === "Escape") closePop(); });
+function popShell(cap, sem, body) {
+  return '<div class="wc-pop-hd"><span class="cap">' + cap + '</span><span class="sem">' + sem + '</span><button class="x" data-x>✕</button></div>'
+       + '<div class="wc-pop-bd">' + body + '</div>';
+}
+function bindPopCancel(onOk) {
+  var host = $("#popHost");
+  $("[data-x]", host).addEventListener("click", closePop);
+  var c = $("[data-cancel]", host); if (c) c.addEventListener("click", closePop);
+  var ok = $("[data-go]", host);
+  if (ok) ok.addEventListener("click", function () { if (onOk) onOk(); closePop(); });
+}
+
+/* ── Cockpit + Hub 底部坞（模块切换在底部 · 真实 .ui-hub-rail 形态） ── */
+function switchModule(mv) {
+  $$("#tabs .wc-hub-item").forEach(function (x) { x.classList.toggle("active", x.dataset.mv === mv); });
+  $$(".mv").forEach(function (m) { m.classList.toggle("on", m.id === "mv-" + mv); });
+  renderNotes();
+  requestAnimationFrame(function () { if (window.__relayout) window.__relayout(); });
+}
+$$("#tabs .wc-hub-item").forEach(function (b) {
+  b.addEventListener("click", function () { switchModule(b.dataset.mv); });
+});
+/* 收起为 tide orb / 召唤 —— 真实 hub 的两级交互 */
+$("#hubCollapse").addEventListener("click", function () {
+  $("#hub").classList.add("hidden");
+  $("#orb").classList.add("show");
+  $(".stage").classList.remove("dock-up");
+  toast("功能坞已收起 · 点左下角 tide orb 召唤");
+});
+$("#orb").addEventListener("click", function () {
+  $("#hub").classList.remove("hidden");
+  $("#orb").classList.remove("show");
+  $(".stage").classList.add("dock-up");
+  requestAnimationFrame(function () { if (window.__relayout) window.__relayout(); });
+});
+$(".stage").classList.add("dock-up");
+$$("#themeSeg button").forEach(function (b) {
+  b.addEventListener("click", function () {
+    document.documentElement.dataset.appearance = b.dataset.app;
+    $$("#themeSeg button").forEach(function (x) { x.classList.toggle("on", x === b); });
+    if (rvState.sub === "graph") renderReviewGraph();
+    if (window.__relayout) window.__relayout();
+  });
+});
+$("#legendBtn").addEventListener("click", function () {
+  $("#legend").classList.toggle("open");
+  this.classList.toggle("on");
+});
+$("#oplogBtn").addEventListener("click", function () {
+  this.classList.toggle("on");
+  $("#oplog").style.display = this.classList.contains("on") ? "block" : "none";
+});
+$("#chainId").addEventListener("click", function () {
+  var old = this.textContent; this.textContent = "✓ 已复制"; var self = this;
+  setTimeout(function () { self.textContent = old; }, 900);
+  try { navigator.clipboard && navigator.clipboard.writeText(CHAIN_ID); } catch (e) {}
+  toast("链 ID 已复制：" + CHAIN_ID);
+});
+
+/* ═══════════ 标注说明层（说明设计稿） ═══════════ */
+var NOTES = [
+  { mv: "*", sel: ".wc-hub", t: "Hub 底部坞 · 功能切换在此（真实 .ui-hub-rail 形态）",
+    b: "对齐运行中应用的真实导航：模块/面板切换不是顶栏页签，而是底部悬浮玻璃坞（bottom 14px · 毛玻璃 · 品牌 mark + 图标列 + ⟨ 收起）。点图标切换工作面（active 双色渐变）；点 ⟨ 整坞下沉收起，只在左下角留 tide orb，点 orb 再召唤——这是应用标志性的两级 hub 交互（Level 1 坞 → Level 2 flyout，真实实现中图标会向侧旁展开内容卡，本稿因各模块即整屏工作面而直接切换舞台）。工作链没有自己的坞图标：它是织入七个模块的底座层。" },
+  { mv: "*", sel: ".wc-themebar", t: "链底座 · 恒定主题条（链≠模块）",
+    b: "七个模块同位出现、随时在旁；共享关闭时整条消失（R21 零行为变化）。主题由 git remote 规范化解析（R24，跨机器稳定身份）；点链 ID 复制（链 ID 与主题双向锚定，R26 加入时核对）；成员头像 = keyId 指纹；「共享开 · 本工作区」= 项目级 coordination.shared 态。右侧「⛓ 链操作日志」可开合：一切链历史操作（fork / task.share / design.version / editor.snapshot / kb.sync / merge / 创世）在此全量可审计（R20），且本稿中所有弹层确认动作都会实时追加一行。" },
+  { mv: "tree", sel: "#thDomains", t: "域 pills · 真实过滤",
+    b: "与会话任务/代码审查等本地域并列，⛓ 链上记录是独立可过滤域——点选后仅显示链上节点。链上记录不只是被动展示：它和本地节点一起参与谱系（接续链在树上直接可见）。" },
+  { mv: "tree", sel: ".mem-filter", t: "成员过滤 · 本地视角不变",
+    b: "按成员淡化链上节点；本地（本机）节点永远不受成员过滤影响——本地是用户的私有视角，链上内容才是共享视角。这是「默认关、显式共享」原则在树视图上的投射。" },
+  { mv: "tree", sel: "#graph", t: "任务树 = 整条共享链",
+    b: "节点形状：● 会话主任务（圆环）· ⑂ fork（小环，对应 git 分支）· ◆ 伴随任务（菱形）· ⛓ 链上记录（虚线环 + 成员色）。本地谱系与链上 task.share 谱系按时间一树混排：A 机完成任务上链 → B 机「接续开发」→ 新的 ⛓ 节点带 parentRecordId 挂回——任务的工作链直接长在任务树上，不需要去别的面板看（R14/R15）。" },
+  { mv: "tree", sel: "#detail", t: "节点详情 · 链上/本地动作集不同",
+    b: "本地节点：打开时间线 / ⑂ 声明 fork / ⛓ 上链共享。链上记录：▶ 接续开发（先检出上游 ws.commit 对齐本地，预览确认后生成注入上下文卡的新会话，R15/R31）/ 认领保护（声明性软锁，R17/R18）/ 查看区块（链浏览器审计）。" },
+  { mv: "tree", sel: ".trace", t: "轨迹常开",
+    b: "会话任务的完整轨迹（用户指令 → agent 行为流）直接展开在节点下方，没有收起态——轨迹是上链共享时的数据基座（TaskTrajectory 压缩为摘要，不含对话原文，R14/R16）。" },
+  { mv: "sessions", sel: "#ssList", t: "链溯源行",
+    b: "会话项第三行 = 链溯源：接续会话恒显「来源记录 + 版本对齐态」；已共享会话显示记录 id 与联签态、谁已接续；本地会话则给「⛓ 上链共享 →」动作入口。选中任一会话，右栏联动。" },
+  { mv: "sessions", sel: "#ssShareBtn", t: "上链共享 · 预览确认（R20）",
+    b: "一切离开本机的字节前的显式动作：目标明示（链 ID + 成员数）→ 轨迹摘要（TaskTrajectory，不含对话原文）→ 结论/遗留可编辑 → 随行变更勾选（复用 GitFileHistory 变更集直接提交 ws.commit，taskRef 互链）→ 记录预览 → 确认。「自动共享」为独立子开关且默认关（R16）。" },
+  { mv: "sessions", sel: "#ssRight", t: "接续上下文卡（不进 core 回路）",
+    b: "从链上任务记录接续时，新会话注入结构化上下文卡：目标/已完成/触及文件/结论/遗留/上游链 ID + recordId + commitCid。它只是 prompt 模板 + IPC 数据，协作链完全不触碰 LLM 会话回路；完成后再共享自动携带 parentRecordId 形成谱系。" },
+  { mv: "prototype", sel: "#protoTabs", t: "三段页签 · 一版一套",
+    b: "一个版本 = 需求文档 + 交互原型 + 验收报告一套；切换版本三段同步。与 UI 设计模块共用此交互骨架（对齐 design-systems-advance 两稿）。" },
+  { mv: "prototype", sel: "#protoRail", t: "融合版本 rail（本地 ∪ 链上）",
+    b: "原型与 UI 设计是唯二可独立 fork 的产物域。本地 ● 与链上 ⛓（成员色左边条 + 来源行）按时间混排在同一条 rail——不另立链版本区。筛选 chips：全部 / ● 本地 / ⛓ 链上。点 ⛓ 版本 → 溯源 diff 视图（来源设备/记录/关联 ws.commit + 与本地 head 的 tree diff + 拉取/fork/择线动作）；点 ● 版本 → 回到段内容。发布/拉取只是 rail 上的节点动作，本地编辑不被打断。" },
+  { mv: "prototype", sel: "#protoPublishBtn", t: "发布为链上版本（R20 预览确认）",
+    b: "本地版本 → 链上版本：变更摘要预览（产物集/blob 分块去重/原型基线）→ design.version 记录预览（≤8KB，manifest CID，parentRecordId 版本链）→ 确认后签名 gossip → 联签 2/3 终局。撤销 = asset.revoke 声明（链上历史保留）。" },
+  { mv: "design", sel: "#uiTabs", t: "三段：视觉稿 / 设计系统 / 质量与评审",
+    b: "对齐 design-systems-advance 的 UI 设计稿：视觉稿（预览舞台）· 设计系统（.dds tokens 表 + 组件原子墙，切换即确定性重染）· 质量与评审（lint → 机检 → review 门 R1→自愈→R2）。" },
+  { mv: "design", sel: "#uiRail", t: "基线徽章随版本走（含 ⛓）",
+    b: "每个版本携带「基于原型 vX」徽章——链上版本也记录其原型基线：跨设备拉取后 UI↔原型联动关系不丢失。这是产物域独立 fork 的前提（fork 出去的 UI 版本仍知道自己基于哪个原型版本）。" },
+  { mv: "review", sel: "#mv-review .ui-knowledge-subtabs", t: "子页 = 知识 sheet 同款",
+    b: "审查报告 / 风险图谱两个子页复用 ui-knowledge-subtab（带 --tab-hue 色点）——与知识面板同一视觉语言（真实实现 ReviewWorkspace.tsx 如此）。" },
+  { mv: "review", sel: ".ui-review-scope", t: "审查范围 · 含 ⛓ 链上版本引用",
+    b: "本地未提交变更 / 提交 / ⛓ 链上版本（成员的 ws.commit）。选链上 = 直接读链工作区 tree（对象逐块 CID 校验），不物化到本地磁盘即可审查——审查他人的并行分叉是接力开发的第一步。范围切换联动下方报告历史（本稿真实生效）。" },
+  { mv: "review", sel: "#rvHistory", t: "报告历史 rail · 混排 ⛓ 链上同步报告",
+    b: "本地报告与成员分享来的链上报告按时间混排（⛓ 成员色边条 + 来源行）。审查没有独立版本 rail——它的「版本」就是基线 + 报告存档；报告为 ◆ 随代码版本：随基线自动构建关联版本，不可独立 fork。" },
+  { mv: "review", sel: "#rvDoc", t: "报告全结构 + finding 级链动作",
+    b: "h1 + 引用到对话 / 范围-生成-状态 meta / 统计卡（文件·意见·策略排除）/ 按文件分组 findings：严重度 chips（CRITICAL/HIGH/MEDIUM/LOW）· CRG: high · 定位 ◎（点击 → 风险图谱选中节点）· 现有代码/建议代码双 codeblock。finding 级链动作：⛓ 批注回链（note 记录 ≤2KB，锚定基线与 refRecordId，联签封存后成员可见）/ 一键修复 → 任务树（生成绑定同基线的任务节点，修复变更随行 ws.commit）。" },
+  { mv: "review", sel: "#rbLegend", t: "风险图谱 · 双向定位 + 真实过滤器",
+    b: "tier 横带（高/中/低）× 文件 lane 平面板；图例 chip 是真实层级过滤器（点掉即重排）。节点 popover 给意见摘要 + 「跳转报告 ◎」→ 切回报告子页并闪烁该 finding——与真实实现的 review-bind 双向定位语义一致。" },
+  { mv: "kb", sel: ".ui-knowledge-subtabs", t: "三子页 · hue 色点",
+    b: "Deep Wiki / 架构图 / 符号表——与审查子页同一子页语言。知识库的「版本」= 构建版本（codegraph/wiki/arch 三件套，绑定代码基线）。" },
+  { mv: "kb", sel: ".ui-knowledge-buildbar", t: "构建历史 ∪ 链上同步（◆ 随代码）",
+    b: "本地构建与成员的链上同步混排（⛓ 随其 ws.commit 基线对齐）。知识库为随代码版本：fork 会话/编辑器时随对应基线自动构建关联版本，不可独立 fork。应用链上知识版本前必预览差异（R20）：wiki 页数/arch 图/索引规模/冲突逐项给出。" },
+  { mv: "editor", sel: ".ed-canvas", t: "文件树 / 页签 / 画布联动",
+    b: "编辑器结对（PAIR）会话级轨迹进任务树；文件级变更通过 GitFileHistory 自动产出 checkpoint（changedFilePaths/checkpointHash 现成可得）——这正是上链共享「随行 ws.commit」与 fork「变更集直通提交」的数据源（R28）。" },
+  { mv: "editor", sel: "#edHist", t: "历史抽屉 · checkpoint ∪ ⛓ 快照",
+    b: "本地 checkpoint（● 蓝，自动撤销点，永不出机）与链上快照（⛓ 成员色，editor.snapshot 记录）按时间混排。快照上链是显式动作；恢复链上快照前逐块 CID 校验 + 预览确认，物化目标限用户选定目录内（防路径穿越）。" },
+  { mv: "editor", sel: "#edHistActs", t: "快照上链 / 恢复 / 对比",
+    b: "⛓ 快照上链 → editor.snapshot 记录（签名 gossip → 联签终局）；↺ 恢复此点 → 本地点直接 undo / 链上点走校验+预览；⇄ 与当前对比 → 文件级 diff。三个动作都写入链操作日志（上链类）或纯本地（恢复本地 checkpoint 不上链）。" }
+];
+var annotOn = false;
+function renderNotes() {
+  $$(".a-pin").forEach(function (p) { p.remove(); });
+  $$(".annoted").forEach(function (el) { el.classList.remove("annoted"); });
+  if (!annotOn) return;
+  var activeChip = $("#tabs .wc-hub-item.active");
+  var activeMv = activeChip && activeChip.dataset ? activeChip.dataset.mv : "tree";
+  var n = 0;
+  NOTES.forEach(function (note) {
+    if (note.mv !== "*" && note.mv !== activeMv) return;
+    var root = note.mv === "*" ? document : $("#mv-" + activeMv);
+    if (!root) return;
+    var el = note.sel === ".wc-themebar" ? $(".wc-themebar") : $(note.sel, root) || $(note.sel);
+    if (!el) return;
+    n++;
+    el.classList.add("annoted");
+    var pin = document.createElement("button");
+    pin.className = "a-pin";
+    pin.textContent = n;
+    pin.title = note.t;
+    pin.addEventListener("click", function (e) {
+      e.stopPropagation();
+      openPop(popShell("📌 标注 " + n, note.t,
+        '<div class="wc-box" style="font-size:12px;line-height:1.8;color:var(--ui-text-dim)">' + note.b + '</div>'
+        + '<div class="wc-pop-acts"><span class="hint">说明设计稿 · specs/coord-chain</span><button class="wc-btn sm" data-cancel>关闭</button></div>'));
+      bindPopCancel();
+    });
+    el.appendChild(pin);
+  });
+}
+$("#annotBtn").addEventListener("click", function () {
+  annotOn = !annotOn;
+  this.classList.toggle("on", annotOn);
+  $("#annotHint").classList.toggle("open", annotOn);
+  renderNotes();
+  toast(annotOn ? "标注说明已开启 · 点击编号 pin 查看设计说明" : "标注说明已关闭");
+});
+
+/* ═══════════ 任务树 ═══════════ */
+var NODES = [
+  { id: "n1", lane: 0, kind: "chain", member: "design", title: "接续 · 登录风控策略调研", rec: "r:9d44…", commit: "c:f31a8b…", time: "14:20",
+    meta: ["⛓ task.share · 接续自 r:8c11…", "结论：分级风控阈值（低/中/高）", "遗留：阈值数值待评审"] },
+  { id: "n2", lane: 1, kind: "fork", title: "⑂ fork B · 记忆驱动分支", time: "13:05", status: "merged", forkOf: "n6",
+    meta: ["已合并回主干 · cherry-pick 2 节点", "fork 即上链 · ⛓ r:c2e8…"] },
+  { id: "n3", lane: 0, kind: "session", title: "主任务 · 登录模块重构", time: "2 小时前", status: "running", hasTrace: true,
+    git: { branch: "refactor/login-token", hash: "8be12d4" }, meta: ["活跃分支 2 · 节点 9"] },
+  { id: "n4", lane: 0, kind: "chain", member: "dev", title: "登录 API 契约测试先行", rec: "r:8c11…", commit: "c:b7e2f1…", time: "12:05",
+    meta: ["⛓ task.share · 随行 ws.commit c:b7e2…", "结论：契约用例 14 条先行", "遗留：错误码表未对齐", "已被 design-ipad 接续 →"] },
+  { id: "n5", lane: 0, kind: "review", title: "代码审查 · 链上版本 c:b7e2f1…", time: "11:40",
+    meta: ["4 项意见 · 2 个文件", "⛓ 基线 = dev-windows-01 的链工作区提交"] },
+  { id: "n6", lane: 0, kind: "session", title: "主任务 · passkey 方案", time: "昨天", status: "done",
+    meta: ["⛓ 已共享 r:8c11… 的上游会话（本机）"] },
+  { id: "n7", lane: 0, kind: "chain", member: "design", note: true, title: "批注 · 风控阈值需二次确认", rec: "r:a3f0…", time: "昨天",
+    meta: ["⛓ note（≤2KB）· 批注在 r:9d44… 上"] },
+  { id: "n8", lane: 0, kind: "editor", title: "PAIR · 解释选中代码的职责与边界条件", time: "昨天", meta: ["编辑器结对 · 会话级轨迹进任务树"] },
+  { id: "n9", lane: 0, kind: "chain", member: "kel", genesis: true, title: "创世 · git:github.com/zshipu/gvgl", time: "2 天前",
+    meta: ["创世成员 kelthas-mbp · 准入 open · 多数派 2/3"] }
+];
+var TRACES = {
+  n3: [
+    { user: "重构登录模块：token 存储改用 httpOnly cookie，补齐单测", at: "14:02", steps: [
+      { ic: "📖", cls: "t-read", tool: "read", arg: "src/auth/token.ts (L1-120)", ms: "0.2s", ok: true },
+      { ic: "✏️", cls: "t-write", tool: "edit", arg: "src/auth/token.ts  +38 −12", ms: "0.4s", ok: true },
+      { ic: "🧪", cls: "t-write", tool: "write", arg: "src/auth/token.test.ts  +54", ms: "0.5s", ok: true },
+      { ic: "💬", cls: "t-assistant", tool: "assistant", arg: "重构完成 → 提交 8be12d4 到 refactor/login-token" } ] }
+  ]
+};
+var graph = $("#graph");
+var rowEls = [];
+NODES.forEach(function (t) {
+  var row = document.createElement("div");
+  row.className = "g-row"; row.dataset.id = t.id;
+  if (t.kind === "chain") row.dataset.mem = t.member;
+  row.dataset.dom = t.kind === "chain" ? "chain" : t.kind;
+  var cell = document.createElement("div"); cell.className = "g-cell";
+  var content = document.createElement("div"); content.className = "g-content";
+  var card = document.createElement("div"); card.className = "g-card";
+  var chipLabel = t.kind === "chain" ? (t.note ? "⛓ NOTE" : t.genesis ? "⛓ 创世" : "⛓ CHAIN") : t.kind === "fork" ? "FORK" : t.kind.toUpperCase();
+  var chipStyle = t.kind === "chain"
+    ? ' style="color:' + MEMBERS[t.member].c + ';background:color-mix(in srgb,' + MEMBERS[t.member].c + ' 12%, transparent)"' : "";
+  card.innerHTML =
+    '<div class="t"><span class="chip ' + (t.kind === "chain" ? "tag-chain" : "tag-" + t.kind) + '"' + chipStyle + '>' + chipLabel + '</span>'
+    + '<span class="name">' + esc(t.title) + '</span>'
+    + (t.status === "running" ? '<span class="chip st-running">进行中</span>' : "")
+    + (t.status === "merged" ? '<span class="chip st-merged">已合并</span>' : "")
+    + '</div><div class="meta">'
+    + (t.git ? '<span class="git-chip">⎇ ' + (t.git.branch ? t.git.branch + " " : "") + t.git.hash + '</span>' : "")
+    + (t.rec ? '<span class="wc-chip">⛓ ' + t.rec + '</span>' : "")
+    + (t.meta || []).map(function (m) { return "<span>" + esc(m) + "</span>"; }).join("")
+    + '<span class="tag">' + t.time + '</span></div>';
+  card.addEventListener("click", function () { selectNode(t); });
+  content.appendChild(card);
+  if (t.hasTrace && TRACES[t.id]) {
+    var trace = document.createElement("div"); trace.className = "trace";
+    trace.innerHTML = traceHtml(t.title, TRACES[t.id]);
+    content.appendChild(trace);
+  }
+  row.appendChild(cell); row.appendChild(content);
+  graph.appendChild(row);
+  rowEls.push({ row: row, t: t, card: card });
+});
+function traceHtml(title, turns) {
+  return '<div class="tr-head">◈ ' + esc(title.slice(0, 18)) + '… — 完整任务轨迹（session event log · 常开）</div>'
+    + '<div class="tr-body">' + turns.map(function (tr) {
+      return '<div><div class="turn-head"><span>Turn 1 · ' + tr.at + '</span><span class="ln"></span></div>'
+        + '<div class="user-msg"><div><div class="who">用户指令</div><div class="txt">' + esc(tr.user) + '</div></div></div>'
+        + '<div class="steps">' + tr.steps.map(function (s) {
+          return '<div class="step"><span class="ic ' + s.cls + '">' + s.ic + '</span><div style="min-width:0;flex:1">'
+            + '<div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap"><span class="tool">' + s.tool + '</span>'
+            + '<span class="arg">' + esc(s.arg) + '</span>'
+            + (s.fail ? '<span class="fail">✗</span>' : s.ok ? '<span class="ok">✓</span>' : "")
+            + '<span class="ms">' + (s.ms || "") + '</span></div></div></div>';
+        }).join("") + '</div></div>';
+    }).join("") + '</div>';
+}
+var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+svg.setAttribute("class", "tracks");
+graph.appendChild(svg);
+function nodeCenter(t) {
+  var el = t._el || t; var r = el.getBoundingClientRect(); var g = graph.getBoundingClientRect();
+  return { x: r.left - g.left, y: r.top - g.top + 24 };
+}
+function laneX(lane) { return 20 + lane * 20; }
+function layoutGraph() {
+  rowEls.forEach(function (re) { re.t._el = re.card; });
+  svg.innerHTML = "";
+  var H = graph.scrollHeight; if (!H) return;
+  svg.setAttribute("width", 64); svg.setAttribute("height", H);
+  svg.setAttribute("viewBox", "0 0 64 " + H);
+  function edge(d, cls) {
+    var p = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    p.setAttribute("d", d); p.setAttribute("class", "edge " + cls); svg.appendChild(p);
+  }
+  var byId = {}; rowEls.forEach(function (re) { byId[re.t.id] = re.t; });
+  var prev = null;
+  rowEls.forEach(function (re) {
+    if (re.t.lane !== 0) return;
+    if (re.row.style.display === "none") return;
+    if (prev) { var a = nodeCenter(prev), b = nodeCenter(re.t); edge("M 20 " + a.y + " L 20 " + b.y, "trunk"); }
+    prev = re.t;
+  });
+  rowEls.forEach(function (re) {
+    var t = re.t;
+    if (t.kind === "fork" && t.forkOf && byId[t.forkOf]) {
+      var p = nodeCenter(byId[t.forkOf]), b = nodeCenter(t), x = laneX(t.lane);
+      edge("M 27 " + p.y + " C " + x + " " + (p.y - 6) + ", " + x + " " + (b.y + 10) + ", " + x + " " + (b.y - 8), "fork");
+      if (t.status === "merged") edge("M " + x + " " + (b.y + 8) + " C " + x + " " + (p.y - 12) + ", 31 " + (p.y - 6) + ", 28 " + p.y, "fork");
+    }
+  });
+  rowEls.forEach(function (re) {
+    if (re.row.style.display === "none") return;
+    var t = re.t, p = nodeCenter(t), x = laneX(t.lane);
+    var g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    g.setAttribute("class", "node" + (t.status === "running" ? " running" : "") + (re.card.classList.contains("sel") ? " sel" : ""));
+    var color = t.kind === "chain" ? MEMBERS[t.member].c : t.kind === "fork" ? "var(--line-fork)" : "var(--dot-" + t.kind + ")";
+    if (t.status === "running") {
+      var pulse = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      pulse.setAttribute("class", "pulse"); pulse.setAttribute("cx", x); pulse.setAttribute("cy", p.y);
+      pulse.setAttribute("r", 10); pulse.setAttribute("fill", "var(--dot-session)"); g.appendChild(pulse);
+    }
+    var halo = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    halo.setAttribute("class", "halo"); halo.setAttribute("cx", x); halo.setAttribute("cy", p.y);
+    halo.setAttribute("r", 12); halo.setAttribute("fill", "none");
+    halo.setAttribute("stroke", "var(--ui-accent)"); halo.setAttribute("stroke-width", 1.6); g.appendChild(halo);
+    if (t.kind === "session" || t.kind === "fork") {
+      var c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      c.setAttribute("cx", x); c.setAttribute("cy", p.y); c.setAttribute("r", t.kind === "session" ? 7 : 6);
+      c.setAttribute("fill", "var(--ui-surface-raised)"); c.setAttribute("stroke", color);
+      c.setAttribute("stroke-width", t.kind === "session" ? 3 : 2.4); g.appendChild(c);
+    } else if (t.kind === "chain") {
+      var cc = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      cc.setAttribute("cx", x); cc.setAttribute("cy", p.y); cc.setAttribute("r", 6.5);
+      cc.setAttribute("fill", "var(--ui-surface-raised)"); cc.setAttribute("stroke", color);
+      cc.setAttribute("stroke-width", 2.2); cc.setAttribute("stroke-dasharray", "2.6 2.2"); g.appendChild(cc);
+      var in2 = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      in2.setAttribute("cx", x); in2.setAttribute("cy", p.y); in2.setAttribute("r", 2.2);
+      in2.setAttribute("fill", color); g.appendChild(in2);
+    } else {
+      var d = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+      var s = 8.4;
+      d.setAttribute("x", x - s / 2); d.setAttribute("y", p.y - s / 2);
+      d.setAttribute("width", s); d.setAttribute("height", s); d.setAttribute("rx", 1.6);
+      d.setAttribute("transform", "rotate(45 " + x + " " + p.y + ")");
+      d.setAttribute("fill", color); d.setAttribute("stroke", "var(--ui-surface-raised)"); d.setAttribute("stroke-width", 1.6);
+      g.appendChild(d);
+    }
+    svg.appendChild(g);
+  });
+}
+requestAnimationFrame(function () { requestAnimationFrame(layoutGraph); });
+window.addEventListener("resize", function () { requestAnimationFrame(layoutGraph); });
+window.__relayout = layoutGraph;
+
+$$("#thDomains .th-pill").forEach(function (b) {
+  b.addEventListener("click", function () {
+    $$("#thDomains .th-pill").forEach(function (x) { x.classList.toggle("on", x === b); });
+    var d = b.dataset.d;
+    rowEls.forEach(function (re) {
+      var show = d === "all" || re.row.dataset.dom === d;
+      re.row.style.display = show ? "" : "none";
+    });
+    requestAnimationFrame(layoutGraph);
+  });
+});
+$$(".mf-chip").forEach(function (b) {
+  b.addEventListener("click", function () {
+    $$(".mf-chip").forEach(function (x) { x.classList.toggle("on", x === b); });
+    var m = b.dataset.mem;
+    rowEls.forEach(function (re) {
+      var isChain = re.t.kind === "chain";
+      re.row.classList.toggle("dim", m !== "all" && isChain && re.t.member !== m);
+    });
+  });
+});
+
+var KIND_LABEL = { session: "会话任务", review: "代码审查", editor: "编辑器结对", chain: "链上记录", fork: "fork 分支" };
+function selectNode(t) {
+  rowEls.forEach(function (re) { re.card.classList.toggle("sel", re.t === t); });
+  requestAnimationFrame(layoutGraph);
+  var d = $("#detail");
+  if (t.kind !== "chain") {
+    var actions = {
+      session: ['<button class="wc-btn accent sm">打开时间线</button>', '<button class="wc-btn sm" data-fork>⑂ 声明 fork</button>', '<button class="wc-btn sm" data-share>⛓ 上链共享</button>'],
+      review: ['<button class="wc-btn accent sm" data-goreview>打开报告</button>', '<button class="wc-btn sm" data-fixall>一键修复 → 任务</button>'],
+      editor: ['<button class="wc-btn accent sm" data-goeditor>打开结对</button>'],
+      fork: ['<button class="wc-btn accent sm">切换分支</button>']
+    }[t.kind] || [];
+    d.innerHTML =
+      '<div class="head"><span class="glyph">' + (t.kind === "fork" ? "⑂" : t.kind === "session" ? "●" : "◆") + '</span><h2>' + esc(t.title) + '</h2></div>'
+      + '<div class="sub">' + t.time + ' · ' + KIND_LABEL[t.kind] + (t.status ? " · " + ({ running: "进行中", done: "已完成", merged: "已合并" }[t.status]) : "") + '</div>'
+      + (t.git ? '<div class="drow"><span class="k">git 绑定</span><span class="git-chip">⎇ ' + (t.git.branch ? t.git.branch + " " : "") + t.git.hash + '</span></div>' : "")
+      + (t.meta || []).map(function (m) { return '<div class="drow"><span class="k">·</span><span>' + esc(m) + '</span></div>'; }).join("")
+      + '<div class="dsec"><div class="hd">版本语义</div><div class="drow"><span class="k">本节点版本</span><span>● 本地</span></div></div>'
+      + '<div class="acts">' + actions.join("") + '</div>';
+    var fk = $("[data-fork]", d); if (fk) fk.addEventListener("click", function () { openForkPop(t); });
+    var sh = $("[data-share]", d); if (sh) sh.addEventListener("click", function () { switchModule("sessions"); openSharePop(); });
+    var gr = $("[data-goreview]", d); if (gr) gr.addEventListener("click", function () { switchModule("review"); });
+    var ge = $("[data-goeditor]", d); if (ge) ge.addEventListener("click", function () { switchModule("editor"); });
+    var fa = $("[data-fixall]", d);
+    if (fa) fa.addEventListener("click", function () {
+      oplogAppend("task.share · 修复", "r:new…", "kel", "审查意见修复任务 · 绑定同基线");
+      toast("已生成修复任务节点（绑定同基线）");
+    });
+  } else {
+    var m = MEMBERS[t.member];
+    d.innerHTML =
+      '<div class="head"><span class="glyph" style="color:' + m.c + ';background:color-mix(in srgb,' + m.c + ' 12%, transparent)">⛓</span><h2>' + esc(t.title) + '</h2></div>'
+      + '<div class="sub">' + t.time + ' · 链上' + (t.note ? "批注" : t.genesis ? "创世" : "任务记录") + '</div>'
+      + '<div class="drow"><span class="k">来源设备</span><span><span class="wc-memdot" style="background:' + m.c + '"></span> ' + m.name + '</span></div>'
+      + '<div class="drow"><span class="k">链</span><span class="mono" style="font-size:10px">' + CHAIN_ID.slice(0, 18) + '…</span></div>'
+      + (t.rec ? '<div class="drow"><span class="k">记录</span><span class="mono" style="font-size:10px">' + t.rec + '</span></div>' : "")
+      + (t.commit ? '<div class="drow"><span class="k">关联版本</span><span class="wc-chip">⛓ ws.commit ' + t.commit + '</span></div>' : "")
+      + (t.meta || []).map(function (x) { return '<div class="drow"><span class="k">·</span><span>' + esc(x) + '</span></div>'; }).join("")
+      + '<div class="dsec"><div class="hd">接续</div>'
+      + '<div style="font-size:11px;color:var(--ui-text-dim);line-height:1.6">'
+      + (t.commit ? "先检出上游版本对齐本地（预览确认）→ 新会话注入上下文卡 → 完成后自动携带 parentRecordId。" : "记录级接续：生成注入摘要的本地新会话。")
+      + '</div></div>'
+      + '<div class="acts">'
+      + (t.commit ? '<button class="wc-btn gel sm" data-resume>▶ 接续开发</button>' : '<button class="wc-btn accent sm" data-resume2>生成接续会话</button>')
+      + '<button class="wc-btn sm" data-claim>认领保护</button><button class="wc-btn sm">查看区块</button></div>';
+    var rs = $("[data-resume]", d) || $("[data-resume2]", d);
+    if (rs) rs.addEventListener("click", function () {
+      oplogAppend(t.commit ? "ws.checkout + resume" : "resume", t.rec || "r:new…", "kel", "接续「" + t.title.slice(0, 10) + "…」 · 上下文卡已注入");
+      toast("接续会话已创建 · 上下文卡已注入" + (t.commit ? " · 上游版本对齐已确认" : ""));
+    });
+    var cl = $("[data-claim]", d);
+    if (cl) cl.addEventListener("click", function () {
+      oplogAppend("task.claim", t.rec || "r:new…", "kel", "认领保护 · 声明性软锁（不阻塞他人）");
+      toast("已发布 task.claim · 软锁生效（R18）");
+    });
+  }
+}
+selectNode(NODES[3]);
+
+function openForkPop(t) {
+  var srcName = t.kind === "chain" ? MEMBERS[t.member].name : "kelthas-mbp（本机）";
+  var body =
+    '<div class="wc-box"><div class="k">来源断言（自动携带 · 只读 · 进链上 fork 记录）</div>'
+    + '<div class="cl">来源节点：' + (t.rec || esc(t.title.slice(0, 14)) + "…") + '</div>'
+    + '<div class="cl">来源设备：' + srcName + (t.git ? " · ⎇ " + t.git.branch + " " + t.git.hash : t.commit ? " · " + t.commit : "") + '</div>'
+    + '<div class="cl">链：' + CHAIN_ID + '</div></div>'
+    + '<div class="wc-doms">'
+    + '<label class="on"><span class="cb">✓</span>💬 会话任务<span class="why">新会话 + 注入上下文卡 · 审查/知识库/编辑器自动构建关联版本</span></label>'
+    + '<label><span class="cb"></span>✎ 编辑器<span class="why">本地历史快照随行上链</span></label>'
+    + '<label><span class="cb"></span>◎ 原型设计<span class="why">链上版本独立可选（唯二）</span></label>'
+    + '<label><span class="cb"></span>✦ UI 设计<span class="why">链上版本独立可选（唯二）</span></label>'
+    + '<label class="locked"><span class="cb"></span>✓ 审查<span class="why">随代码 · 不可单独 fork</span></label>'
+    + '<label class="locked"><span class="cb"></span>▤ 知识库<span class="why">随代码 · 不可单独 fork</span></label>'
+    + '</div>'
+    + '<input class="wc-input" id="fkName" value="passkey-fork" />'
+    + '<textarea class="wc-input" id="fkWhy" placeholder="一句话理由（进链上 fork 记录）"></textarea>'
+    + '<div class="wc-record"><b>fork</b> { "from": "' + (t.rec || "local-head") + '", "device": "' + srcName + '",\n  "domains": ["session"], "branch": "passkey-fork", "why": "…" }\n→ 签名 gossip · 联签封存 · 全员即时可见</div>'
+    + '<div class="wc-warnline">⚠ fork 即自动上链（无需手动共享）· 并行提交 = 谱系分叉保留（第一版无 merge · head 可择线）</div>'
+    + '<div class="wc-pop-acts"><button class="wc-btn" data-cancel>取消</button><button class="wc-btn gel" data-go>⑂ 确认 fork（即上链）</button></div>';
+  openPop(popShell("⑂ 声明 fork", "checkout 新分支 · 行为即上链", body));
+  $$("#popHost .wc-doms label").forEach(function (l) {
+    l.addEventListener("click", function () {
+      if (l.classList.contains("locked")) { toast("审查/知识库与代码强绑定：随会话/编辑器 fork 自动构建关联版本"); return; }
+      l.classList.toggle("on");
+      $(".cb", l).textContent = l.classList.contains("on") ? "✓" : "";
+    });
+  });
+  bindPopCancel(function () {
+    var name = $("#fkName").value.trim() || "fork";
+    oplogAppend("fork · 上链", "r:new…", "kel", name + " · checkout · 来源断言已携带");
+    toast("fork 已上链 · 新分支「" + name + "」已创建");
+  });
+}
+
+/* ═══════════ 会话 ═══════════ */
+var SESSIONS = [
+  { id: "s1", title: "passkey-check", status: "run", time: "刚刚", chain: "resume", from: "r:8c11…（dev-windows-01）", align: "c:b7e2… 已检出（3 文件 · 预览确认）" },
+  { id: "s2", title: "登录模块重构", status: "run", time: "1 小时", chain: "local" },
+  { id: "s3", title: "passkey 方案", status: "ok", time: "昨天", chain: "shared", rec: "r:8c11…", commit: "c:b7e2…" }
+];
+function renderSessions(selId) {
+  $("#ssList").innerHTML = "";
+  SESSIONS.forEach(function (s) {
+    var b = document.createElement("div");
+    b.className = "ss-item" + (s.id === selId ? " sel" : "");
+    var prov = s.chain === "resume"
+      ? '<div class="wc-prov">⑂ 链上接续 · 来源 ' + s.from + ' · <b>已注入上游上下文卡 + 版本对齐 ' + s.align + '</b></div>'
+      : s.chain === "local"
+        ? '<div class="wc-prov">本地会话 · 未上链 · <b style="color:var(--ui-accent);cursor:pointer">⛓ 上链共享 →</b></div>'
+        : '<div class="wc-prov">⛓ 已共享 <b>' + s.rec + '</b> · 随行 ws.commit ' + s.commit + ' · 联签封存 · dev-windows-01 已接续</div>';
+    b.innerHTML = '<div class="ss-title">💬 ' + esc(s.title) + '</div>'
+      + '<div class="ss-meta"><span class="ss-dot ' + (s.status === "run" ? "run" : "ok") + '"></span>'
+      + (s.status === "run" ? "进行中" : "已完成") + '<span class="ss-time">' + s.time + '</span></div>' + prov;
+    b.addEventListener("click", function () { renderSessions(s.id); });
+    $("#ssList").appendChild(b);
+  });
+  var s = SESSIONS.filter(function (x) { return x.id === selId; })[0] || SESSIONS[0];
+  var right = $("#ssRight");
+  right.innerHTML =
+    (s.chain === "resume"
+      ? '<div class="wc-banner"><div class="t"><span class="wc-chip">⛓ 接续开发</span>从链上任务记录生成的新会话（' + esc(s.title) + '）</div>'
+        + '<div class="s">R15/R31：先检出上游 ws.commit 对齐本地（预览确认）→ 新会话注入结构化上下文卡 → 完成后再共享自动携带 parentRecordId 形成谱系</div></div>'
+      + '<div class="dw-doc"><h3>📋 注入的上下文卡（prompt 模板 · 不进 core 回路）</h3>'
+        + '<div class="kv-rows" style="margin-top:6px">'
+        + '<div class="kv"><span class="k">上游任务</span><span class="v">登录 API 契约测试 · r:8c11… · dev-windows-01</span></div>'
+        + '<div class="kv"><span class="k">目标</span><span class="v">passkey 方案的 API 契约与测试先行</span></div>'
+        + '<div class="kv"><span class="k">已完成</span><span class="v">契约用例 14 条 · 基础实现 +21 −4</span></div>'
+        + '<div class="kv"><span class="k">遗留</span><span class="v">错误码表未对齐 · CI 未跑</span></div>'
+        + '<div class="kv"><span class="k">版本对齐</span><span class="v" style="color:var(--ui-success)">✓ c:b7e2… 已检出（3 文件 · 预览确认）</span></div>'
+        + '<div class="kv"><span class="k">谱系</span><span class="v">parentRecordId = r:8c11… → 本次完成将成 r:9d44…</span></div>'
+        + '</div></div>'
+      : '<div class="dw-doc"><h3>会话动作行的融合语义</h3><p style="margin-top:4px">'
+        + '本地会话 → <b style="color:var(--ui-accent)">⛓ 上链共享</b>（逐次显式 · 预览确认；「自动共享」独立子开关默认关）。<br>'
+        + '链上接续会话 → 溯源行恒显（来源记录 + 版本对齐态），完成时共享自动携带 parentRecordId。<br>'
+        + '随行变更勾选 → 直接复用 GitFileHistory 变更集提交为 ws.commit（taskRef 互链），无需手动选文件。</p>'
+        + '<div class="acts"><button class="wc-btn accent" id="ssShareInline">⛓ 上链共享（预览确认）</button></div></div>')
+    + '<div class="dw-doc" style="flex:1"><h3>该会话在任务树上的投影</h3>'
+      + '<p style="margin-top:4px">会话任务节点随任务树常开轨迹展示；上链后任务树同时出现对应 ⛓ task.share 节点（同一记录两个视角），'
+      + '成员在各自设备的任务树上即时可见（gossip 未封存态 → 联签 2/3 终局）。</p></div>';
+  var btn = $("#ssShareInline");
+  if (btn) btn.addEventListener("click", openSharePop);
+}
+renderSessions("s1");
+$("#ssShareBtn").addEventListener("click", openSharePop);
+
+function openSharePop() {
+  var body =
+    '<div class="wc-box"><div class="k">共享目标（明示）</div>'
+    + '<div class="cl">⛓ ' + CHAIN_ID + ' · 主题 git:github.com/zshipu/gvgl</div>'
+    + '<div class="cl">3 名成员：kelthas-mbp（本机）· dev-windows-01 · design-ipad</div></div>'
+    + '<div class="wc-box"><div class="k">轨迹摘要（TaskTrajectory · 不含对话原文）</div>'
+    + '<div class="kv"><span class="k">工具计数</span><span class="v">read×6 · bash×4 · edit×2 · 2 turns</span></div>'
+    + '<div class="kv"><span class="k">触及文件</span><span class="v">token.ts · login.ts · token.test.ts</span></div>'
+    + '<div class="kv"><span class="k">成败统计</span><span class="v">11 ✓ · 1 ✗（已重试成功）</span></div></div>'
+    + '<div><div class="wc-box" style="margin-bottom:6px"><div class="k">结论（可编辑）</div></div>'
+    + '<textarea class="wc-input">token 存储改用 httpOnly cookie；过期阈值常量化；契约测试 14 条通过。</textarea></div>'
+    + '<div class="wc-box"><div class="k">遗留事项（chip 可删）</div>'
+    + '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:3px">'
+    + '<span class="wc-chip">CI 阈值常量化待办 ✕</span><span class="wc-chip">错误码表对齐 ✕</span></div></div>'
+    + '<label class="wc-doms" style="flex-direction:row"><span class="cb" style="width:13px;height:13px;border:1.4px solid var(--ui-accent);border-radius:4px;background:var(--ui-accent);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:9px">✓</span>'
+    + '<span style="flex:1">随行变更提交为链工作区版本 <b class="mono">ws.commit</b>（3 文件 +38 −12 · 复用 GitFileHistory 变更集 · taskRef 互链）</span></label>'
+    + '<div class="wc-record"><b>task.share</b> { title: "登录模块重构 · 阶段一", trajectory: {…摘要},\n  conclusion: "httpOnly cookie…", leftovers: ["CI 阈值常量化"],\n  commitRef: "c:7d10e2…", parentRecordId: null }\n→ Ed25519 签名 → gossip（未封存即可见）→ 联签 2/3 终局</div>'
+    + '<div class="wc-warnline">⚠ 轨迹不含对话原文 · 共享后可在链浏览器全量审计 · 可随时 asset.revoke 撤销声明</div>'
+    + '<div class="wc-pop-acts"><span class="hint">逐次显式共享 · 「自动共享」独立子开关默认关</span>'
+    + '<button class="wc-btn" data-cancel>取消</button><button class="wc-btn gel" data-go>⛓ 确认共享</button></div>';
+  openPop(popShell("⛓ 上链共享", "预览确认 · 一切离开本机前的显式动作", body));
+  bindPopCancel(function () {
+    oplogAppend("task.share", "r:new…", "kel", "登录模块重构 · 随行 c:7d10e2…");
+    toast("task.share 已上链 · gossip 扩散中（联签 2/3 后终局）");
+  });
+}
+
+/* ═══════════ 原型 / UI 设计（版本 rail 状态机） ═══════════ */
+var PROTO_VERSIONS = [
+  { v: "⛓ v4", local: false, member: "design", time: "今天 09:40", note: "交互流 v2 · 移动端触点收紧", rec: "r:e7b2…", commit: "c:51aa07…", pulled: false, set: ["需求文档", "交互原型", "验收报告"] },
+  { v: "v3", local: true, time: "今天 10:12", note: "走查修复 · 验收 5/5（自愈 1）", head: true, set: ["需求文档", "交互原型", "验收报告"] },
+  { v: "⛓ v2", local: false, member: "kel", time: "昨天 18:20", note: "初稿 · compact-utility", rec: "r:51c9…", commit: "c:8e02b4…", pulled: true, set: ["需求文档", "交互原型 miss", "验收报告 miss"] },
+  { v: "v2", local: true, time: "昨天 17:05", note: "品牌注入 · --pd-accent 同源 DESIGN.md", set: ["需求文档", "交互原型", "验收报告 miss"] },
+  { v: "v1", local: true, time: "昨天 14:30", note: "首版 · 需求文档展开", set: ["需求文档", "交互原型 miss", "验收报告 miss"] }
+];
+var UI_VERSIONS = [
+  { v: "⛓ v3", local: false, member: "dev", time: "今天 11:30", note: "登录页视觉稿 · 现代极简", rec: "r:d41a…", commit: "c:b7e2f1…", pulled: false, basis: "基于原型 ⛓ v4", set: ["视觉稿", "设计系统", "质量报告 miss"] },
+  { v: "v2", local: true, time: "今天 09:55", note: "按钮层次重构 · 对比度修正", head: true, basis: "基于原型 v3", set: ["视觉稿", "设计系统", "质量报告"] },
+  { v: "⛓ v1", local: false, member: "design", time: "昨天 20:10", note: "初稿 · 深色科技", rec: "r:9f30…", commit: "c:f31a8b…", pulled: true, basis: "基于原型 ⛓ v2", set: ["视觉稿", "设计系统 miss", "质量报告 miss"] },
+  { v: "v1", local: true, time: "昨天 16:40", note: "首版 · 现代极简", basis: "基于原型 v3", set: ["视觉稿", "设计系统 miss", "质量报告 miss"] }
+];
+function wireDesignModule(pfx, versions, tabs, publishBtnId, publishKind) {
+  var st = { sel: null, tab: tabs[0].k, mode: "tab" };
+  function headVer() { return versions.filter(function (v) { return v.head; })[0] || versions[0]; }
+  function cur() { return st.sel || headVer(); }
+  function refreshBadge() {
+    $("#" + pfx + "SelBadge").textContent = "当前 · " + (cur().local ? "本地 " : "链上 ") + cur().v.replace("⛓ ", "");
+  }
+  function renderRail() {
+    var host = $("#" + pfx + "Rail");
+    host.innerHTML = "";
+    versions.forEach(function (ver) {
+      var b = document.createElement("button");
+      b.className = "dw-ver" + (ver.local ? "" : " chain") + (cur() === ver ? " active" : "");
+      if (!ver.local) b.style.setProperty("--mem-c", MEMBERS[ver.member].c);
+      b.dataset.f = ver.local ? "local" : "chain";
+      b.innerHTML =
+        '<span class="dw-ver-line"><strong>' + ver.v + '</strong><time>' + ver.time + '</time>'
+        + (ver.head ? '<i class="new">head</i>' : "")
+        + (ver.pulled ? '<i style="color:var(--ui-success);font-size:9px;font-style:normal">已拉取</i>' : "") + '</span>'
+        + '<span class="dw-ver-note">' + ver.note + '</span>'
+        + (ver.basis ? '<span class="dw-ver-set"><i>' + ver.basis + '</i></span>' : "")
+        + (ver.local ? "" : '<span class="dw-ver-src">⛓ ' + MEMBERS[ver.member].name + ' · ' + (ver.rec || "") + '</span>')
+        + '<span class="dw-ver-set">' + ver.set.map(function (s) {
+            var miss = s.indexOf("miss") > -1;
+            return '<i' + (miss ? ' class="miss"' : "") + '>' + s.replace(" miss", "") + '</i>';
+          }).join("") + '</span>';
+      b.addEventListener("click", function () {
+        st.sel = ver;
+        st.mode = ver.local ? "tab" : "chain";
+        if (ver.local) { var tb = tabs.filter(function (t) { return t.k === st.tab; })[0]; if (tb) tb.fn($("#" + pfx + "Main"), ver); }
+        refreshAll();
+      });
+      host.appendChild(b);
+    });
+  }
+  function renderChainDetail() {
+    var ver = cur(); var m = MEMBERS[ver.member];
+    $("#" + pfx + "Main").innerHTML =
+      '<div class="wc-banner"><div class="t"><span class="wc-memdot" style="background:' + m.c + '"></span>'
+      + '<span class="wc-chip">⛓ 链上版本</span>' + ver.v + ' · ' + ver.note + '</div>'
+      + '<div class="s">⛓ ' + CHAIN_ID + ' · 来源设备 ' + m.name + ' · 记录 ' + (ver.rec || "—") + ' · 关联 ws.commit ' + (ver.commit || "—") + ' · blob 4MB 分块 · 逐块 SHA-256 校验后落盘</div></div>'
+      + '<div class="dw-doc"><h3>与本地 head 的文件级差异（tree 对比 · 毫秒级）</h3>'
+      + '<div class="diffbox" style="margin-top:6px">'
+      + '<div class="dl fn">--- 本地 head　+++ ⛓ ' + ver.v + '</div>'
+      + '<div class="dl del">- accent: #1c6fe0 → 品牌蓝</div>'
+      + '<div class="dl add">+ accent: #0d9488 → 设备端定稿色</div>'
+      + '<div class="dl add">+ pages: 移动端触点 44px 规范页（新增）</div>'
+      + '<div class="dl">  其余 11 文件无差异（内容寻址去重）</div>'
+      + '</div></div>'
+      + '<div class="acts" style="margin-top:0">'
+      + '<button class="wc-btn gel sm" data-pull>⤓ 拉取为本地版本</button>'
+      + '<button class="wc-btn accent sm" data-forkfrom>⑂ 基于此版本 fork</button>'
+      + '<button class="wc-btn sm" data-pickhead>与本地 head 择线切换</button>'
+      + '<button class="wc-btn sm" data-chainview>在链浏览器查看记录</button></div>';
+    var mm = $("#" + pfx + "Main");
+    $("[data-pull]", mm).addEventListener("click", function () {
+      ver.pulled = true; st.sel = null; st.mode = "tab"; refreshAll();
+      oplogAppend("design.pull", ver.rec || "c:…", ver.member, "拉取 " + ver.v + " 为本地版本 · 逐块校验 ✓");
+      toast(ver.v + " 已拉取为本地版本（逐块 CID 校验通过）");
+    });
+    $("[data-forkfrom]", mm).addEventListener("click", function () {
+      oplogAppend("fork", ver.rec || "c:…", "kel", "基于 " + ver.v + " 声明 fork（" + publishKind + "域 · 唯二可独立 fork）");
+      toast("已基于 " + ver.v + " 声明 fork · 分支已上链");
+    });
+    $("[data-pickhead]", mm).addEventListener("click", function () {
+      toast("head 已择线切至 ⛓ " + ver.v + "（并行分叉保留可审计）");
+    });
+    $("[data-chainview]", mm).addEventListener("click", function () {
+      toast("链浏览器打开记录 " + (ver.rec || "") + "（本地可全量审计）");
+    });
+  }
+  function refreshAll() {
+    renderRail();
+    refreshBadge();
+    if (st.mode === "chain") renderChainDetail();
+    else {
+      var tb = tabs.filter(function (t) { return t.k === st.tab; })[0];
+      if (tb) tb.fn($("#" + pfx + "Main"), cur());
+    }
+    $$("#" + pfx + "Tabs .dw-tab").forEach(function (x) { x.classList.toggle("active", x.dataset.t === st.tab); });
+  }
+  $$("#" + pfx + "Tabs .dw-tab").forEach(function (tb) {
+    tb.addEventListener("click", function () {
+      st.tab = tb.dataset.t; st.mode = "tab";
+      refreshAll();
+    });
+  });
+  $$("#" + pfx + "Filter .rf-chip").forEach(function (c) {
+    c.addEventListener("click", function () {
+      $$("#" + pfx + "Filter .rf-chip").forEach(function (x) { x.classList.toggle("on", x === c); });
+      var f = c.dataset.f;
+      $$("#" + pfx + "Rail .dw-ver").forEach(function (v) {
+        v.style.display = f === "all" || v.dataset.f === f ? "block" : "none";
+      });
+    });
+  });
+  $("#" + publishBtnId).addEventListener("click", function () {
+    var hv = headVer();
+    var body =
+      '<div class="wc-box"><div class="k">将发布</div>'
+      + '<div class="cl">本地 ' + hv.v + ' → 链上版本（' + publishKind + '模块）</div>'
+      + '<div class="cl">⛓ ' + CHAIN_ID + ' · 3 名成员 · 记录 ≤8KB（版本清单走 manifest CID）</div></div>'
+      + '<div class="wc-box"><div class="k">变更摘要（共享前预览 · R20）</div>'
+      + '<div class="kv"><span class="k">产物集</span><span class="v">' + hv.set.map(function (s) { return s.replace(" miss", ""); }).join(" · ") + '</span></div>'
+      + '<div class="kv"><span class="k">blob</span><span class="v">3.2MB → 1 分块 · 内容寻址去重（未变文件不重传）</span></div>'
+      + (hv.basis ? '<div class="kv"><span class="k">原型基线</span><span class="v">' + hv.basis + '（随版本记录 · 跨机不丢）</span></div>' : "")
+      + '</div>'
+      + '<div class="wc-record"><b>design.version</b> { name: "' + publishKind + ' · ' + hv.v + '", manifestCid: "c:…",\n  parentRecordId: 上一链上版本, taskRef?: 会话任务 }\n→ 签名 → gossip → 联签 2/3 终局</div>'
+      + '<div class="wc-warnline">⚠ 成员即时可见（未封存态）· 撤销 = asset.revoke 声明（链上历史保留）</div>'
+      + '<div class="wc-pop-acts"><button class="wc-btn" data-cancel>取消</button><button class="wc-btn gel" data-go>⛓ 确认发布</button></div>';
+    openPop(popShell("⛓ 发布为链上版本", publishKind + "模块 · 本地 → 链上", body));
+    bindPopCancel(function () {
+      oplogAppend("design.version", "r:new…", "kel", publishKind + " · " + hv.v);
+      toast(publishKind + " " + hv.v + " 已发布为链上版本 · 成员即时可见");
+    });
+  });
+  refreshAll();
+}
+function renderProtoSpec(main, ver) {
+  main.innerHTML =
+    '<article class="spec-doc" style="flex:1">'
+    + '<h2>轻订单管理 — 需求文档 <span class="dw-badge" style="margin-left:6px">' + ver.v + '</span></h2>'
+    + '<p>小团队订单处理目前依赖群聊接龙，错单漏单频发。目标：一个最小闭环——登录、看单、刷新，先跑通再迭代。</p>'
+    + '<h2>功能需求</h2><p>· 邮箱 + 密码登录，支持「记住我」。<br>· 订单列表：KPI + 表格 + 刷新。<br>· 侧栏导航：订单 / 设置。</p>'
+    + '<h2>页面清单（= 原型契约）</h2><p>· 登录 — 邮箱 + 密码，记住我<br>· 订单列表 — KPI + 表格 + 刷新<br>· 设置 — 通知开关占位</p>'
+    + '<h2>待确认</h2>'
+    + '<div class="spec-todo"><span>是否需要导出 CSV？（当前排期外）</span><button class="wc-btn accent sm">✓ 确认</button></div>'
+    + '<div class="spec-cta"><button class="wc-btn gel">确认需求并生成原型 →</button></div></article>';
+  $$(".spec-todo", main).forEach(function (td) {
+    $("button", td).addEventListener("click", function () {
+      td.classList.add("done"); $("button", td).disabled = true;
+      toast("已确认 · 该项进入验收清单");
+    });
+  });
+  $(".spec-cta button", main).addEventListener("click", function () {
+    toast("需求已锁定 · 交互原型生成中（.dd 逐页渲染）");
+  });
+}
+function renderProtoCanvas(main, ver) {
+  main.innerHTML =
+    '<div class="wc-banner" style="flex:none"><div class="t"><span class="wc-chip">交互原型</span>' + ver.v + ' · 3 页 · 移动 375px 契约</div></div>'
+    + '<div style="display:flex;gap:14px;flex-wrap:wrap;align-content:flex-start">'
+    + deviceChrome("登录", ["ac 34", "sk 26", "sk 26", "sk 40"])
+    + deviceChrome("订单列表", ["row 28", "row 24", "row 24", "row 24", "row 24"])
+    + deviceChrome("设置", ["row 30", "row 20"]) + '</div>';
+  function deviceChrome(name, rows) {
+    return '<div class="device-chrome"><div class="bar">· · ·  ' + name + ' · 375px</div><div class="screen">'
+      + rows.map(function (r) {
+        var p = r.split(" ");
+        return '<div class="skel' + (p[0] === "ac" ? " accent" : "") + '" style="height:' + (parseInt(p[1], 10) || 26) + 'px"></div>';
+      }).join("") + '</div></div>';
+  }
+}
+function renderProtoAccept(main, ver) {
+  main.innerHTML =
+    '<article class="spec-doc" style="flex:1"><h2>验收清单 · ' + ver.v + '</h2>'
+    + [["邮箱 + 密码可登录并进入订单列表（auth:submit）", true],
+       ["侧栏导航可切换 订单 / 设置（nav:goto:*）", true],
+       ["刷新按钮更新订单行数 12 → 14（data:refresh）", true],
+       ["重置按钮清空登录表单（form:reset）", true],
+       ["375px 视口无横向溢出", true]].map(function (r) {
+      return '<div class="kv"><span class="k">' + r[0] + '</span><span class="v" style="color:var(--ui-success)">' + (r[1] ? "✓ 通过" : "…") + '</span></div>';
+    }).join("")
+    + '<p style="margin-top:10px">验收 5/5 · 自愈 1 · 机检 + review 门（R1→自愈→R2）</p></article>';
+}
+function renderUiVisual(main, ver) {
+  main.innerHTML =
+    '<div class="wc-banner" style="flex:none"><div class="t"><span class="wc-chip">视觉稿</span>' + ver.v + ' · 主题 现代极简'
+    + (ver.basis ? ' · <span class="wc-chip ghost">' + ver.basis + '</span>' : "") + '</div></div>'
+    + '<div style="display:flex;gap:14px;flex-wrap:wrap;align-content:flex-start">'
+    + '<div class="device-chrome" style="width:280px"><div class="bar">登录页 · 视觉稿</div><div class="screen">'
+    + '<div class="skel accent" style="height:34px"></div><div class="skel" style="height:26px"></div><div class="skel" style="height:26px"></div>'
+    + '<div style="display:flex;gap:8px"><div class="wc-btn gel" style="flex:1">登录</div></div>'
+    + '<div class="skel" style="height:14px;width:60%"></div></div></div>'
+    + '<div class="device-chrome" style="width:280px"><div class="bar">订单列表 · 视觉稿</div><div class="screen">'
+    + '<div style="display:flex;gap:6px"><div class="skel accent" style="height:40px;flex:1"></div><div class="skel accent" style="height:40px;flex:1"></div><div class="skel accent" style="height:40px;flex:1"></div></div>'
+    + '<div class="skel" style="height:24px"></div><div class="skel" style="height:24px"></div><div class="skel" style="height:24px"></div></div></div></div>';
+}
+function renderUiDs(main, ver) {
+  var tokens = [
+    ["--ui-accent", "#0d9488"], ["--ui-bg", "#f4f6fa"], ["--ui-surface", "#ffffff"],
+    ["--ui-text", "#1b2129"], ["--ui-danger", "#d1453b"]
+  ];
+  main.innerHTML =
+    '<div class="ds-wrap"><div class="ds-tokens"><h4>design system tokens · .dds（' + ver.v + '）</h4>'
+    + '<h4>颜色</h4>'
+    + tokens.map(function (t) {
+      return '<div class="ds-trow"><span class="sw" style="background:' + t[1] + '"></span><span class="nm">' + t[0] + '</span><span class="vl">' + t[1] + '</span></div>';
+    }).join("")
+    + '<h4>形状</h4>'
+    + '<div class="ds-trow"><span class="sw" style="border-radius:9px;background:var(--ui-accent-soft)"></span><span class="nm">--radius-md</span><span class="vl">9px</span></div>'
+    + '<h4>字体</h4>'
+    + '<div class="ds-trow"><span class="sw" style="font-size:9px;display:inline-flex;align-items:center;justify-content:center">Aa</span><span class="nm">--font-sans</span><span class="vl">system-ui</span></div>'
+    + '</div>'
+    + '<div class="ds-atoms"><h4>组件原子墙（token 实时驱动）</h4>'
+    + '<div class="atom-row"><button class="wc-btn gel">主要按钮</button><button class="wc-btn accent">次要按钮</button><button class="wc-btn">幽灵按钮</button></div>'
+    + '<div class="atom-row"><input class="wc-input" style="max-width:180px" placeholder="输入框 · surface" /><span class="chip sev-high">HIGH</span><span class="wc-chip">⛓ 链上</span></div>'
+    + '<div class="atom-row"><span class="dw-ver-set"><i>需求文档</i><i class="miss">验收报告</i></span><span class="dw-badge">徽章</span></div>'
+    + '<div class="atom-row" style="flex-direction:column;align-items:stretch"><textarea class="wc-input" rows="2" placeholder="多行输入 · sunken"></textarea></div>'
+    + '<p style="font-size:10.5px;color:var(--ui-text-faint)">原子墙 = 设计系统页签的组件预览，随 .dds tokens 确定性重染；链上拉取的版本在此即见即比对。</p>'
+    + '</div></div>';
+}
+function renderUiQuality(main, ver) {
+  main.innerHTML =
+    '<article class="spec-doc" style="flex:1"><h2>质量与评审 · ' + ver.v + '</h2>'
+    + '<div class="kv-rows" style="margin-top:6px">'
+    + '<div class="kv"><span class="k">lint（三 preset）</span><span class="v" style="color:var(--ui-success)">✓ 通过 · 0 error</span></div>'
+    + '<div class="kv"><span class="k">渲染后机检</span><span class="v">触点 ≥44px ✓ · 对比度 ≥4.5:1 ✓</span></div>'
+    + '<div class="kv"><span class="k">review 门</span><span class="v">R1 → 自愈 1 → R2 ✓</span></div>'
+    + '<div class="kv"><span class="k">品牌漂移闸门（dembrandt）</span><span class="v" style="color:var(--ui-success)">within baseline · Δ 0.03</span></div>'
+    + '<div class="kv"><span class="k">版本语义</span><span class="v">◆ 随行产物 · 可随 ⛓ 发布上链</span></div>'
+    + '</div></article>';
+}
+wireDesignModule("proto", PROTO_VERSIONS, [
+  { k: "spec", fn: renderProtoSpec }, { k: "proto", fn: renderProtoCanvas }, { k: "accept", fn: renderProtoAccept }
+], "protoPublishBtn", "原型设计");
+wireDesignModule("ui", UI_VERSIONS, [
+  { k: "visual", fn: renderUiVisual }, { k: "ds", fn: renderUiDs }, { k: "quality", fn: renderUiQuality }
+], "uiPublishBtn", "UI 设计");
+
+/* ═══════════ 审查报告 ═══════════ */
+var REPORTS = [
+  { id: "r-1041", chain: "dev", time: "2026/9/8 11:42:10", status: "成功", files: 2, findings: 4, excluded: 0,
+    scopeLabel: "⛓ 链上版本 c:b7e2f1…（dev-windows-01）", scopeKind: "chain", scopeKey: "chain",
+    provNote: "⛓ 链上同步 · 基线 c:b7e2f1… · 记录 r:8c11…",
+    data: [
+      { path: "src/auth/contract.ts", list: [
+        { sev: "HIGH", line: "22-31", crg: "high", content: "错误码未覆盖 429 限流分支 —— 与错误码表遗留项相关。当上游网关触发限流时，当前 `handleIngest` 会把 429 当作一般错误向上抛，导致重试语义丢失。",
+          existing: "const res = await fetch(url);\nif (!res.ok) throw new Error(String(res.status));",
+          suggest: "const res = await fetch(url);\nif (res.status === 429) {\n  throw new RateLimited(await retryAfter(res));\n}\nif (!res.ok) throw new Error(String(res.status));" },
+        { sev: "MEDIUM", line: "57", crg: null, content: "分页游标未校验上限 —— `cursor` 直接进入查询，恶意构造的超大值会拖垮列表查询。建议夹在 `[0, total]`。" }
+      ]},
+      { path: "src/auth/contract.test.ts", list: [
+        { sev: "MEDIUM", line: "56", crg: "medium", content: "mock 时钟未还原，可能污染后续用例 —— `vi.useFakeTimers()` 之后没有对应 `useRealTimers()`。",
+          existing: "beforeEach(() => { vi.useFakeTimers(); });",
+          suggest: "beforeEach(() => { vi.useFakeTimers(); });\nafterEach(() => { vi.useRealTimers(); });" },
+        { sev: "LOW", line: "71", crg: null, content: "断言信息建议补充上下文变量 —— 失败时只有 `expect(x).toBe(y)`，定位要翻代码；补一句模板串即可。" }
+      ]}
+    ]},
+  { id: "r-1040", chain: null, time: "2026/9/8 11:38:44", status: "成功", files: 3, findings: 3, excluded: 0,
+    scopeLabel: "未提交变更（a2c1e9f）", scopeKind: "local", scopeKey: "local", provNote: null,
+    data: [
+      { path: "src/auth/token.ts", list: [
+        { sev: "CRITICAL", line: "41", crg: "high", content: "过期阈值魔法数散落 3 处 —— `14 * 24 * 3600 * 1000` 在 `token.ts`/`login.ts`/测试各出现一次，改一处漏两处。提取为常量并集中管理。",
+          existing: "const ttl = 14 * 24 * 3600 * 1000;",
+          suggest: "export const REFRESH_TTL_MS = 14 * 24 * 3600 * 1000;" },
+        { sev: "MEDIUM", line: "12", crg: null, content: "常量命名与语义不符 —— `TTL` 实际是「刷新窗口」而非「生存期」，建议 `REFRESH_TTL_MS`。" }
+      ]},
+      { path: "src/auth/login.ts", list: [
+        { sev: "HIGH", line: "88", crg: "medium", content: "refresh 失败路径未清理 cookie 残留状态 —— 捕获异常后直接 return，旧 `gvt` cookie 仍有效，会话进入半失效态。" }
+      ]},
+      { path: "src/auth/token.test.ts", list: [
+        { sev: "LOW", line: "12", crg: null, content: "用例命名与行为不符 —— 用例名叫 `expires`，实际断言的是 `refresh`。" }
+      ]}
+    ]},
+  { id: "r-1039", chain: null, time: "2026/9/7 20:31:02", status: "完成（有警告）", files: 5, findings: 12, excluded: 3,
+    scopeLabel: "提交 1f9c77a（feat: rate limiting）", scopeKind: "commit", scopeKey: "commit", provNote: null,
+    data: [
+      { path: "src/gateway/limit.ts", list: [
+        { sev: "MEDIUM", line: "30", crg: null, content: "限流桶未持久化 —— 进程重启后计数清零，攻击者可定时触发重启绕过。建议落 Redis 或内存环快照。" },
+        { sev: "LOW", line: "8", crg: null, content: "策略枚举建议改为字符串联合类型，便于扩展 `sliding-window`。" }
+      ]}
+    ]}
+];
+var rvState = { sub: "reports", reportId: "r-1041", flashFindex: null, focusQn: null };
+function sevClass(s) { return { CRITICAL: "sev-critical", HIGH: "sev-high", MEDIUM: "sev-medium", LOW: "sev-low" }[s] || ""; }
+function renderReviewHistory() {
+  var host = $("#rvHistory");
+  host.innerHTML = "";
+  REPORTS.forEach(function (r) {
+    var b = document.createElement("div");
+    b.className = "ui-review-history-item" + (r.chain ? " chain" : "") + (rvState.reportId === r.id ? " active" : "");
+    if (r.chain) b.style.setProperty("--mem-c", MEMBERS[r.chain].c);
+    b.innerHTML =
+      '<div class="ui-review-history-time">' + (r.chain ? '<span class="wc-chip" style="color:' + MEMBERS[r.chain].c + ';border-color:color-mix(in srgb,' + MEMBERS[r.chain].c + ' 40%,transparent);background:color-mix(in srgb,' + MEMBERS[r.chain].c + ' 10%,transparent)">⛓ 链上</span>' : "") + r.time + '</div>'
+      + '<div class="ui-review-history-meta">' + (r.chain ? MEMBERS[r.chain].name + " · " : "") + r.status + ' · ' + r.files + ' 文件 · ' + r.findings + ' 意见</div>';
+    b.addEventListener("click", function () {
+      rvState.reportId = r.id;
+      $("#rvScope").value = r.scopeKey;
+      renderReviewReports();
+    });
+    host.appendChild(b);
+  });
+}
+function inlineCode(text) {
+  var parts = text.split(/`([^`\n]+)`/g);
+  return parts.map(function (p, i) { return i % 2 === 1 ? '<code class="inline">' + esc(p) + '</code>' : esc(p); }).join("");
+}
+function codeblock(kind, label, file, code) {
+  return '<div class="ui-report-codeblock"><div class="cb-head"><span class="cb-kind ' + kind + '">' + label + '</span>'
+    + (file ? '<span class="mono" style="font-size:10px;opacity:.7">' + esc(file) + '</span>' : "")
+    + '</div><pre>' + code + '</pre></div>';
+}
+function renderReviewDoc() {
+  var r = REPORTS.filter(function (x) { return x.id === rvState.reportId; })[0] || REPORTS[0];
+  var findex = 0;
+  var filesHtml = r.data.map(function (file) {
+    return '<section class="ui-report-file"><h2><code>' + esc(file.path) + '</code> <span class="cnt">' + file.list.length + '</span></h2>'
+      + file.list.map(function (f) {
+        var i = findex++;
+        return '<div class="ui-report-finding" data-findex="' + i + '">'
+          + '<div class="head">'
+          + '<span class="chip ' + sevClass(f.sev) + '">' + f.sev + '</span>'
+          + (f.crg ? '<button class="chip crg locate" data-qn="' + i + '" title="定位到风险图谱">CRG: ' + f.crg + '<span class="lnk"> · 定位 ◎</span></button>' : "")
+          + '<span class="loc">' + esc(file.path) + ':' + f.line + '</span>'
+          + '</div>'
+          + '<div class="body">' + inlineCode(f.content) + '</div>'
+          + (f.existing ? codeblock("k-exist", "现有代码", esc(file.path), f.existing) : "")
+          + (f.suggest ? codeblock("k-sugg", "建议代码", null, f.suggest) : "")
+          + '<div class="f-acts"><button class="wc-btn sm" data-note="' + i + '">⛓ 批注回链</button>'
+          + '<button class="wc-btn sm" data-fix="' + i + '">一键修复 → 任务树</button></div>'
+          + '</div>';
+      }).join("") + '</section>';
+  }).join("");
+  $("#rvDoc").innerHTML =
+    '<div class="ui-report-doc">'
+    + '<div class="ui-report-doc-head"><h1>代码审查 — GVGL</h1>'
+    + '<button class="wc-btn accent sm ui-report-quote" id="rvQuote">引用到对话</button></div>'
+    + '<div class="ui-report-meta">范围: ' + (r.scopeKind === "chain" ? '<span class="wc-chip">⛓ ' + r.scopeLabel + '</span>' : esc(r.scopeLabel))
+    + ' · 生成: ' + r.time + ' · 状态: ' + r.status + '</div>'
+    + (r.chain ? '<div class="ui-report-meta" style="margin-top:-8px"><span class="wc-prov" style="padding:0">' + r.provNote + ' · 基线对象逐块 CID 校验 ✓ · 审查版本随基线 ◆ 自动构建（不可独立 fork）· findings 可批注回链</span></div>' : "")
+    + '<div class="ui-report-cards">'
+    + '<div class="ui-report-card"><div class="num">' + r.files + '</div><div class="lbl">审查文件</div></div>'
+    + '<div class="ui-report-card"><div class="num">' + r.findings + '</div><div class="lbl">意见</div></div>'
+    + (r.excluded > 0 ? '<div class="ui-report-card excluded"><div class="num">' + r.excluded + '</div><div class="lbl">策略排除</div></div>' : "")
+    + '</div>'
+    + filesHtml
+    + '</div>';
+  $("#rvQuote").addEventListener("click", function () { toast("报告已以 @-mention 引用到对话 composer（agent 读同一份 JSON）"); });
+  $$("#rvDoc .chip.crg.locate").forEach(function (b) {
+    b.addEventListener("click", function () {
+      switchReviewSub("graph");
+      rvState.focusQn = Number(b.dataset.qn);
+      renderReviewGraph();
+    });
+  });
+  $$("#rvDoc [data-note]").forEach(function (b) {
+    b.addEventListener("click", function () { openNotePop(r, Number(b.dataset.note)); });
+  });
+  $$("#rvDoc [data-fix]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      oplogAppend("task.share · 修复", "r:new…", "kel", "审查意见 #" + b.dataset.fix + " 修复任务 · 绑定同基线");
+      toast("已生成修复任务节点（绑定同基线）· 修复变更将随行 ws.commit");
+    });
+  });
+  if (rvState.flashFindex != null) {
+    requestAnimationFrame(function () {
+      var el = $('#rvDoc [data-findex="' + rvState.flashFindex + '"]');
+      if (el) { el.classList.remove("flash"); void el.offsetWidth; el.classList.add("flash"); el.scrollIntoView({ behavior: "smooth", block: "center" }); }
+      rvState.flashFindex = null;
+    });
+  }
+}
+function renderReviewReports() {
+  renderReviewHistory();
+  renderReviewDoc();
+}
+function switchReviewSub(sub) {
+  rvState.sub = sub;
+  $$("#mv-review .ui-knowledge-subtab").forEach(function (x) {
+    x.classList.toggle("active", x.dataset.rv === sub);
+  });
+  $("#rvReports").style.display = sub === "reports" ? "flex" : "none";
+  $("#rvGraph").style.display = sub === "graph" ? "flex" : "none";
+  if (sub === "graph") requestAnimationFrame(renderReviewGraph);
+}
+$$("#mv-review .ui-knowledge-subtab").forEach(function (b) {
+  b.addEventListener("click", function () { switchReviewSub(b.dataset.rv); });
+});
+/* 范围下拉 ↔ 报告联动 */
+$("#rvScope").addEventListener("change", function () {
+  var key = this.value;
+  var target = REPORTS.filter(function (r) { return r.scopeKey === key; })[0];
+  if (target) { rvState.reportId = target.id; renderReviewReports(); }
+});
+$("#rvRun").addEventListener("click", function () {
+  var v = $("#rvScope").value;
+  oplogAppend("review.run", v === "chain" ? "⛓ c:b7e2f1…" : v === "local" ? "a2c1e9f" : "1f9c77a", "kel", "运行审查 · " + (v === "chain" ? "⛓ 链上版本（读链工作区 tree · 不物化）" : "本地范围"));
+  toast("审查运行中（review.full）· 完成后自动选中新报告");
+});
+renderReviewReports();
+
+/* 风险图谱 */
+function renderReviewGraph() {
+  var r = REPORTS.filter(function (x) { return x.id === rvState.reportId; })[0] || REPORTS[0];
+  $("#rbMeta").innerHTML = '报告 ' + r.id + ' · 基线 ' + (r.scopeKind === "chain" ? '<span class="wc-chip">⛓ ' + r.scopeLabel + '</span>' : esc(r.scopeLabel)) + ' · ' + r.findings + ' 意见';
+  var svgEl = $("#rbSvg");
+  var on = { hi: true, md: true, lo: true };
+  $$("#rbLegend .ui-risk-legend-chip").forEach(function (c) {
+    on[c.dataset.tier] = c.classList.contains("on");
+  });
+  var W = svgEl.clientWidth || 900, H = 430;
+  svgEl.setAttribute("viewBox", "0 0 " + W + " " + H);
+  var tiers = [
+    { k: "hi", label: "高", y: 8, cls: "--rb-tier-hi" },
+    { k: "md", label: "中", y: 146, cls: "--rb-tier-md" },
+    { k: "lo", label: "低", y: 284, cls: "--rb-tier-lo" }
+  ];
+  var NS = "http://www.w3.org/2000/svg";
+  svgEl.innerHTML = "";
+  tiers.forEach(function (t) {
+    if (!on[t.k]) return;
+    var band = document.createElementNS(NS, "rect");
+    band.setAttribute("x", 0); band.setAttribute("y", t.y);
+    band.setAttribute("width", W); band.setAttribute("height", 128); band.setAttribute("rx", 10);
+    band.setAttribute("fill", "color-mix(in srgb, var(" + t.cls + ") 5%, var(--ui-surface))");
+    band.setAttribute("stroke", "color-mix(in srgb, var(" + t.cls + ") 22%, var(--ui-border-soft))");
+    svgEl.appendChild(band);
+    var lab = document.createElementNS(NS, "text");
+    lab.setAttribute("x", 14); lab.setAttribute("y", t.y + 20);
+    lab.setAttribute("font-size", 11.5); lab.setAttribute("font-weight", 700);
+    lab.setAttribute("fill", "color-mix(in srgb, var(" + t.cls + ") 78%, var(--ui-text))");
+    lab.textContent = t.label;
+    svgEl.appendChild(lab);
+  });
+  var lanes = r.data.map(function (f, i) {
+    return { name: f.path, x: 60 + i * Math.max(240, (W - 90) / r.data.length), items: [] };
+  });
+  var tierY = { hi: 40, md: 178, lo: 316 };
+  var nodes = [];
+  r.data.forEach(function (file, li) {
+    file.list.forEach(function (f) {
+      var tier = f.sev === "CRITICAL" || f.sev === "HIGH" ? "hi" : f.sev === "MEDIUM" ? "md" : "lo";
+      if (!on[tier]) return;
+      var lane = lanes[li];
+      var slot = lane.items.length; lane.items.push(f);
+      nodes.push({ f: f, path: file.path, li: li, x: lane.x, y: tierY[tier] + slot * 46, tier: tier, idx: nodes.length });
+    });
+  });
+  if (nodes.length > 1) {
+    for (var i = 1; i < Math.min(nodes.length, 5); i++) {
+      var a = nodes[i - 1], b = nodes[i];
+      var e = document.createElementNS(NS, "path");
+      var mx = (a.x + b.x) / 2;
+      e.setAttribute("d", "M " + (a.x + 105) + " " + (a.y + 12) + " C " + mx + " " + (a.y + 12) + ", " + mx + " " + (b.y + 12) + ", " + (b.x + (b.x > a.x ? 0 : 105)) + " " + (b.y + 12));
+      e.setAttribute("class", "rb-edge" + (a.li !== b.li ? " cross" : ""));
+      svgEl.appendChild(e);
+    }
+  }
+  nodes.forEach(function (n) {
+    var g = document.createElementNS(NS, "g");
+    g.setAttribute("class", "rb-node");
+    var dotColor = n.tier === "hi" ? "var(--rb-tier-hi)" : n.tier === "md" ? "var(--rb-tier-md)" : "var(--rb-tier-lo)";
+    g.innerHTML =
+      '<rect class="chipbox" x="' + n.x + '" y="' + n.y + '" width="216" height="34" rx="9"></rect>'
+      + '<circle cx="' + (n.x + 16) + '" cy="' + (n.y + 17) + '" r="4" fill="' + dotColor + '"></circle>'
+      + '<text x="' + (n.x + 28) + '" y="' + (n.y + 15) + '">' + esc(n.f.content.slice(0, 22)) + '…</text>'
+      + '<text class="loc" x="' + (n.x + 28) + '" y="' + (n.y + 28) + '">' + esc(n.path.split("/").pop()) + ':' + esc(n.f.line) + '</text>';
+    g.addEventListener("click", function () {
+      $$("#rbSvg .rb-node").forEach(function (x) { x.classList.remove("sel"); });
+      g.classList.add("sel");
+      openNodePop(n, r);
+    });
+    svgEl.appendChild(g);
+  });
+  if (rvState.focusQn != null) {
+    var target = nodes[rvState.focusQn];
+    rvState.focusQn = null;
+    if (target) {
+      var selG = $$("#rbSvg .rb-node")[nodes.indexOf(target)];
+      if (selG) selG.classList.add("sel");
+      $("#rbSvg").parentNode.scrollTop = Math.max(0, target.y - 120);
+    }
+  }
+}
+$$("#rbLegend .ui-risk-legend-chip").forEach(function (c) {
+  c.addEventListener("click", function () { c.classList.toggle("on"); renderReviewGraph(); });
+});
+function openNodePop(n, r) {
+  var body =
+    '<div class="wc-box"><div class="k">意见</div>'
+    + '<div style="font-size:11.5px;line-height:1.7;color:var(--ui-text-dim)">' + inlineCode(n.f.content) + '</div></div>'
+    + '<div class="kv"><span class="k">位置</span><span class="v">' + esc(n.path) + ':' + n.f.line + '</span></div>'
+    + '<div class="kv"><span class="k">层级</span><span class="v">' + n.f.sev + '</span></div>'
+    + '<div class="wc-pop-acts"><button class="wc-btn" data-cancel>关闭</button>'
+    + '<button class="wc-btn accent" data-jump>跳转报告 ◎</button></div>';
+  openPop(popShell("风险节点", esc(n.path.split("/").pop()) + ":" + n.f.line, body));
+  bindPopCancel();
+  $("[data-jump]", $("#popHost")).addEventListener("click", function () {
+    closePop();
+    var findex = 0, found = null;
+    r.data.forEach(function (file) {
+      file.list.forEach(function (f) {
+        if (f === n.f) found = findex;
+        findex++;
+      });
+    });
+    switchReviewSub("reports");
+    rvState.flashFindex = found;
+    renderReviewDoc();
+  });
+}
+function openNotePop(r, findex) {
+  var body =
+    '<div class="wc-box"><div class="k">批注目标（自动锚定）</div>'
+    + '<div class="cl">报告 ' + r.id + ' · 基线 ' + (r.scopeKind === "chain" ? "⛓ " + r.scopeLabel : r.scopeLabel) + '</div>'
+    + '<div class="cl">⛓ ' + CHAIN_ID + ' · note 记录 ≤2KB · refRecordId=' + (r.chain ? "r:8c11…" : "本地报告（随行下次 task.share）") + '</div></div>'
+    + '<textarea class="wc-input" id="noteText" placeholder="批注内容（≤2KB · 联签封存后成员可见）">此处建议同步错误码表 v2。</textarea>'
+    + '<div class="wc-record"><b>note</b> { text: "…", refRecordId: "r:8c11…", baseline: "c:b7e2f1…" }\n→ 签名 → gossip → 联签 2/3 终局</div>'
+    + '<div class="wc-pop-acts"><button class="wc-btn" data-cancel>取消</button><button class="wc-btn gel" data-go>⛓ 批注回链</button></div>';
+  openPop(popShell("⛓ 批注回链", "审查意见 → 链上 note 记录", body));
+  bindPopCancel(function () {
+    oplogAppend("note", "r:new…", "kel", "审查批注 · 报告 " + r.id + " #" + (findex + 1));
+    toast("批注已回链 · 成员在报告与任务树上可见");
+  });
+}
+
+/* ═══════════ 知识库 ═══════════ */
+var KB_ITEMS = [
+  { k: "wiki", chain: null, t: "Deep Wiki · 登录与会话", m: "#13 · 基线 ⎇ 8be12d4 · 今天 10:02" },
+  { k: "wiki", chain: "design", t: "Deep Wiki · 风控分层（链上）", m: "⛓ #12 · design-ipad · c:f31a8b… · 09:30" },
+  { k: "arch", chain: null, t: "架构图 · auth 模块", m: "#13 · 基线 ⎇ 8be12d4" },
+  { k: "arch", chain: "design", t: "架构图 · 风控分层（链上新增）", m: "⛓ #12 · design-ipad · c:f31a8b…" },
+  { k: "symbols", chain: null, t: "符号表 · src/auth", m: "1,318 符号 · #13" },
+  { k: "symbols", chain: "dev", t: "符号表 · contract（链上）", m: "⛓ 1,290 符号 · dev-windows-01 · c:b7e2f1…" }
+];
+var kbState = { sub: "wiki", sel: 0 };
+function renderKb() {
+  var host = $("#kbList");
+  host.innerHTML = "";
+  var shown = KB_ITEMS.filter(function (i) { return i.k === kbState.sub; });
+  shown.forEach(function (it) {
+    var idx = KB_ITEMS.indexOf(it);
+    var b = document.createElement("button");
+    b.className = "kl-item" + (it.chain ? " chain" : "") + (kbState.sel === idx ? " active" : "");
+    if (it.chain) b.style.setProperty("--mem-c", MEMBERS[it.chain].c);
+    b.innerHTML = '<div class="tt">' + (it.chain ? '<span class="wc-memdot" style="background:' + MEMBERS[it.chain].c + '"></span> ⛓ ' : "") + esc(it.t) + '</div>'
+      + '<div class="mm">' + it.m + '</div>';
+    b.addEventListener("click", function () { kbState.sel = idx; renderKb(); });
+    host.appendChild(b);
+  });
+  var it = KB_ITEMS[kbState.sel];
+  var pv = $("#kbPreview");
+  if (it.k === "wiki") {
+    pv.innerHTML = '<h2>' + (it.chain ? "⛓ " : "") + esc(it.t) + '</h2>'
+      + '<p>登录采用 httpOnly cookie 承载 refresh token：`gvt` 写入走 `storeToken()`，刷新窗口常量 `REFRESH_TTL_MS` 集中管理。'
+      + '会话半失效态的根因在 refresh 失败路径未清理 cookie（见审查 r-1040 HIGH #88）。</p>'
+      + (it.chain ? '<div class="wc-banner" style="margin-top:10px"><div class="t"><span class="wc-chip">⛓ 链上同步</span>' + MEMBERS[it.chain].name + ' 的 wiki 版本 · 应用前必预览差异（R20）</div></div>' : "");
+  } else if (it.k === "arch") {
+    pv.innerHTML = '<h2>' + (it.chain ? "⛓ " : "") + esc(it.t) + '</h2>'
+      + '<svg width="100%" height="220" viewBox="0 0 520 220" style="margin-top:6px">'
+      + '<path class="arch-edge" d="M 120 60 C 180 60, 180 110, 240 110"/><path class="arch-edge" d="M 120 160 C 180 160, 180 110, 240 110"/>'
+      + '<path class="arch-edge" d="M 360 110 C 410 110, 410 60, 440 60"/>'
+      + '<rect class="arch-node" x="30" y="40" width="90" height="40"/><text class="arch-label" x="48" y="64">login.ts</text>'
+      + '<rect class="arch-node" x="30" y="140" width="90" height="40"/><text class="arch-label" x="52" y="164">token.ts</text>'
+      + '<rect class="arch-node" x="240" y="90" width="120" height="40"/><text class="arch-label" x="262" y="114">session loop</text>'
+      + '<rect class="arch-node" x="440" y="40" width="70" height="40"/><text class="arch-label" x="456" y="64">ledger</text>'
+      + '</svg>'
+      + (it.chain ? '<div class="wc-banner" style="margin-top:6px"><div class="t"><span class="wc-chip">⛓ 链上新增</span>风控分层图 · 本机缺失 · 可「仅取此图」或整版应用</div></div>' : "");
+  } else {
+    pv.innerHTML = '<h2>' + (it.chain ? "⛓ " : "") + esc(it.t) + '</h2>'
+      + '<div class="kv-rows" style="margin-top:8px;max-width:420px">'
+      + "<div class='kv'><span class='k'>storeToken</span><span class='v'>token.ts:14</span></div>"
+      + "<div class='kv'><span class='k'>refreshIfExpired</span><span class='v'>token.ts:41</span></div>"
+      + "<div class='kv'><span class='k'>handleIngest</span><span class='v'>contract.ts:22</span></div>"
+      + "<div class='kv'><span class='k'>REFRESH_TTL_MS</span><span class='v'>token.ts:8</span></div>"
+      + '</div>';
+  }
+}
+$$("#mv-kb .ui-knowledge-subtab").forEach(function (b) {
+  b.addEventListener("click", function () {
+    $$("#mv-kb .ui-knowledge-subtab").forEach(function (x) { x.classList.toggle("active", x === b); });
+    kbState.sub = b.dataset.kb;
+    var first = KB_ITEMS.map(function (i, ix) { return i.k === kbState.sub ? ix : -1; }).filter(function (x) { return x >= 0; });
+    kbState.sel = first[0] || 0;
+    renderKb();
+  });
+});
+$("#kbApplyBtn").addEventListener("click", function () {
+  var body =
+    '<div class="wc-box"><div class="k">应用前差异预览（相对本地 head 构建）</div>'
+    + '<div class="kv"><span class="k">wiki 页</span><span class="v">14 页 → 12 页 + 风控分层图</span></div>'
+    + '<div class="kv"><span class="k">arch 图</span><span class="v">+1（成员新增 · 本机缺失）</span></div>'
+    + '<div class="kv"><span class="k">索引规模</span><span class="v">1,318 → 1,290 符号</span></div>'
+    + '<div class="kv"><span class="k">冲突</span><span class="v" style="color:var(--ui-success)">无（基线不相交部分直接合入）</span></div></div>'
+    + '<div class="wc-warnline">⚠ 知识库为 ◆ 随代码版本：应用 = 以链上基线重建本地索引，代码工作区不动</div>'
+    + '<div class="wc-pop-acts"><button class="wc-btn" data-cancel>取消</button><button class="wc-btn gel" data-go>应用链上知识版本</button></div>';
+  openPop(popShell("⛓ 应用链上知识版本", "#12 · design-ipad · c:f31a8b…", body));
+  bindPopCancel(function () {
+    oplogAppend("kb.sync", "#12 · c:f31a8b…", "design", "应用链上知识版本 · 差异预览已确认");
+    toast("链上知识版本已应用 · 本地索引重建中");
+  });
+});
+renderKb();
+
+/* ═══════════ 编辑器 ═══════════ */
+var ED_FILES = {
+  "token.ts": [
+    ["", "import { cookies } from \"../http\";"],
+    ["", ""],
+    ["", "export const REFRESH_TTL_MS = 14 * 24 * 3600 * 1000;"],
+    ["add", "+ export function storeToken(t: Token) {"],
+    ["add", "+   cookies.set(\"gvt\", t.access, { httpOnly: true, sameSite: \"lax\" });"],
+    ["add", "+ }"],
+    ["del", "− localStorage.setItem(\"gvt\", t.access);"],
+    ["", ""],
+    ["", "export function refreshIfExpired() { … }"]
+  ],
+  "login.ts": [["", "export async function login(email, pass) { … }"], ["add", "+ await storeToken(res.tokens);"], ["", "}"]],
+  "token.test.ts": [["", "test(\"refresh keeps session alive\", () => { … });"], ["", "test(\"expires → refresh\", () => { … });"]]
+};
+var ED_HIST = {
+  "token.ts": [
+    { kind: "chain", member: "dev", hash: "⛓ 51aa07", time: "16:58", msg: "passkey 核对 · editor.snapshot", delta: "+38 −12" },
+    { kind: "local", hash: "ck#42", time: "16:31", msg: "cookie 存储重构（撤销点）", delta: "+21 −4" },
+    { kind: "local", hash: "ck#41", time: "15:47", msg: "refresh 路径提取", delta: "+9 −2" },
+    { kind: "chain", member: "design", hash: "⛓ f31a8b", time: "12:40", msg: "注释补全 · editor.snapshot", delta: "+6 −2" },
+    { kind: "local", hash: "ck#40", time: "昨天", msg: "初版 httpOnly 方案", delta: "+54" }
+  ],
+  "login.ts": [
+    { kind: "local", hash: "ck#42", time: "16:31", msg: "登录接 storeToken", delta: "+3 −1" },
+    { kind: "chain", member: "dev", hash: "⛓ 51aa07", time: "16:58", msg: "passkey 核对 · editor.snapshot", delta: "+8" }
+  ],
+  "token.test.ts": [
+    { kind: "local", hash: "ck#42", time: "16:29", msg: "契约用例补齐", delta: "+54" }
+  ]
+};
+var edState = { file: "token.ts", sel: 0 };
+function renderEd() {
+  $$(".ed-file").forEach(function (f) { f.classList.toggle("sel", f.dataset.f === edState.file); });
+  $("#edTabs").innerHTML = Object.keys(ED_FILES).map(function (f) {
+    return '<button class="ed-tab' + (f === edState.file ? " on" : "") + '" data-f="' + f + '">' + f + (f === edState.file ? " ●" : "") + '</button>';
+  }).join("");
+  $$("#edTabs .ed-tab").forEach(function (t) {
+    t.addEventListener("click", function () { edState.file = t.dataset.f; edState.sel = 0; renderEd(); });
+  });
+  $("#edCode").innerHTML = ED_FILES[edState.file].map(function (l) {
+    return '<div class="ln ' + l[0] + '"><span class="no">' + (l[0] === "add" ? "+" : l[0] === "del" ? "−" : "") + '</span><span class="tx">' + esc(l[1]) + '</span></div>';
+  }).join("");
+  $("#edHistCap").textContent = edState.file + " · 历史（本地 ∪ 链上）";
+  var host = $("#edHist");
+  host.innerHTML = "";
+  (ED_HIST[edState.file] || []).forEach(function (h, i) {
+    var b = document.createElement("button");
+    b.className = "h-item " + h.kind + (i === edState.sel ? " sel" : "");
+    if (h.kind === "chain") b.style.setProperty("--mem-c", MEMBERS[h.member].c);
+    b.innerHTML =
+      '<div class="h-line"><span class="hash">' + h.hash + '</span>'
+      + (h.kind === "local" ? '<span class="wc-chip ghost" style="font-size:8.5px">● 本地</span>' : '<span class="wc-chip" style="font-size:8.5px;color:var(--mem-c);border-color:color-mix(in srgb,var(--mem-c) 40%,transparent);background:color-mix(in srgb,var(--mem-c) 10%,transparent)">⛓ 链上</span>')
+      + '<time>' + h.time + '</time></div>'
+      + '<div class="h-sub"><span>' + esc(h.msg) + '</span>'
+      + '<span class="h-delta"><span class="plus">' + h.delta.split(" ")[0] + '</span> <span class="minus">' + (h.delta.split(" ")[1] || "") + '</span></span></div>';
+    b.addEventListener("click", function () { edState.sel = i; renderEd(); });
+    host.appendChild(b);
+  });
+}
+$$(".ed-file").forEach(function (f) {
+  f.addEventListener("click", function () { edState.file = f.dataset.f; edState.sel = 0; renderEd(); });
+});
+$("#edSnapBtn").addEventListener("click", function () {
+  var h = (ED_HIST[edState.file] || [])[edState.sel];
+  oplogAppend("editor.snapshot", "c:new…", "kel", edState.file + " · 快照上链（显式动作）");
+  toast("快照已上链 · editor.snapshot 记录 gossip 中");
+});
+$("#edRestoreBtn").addEventListener("click", function () {
+  var h = (ED_HIST[edState.file] || [])[edState.sel];
+  if (!h) { toast("先在历史中选择一个点"); return; }
+  if (h.kind === "local") {
+    toast("已恢复到 " + h.hash + "（本地 checkpoint · 纯 undo，不上链）");
+  } else {
+    oplogAppend("editor.restore", h.hash.replace("⛓ ", "c:"), h.member, edState.file + " · 恢复链上快照（CID 校验 ✓ · 预览确认）");
+    toast("已恢复链上快照 " + h.hash + "（逐块 CID 校验通过 · 预览已确认）");
+  }
+});
+$("#edDiffBtn").addEventListener("click", function () {
+  var h = (ED_HIST[edState.file] || [])[edState.sel];
+  toast(h ? "对比视图：" + edState.file + " 当前 ↔ " + h.hash : "先在历史中选择一个点");
+});
+renderEd();
+</script>
+</body>
+</html>
