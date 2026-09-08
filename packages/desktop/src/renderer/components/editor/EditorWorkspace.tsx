@@ -702,7 +702,7 @@ export function EditorWorkspace({
         ) : state.binary ? (
           // Binary fallback preview (specs/artifact-landing 链路 A) — replaces
           // the bare "cannot edit" placeholder.
-          <BinaryFileViewer file={activeFile} />
+          <BinaryFileViewer file={activeFile} appearance={appearance} />
         ) : draft === undefined ? (
           <div className="ui-editor-empty">{t("editor.empty")}</div>
         ) : (

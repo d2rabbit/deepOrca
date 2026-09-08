@@ -166,7 +166,12 @@ export function readSessionTraceSource(
   return { messages, summary };
 }
 
-export function normalizeSessionTrace(sessionId: string, title: string, messages: SessionMessage[]): SessionTrace {
+export function normalizeSessionTrace(
+  sessionId: string,
+  title: string,
+  messages: SessionMessage[],
+  opts?: { inFlight?: boolean }
+): SessionTrace {
   const turns: TraceTurn[] = [];
   let open: OpenCall[] = [];
 
@@ -259,7 +264,15 @@ export function normalizeSessionTrace(sessionId: string, title: string, messages
   // progress". Any tool call still unmatched when the message log ends never
   // recorded a result — the run was interrupted/abandoned mid-flight. Mark it
   // so the UI renders 已中断 instead of guessing from a missing verdict.
-  for (const o of open) o.step.interrupted = true;
+  // Skipped for a live session (opts.inFlight): its unmatched calls are
+  // genuinely executing/paused/awaiting permission, not abandoned. A step
+  // that already carries a verdict stays completed — the missing-callId
+  // fallback below assigns by position WITHOUT removing the step from `open`.
+  if (!opts?.inFlight) {
+    for (const o of open) {
+      if (!o.step.ok && !o.step.fail) o.step.interrupted = true;
+    }
+  }
 
   return { sessionId, title, turns };
 }

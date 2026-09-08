@@ -1751,6 +1751,17 @@ function registerTaskTreeIpc({ handle, handlePrivileged }: IpcHelpers): void {
 
   // Session trace (task-tree-hub §trace): the session task's bound sessions,
   // each normalized into recent turns of user 指令 → agent behavior.
+  // Liveness gate for the terminal sweep: a session that is still streaming,
+  // paused, or awaiting permission has genuinely in-flight calls — sweeping
+  // them into 已中断 would mislabel live work. Only the ACTIVE project's
+  // bridge can answer this; cross-workspace sessions fall back to the sweep
+  // (their runs cannot be observed from here, best effort).
+  const LIVE_TRACE_STATUSES: ReadonlySet<string> = new Set(["processing", "paused", "ask_permission"]);
+  const sessionInFlight = (pinnedRoot: string | null, sessionId: string): boolean => {
+    const bridge = getBridge();
+    if (!bridge || !pinnedRoot || bridge.projectRoot !== pinnedRoot) return false;
+    return LIVE_TRACE_STATUSES.has(bridge.getSession(sessionId)?.status ?? "");
+  };
   handle(IpcRequest.TaskHubTrace, async (workspaceRoot?: string, treeId?: string): Promise<TaskTreeTrace> => {
     const out: TaskTreeTrace = { treeId: treeId ?? "", sessions: [] };
     if (!treeId) return out;
@@ -1768,7 +1779,11 @@ function registerTaskTreeIpc({ handle, handlePrivileged }: IpcHelpers): void {
     for (const sessionId of ids.slice(0, 4)) {
       try {
         const { messages, summary } = readSessionTraceSource(projectDir, sessionId);
-        out.sessions.push(normalizeSessionTrace(sessionId, summary || sessionId.slice(0, 8), messages));
+        out.sessions.push(
+          normalizeSessionTrace(sessionId, summary || sessionId.slice(0, 8), messages, {
+            inFlight: sessionInFlight(pinnedRoot, sessionId),
+          })
+        );
       } catch {
         // per-session fail-open
       }
@@ -1786,7 +1801,9 @@ function registerTaskTreeIpc({ handle, handlePrivileged }: IpcHelpers): void {
     const projectDir = join(getUserConfigRoot(), "projects", getProjectCode(pinnedRoot));
     try {
       const { messages, summary } = readSessionTraceSource(projectDir, sessionId);
-      return normalizeSessionTrace(sessionId, summary || sessionId.slice(0, 8), messages);
+      return normalizeSessionTrace(sessionId, summary || sessionId.slice(0, 8), messages, {
+        inFlight: sessionInFlight(pinnedRoot, sessionId),
+      });
     } catch {
       return null;
     }

@@ -165,6 +165,55 @@ test("session-trace: call with no recorded result at log end → interrupted (us
 
 // ── readSessionTraceSource (cross-workspace JSONL fetch) ────────────────────
 
+test("session-trace: inFlight session skips the terminal sweep — unmatched calls stay live (user ask 2026-09-08)", () => {
+  const messages = [
+    msg({ role: "user", content: "跑一下", createTime: "2026-09-01T10:00:00.000Z" }, 1),
+    msg(
+      {
+        role: "assistant",
+        messageParams: { tool_calls: [call("c1", "bash", '{"command":"pnpm test"}')] },
+        createTime: "2026-09-01T10:00:05.000Z",
+      },
+      2
+    ),
+  ] as never;
+  const landed = normalizeSessionTrace("s1", "demo", messages);
+  const live = normalizeSessionTrace("s1", "demo", messages, { inFlight: true });
+  // Same unmatched call: landed trace → interrupted; live session → untouched.
+  assert.equal(landed.turns[0].steps[0].interrupted, true);
+  assert.equal(live.turns[0].steps[0].interrupted, undefined);
+});
+
+test("session-trace: missing tool_call_id falls back by position — the step keeps its verdict, the sweep must not re-mark it interrupted (user ask 2026-09-08)", () => {
+  // The tolerance fallback assigns the result onto open's tail WITHOUT
+  // removing it from `open`; the terminal sweep used to stamp interrupted on
+  // every open entry, so a completed call displayed 已中断 (renderer puts
+  // interrupted ahead of ok).
+  const trace = normalizeSessionTrace("s1", "demo", [
+    msg({ role: "user", content: "跑一下", createTime: "2026-09-01T10:00:00.000Z" }, 1),
+    msg(
+      {
+        role: "assistant",
+        messageParams: { tool_calls: [call("c1", "bash", '{"command":"pnpm test"}')] },
+        createTime: "2026-09-01T10:00:05.000Z",
+      },
+      2
+    ),
+    msg(
+      {
+        role: "tool",
+        content: '{"ok":true}',
+        messageParams: {}, // id lost — fallback assigns by position
+        createTime: "2026-09-01T10:00:06.000Z",
+      },
+      3
+    ),
+  ] as never);
+  const [bash] = trace.turns[0].steps;
+  assert.equal(bash.ok, true);
+  assert.equal(bash.interrupted, undefined);
+});
+
 test("readSessionTraceSource: reads JSONL messages + index summary from the project dir", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "deepcode-trace-"));
   try {

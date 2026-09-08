@@ -12,7 +12,7 @@ import * as fs from "node:fs/promises";
 import * as fsSync from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { handleEditorReadBinary } from "../main/editor-handlers";
+import { handleEditorReadBinary, handleEditorReadFile } from "../main/editor-handlers";
 
 test("editor-read-binary: whitelisted file returns exact bytes", async () => {
   const root = fsSync.mkdtempSync(path.join(os.tmpdir(), "deeporca-bin-")).replace(/\\/g, "/");
@@ -73,6 +73,23 @@ test("editor-read-binary: oversize file → too-large without reading bytes", as
     const res = await handleEditorReadBinary(root, "huge.zip");
     assert.equal(res.ok, false);
     assert.equal(res.reason, "too-large");
+  } finally {
+    await fs.rm(root, { recursive: true, force: true });
+  }
+});
+
+test("editor-read-file: binary verdict precedes the 2MB text cap — large binaries reach the preview path (A1, user ask 2026-09-08)", async () => {
+  const root = fsSync.mkdtempSync(path.join(os.tmpdir(), "deeporca-bin-")).replace(/\\/g, "/");
+  try {
+    const big = path.join(root, "report.pdf");
+    fsSync.writeFileSync(big, "%PDF-1.7");
+    // Sparse truncate past the 2MB text-reader cap, inside the 64MB preview cap.
+    fsSync.truncateSync(big, 3 * 1024 * 1024);
+    const res = await handleEditorReadFile(root, "report.pdf");
+    assert.equal(res.ok, true);
+    assert.equal(res.binary, true);
+    assert.equal(res.content, undefined);
+    assert.equal(res.error, undefined);
   } finally {
     await fs.rm(root, { recursive: true, force: true });
   }

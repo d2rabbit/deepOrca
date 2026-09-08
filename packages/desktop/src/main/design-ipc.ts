@@ -329,14 +329,19 @@ export function registerDesignIpc(helpers: DesignIpcHelpers, deps: DesignIpcDeps
     return typeof spec === "string" && spec.trim() ? { spec, title: suite.title } : null;
   };
 
+  /** Exports currently running (keyed root:suite:version:kind) — double-clicks
+   *  and duplicate invocations serialize instead of interleaving 'w'-truncate
+   *  writes into a corrupted slides.html/pdf. */
+  const inFlightExports = new Set<string>();
+
   handle(
     IpcRequest.PrototypeSpecSlides,
-    (root: string, id: string, versionId?: string, appearance?: SpecSlidesAppearance) => {
+    async (root: string, id: string, versionId?: string, appearance?: SpecSlidesAppearance) => {
       const resolved = pinned(root);
       const source = resolved ? suiteSpecSource(resolved, id, versionId) : null;
       if (!source) return { ok: false, error: "spec not found" };
       try {
-        return { ok: true, ...renderSpecSlides(source.spec, { title: source.title, appearance }) };
+        return { ok: true, ...(await renderSpecSlides(source.spec, { title: source.title, appearance })) };
       } catch (error) {
         return { ok: false, error: `slide render failed: ${error instanceof Error ? error.message : String(error)}` };
       }
@@ -359,8 +364,14 @@ export function registerDesignIpc(helpers: DesignIpcHelpers, deps: DesignIpcDeps
       const dir = designSuiteDir(resolved, id);
       if (!dir) return { ok: false, error: "unsafe suite id" };
       if (kind === "pdf" && !deps.renderPdf) return { ok: false, error: "pdf renderer unavailable" };
+      // Serialize exports per (suite, version): both kinds write the same
+      // slides.html (the PDF reads it back), so concurrent html+pdf runs would
+      // interleave 'w'-truncate writes into a corrupted derivative.
+      const exportKey = `${resolved}:${id}:${versionId ?? ""}`;
+      if (inFlightExports.has(exportKey)) return { ok: false, error: "slide export already in progress" };
+      inFlightExports.add(exportKey);
       try {
-        const rendered = renderSpecSlides(source.spec, { title: source.title, appearance });
+        const rendered = await renderSpecSlides(source.spec, { title: source.title, appearance });
         // The HTML derivative is always written (it is the PDF's source too);
         // the versioned content model is never touched (B11).
         const htmlPath = join(dir, "slides.html");
@@ -374,6 +385,8 @@ export function registerDesignIpc(helpers: DesignIpcHelpers, deps: DesignIpcDeps
         return { ok: true, path: htmlPath, blockedRemote: rendered.remoteImages };
       } catch (error) {
         return { ok: false, error: `slide export failed: ${error instanceof Error ? error.message : String(error)}` };
+      } finally {
+        inFlightExports.delete(exportKey);
       }
     }
   );

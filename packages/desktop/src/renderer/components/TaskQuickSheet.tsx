@@ -294,9 +294,10 @@ export function StepDetailQuickContent({ step }: { step: StepDetail }): JSX.Elem
   const kind = stepKindOf(step);
   const raw = step.argFull ?? step.arg ?? "";
   const parsed = kind === "skill" || kind === "assistant" ? null : parseArgs(raw);
-  // Terminal verdict only (user ask 2026-09-08): a landed trace has no
-  // "in progress" — no recorded result means the call was interrupted.
-  const status = step.fail ? "fail" : step.ok ? "ok" : "interrupted";
+  // Terminal verdict (user ask 2026-09-08): interrupted comes from the
+  // producer's sweep flag — ok/fail absence alone is NOT proof (assistant
+  // text steps and in-flight calls carry neither). "none" renders no badge.
+  const status = step.interrupted ? "interrupted" : step.fail ? "fail" : step.ok ? "ok" : "none";
   // Local op time — hidden for unparseable timestamps (formatAbsolute would
   // render a bare "—").
   const at = step.at ? new Date(step.at) : null;
@@ -463,13 +464,15 @@ export function StepDetailQuickContent({ step }: { step: StepDetail }): JSX.Elem
     <div className="ui-depth-op-report">
       <div className="ui-depth-op-head">
         <span className={`ui-depth-op-ic ${step.cls}`}>{TRACE_ICONS[step.cls] ?? <IconToolGeneric />}</span>
-        <span className={`ui-depth-op-status ${status}`}>
-          {status === "fail"
-            ? `✗ ${t("msg.toolFail")}`
-            : status === "ok"
-              ? `✓ ${t("msg.taskDone")}`
-              : `⊘ ${t("taskhub.status.interrupted")}`}
-        </span>
+        {status !== "none" ? (
+          <span className={`ui-depth-op-status ${status}`}>
+            {status === "fail"
+              ? `✗ ${t("msg.toolFail")}`
+              : status === "ok"
+                ? `✓ ${t("msg.taskDone")}`
+                : `⊘ ${t("taskhub.status.interrupted")}`}
+          </span>
+        ) : null}
         <span className="ui-depth-op-tool">{step.tool}</span>
         {step.mcp ? <span className="ui-depth-op-mcp">{step.mcp}</span> : null}
       </div>

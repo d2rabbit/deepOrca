@@ -13,9 +13,23 @@
  * `marp: true` front-matter pass through byte-for-byte.
  */
 
-import { Marp } from "@marp-team/marp-core";
-
 export type SpecSlidesAppearance = "light" | "dark";
+
+/** Lazily-loaded marp-core — a top-level import would pay the
+ *  mathjax/highlight.js/katex cold-start cost on every app launch for a
+ *  feature most sessions never open. Cached so concurrent renders share one
+ *  module load; the render itself stays synchronous CPU work in the main
+ *  process (kept out of the renderer bundle, B8). */
+let marpModulePromise: Promise<typeof import("@marp-team/marp-core")> | null = null;
+function loadMarp(): Promise<typeof import("@marp-team/marp-core")> {
+  marpModulePromise ??= import("@marp-team/marp-core").catch((error) => {
+    // A transient load failure must not poison the cache for the whole
+    // process lifetime — clear it so the next render retries.
+    marpModulePromise = null;
+    throw error;
+  });
+  return marpModulePromise;
+}
 
 export interface SpecSlidesRender {
   html: string;
@@ -193,14 +207,15 @@ const THEMES: Record<SpecSlidesAppearance, string> = {
 };
 
 /** Render one spec into a slide deck (main-process, offline, script-free). */
-export function renderSpecSlides(
+export async function renderSpecSlides(
   specMd: string,
   opts: { title: string; appearance?: SpecSlidesAppearance }
-): SpecSlidesRender {
+): Promise<SpecSlidesRender> {
   const { markdown } = buildSlidesMarkdown(specMd, opts.title);
   // script:false — marp-core's browser slide runner must not leak into our
   // static output; the preview iframe is sandboxed script-free and the export
   // is CSP `default-src 'none'`.
+  const { Marp } = await loadMarp();
   const marp = new Marp({ script: false });
   marp.themeSet.add(THEMES[opts.appearance === "dark" ? "dark" : "light"]);
   const { html, css } = marp.render(markdown);

@@ -303,8 +303,10 @@ async function aliasChunkCss() {
  */
 async function assertRendererGuards(metaPath) {
   if (!existsSync(metaPath)) {
-    console.warn("[desktop] renderer metafile missing — A6/B8 bundle guard skipped");
-    return;
+    // A missing metafile must fail the build, not skip the guard — silently
+    // passing would make A6/B8 bypassable by any metafile write failure.
+    console.error("[desktop] GUARD FAIL — renderer metafile missing, A6/B8 bundle guard cannot run");
+    process.exit(1);
   }
   const meta = JSON.parse(readFileSync(metaPath, "utf8"));
   const banned = ["node_modules/three/", "node_modules/leaflet/", "node_modules/hls.js/", "node_modules/@marp-team/"];
@@ -519,12 +521,17 @@ async function run() {
     build(lspBridgeServerConfig),
     build(rendererConfig),
   ]);
+  // results[5] is the renderer build (position matches the build array above);
+  // its metafile feeds assertRendererGuards — a missing metafile means
+  // the renderer build broke, so fail here rather than guard-skip downstream.
   const rendererMetafile = results[5]?.metafile;
-  if (rendererMetafile) {
-    await (
-      await import("node:fs/promises")
-    ).writeFile(resolve(rendererOutdir, "renderer-meta.json"), JSON.stringify(rendererMetafile));
+  if (!rendererMetafile) {
+    console.error("[desktop] GUARD FAIL — renderer build produced no metafile");
+    process.exit(1);
   }
+  await (
+    await import("node:fs/promises")
+  ).writeFile(resolve(rendererOutdir, "renderer-meta.json"), JSON.stringify(rendererMetafile));
   await aliasChunkCss();
   await copyStaticAssets();
   await assertRendererGuards(resolve(rendererOutdir, "renderer-meta.json"));

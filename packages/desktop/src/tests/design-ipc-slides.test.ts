@@ -78,11 +78,11 @@ function boot(root: string, suite: DesignSuite | null) {
   return (channel: string) => handlers.get(channel) as (...args: unknown[]) => unknown;
 }
 
-test("spec-slides IPC: preview renders pages without scripts; remote images counted", () => {
+test("spec-slides IPC: preview renders pages without scripts; remote images counted", async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "deeporca-slides-"));
   try {
     const call = boot(root, SUITE);
-    const res = call("prototype:specSlides")(root, "s1") as { ok: boolean; pages?: number; html?: string };
+    const res = (await call("prototype:specSlides")(root, "s1")) as { ok: boolean; pages?: number; html?: string };
     assert.equal(res.ok, true);
     assert.ok((res.pages ?? 0) >= 2);
     assert.ok(!res.html?.includes("<script"));
@@ -118,10 +118,10 @@ test("spec-slides IPC: html/pdf exports land in the suite dir, version model unt
   }
 });
 
-test("spec-slides IPC: unregistered root / missing suite degrade to ok:false", () => {
+test("spec-slides IPC: unregistered root / missing suite degrade to ok:false", async () => {
   const call = boot("/tmp/never", SUITE);
-  const unregistered = call("prototype:specSlides")("other-root", "s1") as { ok: boolean; error?: string };
+  const unregistered = (await call("prototype:specSlides")("other-root", "s1")) as { ok: boolean; error?: string };
   assert.equal(unregistered.ok, false);
-  const noSuite = call("prototype:specSlides")("/tmp/never", "ghost") as { ok: boolean };
+  const noSuite = (await call("prototype:specSlides")("/tmp/never", "ghost")) as { ok: boolean };
   assert.equal(noSuite.ok, false);
 });

@@ -32,8 +32,8 @@ function ensureSdkStyles(): void {
   document.head.appendChild(link);
 }
 
-export function BinaryFileViewer({ file }: { file: string }): JSX.Element {
-  const { t } = useI18n();
+export function BinaryFileViewer({ file, appearance }: { file: string; appearance: "light" | "dark" }): JSX.Element {
+  const { t, locale } = useI18n();
   const [state, setState] = useState<ReadState>({ status: "loading" });
 
   useEffect(() => {
@@ -106,7 +106,7 @@ export function BinaryFileViewer({ file }: { file: string }): JSX.Element {
           </div>
         }
       >
-        <BinarySdkViewer bytes={state.bytes} name={state.name} />
+        <BinarySdkViewer bytes={state.bytes} name={state.name} locale={locale} appearance={appearance} />
       </Suspense>
     </div>
   );

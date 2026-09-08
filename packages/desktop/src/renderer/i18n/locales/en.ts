@@ -1754,6 +1754,8 @@ export const en = {
   "prototypeWorkspace.briefFailed": "Brief failed: {error}",
   "prototypeWorkspace.briefInjectOk": "Brief prefilled in the composer — review and send.",
   "prototypeWorkspace.briefInjectUnavailable": "No chat composer available to prefill.",
+  "prototypeWorkspace.briefInjectPrompt":
+    "The following is the artifact implementation brief — start implementing the prototype accordingly:",
   "prototypeWorkspace.noPrototype": "This version does not contain an interactive prototype yet.",
   "prototypeWorkspace.verify": "Verify prototype",
   "prototypeWorkspace.reportTitle": "Acceptance report",

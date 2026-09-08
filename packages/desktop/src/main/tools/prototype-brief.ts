@@ -233,11 +233,14 @@ function extractTodos(specMd: string): string[] {
 }
 
 /** Route targets: markdown anchors and quoted screen mentions that are NOT in
- *  the extracted screen set land in gaps (C14). */
+ *  the extracted screen set land in gaps (C14). Scanned outside fenced code
+ *  blocks — an example anchor inside a ``` fence is documentation, not a
+ *  navigation target, and must not fabricate a gap. */
 function routeTargets(specMd: string): string[] {
+  const scan = outsideFences(specMd);
   const targets: string[] = [];
-  for (const match of specMd.matchAll(/\]\(#([^)]+)\)/g)) targets.push(match[1].trim());
-  for (const match of specMd.matchAll(/「([^」]{1,24})」/g)) {
+  for (const match of scan.matchAll(/\]\(#([^)]+)\)/g)) targets.push(match[1].trim());
+  for (const match of scan.matchAll(/「([^」]{1,24})」/g)) {
     if (/屏幕|页面|页/.test(match[0])) targets.push(match[1].trim());
   }
   return targets;

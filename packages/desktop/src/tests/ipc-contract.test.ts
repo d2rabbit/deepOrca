@@ -120,6 +120,11 @@ const KNOWN_PRIVILEGED_KEYS = [
   "GitStashCheckout",
   // Filesystem writes.
   "EditorWriteFile",
+  // specs/artifact-landing side-channels: shell.openPath on an arbitrary
+  // root-contained file (A3) + suite-derivative writes (B9, C-output).
+  "EditorOpenSystem",
+  "PrototypeSpecExportSlides",
+  "PrototypeBuildBrief",
   // External process spawn / reindex.
   "WikiInit",
   "WikiUpdate",

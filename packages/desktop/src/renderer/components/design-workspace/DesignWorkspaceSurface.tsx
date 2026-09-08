@@ -14,10 +14,12 @@ type DesignWorkspaceTab =
 type Props = {
   tab: DesignWorkspaceTab;
   onClose: (kind: DesignWorkspaceTab["kind"], root: string) => void;
+  /** Flow bridge (C15): prefill the chat composer with a quoted payload. */
+  onQuoteToChat?: (quote: string) => void;
 };
 
 /** Animated main-stage host shared by the two independent design workspaces. */
-export function DesignWorkspaceSurface({ tab, onClose }: Props): JSX.Element {
+export function DesignWorkspaceSurface({ tab, onClose, onQuoteToChat }: Props): JSX.Element {
   const { t } = useI18n();
   const close = (): void => onClose(tab.kind, tab.root);
   return (
@@ -37,9 +39,17 @@ export function DesignWorkspaceSurface({ tab, onClose }: Props): JSX.Element {
             suiteId={tab.suiteId}
             initialTab={tab.tab}
             onBack={close}
+            onQuoteToChat={onQuoteToChat}
           />
         ) : (
-          <DesignWorkspace key={tab.root} root={tab.root} suiteId={tab.suiteId} initialTab={tab.tab} onBack={close} />
+          <DesignWorkspace
+            key={tab.root}
+            root={tab.root}
+            suiteId={tab.suiteId}
+            initialTab={tab.tab}
+            onBack={close}
+            onQuoteToChat={onQuoteToChat}
+          />
         )}
       </Suspense>
     </m.div>

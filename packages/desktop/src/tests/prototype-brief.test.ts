@@ -64,6 +64,15 @@ test("brief: dangling screen reference blocks generation with gap list (C14)", (
   assert.equal(res.briefMd, undefined);
 });
 
+test("brief: fenced code-block anchors are documentation, not route targets — no phantom gaps (user ask 2026-09-08)", () => {
+  // The same anchors/mentions outside a fence DO block (previous test); inside
+  // a ``` fence they are example syntax and must not fabricate gaps.
+  const spec = SPEC + "\n```bash\n[返回首页](#首页) 与 「示例页」 的写法示例\n```\n";
+  const res = buildImplementationBrief({ kind: "spec", specMd: spec, title: "登录重设计", locale: "zh" });
+  assert.equal(res.ok, true);
+  assert.equal(res.gaps, undefined);
+});
+
 test("brief: en locale pack; openui source degrades to verbatim appendix", () => {
   const res = buildImplementationBrief({
     kind: "openui",

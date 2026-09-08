@@ -74,7 +74,7 @@ export function PrototypeWorkspace({
   onBack,
   onQuoteToChat,
 }: PrototypeWorkspaceProps): JSX.Element {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const [suite, setSuite] = useState<DesignSuite | null>(null);
   const [selectedVersion, setSelectedVersion] = useState<DesignSuiteVersion | null>(null);
   const validInitial: PrototypeTab = initialTab === "proto" || initialTab === "report" ? initialTab : "spec";
@@ -263,8 +263,13 @@ export function PrototypeWorkspace({
       setSlidesPage(Math.min(Math.max(1, page), Math.max(1, slidesPagesRef.current)));
     });
   };
+  /** Export-in-progress marker ("html" | "pdf") — double-clicks must not fire
+   *  concurrent exports (the main process serializes them, but the button
+   *  should say so locally too). */
+  const [exporting, setExporting] = useState<string | null>(null);
   const exportSlides = (kind: "html" | "pdf"): void => {
-    if (!suite || !selectedVersion || !content.spec) return;
+    if (!suite || !selectedVersion || !content.spec || exporting !== null) return;
+    setExporting(kind);
     const appearance = document.documentElement.dataset.appearance === "dark" ? "dark" : "light";
     api
       .prototypeSpecExportSlides(root, suite.id, kind, selectedVersion.versionId, appearance)
@@ -283,7 +288,8 @@ export function PrototypeWorkspace({
           "error",
           t("prototypeWorkspace.slidesExportFailed", { error: cause instanceof Error ? cause.message : String(cause) })
         );
-      });
+      })
+      .finally(() => setExporting(null));
   };
 
   // ── Implementation brief (specs/artifact-landing 链路 C) ─────────────────
@@ -295,7 +301,6 @@ export function PrototypeWorkspace({
 
   const buildBrief = async (): Promise<void> => {
     if (!suite || !selectedVersion || !content.spec || readOnly) return;
-    const locale = document.documentElement.lang || "zh";
     try {
       const res = await api.prototypeBuildBrief(root, suite.id, selectedVersion.versionId, locale);
       if (res.ok && res.briefMd) {
@@ -315,10 +320,12 @@ export function PrototypeWorkspace({
   };
 
   /** C15: hand the brief to the composer (prefill keeps the user in control —
-   *  a direct cross-workspace auto-send would risk posting to the wrong root). */
+   *  a direct cross-workspace auto-send would risk posting to the wrong root).
+   *  The lead-in names THIS payload; App's quote bridge is a dumb pipe, so
+   *  design-side quality/verification quotes don't get brief wording. */
   const injectBrief = (brief: string): void => {
     if (onQuoteToChat) {
-      onQuoteToChat(brief);
+      onQuoteToChat(`${t("prototypeWorkspace.briefInjectPrompt")}\n${brief}`);
       pushDesignToast("success", t("prototypeWorkspace.briefInjectOk"));
     } else {
       pushDesignToast("error", t("prototypeWorkspace.briefInjectUnavailable"));
@@ -620,16 +627,22 @@ export function PrototypeWorkspace({
                     ›
                   </button>
                   <span className="ui-design-slides-spacer" />
-                  <button type="button" disabled={!slides || slidesBusy} onClick={() => exportSlides("html")}>
+                  <button
+                    type="button"
+                    disabled={!slides || slidesBusy || exporting !== null}
+                    onClick={() => exportSlides("html")}
+                  >
                     {t("prototypeWorkspace.slidesExportHtml")}
+                    {exporting === "html" ? "…" : ""}
                   </button>
                   <button
                     type="button"
                     className="primary"
-                    disabled={!slides || slidesBusy}
+                    disabled={!slides || slidesBusy || exporting !== null}
                     onClick={() => exportSlides("pdf")}
                   >
                     {t("prototypeWorkspace.slidesExportPdf")}
+                    {exporting === "pdf" ? "…" : ""}
                   </button>
                 </div>
                 {slidesBusy ? (

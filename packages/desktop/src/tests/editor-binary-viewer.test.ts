@@ -51,7 +51,11 @@ afterEach(() => rtl.cleanup());
 
 test("unsupported binary → localized fallback UI, never the SDK; click hands off to the OS", async () => {
   const utils = rtl.render(
-    ReactPkg.createElement(I18nProvider, null, ReactPkg.createElement(BinaryFileViewer, { file: "movie.mp4" }))
+    ReactPkg.createElement(
+      I18nProvider,
+      null,
+      ReactPkg.createElement(BinaryFileViewer, { file: "movie.mp4", appearance: "light" })
+    )
   );
   await rtl.act(async () => {
     await Promise.resolve();

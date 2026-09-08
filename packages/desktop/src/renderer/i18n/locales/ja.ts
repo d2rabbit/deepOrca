@@ -1755,6 +1755,7 @@ export const ja: Record<MessageKey, string> = {
   "prototypeWorkspace.briefFailed": "ブリーフ生成に失敗：{error}",
   "prototypeWorkspace.briefInjectOk": "ブリーフを入力欄に事前記入しました —— 確認して送信してください。",
   "prototypeWorkspace.briefInjectUnavailable": "事前記入できるチャット入力欄がありません。",
+  "prototypeWorkspace.briefInjectPrompt": "以下は成果物実装ブリーフです。ブリーフに従って実装を開始してください：",
   "prototypeWorkspace.noPrototype": "このバージョンにはインタラクティブプロトタイプがありません。",
   "prototypeWorkspace.verify": "プロトタイプを検証",
   "prototypeWorkspace.reportTitle": "受け入れ報告",

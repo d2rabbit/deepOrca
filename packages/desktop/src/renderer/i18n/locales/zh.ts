@@ -1709,6 +1709,7 @@ export const zh: Record<MessageKey, string> = {
   "prototypeWorkspace.briefFailed": "简报生成失败：{error}",
   "prototypeWorkspace.briefInjectOk": "简报已预填到输入框 —— 请确认后发送。",
   "prototypeWorkspace.briefInjectUnavailable": "当前没有可预填的聊天输入框。",
+  "prototypeWorkspace.briefInjectPrompt": "以下是产物落地简报，请按简报开始实现：",
   "prototypeWorkspace.noPrototype": "此版本尚无交互原型。",
   "prototypeWorkspace.verify": "验收原型",
   "prototypeWorkspace.reportTitle": "验收报告",

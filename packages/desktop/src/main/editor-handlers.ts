@@ -150,11 +150,15 @@ export async function handleEditorReadFile(
   try {
     const stat = await fs.stat(absPath);
     if (!stat.isFile()) return { ok: false, error: "Not a file" };
-    if (stat.size > MAX_FILE_SIZE) return { ok: false, error: "File too large" };
 
+    // Binary verdict BEFORE the text cap: a 3MB pdf must reach the fallback
+    // preview (its own 64MB dial lives in EditorReadBinary), not die on the
+    // 2MB text-reader limit with no preview path (specs/artifact-landing A1/A3).
     if (await isBinaryFile(absPath)) {
       return { ok: true, binary: true };
     }
+
+    if (stat.size > MAX_FILE_SIZE) return { ok: false, error: "File too large" };
 
     const content = await fs.readFile(absPath, "utf-8");
     return { ok: true, content };

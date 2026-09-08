@@ -65,14 +65,14 @@ paginate: true
   assert.equal(hasMarpFrontMatter(SPEC), false);
 });
 
-test("spec-slides: render splits at # and ## headings; code-fence ## does NOT split; no scripts", () => {
+test("spec-slides: render splits at # and ## headings; code-fence ## does NOT split; no scripts", async () => {
   // Empirical marpit behavior (pinned): headingDivider: 2 splits at levels 1–2,
   // and a `## ` inside a fenced code block never splits (fence token is opaque).
-  const base = renderSpecSlides(SPEC, { title: "登录重设计" });
+  const base = await renderSpecSlides(SPEC, { title: "登录重设计" });
   // title page | # 登录模块重设计 | ## 登录页 | ## 验证码页
   assert.equal(base.pages, 4);
 
-  const withFence = renderSpecSlides(`${SPEC}\`\`\`bash\n## 这只是注释，不是标题\n\`\`\`\n`, {
+  const withFence = await renderSpecSlides(`${SPEC}\`\`\`bash\n## 这只是注释，不是标题\n\`\`\`\n`, {
     title: "登录重设计",
   });
   assert.equal(withFence.pages, base.pages);
@@ -82,16 +82,16 @@ test("spec-slides: render splits at # and ## headings; code-fence ## does NOT sp
   assert.equal(withFence.remoteImages, 0);
 });
 
-test("spec-slides: remote images counted, theme bakes per appearance, export doc carries CSP", () => {
-  const withImages = renderSpecSlides(
+test("spec-slides: remote images counted, theme bakes per appearance, export doc carries CSP", async () => {
+  const withImages = await renderSpecSlides(
     `${SPEC}\n![logo](https://example.com/logo.png)\n<img src="https://cdn.example.com/x.png" />`,
     {
       title: "t",
     }
   );
   assert.equal(withImages.remoteImages, 2);
-  const dark = renderSpecSlides(SPEC, { title: "t", appearance: "dark" });
-  const light = renderSpecSlides(SPEC, { title: "t" });
+  const dark = await renderSpecSlides(SPEC, { title: "t", appearance: "dark" });
+  const light = await renderSpecSlides(SPEC, { title: "t" });
   assert.notEqual(dark.css, light.css);
   assert.ok(dark.css.includes("#16181d"));
   assert.ok(light.css.includes("#fbfbfd"));

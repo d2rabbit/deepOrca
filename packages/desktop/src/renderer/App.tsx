@@ -1333,6 +1333,20 @@ export function App(): JSX.Element {
     [t]
   );
 
+  // Flow bridge (design surfaces → chat), C15 prefill: quote a payload (brief
+  // / quality / verification JSON) into the composer. Deliberately a dumb
+  // pipe — the caller owns any lead-in wording so a quality JSON quote is
+  // never mislabeled as a brief. Prefill keeps the user in control — a direct
+  // cross-workspace auto-send would risk posting to the wrong root
+  // (specs/artifact-landing 链路 C).
+  const handleQuoteDesignToChat = useCallback((payload: string) => {
+    setActiveTab({ kind: "chat" });
+    setDraft((current) => {
+      const prefix = current.trim().length > 0 ? `${current.trimEnd()}\n\n` : "";
+      return `${prefix}${payload}\n`;
+    });
+  }, []);
+
   // ── Knowledge build → chat suggestion bar (flow closure) ─────────────────
   // A settled build used to end with the badge silently vanishing; the
   // conversation never learned the knowledge it just paid for is ready. On a
@@ -2377,6 +2391,7 @@ export function App(): JSX.Element {
           ) : activeTab.kind === "prototype" || activeTab.kind === "design" ? (
             <DesignWorkspaceSurface
               tab={activeTab}
+              onQuoteToChat={handleQuoteDesignToChat}
               onClose={(kind, root) =>
                 kind === "prototype" ? handleClosePrototypeTab(root) : handleCloseDesignTab(root)
               }

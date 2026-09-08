@@ -1747,6 +1747,7 @@ export const ko: Record<MessageKey, string> = {
   "prototypeWorkspace.briefFailed": "브리프 생성 실패: {error}",
   "prototypeWorkspace.briefInjectOk": "브리프가 입력창에 미리 채워졌습니다 — 확인 후 보내세요.",
   "prototypeWorkspace.briefInjectUnavailable": "미리 채울 채팅 입력창이 없습니다.",
+  "prototypeWorkspace.briefInjectPrompt": "다음은 산출물 구현 브리프입니다. 브리프에 따라 구현을 시작하십시오:",
   "prototypeWorkspace.noPrototype": "이 버전에는 인터랙티브 프로토타입이 없습니다.",
   "prototypeWorkspace.verify": "프로토타입 검증",
   "prototypeWorkspace.reportTitle": "인수 보고서",
