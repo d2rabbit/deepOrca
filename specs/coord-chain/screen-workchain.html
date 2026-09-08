@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>DeepOrca — 工作链设计稿 v5（Hub 底部坞 · 说明设计稿 · 链融于模块）</title>
+<title>DeepOrca — 工作链设计稿 v6（对照真实 UI 修正 · 两级共享 · 链自动记账）</title>
 <!--
   工作链（Coord Chain）HTML 交互视觉稿 · v5（2026-09-08）
   ═══════════════════════════════════════════════════════════
@@ -183,20 +183,7 @@
   .wc-orb.show { opacity: 1; transform: scale(1); pointer-events: auto; }
   .wc-orb:hover { filter: brightness(1.08); }
 
-  /* ══ 底座层：恒定主题条 ══ */
-  .wc-themebar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-    margin: 0 16px 8px; padding: 7px 14px;
-    border: 1px solid color-mix(in srgb, var(--ui-accent) 30%, var(--ui-border-soft));
-    border-radius: var(--ui-radius-lg);
-    background: color-mix(in srgb, var(--ui-surface-raised) 82%, transparent);
-    box-shadow: var(--ui-shadow-card); }
-  .wc-tb-cap { display: inline-flex; align-items: center; gap: 6px; font-size: 10px; font-weight: 700;
-    letter-spacing: 0.05em; color: var(--ui-accent);
-    border: 1px solid color-mix(in srgb, var(--ui-accent) 40%, transparent); border-radius: var(--ui-radius-pill);
-    padding: 1px 9px; background: var(--ui-accent-soft); white-space: nowrap; }
-  .wc-theme { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--ui-text-dim); }
-  .wc-theme .src { font-size: 9.5px; padding: 0 6px; border: 1px solid var(--ui-border-soft); border-radius: var(--ui-radius-pill); color: var(--ui-text-faint); }
-  .wc-theme .val { font-family: var(--ui-font-mono); font-size: 11px; color: var(--ui-text); }
+  /* ══ 链状态芯片（归任务树顶部 · 无全局链底座条） ══ */
   .wc-chainid { display: inline-flex; align-items: center; gap: 5px; font-family: var(--ui-font-mono); font-size: 10.5px;
     color: var(--ui-accent); border: 1px solid color-mix(in srgb, var(--ui-accent) 35%, transparent);
     border-radius: var(--ui-radius-sm); padding: 2px 8px; background: var(--ui-accent-soft); cursor: pointer; }
@@ -447,6 +434,49 @@
   .ss-dot.run { background: var(--dot-session); box-shadow: 0 0 0 3px color-mix(in srgb, var(--dot-session) 20%, transparent); }
   .ss-dot.ok { background: var(--ui-success); }
   .ss-time { margin-left: auto; color: var(--ui-text-faint); }
+  .ss-search { padding: 4px 10px 8px; }
+  .ss-search input { width: 100%; box-sizing: border-box; padding: 6px 10px; border-radius: 9px;
+    border: 1px solid var(--ui-border-soft); background: var(--ui-surface); color: var(--ui-text);
+    font-size: 11px; outline: none; }
+  .ss-search input:focus { border-color: color-mix(in srgb, var(--ui-accent) 55%, transparent); }
+  .ss-group { display: flex; align-items: center; gap: 7px; padding: 7px 10px 3px; font-size: 11px; font-weight: 700; color: var(--ui-text-dim); }
+  .ss-group .cnt { margin-left: auto; font-size: 9.5px; font-weight: 600; color: var(--ui-text-faint); }
+  .ss-foot { display: flex; gap: 18px; padding: 8px 12px; border-top: 1px solid var(--ui-border-soft); font-size: 10px; color: var(--ui-text-faint); }
+  .ss-foot b { color: var(--ui-text); font-family: var(--ui-font-mono); font-weight: 600; }
+  .ss-chainline { display: flex; align-items: center; gap: 8px; padding: 7px 12px; border-top: 1px dashed var(--ui-border-soft);
+    font-family: var(--ui-font-mono); font-size: 9.5px; color: var(--ui-text-faint); cursor: pointer; flex: none; }
+  .ss-chainline:hover { color: var(--ui-accent); }
+  .ss-sumbadge { display: inline-flex; align-items: center; gap: 5px; font-size: 9px; padding: 2px 7px; border-radius: 999px;
+    color: var(--ui-accent); border: 1px solid color-mix(in srgb, var(--ui-accent) 40%, transparent); }
+  /* 会话右栏 = 聊天转录（对齐真实会话 UI · 零链表面） */
+  .cc-scroll { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding-right: 2px; }
+  .cc-user { background: var(--ui-accent-soft); border-radius: 12px; padding: 9px 12px; font-size: 12px; line-height: 1.65; }
+  .cc-step { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--ui-text-dim);
+    border: 1px solid var(--ui-border-soft); border-radius: 9px; padding: 5px 10px; background: var(--ui-surface-raised); }
+  .cc-step .tool { font-weight: 700; flex: none; }
+  .cc-step .arg { font-family: var(--ui-font-mono); font-size: 9.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cc-step .ok { margin-left: auto; color: var(--ui-success); flex: none; }
+  .cc-assistant { font-size: 12px; line-height: 1.75; color: var(--ui-text); padding: 0 2px; }
+  .cc-sumcard { border: 1px dashed color-mix(in srgb, var(--ui-accent) 45%, transparent); border-radius: 12px;
+    padding: 8px 11px; font-size: 10.5px; color: var(--ui-text-dim); line-height: 1.7; }
+  .cc-composer { border: 1px solid var(--ui-border-soft); border-radius: 14px; padding: 10px 12px; background: var(--ui-surface-raised); flex: none; }
+  .cc-composer textarea { width: 100%; box-sizing: border-box; border: 0; outline: none; resize: none; background: transparent;
+    color: var(--ui-text); font-size: 12px; min-height: 34px; font-family: inherit; }
+  .cc-composer .row { display: flex; align-items: center; gap: 8px; margin-top: 6px; font-size: 10.5px; color: var(--ui-text-dim); }
+  .cc-ctx { display: flex; align-items: center; gap: 8px; font-size: 9.5px; color: var(--ui-text-faint); flex: none; padding: 0 2px; }
+  .cc-ctx .bar { flex: 1; height: 3px; border-radius: 2px; background: var(--ui-border-soft); overflow: hidden; }
+  .cc-ctx .bar i { display: block; height: 100%; width: 14.86%; background: var(--ui-accent); }
+  /* 任务树 · 链上轨迹图树（仅链上节点 · 操作者以链上 id 声明） */
+  .traj { border-top: 1px dashed var(--ui-border-soft); margin-top: 8px; padding-top: 7px; }
+  .traj .hd { font-size: 10px; font-weight: 700; color: var(--ui-text-dim); margin-bottom: 5px; }
+  .traj .nd { position: relative; padding: 2px 0 2px 16px; font-size: 10.5px; line-height: 1.55; }
+  .traj .nd::before { content: ""; position: absolute; left: 4px; top: 0; bottom: 0; width: 1.5px; background: var(--ui-border-soft); }
+  .traj .nd:last-child::before { bottom: 50%; }
+  .traj .nd::after { content: ""; position: absolute; left: 1px; top: 8px; width: 7px; height: 7px; border-radius: 50%;
+    border: 1.6px solid var(--ui-accent); background: var(--ui-surface-raised); }
+  .traj .nd .who { font-family: var(--ui-font-mono); font-size: 9px; color: var(--mem-c, var(--ui-accent)); }
+  .traj .nd .what { color: var(--ui-text-dim); }
+  .traj .nd .at { float: right; font-size: 9px; color: var(--ui-text-faint); }
   .ss-right { flex: 1; min-width: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
 
   /* ══ 设计工作区壳 ══ */
@@ -463,10 +493,6 @@
     border: 1px solid var(--ui-border-soft); border-radius: var(--ui-radius-md); background: var(--ui-surface); }
   .dw-rail-cap { display: flex; align-items: center; gap: 6px; padding: 4px 7px 6px; color: var(--ui-text-faint);
     font-size: 10px; font-weight: 700; text-transform: uppercase; flex-wrap: wrap; }
-  .rail-filter { display: flex; gap: 4px; padding: 0 4px 7px; }
-  .rf-chip { flex: 1; padding: 2px 4px; border-radius: var(--ui-radius-pill); border: 1px solid var(--ui-border-soft);
-    font-size: 9.5px; color: var(--ui-text-dim); text-align: center; transition: all 0.12s var(--ui-ease); }
-  .rf-chip.on { color: var(--ui-accent); border-color: color-mix(in srgb, var(--ui-accent) 45%, transparent); background: var(--ui-accent-soft); font-weight: 650; }
   .dw-ver { display: block; width: 100%; text-align: left; padding: 8px; border-radius: var(--ui-radius-sm);
     border-left: 3px solid transparent; transition: background 0.12s var(--ui-ease); }
   .dw-ver:hover, .dw-ver.active { background: var(--ui-surface-hover); }
@@ -665,7 +691,8 @@
   .arch-label { font-size: 9.5px; fill: var(--ui-text-dim); }
 
   /* ══ 编辑器 ══ */
-  .ed-wrap { flex: 1; min-height: 0; display: flex; gap: 10px; }
+  .ed-wrap { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
+  .ed-row { flex: 1; min-height: 0; display: flex; gap: 10px; }
   .ed-tree { width: 200px; flex: none; border: 1px solid var(--ui-border-soft); border-radius: var(--ui-radius-md);
     background: var(--ui-surface); padding: 8px; overflow-y: auto; font-size: 12px; }
   .ed-tree .cap { font-size: 10px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ui-text-faint); padding: 2px 6px 7px; }
@@ -688,9 +715,30 @@
   .ed-code .ln.add { background: color-mix(in srgb, var(--ui-success) 12%, transparent); }
   .ed-code .ln.add .tx { color: var(--ui-success); }
   .ed-code .ln.add .no { color: var(--ui-success); }
-  .ed-hist { width: 268px; flex: none; border: 1px solid var(--ui-border-soft); border-radius: var(--ui-radius-md);
+  .ed-pair { width: 292px; flex: none; min-height: 0; overflow-y: auto; border: 1px solid var(--ui-border-soft); border-radius: var(--ui-radius-md);
+    background: var(--ui-surface); padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+  .ed-pair .cap { font-size: 10px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ui-text-faint); padding: 2px 6px 4px; }
+  .ed-pair .pair-hd { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 650;
+    background: var(--ui-surface-hover); border-radius: 7px; padding: 5px 8px; }
+  .ed-pair .pair-sec { padding: 3px 6px; }
+  .ed-pair .pair-sec .hd { font-size: 10px; font-weight: 700; color: var(--ui-text-dim); margin-bottom: 3px; }
+  .ed-pair .pair-step { font-size: 10.5px; color: var(--ui-text-dim); padding: 1.5px 0; }
+  .ed-pair .pair-file { font-family: var(--ui-font-mono); font-size: 10px; color: var(--ui-text-dim);
+    border: 1px solid var(--ui-border-soft); border-radius: 6px; padding: 3px 7px; margin: 2px 0; }
+  .ed-pair .pair-note { font-size: 9.5px; color: var(--ui-text-faint); line-height: 1.6; }
+  .ed-baselist { flex: none; height: 226px; border: 1px solid var(--ui-border-soft); border-radius: var(--ui-radius-md);
     background: var(--ui-surface); padding: 6px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
-  .ed-hist .cap { font-size: 10px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ui-text-faint); padding: 4px 6px 6px; }
+  .ed-baselist.closed { display: none; }
+  .ed-baselist .cap { font-size: 10px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ui-text-faint); padding: 4px 6px 6px; }
+  .ed-baseline { flex: none; display: flex; align-items: center; gap: 10px; border: 1px solid var(--ui-border-soft);
+    border-radius: var(--ui-radius-md); background: var(--ui-surface); padding: 5px 12px; }
+  .ed-baseline .bk { font-size: 10px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ui-text-faint); }
+  .ed-base-toggle { display: inline-flex; align-items: center; gap: 7px; font-size: 10.5px; color: var(--ui-text-dim);
+    border: 0; background: transparent; cursor: pointer; padding: 2px 4px; }
+  .ed-base-toggle:hover { color: var(--ui-accent); }
+  .ed-base-toggle b { font-family: var(--ui-font-mono); color: var(--ui-text); }
+  .ed-base-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--dot-session);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--dot-session) 20%, transparent); }
   .h-item { text-align: left; width: 100%; padding: 7px 9px; border-radius: var(--ui-radius-sm); border-left: 3px solid transparent;
     transition: background 0.12s var(--ui-ease); }
   .h-item:hover { background: var(--ui-surface-hover); }
@@ -729,34 +777,20 @@
     <div class="win-controls"><i class="wc-min"></i><i class="wc-max"></i><i class="wc-close"></i></div>
   </header>
 
-  <!-- ═══ 底座层：恒定主题条 ═══ -->
-  <div class="wc-themebar">
-    <span class="wc-tb-cap">⛓ 链底座 · 共享中</span>
-    <span class="wc-theme"><span class="src">git remote</span>主题 <span class="val">git:github.com/zshipu/gvgl</span></span>
-    <button class="wc-chainid" id="chainId" title="点击复制链 ID">orca1-wiymh-xraxv-a7ovu-yzdft</button>
-    <span class="wc-mems" title="kelthas-mbp（本机） · dev-windows-01 · design-ipad">
-      <span class="wc-mem" style="background:var(--mem-self)">K</span>
-      <span class="wc-mem" style="background:var(--mem-dev)">D</span>
-      <span class="wc-mem" style="background:var(--mem-design)">S</span>
-    </span>
-    <span class="wc-sync"><span class="pulse"></span>已同步</span>
-    <span class="wc-tb-meta mono">块高 #1042 · 多数派 2/3 · 出块 2s</span>
-    <span class="spacer"></span>
-    <button class="wc-tb-btn on" id="oplogBtn">⛓ 链操作日志</button>
-    <span class="wc-share-pill" title="项目级设置 coordination.shared = true · 用户级总闸开启中">共享开 · 本工作区</span>
-  </div>
+  <!-- ═══ 链状态不在全局常驻：全部归任务树（链 ID/同步/成员/共享态/链操作日志） · 数据根 .deeporca/（R40） ═══ -->
 
   <div class="a-hintbar" id="annotHint">
     <b>📌 标注说明模式</b> —— 点击表面右上角的编号 pin 查看该处的设计说明（交互逻辑 · 链语义 · R 条款对照）
     <span class="spacer"></span>
-    <span>● 本地版本 · ⛓ 链上版本（联签封存） · ◆ 随代码版本 · ⑂ fork=checkout 即上链 · 无 merge 择线</span>
+    <span>● 本地版本 · ⛓ 链上版本（自动记账） · ◆ 随代码版本 · ⑂ fork=checkout 即上链 · 无 merge 择线</span>
   </div>
 
   <div class="wc-legend" id="legend">
     <span class="it"><span class="sw" style="background:var(--dot-session)"></span>● 本地版本（私有 · 随时产生 · 永不出机）</span>
-    <span class="it"><span class="sw chain"></span>⛓ 链上版本（Ed25519 签名 + 联签封存 · 来源设备可溯）</span>
-    <span class="it"><span class="sw bound"></span>◆ 随代码版本（审查/知识库自动构建 · 不可独立 fork）</span>
+    <span class="it"><span class="sw chain"></span>⛓ 链上版本（自动记账 · Ed25519 签名 + 联签封存）</span>
+    <span class="it"><span class="sw bound"></span>◆ 随代码版本（审查/知识库自动构建）</span>
     <span class="it"><span class="lk"></span>⑂ fork = checkout 新分支（即上链 · 声明式）</span>
+    <span class="it" style="color:var(--ui-accent)">共享两级：工作区开关（打开工作区时决定）+ 任务树节点级开关（关 = 仅标题 · 锁定）</span>
     <span class="it" style="color:var(--ui-warning)">第一版无 merge：并行提交 = 分叉保留 · head 可择线</span>
   </div>
 
@@ -766,17 +800,20 @@
     <section class="mv on" id="mv-tree">
       <div class="mv-note">
         <b>任务树 = 整条共享链</b>（本地谱系 ∪ 链上 task.share 谱系，一树混排）
-        <span>·</span> 链上节点 = 虚线环（成员色）<span>·</span> 域 pills / 成员过滤真实生效
+        <span>·</span> 链上节点 = 虚线环（成员色）<span>·</span> 右侧信息板仅链上节点有链元信息 · 节点级共享开关在详情板操作
       </div>
       <div class="pane-card">
         <div class="th-top">
           <span class="th-ws"><span class="dot"></span>GVGL</span>
+          <button class="wc-chainid" id="chainId" title="点击复制链 ID · 主题 git:github.com/zshipu/gvgl · 链状态归任务树（无全局链底座条）">orca1-wiymh-xraxv-a7ovu-yzdft</button>
+          <span class="wc-sync"><span class="pulse"></span>已同步</span>
+          <span class="wc-chip" title="共享在会话模块「打开工作区」时决定 · 节点级开关在详情板（R16/R32）">⛓ 共享中 · 3 成员</span>
           <div class="th-pills" id="thDomains">
-            <button class="th-pill on" data-d="all">全部 · 9</button>
+            <button class="th-pill on" data-d="all">全部 · 10</button>
             <button class="th-pill" data-d="session"><span class="sw" style="background:var(--dot-session)"></span>会话任务 · 2</button>
             <button class="th-pill" data-d="review"><span class="sw" style="background:var(--dot-review)"></span>代码审查 · 1</button>
             <button class="th-pill" data-d="editor"><span class="sw" style="background:var(--dot-editor)"></span>编辑器结对 · 1</button>
-            <button class="th-pill" data-d="chain"><span style="font-size:10px">⛓</span>链上记录 · 4</button>
+            <button class="th-pill" data-d="chain"><span style="font-size:10px">⛓</span>链上记录 · 5</button>
           </div>
           <span class="spacer"></span>
           <span class="git-chip">⎇ refactor/login-token</span>
@@ -796,12 +833,13 @@
           <aside class="th-detail" id="detail"></aside>
         </div>
         <div class="th-oplog" id="oplog">
-          <div class="cap">⛓ 链操作日志 <span class="sub">每个链历史操作 = 链 id + 操作（fork / task.share / design.version / editor.snapshot / kb.sync / merge / 创世） · 全量可审计</span></div>
+          <div class="cap">⛓ 链操作日志 <span class="sub">每个链历史操作 = 链 id + 操作（branch.fork / task.share / task.stub / ws.commit / design.version / kb.sync / share.rule / 创世） · 全量可审计（R20/R33 · 唯一审计聚合面 · 协议见 §11）</span>
+            <button class="wc-tb-btn on" id="oplogBtn" style="margin-left:8px;font-size:9.5px;padding:2px 8px">收起</button></div>
           <table><tbody id="oplogBody">
             <tr><td class="t">14:20</td><td class="op">task.share · 接续</td><td>⛓ r:9d44…</td><td class="who"><span class="wc-memdot" style="background:var(--mem-design)"></span>design-ipad</td></tr>
-            <tr><td class="t">13:05</td><td class="op">merge · fork B 汇入</td><td>⛓ r:c2e8…</td><td class="who"><span class="wc-memdot" style="background:var(--mem-self)"></span>kelthas-mbp（本机）</td></tr>
+            <tr><td class="t">13:05</td><td class="op">ws.commit · 合入（cherry-pick 双亲）</td><td>⛓ r:c2e8…</td><td class="who"><span class="wc-memdot" style="background:var(--mem-self)"></span>kelthas-mbp（本机）</td></tr>
             <tr><td class="t">12:05</td><td class="op">task.share</td><td>⛓ r:8c11…</td><td class="who"><span class="wc-memdot" style="background:var(--mem-dev)"></span>dev-windows-01</td></tr>
-            <tr><td class="t">11:44</td><td class="op">editor.snapshot</td><td>⛓ c:51aa07…</td><td class="who"><span class="wc-memdot" style="background:var(--mem-dev)"></span>dev-windows-01</td></tr>
+            <tr><td class="t">11:44</td><td class="op">ws.commit · 编辑器随行</td><td>⛓ c:51aa07…</td><td class="who"><span class="wc-memdot" style="background:var(--mem-dev)"></span>dev-windows-01</td></tr>
             <tr><td class="t">09:00</td><td class="op">创世</td><td>⛓ genesis</td><td class="who">主题 git:github.com/zshipu/gvgl · 3 成员</td></tr>
           </tbody></table>
         </div>
@@ -811,13 +849,15 @@
     <!-- ═══════════ 💬 会话 ═══════════ -->
     <section class="mv" id="mv-sessions">
       <div class="mv-note">
-        <b>会话模块的链表面</b>：链溯源行（来源 fork/接续自动标注）· 本地会话「⛓ 上链共享」· 接续会话注入上下文卡
+        <b>会话模块 = 本地形态（零差异）</b>：无常驻链表面 · 链上元信息走底部链 id 弹窗 · fork 历史会话 = 记忆摘要注入 · 打开新工作区时决定共享
       </div>
       <div class="ss-wrap">
         <div class="ss-panel">
-          <div class="ss-head">会话 <span class="ss-count">3</span><span class="spacer"></span>
-            <button class="wc-tb-btn" id="ssShareBtn" style="font-size:10.5px">⛓ 上链共享</button></div>
+          <div class="ss-head">会话 <span class="ss-count">7</span><span class="spacer"></span>
+            <button class="wc-btn sm accent" id="ssOpenWs">＋ 打开工作区</button></div>
+          <div class="ss-search"><input id="ssSearch" placeholder="搜索会话…" /></div>
           <div id="ssList"></div>
+          <div class="ss-foot"><span>本工作区 <b>38.9k</b></span><span>全部工作区 <b>217.4k</b></span></div>
         </div>
         <div class="ss-right" id="ssRight"></div>
       </div>
@@ -833,17 +873,12 @@
             <button class="dw-tab" data-t="accept">验收报告</button>
           </div>
           <span class="spacer"></span>
+          <span class="dw-badge" id="protoAutoBadge" title="共享开启后 · 版本随任务终态自动记账上链（design.version）· 无独立发布动作">⛓ 自动记账</span>
           <span class="dw-badge" id="protoSelBadge">当前 · 本地 v3</span>
-          <button class="wc-btn accent sm" id="protoPublishBtn">⛓ 发布为链上版本</button>
         </div>
         <div class="dw-body">
           <aside class="dw-rail">
-            <div class="dw-rail-cap">版本历史 · 本地 ∪ 链上</div>
-            <div class="rail-filter" id="protoFilter">
-              <button class="rf-chip on" data-f="all">全部</button>
-              <button class="rf-chip" data-f="local">● 本地</button>
-              <button class="rf-chip" data-f="chain">⛓ 链上</button>
-            </div>
+            <div class="dw-rail-cap">版本历史 · 单列混排（链上以 ⛓ tag 区分 · 不做过滤分裂）</div>
             <div id="protoRail"></div>
           </aside>
           <main class="dw-main" id="protoMain"></main>
@@ -862,17 +897,12 @@
           </div>
           <span class="dw-badge">主题 · 现代极简</span>
           <span class="spacer"></span>
+          <span class="dw-badge" id="uiAutoBadge" title="共享开启后 · 版本随任务终态自动记账上链（design.version）· 无独立发布动作">⛓ 自动记账</span>
           <span class="dw-badge" id="uiSelBadge">当前 · 本地 v2</span>
-          <button class="wc-btn accent sm" id="uiPublishBtn">⛓ 发布为链上版本</button>
         </div>
         <div class="dw-body">
           <aside class="dw-rail">
-            <div class="dw-rail-cap">版本历史 · 本地 ∪ 链上</div>
-            <div class="rail-filter" id="uiFilter">
-              <button class="rf-chip on" data-f="all">全部</button>
-              <button class="rf-chip" data-f="local">● 本地</button>
-              <button class="rf-chip" data-f="chain">⛓ 链上</button>
-            </div>
+            <div class="dw-rail-cap">版本历史 · 单列混排（链上以 ⛓ tag 区分 · 不做过滤分裂）</div>
             <div id="uiRail"></div>
           </aside>
           <main class="dw-main" id="uiMain"></main>
@@ -891,9 +921,8 @@
           <div class="ui-review-scope">
             <span>审查范围</span>
             <select id="rvScope">
-              <option value="local">● 未提交变更（a2c1e9f）</option>
-              <option value="chain" selected>⛓ 链上版本 c:b7e2f1…（dev-windows-01）</option>
-              <option value="commit">提交 1f9c77a（feat: rate limiting）</option>
+              <option value="local" selected>未提交的工作区变更（vs HEAD）</option>
+              <option value="full">全仓库（全域审查）</option>
             </select>
             <button class="ui-review-run-btn primary" id="rvRun">▶ 运行审查</button>
           </div>
@@ -928,11 +957,10 @@
           <button class="ui-knowledge-subtab" style="--tab-hue:var(--dot-prototype)" data-kb="symbols">符号表</button>
         </div>
         <div class="ui-knowledge-buildbar">
-          <span>⛓ 构建历史（本地 ∪ 链上同步 · 随代码基线对齐）：</span>
-          <span class="wc-chip">#13 本地 · 基线 ⎇ 8be12d4</span>
-          <span class="wc-chip" style="color:var(--mem-dev);border-color:color-mix(in srgb,var(--mem-dev) 40%,transparent)">⛓ #12 design-ipad · c:f31a8b…</span>
-          <span class="spacer"></span>
-          <button class="wc-btn sm" id="kbApplyBtn">应用链上知识版本…</button>
+          <span class="wc-chip" style="color:var(--ui-success);border-color:color-mix(in srgb,var(--ui-success) 40%,transparent)">⛓ 已同步</span>
+          <span class="wc-chainid" style="pointer-events:none" title="主题 git:github.com/zshipu/gvgl">orca1-wiymh-xraxv-a7ovu-yzdft</span>
+          <span class="wc-tb-meta mono">今天 10:02</span>
+          <span class="wc-chip" title="知识库追随代码 · 无独立历史（R35）· 存在覆盖/写入行为时在此标注">最近写入：#12 风控分层 · design-ipad（覆盖采纳）</span>
         </div>
         <div class="ui-knowledge-body">
           <div class="ui-knowledge-list" id="kbList"></div>
@@ -944,28 +972,48 @@
     <!-- ═══════════ ✎ 编辑器 ═══════════ -->
     <section class="mv" id="mv-editor">
       <div class="ed-wrap">
-        <div class="ed-tree">
-          <div class="cap">src/auth</div>
-          <div class="ed-file sel" data-f="token.ts"><span>🔑</span><span class="n">token.ts</span></div>
-          <div class="ed-file" data-f="login.ts"><span>📄</span><span class="n">login.ts</span></div>
-          <div class="ed-file" data-f="token.test.ts"><span>🧪</span><span class="n">token.test.ts</span></div>
+        <div class="ed-row">
+          <div class="ed-tree">
+            <div class="cap">src/auth</div>
+            <div class="ed-file sel" data-f="token.ts"><span>🔑</span><span class="n">token.ts</span></div>
+            <div class="ed-file" data-f="login.ts"><span>📄</span><span class="n">login.ts</span></div>
+            <div class="ed-file" data-f="token.test.ts"><span>🧪</span><span class="n">token.test.ts</span></div>
+          </div>
+          <div class="ed-canvas">
+            <div class="ed-tabs" id="edTabs"></div>
+            <div class="ed-code" id="edCode"></div>
+          </div>
+          <div class="ed-pair">
+            <div class="cap">✦ 结对栏 · pom.xml（既有内容 · 不受影响）</div>
+            <div class="pair-hd">✦ 综对命令</div>
+            <div class="pair-sec"><div class="hd">计划</div>
+              <div class="pair-step">① 理解选区</div><div class="pair-step">② 设计方案</div>
+              <div class="pair-step">③ 写入画布</div><div class="pair-step">④ 验证</div></div>
+            <div class="pair-sec"><div class="hd">变更文件</div>
+              <div class="pair-file">📄 pom.xml</div><div class="pair-file">✳ AGENTS.md</div></div>
+            <div class="pair-sec"><div class="hd">审批队列</div>
+              <div class="pair-note">跨文件任务从主会话发起；权限提示在会话中排队，编辑器审批后落队此处。</div>
+              <div class="pair-note" style="margin-top:3px">小改动内联批（⌘I）· 跨文件工作走主会话。</div></div>
+          </div>
         </div>
-        <div class="ed-canvas">
-          <div class="ed-tabs" id="edTabs"></div>
-          <div class="ed-code" id="edCode"></div>
-        </div>
-        <div class="ed-hist">
-          <div class="cap" id="edHistCap">token.ts · 历史（本地 ∪ 链上）</div>
-          <div id="edHist" style="display:flex;flex-direction:column;gap:3px;padding:0 2px 4px"></div>
+        <div class="ed-baselist" id="edBaseList">
+          <div class="cap" id="edHistCap">token.ts · 全部历史快照（本地历史 ∪ 链上来源）</div>
+          <div id="edHist" style="display:flex;flex-direction:column;gap:3px;padding:0 2px 2px"></div>
           <div class="ed-hist-acts" id="edHistActs">
-            <button class="wc-btn sm" id="edSnapBtn">⛓ 快照上链</button>
             <button class="wc-btn sm" id="edRestoreBtn">↺ 恢复此点</button>
             <button class="wc-btn sm" id="edDiffBtn">⇄ 与当前对比</button>
+            <span style="margin-left:auto;font-size:9px;color:var(--ui-text-faint);align-self:center">列表 = 底部基线行展开 · 随选中文件切换（R36）</span>
           </div>
-          <div style="padding:6px 8px 4px;font-size:9.5px;color:var(--ui-text-faint);line-height:1.6;border-top:1px dashed var(--ui-border-soft)">
-            本地 checkpoint = 自动撤销点（永不出机）<br>
-            ⛓ 链上快照 = 显式动作（恢复前逐块 CID 校验 + 预览确认）
-          </div>
+        </div>
+        <div class="ed-baseline">
+          <span class="bk">检查点</span>
+          <button class="ed-base-toggle" id="edBaseToggle" title="展开/收起当前文件的全部历史快照列表（R36 · 底部基线式）">
+            <span class="ed-base-dot"></span>基线 · 你最后一次手动保存 09:30 · 本文件历史 <b id="edBaseCount">5</b> 条 <span id="edBaseArrow">▾</span>
+          </button>
+          <span class="spacer"></span>
+          <span style="font-size:10px;color:var(--ui-text-faint)">⛓ 链上条目 = 共享开启后自动记账 · 以链上 id 声明来源 · 恢复前 CID 校验 + 预览确认</span>
+          <span class="spacer"></span>
+          <span style="font-size:10px;color:var(--ui-accent);cursor:pointer" title="既有能力 · 不变">⟲ 整体回滚已应用的改动</span>
         </div>
       </div>
     </section>
@@ -1078,7 +1126,9 @@ $("#legendBtn").addEventListener("click", function () {
 });
 $("#oplogBtn").addEventListener("click", function () {
   this.classList.toggle("on");
-  $("#oplog").style.display = this.classList.contains("on") ? "block" : "none";
+  var on = this.classList.contains("on");
+  this.textContent = on ? "收起" : "展开";
+  $("#oplog table").style.display = on ? "" : "none";
 });
 $("#chainId").addEventListener("click", function () {
   var old = this.textContent; this.textContent = "✓ 已复制"; var self = this;
@@ -1091,30 +1141,32 @@ $("#chainId").addEventListener("click", function () {
 var NOTES = [
   { mv: "*", sel: ".wc-hub", t: "Hub 底部坞 · 功能切换在此（真实 .ui-hub-rail 形态）",
     b: "对齐运行中应用的真实导航：模块/面板切换不是顶栏页签，而是底部悬浮玻璃坞（bottom 14px · 毛玻璃 · 品牌 mark + 图标列 + ⟨ 收起）。点图标切换工作面（active 双色渐变）；点 ⟨ 整坞下沉收起，只在左下角留 tide orb，点 orb 再召唤——这是应用标志性的两级 hub 交互（Level 1 坞 → Level 2 flyout，真实实现中图标会向侧旁展开内容卡，本稿因各模块即整屏工作面而直接切换舞台）。工作链没有自己的坞图标：它是织入七个模块的底座层。" },
-  { mv: "*", sel: ".wc-themebar", t: "链底座 · 恒定主题条（链≠模块）",
-    b: "七个模块同位出现、随时在旁；共享关闭时整条消失（R21 零行为变化）。主题由 git remote 规范化解析（R24，跨机器稳定身份）；点链 ID 复制（链 ID 与主题双向锚定，R26 加入时核对）；成员头像 = keyId 指纹；「共享开 · 本工作区」= 项目级 coordination.shared 态。右侧「⛓ 链操作日志」可开合：一切链历史操作（fork / task.share / design.version / editor.snapshot / kb.sync / merge / 创世）在此全量可审计（R20），且本稿中所有弹层确认动作都会实时追加一行。" },
+  { mv: "tree", sel: ".th-top", t: "链状态归任务树（无全局链底座条 · R32/R40）",
+    b: "v6 移除了全局恒定主题条——一切链行为都在任务树上操作，链状态（链 ID/同步态/成员/共享态）自然也归任务树顶部：点链 ID 复制（与主题双向锚定，R26）；「共享中」徽章的开关本体在会话模块打开工作区时决定（R32）。数据落点：一切历史数据与链上行为都在工作区 .deeporca/ 数据根下（类比 .git，R40）——会话/审查报告/知识库/设计稿/任务树已在，链账本/blob/视图加入为 .deeporca/coordchain/（gitignored · 走链同步）。底部「⛓ 链操作日志」为唯一审计聚合面（R20/R33）。" },
   { mv: "tree", sel: "#thDomains", t: "域 pills · 真实过滤",
     b: "与会话任务/代码审查等本地域并列，⛓ 链上记录是独立可过滤域——点选后仅显示链上节点。链上记录不只是被动展示：它和本地节点一起参与谱系（接续链在树上直接可见）。" },
   { mv: "tree", sel: ".mem-filter", t: "成员过滤 · 本地视角不变",
     b: "按成员淡化链上节点；本地（本机）节点永远不受成员过滤影响——本地是用户的私有视角，链上内容才是共享视角。这是「默认关、显式共享」原则在树视图上的投射。" },
   { mv: "tree", sel: "#graph", t: "任务树 = 整条共享链",
     b: "节点形状：● 会话主任务（圆环）· ⑂ fork（小环，对应 git 分支）· ◆ 伴随任务（菱形）· ⛓ 链上记录（虚线环 + 成员色）。本地谱系与链上 task.share 谱系按时间一树混排：A 机完成任务上链 → B 机「接续开发」→ 新的 ⛓ 节点带 parentRecordId 挂回——任务的工作链直接长在任务树上，不需要去别的面板看（R14/R15）。" },
-  { mv: "tree", sel: "#detail", t: "节点详情 · 链上/本地动作集不同",
-    b: "本地节点：打开时间线 / ⑂ 声明 fork / ⛓ 上链共享。链上记录：▶ 接续开发（先检出上游 ws.commit 对齐本地，预览确认后生成注入上下文卡的新会话，R15/R31）/ 认领保护（声明性软锁，R17/R18）/ 查看区块（链浏览器审计）。" },
+  { mv: "tree", sel: "#detail", t: "节点详情板 · 本地/链上二分（R34）",
+    b: "右侧信息板按节点来源二分：链上节点才有链元信息板（来源设备/链/记录/关联版本）与链上轨迹图树（谁做了什么，操作者以链上 id 声明）；本地节点只有本地动作集，无任何链信息板。节点级共享开关也在详情板：关闭后该节点对成员仅标题可见且锁定（share.rule 记账，R16/R32）。" },
   { mv: "tree", sel: ".trace", t: "轨迹常开",
-    b: "会话任务的完整轨迹（用户指令 → agent 行为流）直接展开在节点下方，没有收起态——轨迹是上链共享时的数据基座（TaskTrajectory 压缩为摘要，不含对话原文，R14/R16）。" },
-  { mv: "sessions", sel: "#ssList", t: "链溯源行",
-    b: "会话项第三行 = 链溯源：接续会话恒显「来源记录 + 版本对齐态」；已共享会话显示记录 id 与联签态、谁已接续；本地会话则给「⛓ 上链共享 →」动作入口。选中任一会话，右栏联动。" },
-  { mv: "sessions", sel: "#ssShareBtn", t: "上链共享 · 预览确认（R20）",
-    b: "一切离开本机的字节前的显式动作：目标明示（链 ID + 成员数）→ 轨迹摘要（TaskTrajectory，不含对话原文）→ 结论/遗留可编辑 → 随行变更勾选（复用 GitFileHistory 变更集直接提交 ws.commit，taskRef 互链）→ 记录预览 → 确认。「自动共享」为独立子开关且默认关（R16）。" },
-  { mv: "sessions", sel: "#ssRight", t: "接续上下文卡（不进 core 回路）",
-    b: "从链上任务记录接续时，新会话注入结构化上下文卡：目标/已完成/触及文件/结论/遗留/上游链 ID + recordId + commitCid。它只是 prompt 模板 + IPC 数据，协作链完全不触碰 LLM 会话回路；完成后再共享自动携带 parentRecordId 形成谱系。" },
+    b: "会话任务的完整轨迹（用户指令 → agent 行为流）直接展开在节点下方，没有收起态——它是任务终态自动记账时的数据基座（TaskTrajectory 压缩为摘要，不含对话原文，R14/R16）。" },
+  { mv: "sessions", sel: "#ssList", t: "会话列表 = 本地形态（零差异，R37）",
+    b: "共享态下会话模块不新增任何常驻链表面：搜索/分组/状态/token 徽标与本地完全一致。链上发生了什么（fork 来源、随行版本、快照）不在这里展示——全部收敛到底部链 id 弹窗。" },
+  { mv: "sessions", sel: "#ssOpenWs", t: "打开工作区 · 共享在此决定（R32）",
+    b: "工作区是否入链不是全局设置项，而是会话模块「打开工作区」流程里的一次性决定：解析工作区主题（git remote 规范化）→ 明示链 ID 与成员 → 开启共享并打开 / 仅本地打开。开启后所有节点默认可见可操作，例外在任务树逐节点收回。" },
+  { mv: "sessions", sel: "#ssChainChip", t: "链 id 弹窗 · 链上元信息唯一入口（R37）",
+    b: "会话区下方恒显链 id 行（本会话已入链时）：点击弹窗呈现来源 fork / 上游记录 / 文件快照（每会话节点的操作文件快照，R39）/ 操作者链上 id 时间线。无常驻链面板、无会话级上链按钮。会话的 fork 是模块自己的既有本地能力（不在本稿重绘）；链上 fork 只在任务树发起（R32 铁律）。" },
+  { mv: "sessions", sel: "#ssRight", t: "聊天转录 · 链自动记账不打断对话",
+    b: "右栏就是普通聊天转录（工具行/思考/回复/composer）。共享开启后，任务终态自动记账 task.share + 随行 ws.commit（R16）——没有「上链共享」按钮，记账动作只出现在链操作日志与会话底部链 id 行。" },
   { mv: "prototype", sel: "#protoTabs", t: "三段页签 · 一版一套",
     b: "一个版本 = 需求文档 + 交互原型 + 验收报告一套；切换版本三段同步。与 UI 设计模块共用此交互骨架（对齐 design-systems-advance 两稿）。" },
-  { mv: "prototype", sel: "#protoRail", t: "融合版本 rail（本地 ∪ 链上）",
-    b: "原型与 UI 设计是唯二可独立 fork 的产物域。本地 ● 与链上 ⛓（成员色左边条 + 来源行）按时间混排在同一条 rail——不另立链版本区。筛选 chips：全部 / ● 本地 / ⛓ 链上。点 ⛓ 版本 → 溯源 diff 视图（来源设备/记录/关联 ws.commit + 与本地 head 的 tree diff + 拉取/fork/择线动作）；点 ● 版本 → 回到段内容。发布/拉取只是 rail 上的节点动作，本地编辑不被打断。" },
-  { mv: "prototype", sel: "#protoPublishBtn", t: "发布为链上版本（R20 预览确认）",
-    b: "本地版本 → 链上版本：变更摘要预览（产物集/blob 分块去重/原型基线）→ design.version 记录预览（≤8KB，manifest CID，parentRecordId 版本链）→ 确认后签名 gossip → 联签 2/3 终局。撤销 = asset.revoke 声明（链上历史保留）。" },
+  { mv: "prototype", sel: "#protoRail", t: "版本 rail · 单列混排 + tag（不做过滤分裂）",
+    b: "原型与 UI 设计的版本历史单列混排：链上版本以 ⛓ tag + 成员色左边条区分——不提供本地/链上过滤 chips、不另立链版本区（2026-09-08：分裂式交互徒增成本）。点 ⛓ 版本 → 溯源 diff 视图（来源设备/记录/关联 ws.commit + 与本地 head 的 tree diff + 拉取/择线动作）；点 ● 版本 → 回到段内容。模块内无 fork 按钮（fork 铁律：fork 只在任务树，R32）；版本上链是自动记账（R33）。" },
+  { mv: "prototype", sel: "#protoAutoBadge", t: "版本自动记账（R33，无发布动作）",
+    b: "共享开启后，原型/UI 版本随任务终态自动记账为 design.version 记录（签名 gossip → 联签 2/3 终局）——不在本模块设「发布为链上版本」按钮、不做逐动作确认（R32）。撤销 = asset.revoke 声明（链上历史保留）。" },
   { mv: "design", sel: "#uiTabs", t: "三段：视觉稿 / 设计系统 / 质量与评审",
     b: "对齐 design-systems-advance 的 UI 设计稿：视觉稿（预览舞台）· 设计系统（.dds tokens 表 + 组件原子墙，切换即确定性重染）· 质量与评审（lint → 机检 → review 门 R1→自愈→R2）。" },
   { mv: "design", sel: "#uiRail", t: "基线徽章随版本走（含 ⛓）",
@@ -1131,14 +1183,18 @@ var NOTES = [
     b: "tier 横带（高/中/低）× 文件 lane 平面板；图例 chip 是真实层级过滤器（点掉即重排）。节点 popover 给意见摘要 + 「跳转报告 ◎」→ 切回报告子页并闪烁该 finding——与真实实现的 review-bind 双向定位语义一致。" },
   { mv: "kb", sel: ".ui-knowledge-subtabs", t: "三子页 · hue 色点",
     b: "Deep Wiki / 架构图 / 符号表——与审查子页同一子页语言。知识库的「版本」= 构建版本（codegraph/wiki/arch 三件套，绑定代码基线）。" },
-  { mv: "kb", sel: ".ui-knowledge-buildbar", t: "构建历史 ∪ 链上同步（◆ 随代码）",
-    b: "本地构建与成员的链上同步混排（⛓ 随其 ws.commit 基线对齐）。知识库为随代码版本：fork 会话/编辑器时随对应基线自动构建关联版本，不可独立 fork。应用链上知识版本前必预览差异（R20）：wiki 页数/arch 图/索引规模/冲突逐项给出。" },
+  { mv: "kb", sel: ".ui-knowledge-buildbar", t: "顶部 = 同步状态行（R35）",
+    b: "知识库顶部只声明一件事：已同步 + 对应链信息 + 时间；存在同步覆盖/写入行为时在此标注（如「最近写入：#12 · 覆盖采纳」）。不铺设语义声明 chips、不设模块内 fork 按钮（fork 铁律：fork 只在任务树发起，R32）。语义本身（追随代码 · 覆盖即采纳 · 对方缺失保留本地 · AGENTS.md 始终合并 · 符号关系图自动 update hook）是模块行为，不是 UI 文案——见 R35 与设计文档 §10。" },
   { mv: "editor", sel: ".ed-canvas", t: "文件树 / 页签 / 画布联动",
     b: "编辑器结对（PAIR）会话级轨迹进任务树；文件级变更通过 GitFileHistory 自动产出 checkpoint（changedFilePaths/checkpointHash 现成可得）——这正是上链共享「随行 ws.commit」与 fork「变更集直通提交」的数据源（R28）。" },
-  { mv: "editor", sel: "#edHist", t: "历史抽屉 · checkpoint ∪ ⛓ 快照",
-    b: "本地 checkpoint（● 蓝，自动撤销点，永不出机）与链上快照（⛓ 成员色，editor.snapshot 记录）按时间混排。快照上链是显式动作；恢复链上快照前逐块 CID 校验 + 预览确认，物化目标限用户选定目录内（防路径穿越）。" },
-  { mv: "editor", sel: "#edHistActs", t: "快照上链 / 恢复 / 对比",
-    b: "⛓ 快照上链 → editor.snapshot 记录（签名 gossip → 联签终局）；↺ 恢复此点 → 本地点直接 undo / 链上点走校验+预览；⇄ 与当前对比 → 文件级 diff。三个动作都写入链操作日志（上链类）或纯本地（恢复本地 checkpoint 不上链）。" }
+  { mv: "editor", sel: ".ed-pair", t: "结对栏（既有内容 · 不受影响）",
+    b: "编辑器右侧 hub 的既有结对编程栏目原样保留：综对命令/计划/变更文件/审批队列不动——本地历史不进入右栏，结对栏不受任何影响。" },
+  { mv: "editor", sel: ".ed-baseline", t: "底部基线行 = 历史入口（R36 · 底部基线式）",
+    b: "底部检查点/基线行是既有元素（基线自动保存的前提），本地历史管理直接以它为入口：点击展开即以列表展示当前文件的全部历史快照（条数随文件显示），再点收起——编辑器布局零改动。右侧「整体回滚已应用的改动」为既有能力，保持不变。" },
+  { mv: "editor", sel: "#edHist", t: "历史列表 = 当前文件全部快照（本地历史 ∪ 链上来源，R36）",
+    b: "本地历史点（● 蓝）对标 IDEA/VSCode local history：以基线自动保存为前提自动产出——本地修改、fork 落地、合并均产生历史点，永不出机。链上条目（⛓ 成员色）由共享开启后的自动记账产生，以链上 id 声明来源（fork 链/合并链）；恢复链上条目前逐块 CID 校验 + 预览确认。列表随选中文件切换。" },
+  { mv: "editor", sel: "#edHistActs", t: "恢复 / 对比（无「快照上链」按钮）",
+    b: "↺ 恢复此点 → 本地点直接 undo / 链上点走校验+预览；⇄ 与当前对比 → 文件级 diff。没有「快照上链」动作：链上条目是共享开启后随 ws.commit 自动记账产生的（R33），本模块不做独立上链声明。" }
 ];
 var annotOn = false;
 function renderNotes() {
@@ -1152,7 +1208,7 @@ function renderNotes() {
     if (note.mv !== "*" && note.mv !== activeMv) return;
     var root = note.mv === "*" ? document : $("#mv-" + activeMv);
     if (!root) return;
-    var el = note.sel === ".wc-themebar" ? $(".wc-themebar") : $(note.sel, root) || $(note.sel);
+    var el = $(note.sel, root) || $(note.sel);
     if (!el) return;
     n++;
     el.classList.add("annoted");
@@ -1181,22 +1237,32 @@ $("#annotBtn").addEventListener("click", function () {
 /* ═══════════ 任务树 ═══════════ */
 var NODES = [
   { id: "n1", lane: 0, kind: "chain", member: "design", title: "接续 · 登录风控策略调研", rec: "r:9d44…", commit: "c:f31a8b…", time: "14:20",
+    traj: [
+      { rec: "r:8c11…", mem: "dev", did: "7c2e", what: "task.share · 登录 API 契约测试先行", at: "12:05" },
+      { rec: "r:9d44…", mem: "design", did: "a41f", what: "task.share · 接续 · 风控策略调研", at: "14:20" }
+    ],
     meta: ["⛓ task.share · 接续自 r:8c11…", "结论：分级风控阈值（低/中/高）", "遗留：阈值数值待评审"] },
   { id: "n2", lane: 1, kind: "fork", title: "⑂ fork B · 记忆驱动分支", time: "13:05", status: "merged", forkOf: "n6",
     meta: ["已合并回主干 · cherry-pick 2 节点", "fork 即上链 · ⛓ r:c2e8…"] },
-  { id: "n3", lane: 0, kind: "session", title: "主任务 · 登录模块重构", time: "2 小时前", status: "running", hasTrace: true,
+  { id: "n3", lane: 0, kind: "session", title: "主任务 · 登录模块重构", time: "2 小时前", status: "running", hasTrace: true, share: true,
     git: { branch: "refactor/login-token", hash: "8be12d4" }, meta: ["活跃分支 2 · 节点 9"] },
   { id: "n4", lane: 0, kind: "chain", member: "dev", title: "登录 API 契约测试先行", rec: "r:8c11…", commit: "c:b7e2f1…", time: "12:05",
+    traj: [
+      { rec: "r:8c11…", mem: "dev", did: "7c2e", what: "task.share · 随行 ws.commit c:b7e2…", at: "12:05" },
+      { rec: "r:e7b2…", mem: "design", did: "a41f", what: "批注 · 错误码表需对齐", at: "13:40" }
+    ],
     meta: ["⛓ task.share · 随行 ws.commit c:b7e2…", "结论：契约用例 14 条先行", "遗留：错误码表未对齐", "已被 design-ipad 接续 →"] },
   { id: "n5", lane: 0, kind: "review", title: "代码审查 · 链上版本 c:b7e2f1…", time: "11:40",
     meta: ["4 项意见 · 2 个文件", "⛓ 基线 = dev-windows-01 的链工作区提交"] },
-  { id: "n6", lane: 0, kind: "session", title: "主任务 · passkey 方案", time: "昨天", status: "done",
+  { id: "n6", lane: 0, kind: "session", title: "主任务 · passkey 方案", time: "昨天", status: "done", share: true,
     meta: ["⛓ 已共享 r:8c11… 的上游会话（本机）"] },
   { id: "n7", lane: 0, kind: "chain", member: "design", note: true, title: "批注 · 风控阈值需二次确认", rec: "r:a3f0…", time: "昨天",
     meta: ["⛓ note（≤2KB）· 批注在 r:9d44… 上"] },
   { id: "n8", lane: 0, kind: "editor", title: "PAIR · 解释选中代码的职责与边界条件", time: "昨天", meta: ["编辑器结对 · 会话级轨迹进任务树"] },
   { id: "n9", lane: 0, kind: "chain", member: "kel", genesis: true, title: "创世 · git:github.com/zshipu/gvgl", time: "2 天前",
-    meta: ["创世成员 kelthas-mbp · 准入 open · 多数派 2/3"] }
+    meta: ["创世成员 kelthas-mbp · 准入 open · 多数派 2/3"] },
+  { id: "n10", lane: 1, kind: "chain", member: "dev", shared: false, title: "内部重构 · 未共享节点", rec: "r:e1a2…", time: "10:12",
+    meta: [] }
 ];
 var TRACES = {
   n3: [
@@ -1223,11 +1289,12 @@ NODES.forEach(function (t) {
   card.innerHTML =
     '<div class="t"><span class="chip ' + (t.kind === "chain" ? "tag-chain" : "tag-" + t.kind) + '"' + chipStyle + '>' + chipLabel + '</span>'
     + '<span class="name">' + esc(t.title) + '</span>'
+    + (t.shared === false ? '<span class="chip" style="background:var(--ui-surface-hover);color:var(--ui-text-dim)">🔒 未共享</span>' : "")
     + (t.status === "running" ? '<span class="chip st-running">进行中</span>' : "")
     + (t.status === "merged" ? '<span class="chip st-merged">已合并</span>' : "")
     + '</div><div class="meta">'
     + (t.git ? '<span class="git-chip">⎇ ' + (t.git.branch ? t.git.branch + " " : "") + t.git.hash + '</span>' : "")
-    + (t.rec ? '<span class="wc-chip">⛓ ' + t.rec + '</span>' : "")
+    + (t.rec && t.shared !== false ? '<span class="wc-chip">⛓ ' + t.rec + '</span>' : "")
     + (t.meta || []).map(function (m) { return "<span>" + esc(m) + "</span>"; }).join("")
     + '<span class="tag">' + t.time + '</span></div>';
   card.addEventListener("click", function () { selectNode(t); });
@@ -1356,13 +1423,23 @@ $$(".mf-chip").forEach(function (b) {
 });
 
 var KIND_LABEL = { session: "会话任务", review: "代码审查", editor: "编辑器结对", chain: "链上记录", fork: "fork 分支" };
+function trajHtml(traj) {
+  if (!traj || !traj.length) return "";
+  return '<div class="traj"><div class="hd">⛓ 链上轨迹 · 操作者以链上 id 声明（R34）</div>'
+    + traj.map(function (n) {
+      return '<div class="nd" style="--mem-c:' + MEMBERS[n.mem].c + '">'
+        + '<span class="at">' + n.at + '</span>'
+        + '<span class="who">⛓ ' + n.rec + '</span> <span class="what">' + esc(n.what) + '</span>'
+        + '<div class="who">' + MEMBERS[n.mem].name + ' · did:' + n.did + '</div></div>';
+    }).join("") + '</div>';
+}
 function selectNode(t) {
   rowEls.forEach(function (re) { re.card.classList.toggle("sel", re.t === t); });
   requestAnimationFrame(layoutGraph);
   var d = $("#detail");
   if (t.kind !== "chain") {
     var actions = {
-      session: ['<button class="wc-btn accent sm">打开时间线</button>', '<button class="wc-btn sm" data-fork>⑂ 声明 fork</button>', '<button class="wc-btn sm" data-share>⛓ 上链共享</button>'],
+      session: ['<button class="wc-btn accent sm">打开时间线</button>', '<button class="wc-btn sm" data-fork>⑂ 声明 fork</button>'],
       review: ['<button class="wc-btn accent sm" data-goreview>打开报告</button>', '<button class="wc-btn sm" data-fixall>一键修复 → 任务</button>'],
       editor: ['<button class="wc-btn accent sm" data-goeditor>打开结对</button>'],
       fork: ['<button class="wc-btn accent sm">切换分支</button>']
@@ -1372,10 +1449,20 @@ function selectNode(t) {
       + '<div class="sub">' + t.time + ' · ' + KIND_LABEL[t.kind] + (t.status ? " · " + ({ running: "进行中", done: "已完成", merged: "已合并" }[t.status]) : "") + '</div>'
       + (t.git ? '<div class="drow"><span class="k">git 绑定</span><span class="git-chip">⎇ ' + (t.git.branch ? t.git.branch + " " : "") + t.git.hash + '</span></div>' : "")
       + (t.meta || []).map(function (m) { return '<div class="drow"><span class="k">·</span><span>' + esc(m) + '</span></div>'; }).join("")
-      + '<div class="dsec"><div class="hd">版本语义</div><div class="drow"><span class="k">本节点版本</span><span>● 本地</span></div></div>'
+      + (t.kind === "session"
+        ? '<div class="dsec"><div class="hd">节点级共享开关（R16/R32 · 唯一逐节点控制点）</div>'
+          + '<div class="drow"><span class="k">共享状态</span><span><button class="wc-btn sm" data-sharetoggle>'
+          + (t.share === false ? "🔒 已关闭 · 对成员仅标题可见" : "🔓 共享中 · 点击关闭") + '</button></span></div></div>'
+        : '<div class="dsec"><div class="hd">版本语义</div><div class="drow"><span class="k">本节点版本</span><span>● 本地</span></div></div>')
       + '<div class="acts">' + actions.join("") + '</div>';
     var fk = $("[data-fork]", d); if (fk) fk.addEventListener("click", function () { openForkPop(t); });
-    var sh = $("[data-share]", d); if (sh) sh.addEventListener("click", function () { switchModule("sessions"); openSharePop(); });
+    var st = $("[data-sharetoggle]", d);
+    if (st) st.addEventListener("click", function () {
+      t.share = t.share === false;
+      oplogAppend("share.rule", "n:" + t.id.slice(-4), "kel", (t.share ? "开启" : "关闭") + "共享 · " + (t.share ? "成员可见可操作" : "对成员仅标题 + 锁定"));
+      toast(t.share ? "节点已开启共享（默认态）" : "节点共享已关闭 · 其他成员仅见标题且锁定");
+      selectNode(t);
+    });
     var gr = $("[data-goreview]", d); if (gr) gr.addEventListener("click", function () { switchModule("review"); });
     var ge = $("[data-goeditor]", d); if (ge) ge.addEventListener("click", function () { switchModule("editor"); });
     var fa = $("[data-fixall]", d);
@@ -1383,6 +1470,15 @@ function selectNode(t) {
       oplogAppend("task.share · 修复", "r:new…", "kel", "审查意见修复任务 · 绑定同基线");
       toast("已生成修复任务节点（绑定同基线）");
     });
+  } else if (t.shared === false) {
+    d.innerHTML =
+      '<div class="head"><span class="glyph" style="color:var(--ui-text-dim);background:var(--ui-surface-hover)">🔒</span><h2>' + esc(t.title) + '</h2></div>'
+      + '<div class="sub">' + t.time + ' · 链上任务记录（未共享）</div>'
+      + '<div class="dsec"><div class="hd">未共享节点（R16/R32）</div>'
+      + '<div style="font-size:11px;color:var(--ui-text-dim);line-height:1.7">'
+      + '该节点由来源设备关闭了共享：对成员<b>仅呈现标题</b>，无法展开详情、不可接续、不可批注——节点锁死。'
+      + '链上仅存标题占位（share.rule 记账可审计），内容不出其设备。</div></div>'
+      + '<div class="acts"><button class="wc-btn sm" disabled style="opacity:.5">🔒 节点已锁定</button></div>';
   } else {
     var m = MEMBERS[t.member];
     d.innerHTML =
@@ -1393,6 +1489,7 @@ function selectNode(t) {
       + (t.rec ? '<div class="drow"><span class="k">记录</span><span class="mono" style="font-size:10px">' + t.rec + '</span></div>' : "")
       + (t.commit ? '<div class="drow"><span class="k">关联版本</span><span class="wc-chip">⛓ ws.commit ' + t.commit + '</span></div>' : "")
       + (t.meta || []).map(function (x) { return '<div class="drow"><span class="k">·</span><span>' + esc(x) + '</span></div>'; }).join("")
+      + trajHtml(t.traj)
       + '<div class="dsec"><div class="hd">接续</div>'
       + '<div style="font-size:11px;color:var(--ui-text-dim);line-height:1.6">'
       + (t.commit ? "先检出上游版本对齐本地（预览确认）→ 新会话注入上下文卡 → 完成后自动携带 parentRecordId。" : "记录级接续：生成注入摘要的本地新会话。")
@@ -1426,8 +1523,8 @@ function openForkPop(t) {
     + '<label><span class="cb"></span>✎ 编辑器<span class="why">本地历史快照随行上链</span></label>'
     + '<label><span class="cb"></span>◎ 原型设计<span class="why">链上版本独立可选（唯二）</span></label>'
     + '<label><span class="cb"></span>✦ UI 设计<span class="why">链上版本独立可选（唯二）</span></label>'
+    + '<label><span class="cb"></span>▤ 知识库<span class="why">可 fork · 连带代码分支信息 · 覆盖取决于代码时间线</span></label>'
     + '<label class="locked"><span class="cb"></span>✓ 审查<span class="why">随代码 · 不可单独 fork</span></label>'
-    + '<label class="locked"><span class="cb"></span>▤ 知识库<span class="why">随代码 · 不可单独 fork</span></label>'
     + '</div>'
     + '<input class="wc-input" id="fkName" value="passkey-fork" />'
     + '<textarea class="wc-input" id="fkWhy" placeholder="一句话理由（进链上 fork 记录）"></textarea>'
@@ -1437,7 +1534,7 @@ function openForkPop(t) {
   openPop(popShell("⑂ 声明 fork", "checkout 新分支 · 行为即上链", body));
   $$("#popHost .wc-doms label").forEach(function (l) {
     l.addEventListener("click", function () {
-      if (l.classList.contains("locked")) { toast("审查/知识库与代码强绑定：随会话/编辑器 fork 自动构建关联版本"); return; }
+      if (l.classList.contains("locked")) { toast("审查与代码强绑定：随会话/编辑器 fork 自动构建关联版本（知识库 fork 走时间线覆盖语义）"); return; }
       l.classList.toggle("on");
       $(".cb", l).textContent = l.classList.contains("on") ? "✓" : "";
     });
@@ -1449,83 +1546,109 @@ function openForkPop(t) {
   });
 }
 
-/* ═══════════ 会话 ═══════════ */
+/* ═══════════ 会话（对齐本地 UI · 链自动记账 · R32/R37/R38/R39） ═══════════ */
 var SESSIONS = [
-  { id: "s1", title: "passkey-check", status: "run", time: "刚刚", chain: "resume", from: "r:8c11…（dev-windows-01）", align: "c:b7e2… 已检出（3 文件 · 预览确认）" },
-  { id: "s2", title: "登录模块重构", status: "run", time: "1 小时", chain: "local" },
-  { id: "s3", title: "passkey 方案", status: "ok", time: "昨天", chain: "shared", rec: "r:8c11…", commit: "c:b7e2…" }
+  { id: "s1", title: "passkey-check", status: "run", time: "刚刚", tokens: "3.2k", forkOf: { rec: "r:8c11…", who: "dev", commit: "c:b7e2…" } },
+  { id: "s2", title: "登录模块重构", status: "run", time: "1 小时", tokens: "38.9k" },
+  { id: "s3", title: "passkey 方案", status: "ok", time: "昨天", tokens: "12.1k" },
+  { id: "s4", title: "Create an interactive prototype using t…", status: "ok", time: "5d", tokens: "28.4k" },
+  { id: "s5", title: "符号表 update hook 排查", status: "stop", time: "7d", tokens: "8.4k" },
+  { id: "s6", title: "/init", status: "stop", time: "10d", tokens: "1.9k" },
+  { id: "s7", title: "风险图谱 lane 重排验证", status: "stop", time: "10d", tokens: "6.7k" }
+];
+var STATUS_LABEL = { run: "进行中", ok: "已完成", stop: "已中断" };
+var CHAT_STEPS = [
+  { ic: "▶", tool: "执行", arg: "find . -maxdepth 2 -type f  # List top-level files" },
+  { ic: "✻", tool: "思考", arg: "I need to update AGENTS.md to reflect the actual repository structure…" },
+  { ic: "▤", tool: "读取", arg: "README.md" },
+  { ic: "▤", tool: "读取", arg: "pom.xml" },
+  { ic: "✎", tool: "写入", arg: "AGENTS.md  +38 −12" }
 ];
 function renderSessions(selId) {
-  $("#ssList").innerHTML = "";
+  var host = $("#ssList");
+  host.innerHTML = "";
+  var grp = document.createElement("div");
+  grp.className = "ss-group";
+  grp.innerHTML = '<span>⌂ GVGL</span><span class="cnt">' + SESSIONS.length + ' 个会话</span>';
+  host.appendChild(grp);
   SESSIONS.forEach(function (s) {
     var b = document.createElement("div");
     b.className = "ss-item" + (s.id === selId ? " sel" : "");
-    var prov = s.chain === "resume"
-      ? '<div class="wc-prov">⑂ 链上接续 · 来源 ' + s.from + ' · <b>已注入上游上下文卡 + 版本对齐 ' + s.align + '</b></div>'
-      : s.chain === "local"
-        ? '<div class="wc-prov">本地会话 · 未上链 · <b style="color:var(--ui-accent);cursor:pointer">⛓ 上链共享 →</b></div>'
-        : '<div class="wc-prov">⛓ 已共享 <b>' + s.rec + '</b> · 随行 ws.commit ' + s.commit + ' · 联签封存 · dev-windows-01 已接续</div>';
     b.innerHTML = '<div class="ss-title">💬 ' + esc(s.title) + '</div>'
       + '<div class="ss-meta"><span class="ss-dot ' + (s.status === "run" ? "run" : "ok") + '"></span>'
-      + (s.status === "run" ? "进行中" : "已完成") + '<span class="ss-time">' + s.time + '</span></div>' + prov;
+      + STATUS_LABEL[s.status]
+      + '<span class="wc-chip ghost" style="font-size:8.5px">' + s.tokens + '</span>'
+      + '<span class="ss-time">' + s.time + '</span></div>'
+      + (s.forkOf ? '<div class="wc-prov">⑂ fork 自 ' + s.forkOf.rec + '（' + MEMBERS[s.forkOf.who].name + '）· 记忆摘要已注入</div>' : "");
     b.addEventListener("click", function () { renderSessions(s.id); });
-    $("#ssList").appendChild(b);
+    host.appendChild(b);
   });
   var s = SESSIONS.filter(function (x) { return x.id === selId; })[0] || SESSIONS[0];
+  renderSessionChat(s);
+}
+function renderSessionChat(s) {
   var right = $("#ssRight");
+  var steps = CHAT_STEPS.map(function (st) {
+    return '<div class="cc-step"><span>' + st.ic + '</span><span class="tool">' + st.tool + '</span>'
+      + '<span class="arg">' + esc(st.arg) + '</span><span class="ok">✓</span></div>';
+  }).join("");
   right.innerHTML =
-    (s.chain === "resume"
-      ? '<div class="wc-banner"><div class="t"><span class="wc-chip">⛓ 接续开发</span>从链上任务记录生成的新会话（' + esc(s.title) + '）</div>'
-        + '<div class="s">R15/R31：先检出上游 ws.commit 对齐本地（预览确认）→ 新会话注入结构化上下文卡 → 完成后再共享自动携带 parentRecordId 形成谱系</div></div>'
-      + '<div class="dw-doc"><h3>📋 注入的上下文卡（prompt 模板 · 不进 core 回路）</h3>'
-        + '<div class="kv-rows" style="margin-top:6px">'
-        + '<div class="kv"><span class="k">上游任务</span><span class="v">登录 API 契约测试 · r:8c11… · dev-windows-01</span></div>'
-        + '<div class="kv"><span class="k">目标</span><span class="v">passkey 方案的 API 契约与测试先行</span></div>'
-        + '<div class="kv"><span class="k">已完成</span><span class="v">契约用例 14 条 · 基础实现 +21 −4</span></div>'
-        + '<div class="kv"><span class="k">遗留</span><span class="v">错误码表未对齐 · CI 未跑</span></div>'
-        + '<div class="kv"><span class="k">版本对齐</span><span class="v" style="color:var(--ui-success)">✓ c:b7e2… 已检出（3 文件 · 预览确认）</span></div>'
-        + '<div class="kv"><span class="k">谱系</span><span class="v">parentRecordId = r:8c11… → 本次完成将成 r:9d44…</span></div>'
-        + '</div></div>'
-      : '<div class="dw-doc"><h3>会话动作行的融合语义</h3><p style="margin-top:4px">'
-        + '本地会话 → <b style="color:var(--ui-accent)">⛓ 上链共享</b>（逐次显式 · 预览确认；「自动共享」独立子开关默认关）。<br>'
-        + '链上接续会话 → 溯源行恒显（来源记录 + 版本对齐态），完成时共享自动携带 parentRecordId。<br>'
-        + '随行变更勾选 → 直接复用 GitFileHistory 变更集提交为 ws.commit（taskRef 互链），无需手动选文件。</p>'
-        + '<div class="acts"><button class="wc-btn accent" id="ssShareInline">⛓ 上链共享（预览确认）</button></div></div>')
-    + '<div class="dw-doc" style="flex:1"><h3>该会话在任务树上的投影</h3>'
-      + '<p style="margin-top:4px">会话任务节点随任务树常开轨迹展示；上链后任务树同时出现对应 ⛓ task.share 节点（同一记录两个视角），'
-      + '成员在各自设备的任务树上即时可见（gossip 未封存态 → 联签 2/3 终局）。</p></div>';
-  var btn = $("#ssShareInline");
-  if (btn) btn.addEventListener("click", openSharePop);
+    '<div style="display:flex;gap:6px;align-items:center;flex:none"><span class="dw-badge">' + esc(s.title) + '</span></div>'
+    + '<div class="cc-scroll">'
+    + (s.forkOf
+      ? '<div class="wc-banner" style="flex:none"><div class="t"><span class="wc-chip">⑂ fork 会话</span>来自 ' + s.forkOf.rec + '（' + MEMBERS[s.forkOf.who].name + '）· <b>不保留前置历史</b></div>'
+        + '<div class="s">R38：前置上下文以记忆摘要注入本任务区 · 项目内容采用该节点覆盖内容（ws.commit ' + s.forkOf.commit + ' 物化）</div></div>'
+      : "")
+    + '<div class="cc-user">重构登录模块：token 存储改用 httpOnly cookie，补齐单测。</div>'
+    + steps
+    + '<div class="cc-assistant"><b>DeepOrca 16:53</b><br><br>已按仓库实际结构更新 <b>AGENTS.md</b>：替换过期的自动生成块，补充项目结构、构建/测试命令、代码风格与提交约定小节。文件已就绪。</div>'
+    + (s.forkOf
+      ? '<div class="cc-sumcard"><b>🧠 记忆摘要（注入 · 非前置历史）</b><br>上游「登录 API 契约测试先行」：契约用例 14 条已完成；httpOnly cookie 方案已落地 +21 −4；遗留：错误码表未对齐、CI 未跑。<br>⑂ fork 自 r:8c11… · 文件快照 3 个（token.ts · login.ts · token.test.ts）</div>'
+      : "")
+    + '</div>'
+    + '<div class="cc-composer"><textarea placeholder="让 DeepOrca 构建、修复或解释…"></textarea>'
+    + '<div class="row"><span class="wc-chip ghost" style="font-size:9px">计划模式</span><span class="spacer"></span>'
+    + '<button class="wc-btn sm">继续任务</button><button class="wc-btn gel sm">发送</button></div></div>'
+    + '<div class="cc-ctx"><span>上下文</span><span class="bar"><i></i></span><span>14.86%</span></div>'
+    + '<div class="ss-chainline" id="ssChainChip" title="点击查看本会话的链上元信息（R37 · 唯一链入口）">⛓ ' + CHAIN_ID + ' · 本会话链上元信息 · 点击查看</div>';
+  $("#ssChainChip").addEventListener("click", function () { openChainMetaPop(s); });
 }
-renderSessions("s1");
-$("#ssShareBtn").addEventListener("click", openSharePop);
-
-function openSharePop() {
+function openChainMetaPop(s) {
   var body =
-    '<div class="wc-box"><div class="k">共享目标（明示）</div>'
-    + '<div class="cl">⛓ ' + CHAIN_ID + ' · 主题 git:github.com/zshipu/gvgl</div>'
-    + '<div class="cl">3 名成员：kelthas-mbp（本机）· dev-windows-01 · design-ipad</div></div>'
-    + '<div class="wc-box"><div class="k">轨迹摘要（TaskTrajectory · 不含对话原文）</div>'
-    + '<div class="kv"><span class="k">工具计数</span><span class="v">read×6 · bash×4 · edit×2 · 2 turns</span></div>'
-    + '<div class="kv"><span class="k">触及文件</span><span class="v">token.ts · login.ts · token.test.ts</span></div>'
-    + '<div class="kv"><span class="k">成败统计</span><span class="v">11 ✓ · 1 ✗（已重试成功）</span></div></div>'
-    + '<div><div class="wc-box" style="margin-bottom:6px"><div class="k">结论（可编辑）</div></div>'
-    + '<textarea class="wc-input">token 存储改用 httpOnly cookie；过期阈值常量化；契约测试 14 条通过。</textarea></div>'
-    + '<div class="wc-box"><div class="k">遗留事项（chip 可删）</div>'
-    + '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:3px">'
-    + '<span class="wc-chip">CI 阈值常量化待办 ✕</span><span class="wc-chip">错误码表对齐 ✕</span></div></div>'
-    + '<label class="wc-doms" style="flex-direction:row"><span class="cb" style="width:13px;height:13px;border:1.4px solid var(--ui-accent);border-radius:4px;background:var(--ui-accent);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:9px">✓</span>'
-    + '<span style="flex:1">随行变更提交为链工作区版本 <b class="mono">ws.commit</b>（3 文件 +38 −12 · 复用 GitFileHistory 变更集 · taskRef 互链）</span></label>'
-    + '<div class="wc-record"><b>task.share</b> { title: "登录模块重构 · 阶段一", trajectory: {…摘要},\n  conclusion: "httpOnly cookie…", leftovers: ["CI 阈值常量化"],\n  commitRef: "c:7d10e2…", parentRecordId: null }\n→ Ed25519 签名 → gossip（未封存即可见）→ 联签 2/3 终局</div>'
-    + '<div class="wc-warnline">⚠ 轨迹不含对话原文 · 共享后可在链浏览器全量审计 · 可随时 asset.revoke 撤销声明</div>'
-    + '<div class="wc-pop-acts"><span class="hint">逐次显式共享 · 「自动共享」独立子开关默认关</span>'
-    + '<button class="wc-btn" data-cancel>取消</button><button class="wc-btn gel" data-go>⛓ 确认共享</button></div>';
-  openPop(popShell("⛓ 上链共享", "预览确认 · 一切离开本机前的显式动作", body));
-  bindPopCancel(function () {
-    oplogAppend("task.share", "r:new…", "kel", "登录模块重构 · 随行 c:7d10e2…");
-    toast("task.share 已上链 · gossip 扩散中（联签 2/3 后终局）");
-  });
+    '<div class="wc-box"><div class="k">链上元信息（R37 · 会话唯一的链入口）</div>'
+    + '<div class="kv"><span class="k">链</span><span class="v">' + CHAIN_ID + '</span></div>'
+    + '<div class="kv"><span class="k">主题</span><span class="v">git:github.com/zshipu/gvgl</span></div>'
+    + '<div class="kv"><span class="k">来源</span><span class="v">' + (s.forkOf ? "⑂ fork 自 " + s.forkOf.rec + "（" + MEMBERS[s.forkOf.who].name + "）" : "本地新建 · 随共享开启自动入链") + '</span></div>'
+    + '<div class="kv"><span class="k">文件快照</span><span class="v">token.ts · login.ts · token.test.ts（R39）</span></div></div>'
+    + '<div class="wc-box"><div class="k">操作者链上 id 时间线（图树 · R34）</div>'
+    + trajHtml([
+      { rec: "r:8c11…", mem: "dev", did: "7c2e", what: "task.share · 登录 API 契约测试先行", at: "12:05" },
+      { rec: "r:9d44…", mem: "design", did: "a41f", what: "接续 · 登录风控策略调研", at: "14:20" },
+      { rec: "本会话", mem: "kel", did: "9f3a", what: "登录模块重构 · 进行中", at: "16:53" }
+    ])
+    + '</div>'
+    + '<div class="wc-pop-acts"><button class="wc-btn" data-cancel>关闭</button></div>';
+  openPop(popShell("⛓ 链上元信息 · " + esc(s.title.slice(0, 12)), "会话区下方链 id 点击弹窗", body));
+  bindPopCancel();
 }
+function openWsSharePop() {
+  var body =
+    '<div class="wc-box"><div class="k">打开新工作区 · 共享在此一次性决定（R32）</div>'
+    + '<div class="kv"><span class="k">工作区主题</span><span class="v">git:github.com/zshipu/gvgl（git remote 规范化）</span></div>'
+    + '<div class="kv"><span class="k">匹配链</span><span class="v">' + CHAIN_ID + ' · 3 名成员</span></div></div>'
+    + '<div class="wc-warnline">开启后：任务树全部节点默认对成员可见可操作；例外在任务树逐节点关闭共享（仅标题 + 锁定）。凡涉链操作自动记账，无需逐动作确认。</div>'
+    + '<div class="wc-pop-acts"><button class="wc-btn" data-cancel>仅本地打开</button><button class="wc-btn gel" data-go>⛓ 开启共享并打开</button></div>';
+  openPop(popShell("＋ 打开工作区", "共享边界在工作区级决定", body));
+  bindPopCancel(function () { toast("已开启共享并打开工作区 · 链 " + CHAIN_ID); });
+}
+$("#ssOpenWs").addEventListener("click", openWsSharePop);
+$("#ssSearch").addEventListener("input", function () {
+  var q = this.value.trim().toLowerCase();
+  $$("#ssList .ss-item").forEach(function (it, ix) {
+    it.style.display = !q || (SESSIONS[ix] && SESSIONS[ix].title.toLowerCase().indexOf(q) > -1) ? "" : "none";
+  });
+});
+renderSessions("s1");
 
 /* ═══════════ 原型 / UI 设计（版本 rail 状态机） ═══════════ */
 var PROTO_VERSIONS = [
@@ -1541,7 +1664,7 @@ var UI_VERSIONS = [
   { v: "⛓ v1", local: false, member: "design", time: "昨天 20:10", note: "初稿 · 深色科技", rec: "r:9f30…", commit: "c:f31a8b…", pulled: true, basis: "基于原型 ⛓ v2", set: ["视觉稿", "设计系统 miss", "质量报告 miss"] },
   { v: "v1", local: true, time: "昨天 16:40", note: "首版 · 现代极简", basis: "基于原型 v3", set: ["视觉稿", "设计系统 miss", "质量报告 miss"] }
 ];
-function wireDesignModule(pfx, versions, tabs, publishBtnId, publishKind) {
+function wireDesignModule(pfx, versions, tabs, publishKind) {
   var st = { sel: null, tab: tabs[0].k, mode: "tab" };
   function headVer() { return versions.filter(function (v) { return v.head; })[0] || versions[0]; }
   function cur() { return st.sel || headVer(); }
@@ -1592,7 +1715,6 @@ function wireDesignModule(pfx, versions, tabs, publishBtnId, publishKind) {
       + '</div></div>'
       + '<div class="acts" style="margin-top:0">'
       + '<button class="wc-btn gel sm" data-pull>⤓ 拉取为本地版本</button>'
-      + '<button class="wc-btn accent sm" data-forkfrom>⑂ 基于此版本 fork</button>'
       + '<button class="wc-btn sm" data-pickhead>与本地 head 择线切换</button>'
       + '<button class="wc-btn sm" data-chainview>在链浏览器查看记录</button></div>';
     var mm = $("#" + pfx + "Main");
@@ -1600,10 +1722,6 @@ function wireDesignModule(pfx, versions, tabs, publishBtnId, publishKind) {
       ver.pulled = true; st.sel = null; st.mode = "tab"; refreshAll();
       oplogAppend("design.pull", ver.rec || "c:…", ver.member, "拉取 " + ver.v + " 为本地版本 · 逐块校验 ✓");
       toast(ver.v + " 已拉取为本地版本（逐块 CID 校验通过）");
-    });
-    $("[data-forkfrom]", mm).addEventListener("click", function () {
-      oplogAppend("fork", ver.rec || "c:…", "kel", "基于 " + ver.v + " 声明 fork（" + publishKind + "域 · 唯二可独立 fork）");
-      toast("已基于 " + ver.v + " 声明 fork · 分支已上链");
     });
     $("[data-pickhead]", mm).addEventListener("click", function () {
       toast("head 已择线切至 ⛓ " + ver.v + "（并行分叉保留可审计）");
@@ -1626,35 +1744,6 @@ function wireDesignModule(pfx, versions, tabs, publishBtnId, publishKind) {
     tb.addEventListener("click", function () {
       st.tab = tb.dataset.t; st.mode = "tab";
       refreshAll();
-    });
-  });
-  $$("#" + pfx + "Filter .rf-chip").forEach(function (c) {
-    c.addEventListener("click", function () {
-      $$("#" + pfx + "Filter .rf-chip").forEach(function (x) { x.classList.toggle("on", x === c); });
-      var f = c.dataset.f;
-      $$("#" + pfx + "Rail .dw-ver").forEach(function (v) {
-        v.style.display = f === "all" || v.dataset.f === f ? "block" : "none";
-      });
-    });
-  });
-  $("#" + publishBtnId).addEventListener("click", function () {
-    var hv = headVer();
-    var body =
-      '<div class="wc-box"><div class="k">将发布</div>'
-      + '<div class="cl">本地 ' + hv.v + ' → 链上版本（' + publishKind + '模块）</div>'
-      + '<div class="cl">⛓ ' + CHAIN_ID + ' · 3 名成员 · 记录 ≤8KB（版本清单走 manifest CID）</div></div>'
-      + '<div class="wc-box"><div class="k">变更摘要（共享前预览 · R20）</div>'
-      + '<div class="kv"><span class="k">产物集</span><span class="v">' + hv.set.map(function (s) { return s.replace(" miss", ""); }).join(" · ") + '</span></div>'
-      + '<div class="kv"><span class="k">blob</span><span class="v">3.2MB → 1 分块 · 内容寻址去重（未变文件不重传）</span></div>'
-      + (hv.basis ? '<div class="kv"><span class="k">原型基线</span><span class="v">' + hv.basis + '（随版本记录 · 跨机不丢）</span></div>' : "")
-      + '</div>'
-      + '<div class="wc-record"><b>design.version</b> { name: "' + publishKind + ' · ' + hv.v + '", manifestCid: "c:…",\n  parentRecordId: 上一链上版本, taskRef?: 会话任务 }\n→ 签名 → gossip → 联签 2/3 终局</div>'
-      + '<div class="wc-warnline">⚠ 成员即时可见（未封存态）· 撤销 = asset.revoke 声明（链上历史保留）</div>'
-      + '<div class="wc-pop-acts"><button class="wc-btn" data-cancel>取消</button><button class="wc-btn gel" data-go>⛓ 确认发布</button></div>';
-    openPop(popShell("⛓ 发布为链上版本", publishKind + "模块 · 本地 → 链上", body));
-    bindPopCancel(function () {
-      oplogAppend("design.version", "r:new…", "kel", publishKind + " · " + hv.v);
-      toast(publishKind + " " + hv.v + " 已发布为链上版本 · 成员即时可见");
     });
   });
   refreshAll();
@@ -1756,16 +1845,15 @@ function renderUiQuality(main, ver) {
 }
 wireDesignModule("proto", PROTO_VERSIONS, [
   { k: "spec", fn: renderProtoSpec }, { k: "proto", fn: renderProtoCanvas }, { k: "accept", fn: renderProtoAccept }
-], "protoPublishBtn", "原型设计");
+], "原型设计");
 wireDesignModule("ui", UI_VERSIONS, [
   { k: "visual", fn: renderUiVisual }, { k: "ds", fn: renderUiDs }, { k: "quality", fn: renderUiQuality }
-], "uiPublishBtn", "UI 设计");
+], "UI 设计");
 
 /* ═══════════ 审查报告 ═══════════ */
 var REPORTS = [
   { id: "r-1041", chain: "dev", time: "2026/9/8 11:42:10", status: "成功", files: 2, findings: 4, excluded: 0,
-    scopeLabel: "⛓ 链上版本 c:b7e2f1…（dev-windows-01）", scopeKind: "chain", scopeKey: "chain",
-    provNote: "⛓ 链上同步 · 基线 c:b7e2f1… · 记录 r:8c11…",
+    scopeLabel: "全仓库（全域审查）", scopeKind: "full", scopeKey: "full", provNote: null,
     data: [
       { path: "src/auth/contract.ts", list: [
         { sev: "HIGH", line: "22-31", crg: "high", content: "错误码未覆盖 429 限流分支 —— 与错误码表遗留项相关。当上游网关触发限流时，当前 `handleIngest` 会把 429 当作一般错误向上抛，导致重试语义丢失。",
@@ -1819,7 +1907,7 @@ function renderReviewHistory() {
       + '<div class="ui-review-history-meta">' + (r.chain ? MEMBERS[r.chain].name + " · " : "") + r.status + ' · ' + r.files + ' 文件 · ' + r.findings + ' 意见</div>';
     b.addEventListener("click", function () {
       rvState.reportId = r.id;
-      $("#rvScope").value = r.scopeKey;
+      if (r.scopeKey === "local" || r.scopeKey === "full") $("#rvScope").value = r.scopeKey;
       renderReviewReports();
     });
     host.appendChild(b);
@@ -1859,9 +1947,8 @@ function renderReviewDoc() {
     '<div class="ui-report-doc">'
     + '<div class="ui-report-doc-head"><h1>代码审查 — GVGL</h1>'
     + '<button class="wc-btn accent sm ui-report-quote" id="rvQuote">引用到对话</button></div>'
-    + '<div class="ui-report-meta">范围: ' + (r.scopeKind === "chain" ? '<span class="wc-chip">⛓ ' + r.scopeLabel + '</span>' : esc(r.scopeLabel))
+    + '<div class="ui-report-meta">范围: ' + esc(r.scopeLabel)
     + ' · 生成: ' + r.time + ' · 状态: ' + r.status + '</div>'
-    + (r.chain ? '<div class="ui-report-meta" style="margin-top:-8px"><span class="wc-prov" style="padding:0">' + r.provNote + ' · 基线对象逐块 CID 校验 ✓ · 审查版本随基线 ◆ 自动构建（不可独立 fork）· findings 可批注回链</span></div>' : "")
     + '<div class="ui-report-cards">'
     + '<div class="ui-report-card"><div class="num">' + r.files + '</div><div class="lbl">审查文件</div></div>'
     + '<div class="ui-report-card"><div class="num">' + r.findings + '</div><div class="lbl">意见</div></div>'
@@ -1918,7 +2005,7 @@ $("#rvScope").addEventListener("change", function () {
 });
 $("#rvRun").addEventListener("click", function () {
   var v = $("#rvScope").value;
-  oplogAppend("review.run", v === "chain" ? "⛓ c:b7e2f1…" : v === "local" ? "a2c1e9f" : "1f9c77a", "kel", "运行审查 · " + (v === "chain" ? "⛓ 链上版本（读链工作区 tree · 不物化）" : "本地范围"));
+  oplogAppend("review.run", v === "full" ? "全域" : "vs HEAD", "kel", "运行审查 · " + (v === "full" ? "全仓库（全域审查）" : "未提交的工作区变更"));
   toast("审查运行中（review.full）· 完成后自动选中新报告");
 });
 renderReviewReports();
@@ -2051,11 +2138,11 @@ function openNotePop(r, findex) {
 /* ═══════════ 知识库 ═══════════ */
 var KB_ITEMS = [
   { k: "wiki", chain: null, t: "Deep Wiki · 登录与会话", m: "#13 · 基线 ⎇ 8be12d4 · 今天 10:02" },
-  { k: "wiki", chain: "design", t: "Deep Wiki · 风控分层（链上）", m: "⛓ #12 · design-ipad · c:f31a8b… · 09:30" },
+  { k: "wiki", chain: "design", t: "Deep Wiki · 风控分层", m: "⛓ #12 · design-ipad · c:f31a8b… · 已按代码时间线自动采纳（覆盖本地）" },
   { k: "arch", chain: null, t: "架构图 · auth 模块", m: "#13 · 基线 ⎇ 8be12d4" },
-  { k: "arch", chain: "design", t: "架构图 · 风控分层（链上新增）", m: "⛓ #12 · design-ipad · c:f31a8b…" },
-  { k: "symbols", chain: null, t: "符号表 · src/auth", m: "1,318 符号 · #13" },
-  { k: "symbols", chain: "dev", t: "符号表 · contract（链上）", m: "⛓ 1,290 符号 · dev-windows-01 · c:b7e2f1…" }
+  { k: "arch", chain: "design", t: "架构图 · 风控分层（对方新增）", m: "⛓ #12 · design-ipad · c:f31a8b… · 本机缺失 → 保留本地并自动合入" },
+  { k: "symbols", chain: null, t: "符号表 · src/auth", m: "1,318 符号 · fork/改动自动 update" },
+  { k: "symbols", chain: "dev", t: "符号表 · contract", m: "⛓ 1,290 符号 · dev-windows-01 · c:b7e2f1… · update hook 已重建" }
 ];
 var kbState = { sub: "wiki", sel: 0 };
 function renderKb() {
@@ -2078,7 +2165,7 @@ function renderKb() {
     pv.innerHTML = '<h2>' + (it.chain ? "⛓ " : "") + esc(it.t) + '</h2>'
       + '<p>登录采用 httpOnly cookie 承载 refresh token：`gvt` 写入走 `storeToken()`，刷新窗口常量 `REFRESH_TTL_MS` 集中管理。'
       + '会话半失效态的根因在 refresh 失败路径未清理 cookie（见审查 r-1040 HIGH #88）。</p>'
-      + (it.chain ? '<div class="wc-banner" style="margin-top:10px"><div class="t"><span class="wc-chip">⛓ 链上同步</span>' + MEMBERS[it.chain].name + ' 的 wiki 版本 · 应用前必预览差异（R20）</div></div>' : "");
+      + (it.chain ? '<div class="wc-banner" style="margin-top:10px"><div class="t"><span class="wc-chip">⛓ 追随代码</span>' + MEMBERS[it.chain].name + ' 的 wiki 版本 · 已按代码时间线<b>自动采纳（覆盖本地）</b> · 无独立历史（R35）</div></div>' : "");
   } else if (it.k === "arch") {
     pv.innerHTML = '<h2>' + (it.chain ? "⛓ " : "") + esc(it.t) + '</h2>'
       + '<svg width="100%" height="220" viewBox="0 0 520 220" style="margin-top:6px">'
@@ -2089,7 +2176,7 @@ function renderKb() {
       + '<rect class="arch-node" x="240" y="90" width="120" height="40"/><text class="arch-label" x="262" y="114">session loop</text>'
       + '<rect class="arch-node" x="440" y="40" width="70" height="40"/><text class="arch-label" x="456" y="64">ledger</text>'
       + '</svg>'
-      + (it.chain ? '<div class="wc-banner" style="margin-top:6px"><div class="t"><span class="wc-chip">⛓ 链上新增</span>风控分层图 · 本机缺失 · 可「仅取此图」或整版应用</div></div>' : "");
+      + (it.chain ? '<div class="wc-banner" style="margin-top:6px"><div class="t"><span class="wc-chip">⛓ 对方新增</span>风控分层图 · 本机缺失 → <b>保留本地并自动合入该图</b>（R35）</div></div>' : "");
   } else {
     pv.innerHTML = '<h2>' + (it.chain ? "⛓ " : "") + esc(it.t) + '</h2>'
       + '<div class="kv-rows" style="margin-top:8px;max-width:420px">'
@@ -2107,21 +2194,6 @@ $$("#mv-kb .ui-knowledge-subtab").forEach(function (b) {
     var first = KB_ITEMS.map(function (i, ix) { return i.k === kbState.sub ? ix : -1; }).filter(function (x) { return x >= 0; });
     kbState.sel = first[0] || 0;
     renderKb();
-  });
-});
-$("#kbApplyBtn").addEventListener("click", function () {
-  var body =
-    '<div class="wc-box"><div class="k">应用前差异预览（相对本地 head 构建）</div>'
-    + '<div class="kv"><span class="k">wiki 页</span><span class="v">14 页 → 12 页 + 风控分层图</span></div>'
-    + '<div class="kv"><span class="k">arch 图</span><span class="v">+1（成员新增 · 本机缺失）</span></div>'
-    + '<div class="kv"><span class="k">索引规模</span><span class="v">1,318 → 1,290 符号</span></div>'
-    + '<div class="kv"><span class="k">冲突</span><span class="v" style="color:var(--ui-success)">无（基线不相交部分直接合入）</span></div></div>'
-    + '<div class="wc-warnline">⚠ 知识库为 ◆ 随代码版本：应用 = 以链上基线重建本地索引，代码工作区不动</div>'
-    + '<div class="wc-pop-acts"><button class="wc-btn" data-cancel>取消</button><button class="wc-btn gel" data-go>应用链上知识版本</button></div>';
-  openPop(popShell("⛓ 应用链上知识版本", "#12 · design-ipad · c:f31a8b…", body));
-  bindPopCancel(function () {
-    oplogAppend("kb.sync", "#12 · c:f31a8b…", "design", "应用链上知识版本 · 差异预览已确认");
-    toast("链上知识版本已应用 · 本地索引重建中");
   });
 });
 renderKb();
@@ -2144,15 +2216,15 @@ var ED_FILES = {
 };
 var ED_HIST = {
   "token.ts": [
-    { kind: "chain", member: "dev", hash: "⛓ 51aa07", time: "16:58", msg: "passkey 核对 · editor.snapshot", delta: "+38 −12" },
+    { kind: "chain", member: "dev", hash: "⛓ 51aa07", time: "16:58", msg: "passkey 核对 · 随行 ws.commit 记账", delta: "+38 −12", src: "⛓ orca1-wiymh… · r:51c9…（fork 链来源）" },
     { kind: "local", hash: "ck#42", time: "16:31", msg: "cookie 存储重构（撤销点）", delta: "+21 −4" },
     { kind: "local", hash: "ck#41", time: "15:47", msg: "refresh 路径提取", delta: "+9 −2" },
-    { kind: "chain", member: "design", hash: "⛓ f31a8b", time: "12:40", msg: "注释补全 · editor.snapshot", delta: "+6 −2" },
-    { kind: "local", hash: "ck#40", time: "昨天", msg: "初版 httpOnly 方案", delta: "+54" }
+    { kind: "chain", member: "design", hash: "⛓ f31a8b", time: "12:40", msg: "注释补全 · 合并链带入", delta: "+6 −2", src: "⛓ orca1-wiymh… · r:a3f0…（合并链来源）" },
+    { kind: "local", hash: "ck#40", time: "昨天", msg: "初版 httpOnly 方案（基线自动保存）", delta: "+54" }
   ],
   "login.ts": [
     { kind: "local", hash: "ck#42", time: "16:31", msg: "登录接 storeToken", delta: "+3 −1" },
-    { kind: "chain", member: "dev", hash: "⛓ 51aa07", time: "16:58", msg: "passkey 核对 · editor.snapshot", delta: "+8" }
+    { kind: "chain", member: "dev", hash: "⛓ 51aa07", time: "16:58", msg: "passkey 核对 · 随行 ws.commit 记账", delta: "+8", src: "⛓ orca1-wiymh… · r:51c9…（fork 链来源）" }
   ],
   "token.test.ts": [
     { kind: "local", hash: "ck#42", time: "16:29", msg: "契约用例补齐", delta: "+54" }
@@ -2170,7 +2242,9 @@ function renderEd() {
   $("#edCode").innerHTML = ED_FILES[edState.file].map(function (l) {
     return '<div class="ln ' + l[0] + '"><span class="no">' + (l[0] === "add" ? "+" : l[0] === "del" ? "−" : "") + '</span><span class="tx">' + esc(l[1]) + '</span></div>';
   }).join("");
-  $("#edHistCap").textContent = edState.file + " · 历史（本地 ∪ 链上）";
+  $("#edHistCap").textContent = edState.file + " · 全部历史快照（本地历史 ∪ 链上来源）";
+  var count = (ED_HIST[edState.file] || []).length;
+  var cnt = $("#edBaseCount"); if (cnt) cnt.textContent = count;
   var host = $("#edHist");
   host.innerHTML = "";
   (ED_HIST[edState.file] || []).forEach(function (h, i) {
@@ -2182,18 +2256,14 @@ function renderEd() {
       + (h.kind === "local" ? '<span class="wc-chip ghost" style="font-size:8.5px">● 本地</span>' : '<span class="wc-chip" style="font-size:8.5px;color:var(--mem-c);border-color:color-mix(in srgb,var(--mem-c) 40%,transparent);background:color-mix(in srgb,var(--mem-c) 10%,transparent)">⛓ 链上</span>')
       + '<time>' + h.time + '</time></div>'
       + '<div class="h-sub"><span>' + esc(h.msg) + '</span>'
-      + '<span class="h-delta"><span class="plus">' + h.delta.split(" ")[0] + '</span> <span class="minus">' + (h.delta.split(" ")[1] || "") + '</span></span></div>';
+      + '<span class="h-delta"><span class="plus">' + h.delta.split(" ")[0] + '</span> <span class="minus">' + (h.delta.split(" ")[1] || "") + '</span></span></div>'
+      + (h.src ? '<div class="h-sub" style="margin-top:1px"><span class="mono" style="font-size:8.5px;color:var(--mem-c)">' + esc(h.src) + '</span></div>' : "");
     b.addEventListener("click", function () { edState.sel = i; renderEd(); });
     host.appendChild(b);
   });
 }
 $$(".ed-file").forEach(function (f) {
   f.addEventListener("click", function () { edState.file = f.dataset.f; edState.sel = 0; renderEd(); });
-});
-$("#edSnapBtn").addEventListener("click", function () {
-  var h = (ED_HIST[edState.file] || [])[edState.sel];
-  oplogAppend("editor.snapshot", "c:new…", "kel", edState.file + " · 快照上链（显式动作）");
-  toast("快照已上链 · editor.snapshot 记录 gossip 中");
 });
 $("#edRestoreBtn").addEventListener("click", function () {
   var h = (ED_HIST[edState.file] || [])[edState.sel];
@@ -2208,6 +2278,12 @@ $("#edRestoreBtn").addEventListener("click", function () {
 $("#edDiffBtn").addEventListener("click", function () {
   var h = (ED_HIST[edState.file] || [])[edState.sel];
   toast(h ? "对比视图：" + edState.file + " 当前 ↔ " + h.hash : "先在历史中选择一个点");
+});
+$("#edBaseToggle").addEventListener("click", function () {
+  var list = $("#edBaseList");
+  list.classList.toggle("closed");
+  var closed = list.classList.contains("closed");
+  $("#edBaseArrow").textContent = closed ? "▾" : "▴";
 });
 renderEd();
 </script>
