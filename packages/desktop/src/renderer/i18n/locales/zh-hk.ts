@@ -1742,6 +1742,7 @@ export const zhHK: Record<MessageKey, string> = {
   "prototypeWorkspace.agentPrompt": "描述要修改的內容…",
   "prototypeWorkspace.progressSpec": "正在展開需求文件（spec-writer）…",
   "prototypeWorkspace.progressSpecSaved": "需求文件已儲存",
+  "prototypeWorkspace.progressRepair": "正在根據官方解析器回饋修復原型…",
   "prototypeWorkspace.progressMaterialize": "正在生成整份互動原型，可能需要數分鐘，請勿關閉…",
   "prototypeWorkspace.progressMaterializeSaved": "互動原型已儲存 · 驗收待執行",
   "prototypeWorkspace.vbadgeNote": "驗收 {passed}/{total} · 自癒 {heal}",

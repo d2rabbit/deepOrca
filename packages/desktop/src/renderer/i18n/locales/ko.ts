@@ -1778,6 +1778,7 @@ export const ko: Record<MessageKey, string> = {
   "prototypeWorkspace.agentPrompt": "변경할 내용을 입력하세요…",
   "prototypeWorkspace.progressSpec": "요구사항 문서 전개 중(spec-writer)…",
   "prototypeWorkspace.progressSpecSaved": "요구사항 문서가 저장되었습니다",
+  "prototypeWorkspace.progressRepair": "공식 파서 피드백을 바탕으로 프로토타입을 수정하는 중…",
   "prototypeWorkspace.progressMaterialize":
     "전체 대화형 프로토타입을 생성하는 중입니다. 몇 분 정도 걸릴 수 있으니 창을 닫지 마십시오…",
   "prototypeWorkspace.progressMaterializeSaved": "프로토타입 저장됨 · 수용 대기",

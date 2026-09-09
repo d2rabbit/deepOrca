@@ -1740,6 +1740,7 @@ export const zh: Record<MessageKey, string> = {
   "prototypeWorkspace.agentPrompt": "描述要修改的内容…",
   "prototypeWorkspace.progressSpec": "正在展开需求文档（spec-writer）…",
   "prototypeWorkspace.progressSpecSaved": "需求文档已保存",
+  "prototypeWorkspace.progressRepair": "正在根据官方解析器反馈修复原型…",
   "prototypeWorkspace.progressMaterialize": "正在生成整份交互原型，可能需要数分钟，请勿关闭…",
   "prototypeWorkspace.progressMaterializeSaved": "交互原型已保存 · 验收待运行",
   "prototypeWorkspace.vbadgeNote": "验收 {passed}/{total} · 自愈 {heal}",

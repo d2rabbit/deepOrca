@@ -22,6 +22,7 @@ import type { ZodRawShape } from "zod/v3";
 import * as fs from "node:fs";
 import * as nodePath from "node:path";
 import { generatePrototype, listTemplates } from "./a2ui-templates";
+import { validateOpenuiCode } from "./openui-validate";
 import { looksLikeArchDoc, OPENUI_PRESERVE_CONTRACT } from "@deeporca/core";
 import { BASIC_CATALOG_ID, convertLegacyComponents } from "../../../shared/a2ui-legacy";
 import {
@@ -1001,6 +1002,35 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
           },
         ],
         metadata: { spec: document },
+      } as CallToolResult;
+    }
+  );
+
+  // Tool: validate_openui — parse an OpenUI Lang program against the OFFICIAL
+  // component schema with the local lang-core parser (no network, no OpenUI
+  // service). Returns a structured JSON verdict so the caller can drive a
+  // repair round before anything is persisted (user ask 2026-09-09 自递归
+  // 验证循环); the schema artifact is drift-checked against the renderer's
+  // library by the desktop build.
+  registerTool(
+    "validate_openui",
+    {
+      description:
+        "Validate an OpenUI Lang program against the official component schema (local parser). " +
+        "Returns JSON: { valid, incomplete, statementCount, errors[{code,component,path,message}], " +
+        "unresolved[], orphaned[] }. Run this before render_openui/update_openui and fix every finding.",
+      inputSchema: {
+        code: z.string().describe("Complete OpenUI Lang program"),
+      },
+    },
+    async (args) => {
+      const code = stringArg(args, "code");
+      if (!code || !code.trim()) {
+        return suiteError("code is required");
+      }
+      const verdict = validateOpenuiCode(code);
+      return {
+        content: [{ type: "text", text: JSON.stringify(verdict) }],
       } as CallToolResult;
     }
   );

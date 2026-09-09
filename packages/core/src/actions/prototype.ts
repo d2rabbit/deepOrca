@@ -7,11 +7,16 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { randomUUID } from "node:crypto";
 import type { ActionContext, ActionDefinition, ActionRun } from "./types";
-import { OPENUI_PRESERVE_CONTRACT } from "./openui-contract";
+import { OPENUI_CREATE_CONTRACT, OPENUI_PRESERVE_CONTRACT } from "./openui-contract";
 
 const DESIGNS_DIR = ".deeporca/designs";
 const SPEC_FILE = "spec.md";
 const A2UI_TOOL_PREFIX = "mcp__a2ui__";
+/** Repair rounds after the INITIAL generation in the self-recursive
+ *  validation loop (user ask 2026-09-09): official-parser verdict → patch
+ *  prompt → regenerate. OUI-1's repair data: near-miss fixes are usually
+ *  one-statement edits, so 2 rounds clear the large majority. */
+const MAX_OPENUI_REPAIR_ROUNDS = 2;
 
 export interface ArtifactRef {
   suiteId: string;
@@ -240,6 +245,116 @@ export async function readSuiteVersion(
   };
 }
 
+/** Structured verdict from the desktop-side local validator (mcp validate_openui).
+ *  Shape mirrors a2ui/openui-validate.ts — structural here so core stays
+ *  dependency-free (the tool is desktop-owned). */
+interface OpenuiVerdict {
+  valid: boolean;
+  incomplete?: boolean;
+  statementCount?: number;
+  errors?: Array<{ code: string; component?: string; path?: string; message?: string }>;
+  unresolved?: string[];
+  orphaned?: string[];
+}
+
+/** Ask the desktop side to parse `code` with the official local parser. Null
+ *  when the validator is unavailable for any reason — the loop then fails
+ *  open and the flow behaves exactly as before it existed. */
+async function readOpenuiVerdict(ctx: ActionContext, code: string): Promise<OpenuiVerdict | null> {
+  try {
+    const res = await executeA2ui(ctx, "validate_openui", { code });
+    if (!res.ok) return null;
+    const parsed = parseJsonRecord(res.output);
+    if (!parsed || typeof parsed.valid !== "boolean") return null;
+    return parsed as unknown as OpenuiVerdict;
+  } catch {
+    return null;
+  }
+}
+
+function openuiIssueCount(verdict: OpenuiVerdict): number {
+  return (
+    (verdict.errors?.length ?? 0) +
+    (verdict.unresolved?.length ?? 0) +
+    (verdict.orphaned?.length ?? 0) +
+    (verdict.incomplete ? 1 : 0)
+  );
+}
+
+/** Structured findings → one patch instruction per line (lang-core documents
+ *  its error taxonomy as "designed for an automated correction loop"). */
+function formatOpenuiFeedback(verdict: OpenuiVerdict): string {
+  const lines: string[] = [];
+  for (const e of verdict.errors ?? []) {
+    const where = e.component ? `component '${e.component}'` : "program";
+    const at = e.path ? ` at ${e.path}` : "";
+    lines.push(`- ${e.code}${at} (${where}): ${e.message || "invalid usage"}`);
+  }
+  for (const name of verdict.unresolved ?? []) {
+    lines.push(
+      `- unresolved-reference: '${name}' is used but never defined — define it before root, or remove the usage.`
+    );
+  }
+  for (const name of verdict.orphaned ?? []) {
+    lines.push(
+      `- unattached-definition: '${name}' is defined but never reachable from root — mount it in the rendered tree, or remove it.`
+    );
+  }
+  if (verdict.incomplete) {
+    lines.push("- incomplete: the program looks truncated — return the COMPLETE program, every statement closed.");
+  }
+  return lines.join("\n");
+}
+
+/**
+ * Self-recursive validation loop (user ask 2026-09-09): parse the generated
+ * program with the OFFICIAL local parser, and while it fails, feed the
+ * structured findings back to the designer subagent as patch instructions.
+ * Failure semantics are fail-open everywhere — no validator, a repair round
+ * that returns garbage, or an exhausted budget each fall back to the last
+ * good draft, so the loop can only improve the outcome, never block it (the
+ * renderer's correction loop remains the backstop for leftovers).
+ */
+async function repairOpenuiProgram(
+  ctx: ActionContext,
+  opts: { code: string; contract: string; progressCode: string; basePercent: number }
+): Promise<string> {
+  let code = opts.code;
+  // Callers guard runSubagent, but the loop itself fails open like every
+  // other missing piece — a draft is better than an aborted action.
+  if (!ctx.runSubagent) return code;
+  for (let round = 0; ; round += 1) {
+    const verdict = await readOpenuiVerdict(ctx, code);
+    if (!verdict || verdict.valid) return code;
+    const issues = openuiIssueCount(verdict);
+    if (round >= MAX_OPENUI_REPAIR_ROUNDS) {
+      ctx.emit({
+        message: `${issues} parser issue(s) remain after ${MAX_OPENUI_REPAIR_ROUNDS} repair round(s) — persisted for manual correction`,
+        percent: opts.basePercent,
+        data: { code: opts.progressCode },
+      });
+      return code;
+    }
+    ctx.emit({
+      message: `Repairing ${issues} parser issue(s) (round ${round + 1}/${MAX_OPENUI_REPAIR_ROUNDS})`,
+      percent: opts.basePercent + round * 5,
+      data: { code: opts.progressCode },
+    });
+    const generated = await ctx.runSubagent({
+      skill: "pm-designer-openui",
+      prompt:
+        "The OpenUI Lang program below failed validation against the official parser. " +
+        "Fix EVERY reported issue and return the COMPLETE corrected program in one code fence. " +
+        "Change nothing beyond what the issues require. Do not call tools.\n\n" +
+        `${opts.contract}\n\nParser issues:\n${formatOpenuiFeedback(verdict)}\n\nCurrent program:\n${code}`,
+      silent: true,
+    });
+    const next = extractGeneratedBody(generated);
+    if (!next || !looksLikeOpenuiProgram(next)) return code; // keep the last good draft
+    code = next;
+  }
+}
+
 export interface PrototypeSpecInput {
   requirement: string;
   suiteId?: string;
@@ -401,8 +516,17 @@ export const prototypeMaterializeRun: ActionRun<PrototypeMaterializeInput, Proto
           "pm-designer-openui returned an empty or truncated OpenUI program (no root/component statements) — regenerate",
       };
     }
-    const saved = await executeA2ui(ctx, "render_openui", {
+    // Local validation loop: official parser verdict → patch prompt → retry,
+    // BEFORE persistence (user ask 2026-09-09). Fail-open when the desktop
+    // side has no validator.
+    const verifiedCode = await repairOpenuiProgram(ctx, {
       code,
+      contract: OPENUI_CREATE_CONTRACT,
+      progressCode: "prototype.materialize.repairing",
+      basePercent: 55,
+    });
+    const saved = await executeA2ui(ctx, "render_openui", {
+      code: verifiedCode,
       ...(requirement ? { requirement } : {}),
       ...(suiteId ? { suiteId, versionId } : {}),
       ...(input.note?.trim() ? { note: input.note.trim() } : {}),
@@ -619,7 +743,14 @@ export const prototypeReviseRun: ActionRun<PrototypeReviseInput, PrototypeSpecOu
     args.document = revised;
     if (content.requirement) args.requirement = content.requirement;
   } else {
-    args.code = revised;
+    // Same local validation loop as materialize (user ask 2026-09-09) — a
+    // revision must not regress the program below the parser's bar.
+    args.code = await repairOpenuiProgram(ctx, {
+      code: revised,
+      contract: OPENUI_PRESERVE_CONTRACT,
+      progressCode: "prototype.revise.repairing",
+      basePercent: 60,
+    });
   }
   const saved = await executeA2ui(ctx, tool, args);
   return saved.ok

@@ -123,6 +123,45 @@ export function applyPromptToSkill(skillMd, prompt) {
   return skillMd.replace(legacyRegex, wrapped);
 }
 
+/** The main-process validator parses against THIS schema artifact
+ *  (packages/desktop/src/main/tools/a2ui/openui-library-schema.ts) — the
+ *  official library's own `toJSONSchema()`, so the local loop and the
+ *  renderer's runtime parse never drift apart. Same regeneration + drift
+ *  discipline as the prompt above. */
+export const SCHEMA_PATH = join(repoRoot, "packages/desktop/src/main/tools/a2ui/openui-library-schema.ts");
+
+/** Render the schema TypeScript module, prettier-stable (the generated output
+ *  must survive lint-staged byte-identical or the build drift check would
+ *  fail forever after every format). */
+export async function buildLibrarySchemaModule() {
+  const { openuiLibrary } = await import("@openuidev/react-ui/genui-lib");
+  const json = JSON.stringify(openuiLibrary.toJSONSchema(), null, 2);
+  // Typed loosely (Record<string, unknown>): lang-core's JSONSchemaDef is
+  // narrower than its own toJSONSchema() output (upstream omits `type`), so
+  // the strong annotation would fail tsc on the generated file. The consumer
+  // casts at the single parse call site.
+  const raw = `/**
+ * GENERATED FILE — do not edit by hand.
+ * Source: scripts/generate-openui-prompt.mjs (npm run openui:prompt), from the
+ * OFFICIAL @openuidev/react-ui openuiLibrary via toJSONSchema(). The desktop
+ * build regenerates it and fails on drift. Consumed only by the main-process
+ * local validator (a2ui/openui-validate.ts); the renderer never imports this.
+ */
+
+export const OPENUI_LIBRARY_SCHEMA: Record<string, unknown> = ${json};
+`;
+  const prettier = await import("prettier");
+  return prettier.format(raw, {
+    semi: true,
+    singleQuote: false,
+    tabWidth: 2,
+    trailingComma: "es5",
+    printWidth: 120,
+    endOfLine: "lf",
+    parser: "typescript",
+  });
+}
+
 async function main() {
   const prompt = await buildDesignerPrompt();
 
@@ -131,6 +170,9 @@ async function main() {
     content = applyPromptToSkill(content, prompt);
     writeFileSync(SKILL_PATH, content, "utf8");
     console.log(`[generate-openui-prompt] updated ${SKILL_PATH}`);
+    const schema = await buildLibrarySchemaModule();
+    writeFileSync(SCHEMA_PATH, schema, "utf8");
+    console.log(`[generate-openui-prompt] updated ${SCHEMA_PATH}`);
   } else {
     console.log(prompt);
   }

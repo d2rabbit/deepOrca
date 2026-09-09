@@ -467,3 +467,33 @@ test("save_suite_arch enforces the verification gate and the arch contract at th
     await client.close();
   }
 });
+
+test("validate_openui returns a structured local verdict and rejects empty code", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "a2ui-validate-"));
+  roots.push(root);
+  const client = await clientFor(root);
+  try {
+    const VALID = [
+      '$page = "home"',
+      'root = Stack([nav, $page == "home" ? homeView : ordersView])',
+      'homeView = Card([TextContent("概览")])',
+      'ordersView = Card([TextContent("列表")])',
+      'nav = Stack([Button("首页", Action([@Set($page, "home")]))], "row")',
+    ].join("\n");
+    const ok = await client.callTool({ name: "validate_openui", arguments: { code: VALID } });
+    assert.notEqual(ok.isError, true);
+    const verdict = JSON.parse(text(ok)) as { valid: boolean; unresolved: string[] };
+    assert.equal(verdict.valid, true);
+
+    const broken = await client.callTool({ name: "validate_openui", arguments: { code: "root = Fakebox([])" } });
+    assert.notEqual(broken.isError, true);
+    const bad = JSON.parse(text(broken)) as { valid: boolean; errors: Array<{ code: string }> };
+    assert.equal(bad.valid, false);
+    assert.equal(bad.errors[0].code, "unknown-component");
+
+    const empty = await client.callTool({ name: "validate_openui", arguments: { code: "   " } });
+    assert.equal(empty.isError, true);
+  } finally {
+    await client.close();
+  }
+});

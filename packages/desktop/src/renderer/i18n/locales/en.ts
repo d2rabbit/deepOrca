@@ -1786,6 +1786,7 @@ export const en = {
   "prototypeWorkspace.agentPrompt": "Describe changes…",
   "prototypeWorkspace.progressSpec": "Expanding the requirements document (spec-writer)…",
   "prototypeWorkspace.progressSpecSaved": "Requirements document saved",
+  "prototypeWorkspace.progressRepair": "Repairing the prototype from official-parser feedback…",
   "prototypeWorkspace.progressMaterialize":
     "Generating the full interactive prototype — this can take a few minutes; keep the window open…",
   "prototypeWorkspace.progressMaterializeSaved": "Interactive prototype saved — acceptance pending",

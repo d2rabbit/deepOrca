@@ -3,7 +3,13 @@ import assert from "node:assert/strict";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as url from "node:url";
-import { buildDesignerPrompt, applyPromptToSkill, SKILL_PATH } from "../../../../scripts/generate-openui-prompt.mjs";
+import {
+  buildDesignerPrompt,
+  applyPromptToSkill,
+  buildLibrarySchemaModule,
+  SKILL_PATH,
+  SCHEMA_PATH,
+} from "../../../../scripts/generate-openui-prompt.mjs";
 
 const here = path.dirname(url.fileURLToPath(import.meta.url));
 
@@ -15,6 +21,14 @@ test("the SKILL.md component table is in sync with the generated prompt (drift g
     skillMd,
     "pm-designer-openui SKILL.md is out of sync — run `npm run openui:prompt` and commit."
   );
+});
+
+test("the main-process validator schema is in sync with the official library (drift guard)", async () => {
+  // openui-library-schema.ts feeds the local validate_openui loop; if it
+  // drifts from the renderer's openuiLibrary, the loop would enforce a
+  // different contract than the runtime renders with.
+  const onDisk = fs.readFileSync(SCHEMA_PATH, "utf8");
+  assert.equal(await buildLibrarySchemaModule(), onDisk, "schema drifted — run `npm run openui:prompt` and commit.");
 });
 
 test("the generated prompt comes from the official openuiLibrary (signatures, not stubs)", async () => {

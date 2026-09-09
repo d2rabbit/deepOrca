@@ -1786,6 +1786,7 @@ export const ja: Record<MessageKey, string> = {
   "prototypeWorkspace.agentPrompt": "変更内容を入力…",
   "prototypeWorkspace.progressSpec": "要件ドキュメントを展開中（spec-writer）…",
   "prototypeWorkspace.progressSpecSaved": "要件ドキュメントを保存しました",
+  "prototypeWorkspace.progressRepair": "公式パーサーのフィードバックに基づきプロトタイプを修復中…",
   "prototypeWorkspace.progressMaterialize":
     "インタラクティブプロトタイプ全体を生成中です。数分かかることがあります。ウィンドウは閉じないでください…",
   "prototypeWorkspace.progressMaterializeSaved": "プロトタイプを保存しました · 受け入れ待ち",

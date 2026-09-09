@@ -424,14 +424,15 @@ async function copyStaticAssets() {
 }
 
 /**
- * The pm-designer-openui SKILL.md component table is a generated artifact of
+ * The pm-designer-openui SKILL.md component table AND the main-process
+ * validator schema (a2ui/openui-library-schema.ts) are generated artifacts of
  * the OFFICIAL @openuidev/react-ui openuiLibrary (via
- * scripts/generate-openui-prompt.mjs). Regenerate it before bundling and fail
- * when regeneration changes the file — i.e. when an upstream library update
- * was not followed by `npm run openui:prompt`. The check compares the file
- * before/after regeneration (not git state), so uncommitted-but-in-sync files
- * pass while genuine drift fails. (The legacy library-schema.ts is only the
- * pre-switch fallback renderer and is NOT this artifact's source.)
+ * scripts/generate-openui-prompt.mjs). Regenerate them before bundling and
+ * fail when regeneration changes either file — i.e. when an upstream library
+ * update was not followed by `npm run openui:prompt`. The check compares the
+ * files before/after regeneration (not git state), so uncommitted-but-in-sync
+ * files pass while genuine drift fails. (The legacy library-schema.ts is only
+ * the pre-switch fallback renderer and is NOT these artifacts' source.)
  */
 async function ensureOpenuiPromptInSync() {
   const script = resolve(__dirname, "..", "..", "scripts", "generate-openui-prompt.mjs");
@@ -448,15 +449,21 @@ async function ensureOpenuiPromptInSync() {
     "pm-designer-openui",
     "SKILL.md"
   );
-  const before = readFileSync(skill, "utf8");
+  const schema = resolve(__dirname, "src", "main", "tools", "a2ui", "openui-library-schema.ts");
+  const before = [readFileSync(skill, "utf8"), readFileSync(schema, "utf8")];
   const gen = spawnSync(process.execPath, [script, "--write"], { encoding: "utf8" });
   if (gen.status !== 0) {
     throw new Error(`openui prompt generation failed:\n${gen.stderr}`);
   }
-  const after = readFileSync(skill, "utf8");
-  if (before !== after) {
+  const after = [readFileSync(skill, "utf8"), readFileSync(schema, "utf8")];
+  if (before[0] !== after[0]) {
     throw new Error(
       "pm-designer-openui SKILL.md is out of sync with the official openuiLibrary prompt — run `npm run openui:prompt` and commit the result (source: scripts/generate-openui-prompt.mjs, NOT legacy library-schema.ts)."
+    );
+  }
+  if (before[1] !== after[1]) {
+    throw new Error(
+      "a2ui/openui-library-schema.ts is out of sync with the official openuiLibrary schema — run `npm run openui:prompt` and commit the result."
     );
   }
 }
