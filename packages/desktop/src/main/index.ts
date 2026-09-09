@@ -89,7 +89,7 @@ import { listEditorRuns } from "./tools/editor-runs-store.js";
 import { applyAppIcon } from "./app-icon.js";
 import { PluginManager, type PluginEventCallback } from "./plugin-manager.js";
 import { scanFiles } from "./file-scanner.js";
-import { listWorkspaceSessions, readSessionsIndex } from "./workspace-registry.js";
+import { listWorkspaceSessions, readSessionsIndex, rootKey } from "./workspace-registry.js";
 import { archiveSession, unarchiveSession, readArchivedIds } from "./archive-store.js";
 import { ElectronNodeSpawner, registerActionIpc } from "./action-ipc.js";
 import { SdkCodegraphController } from "./tools/codegraph-sdk.js";
@@ -1752,14 +1752,23 @@ function registerTaskTreeIpc({ handle, handlePrivileged }: IpcHelpers): void {
   // Session trace (task-tree-hub §trace): the session task's bound sessions,
   // each normalized into recent turns of user 指令 → agent behavior.
   // Liveness gate for the terminal sweep: a session that is still streaming,
-  // paused, or awaiting permission has genuinely in-flight calls — sweeping
-  // them into 已中断 would mislabel live work. Only the ACTIVE project's
-  // bridge can answer this; cross-workspace sessions fall back to the sweep
-  // (their runs cannot be observed from here, best effort).
-  const LIVE_TRACE_STATUSES: ReadonlySet<string> = new Set(["processing", "paused", "ask_permission"]);
+  // paused, awaiting permission, or waiting on a user answer has genuinely
+  // in-flight work — sweeping it into 已中断 would mislabel live calls. Only
+  // the ACTIVE project's bridge can answer this; cross-workspace sessions
+  // fall back to the sweep (their runs cannot be observed from here, best
+  // effort).
+  const LIVE_TRACE_STATUSES: ReadonlySet<string> = new Set([
+    "processing",
+    "paused",
+    "ask_permission",
+    "waiting_for_user",
+  ]);
   const sessionInFlight = (pinnedRoot: string | null, sessionId: string): boolean => {
     const bridge = getBridge();
-    if (!bridge || !pinnedRoot || bridge.projectRoot !== pinnedRoot) return false;
+    // Canonical root keys, never raw spellings — resolve/realpath/case drift
+    // between opens would silently disable the gate (the exact mislabeling
+    // this gate exists to prevent).
+    if (!bridge || !pinnedRoot || rootKey(bridge.projectRoot) !== rootKey(pinnedRoot)) return false;
     return LIVE_TRACE_STATUSES.has(bridge.getSession(sessionId)?.status ?? "");
   };
   handle(IpcRequest.TaskHubTrace, async (workspaceRoot?: string, treeId?: string): Promise<TaskTreeTrace> => {

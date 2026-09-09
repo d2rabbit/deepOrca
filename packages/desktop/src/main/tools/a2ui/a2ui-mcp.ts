@@ -22,7 +22,7 @@ import type { ZodRawShape } from "zod/v3";
 import * as fs from "node:fs";
 import * as nodePath from "node:path";
 import { generatePrototype, listTemplates } from "./a2ui-templates";
-import { OPENUI_PRESERVE_CONTRACT } from "@deeporca/core";
+import { looksLikeArchDoc, OPENUI_PRESERVE_CONTRACT } from "@deeporca/core";
 import { BASIC_CATALOG_ID, convertLegacyComponents } from "../../../shared/a2ui-legacy";
 import {
   appendDesignSuiteVersion,
@@ -1301,7 +1301,8 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
     {
       description:
         "Persist the technical architecture document (standardized markdown) for a prototype suite version. " +
-        "The product flow gates this on verification passed (user ask 2026-09-08 技术架构模块).",
+        "Enforced here: the suite's verification must already have passed, and the document must carry at " +
+        "least one Mermaid diagram (user ask 2026-09-08 技术架构模块).",
       inputSchema: {
         suiteId: z.string().describe("Suite id"),
         versionId: z.string().describe("Immutable version used as the update base"),
@@ -1321,10 +1322,21 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
       const version = readDesignSuiteVersion(projectRoot, suiteId, versionId);
       if (!suite || !version) return suiteError("suite or version not found");
       if (suite.kind !== "prototype") return suiteError("suite is not a prototype suite");
+      const base = version.content as PrototypeSuiteContent;
+      // Same verification gate as the prototype.arch action — this tool is
+      // model-reachable directly, so the gate must hold at the write boundary,
+      // not only in the action layer.
+      if (base.verification?.status !== "passed") {
+        return suiteError("verification must pass before the technical architecture document can be saved");
+      }
       const note = stringArg(args, "note");
       // Same model-supplied-payload clamp as save_suite_result.
       const documentReason = suitePayloadError(document);
       if (documentReason) return suiteError(`document: ${documentReason}`);
+      // Same standardized-format contract as the action (heading + Mermaid).
+      if (!looksLikeArchDoc(document)) {
+        return suiteError("document: architecture document must be markdown with at least one mermaid diagram");
+      }
       // Same head-moved contract as save_suite_result: never roll the head back.
       if (suite.currentVersionId !== versionId) {
         return suiteError(
@@ -1332,7 +1344,6 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
             `not "${versionId}". Re-read the latest version and retry against it.`
         );
       }
-      const base = version.content as PrototypeSuiteContent;
       const content: PrototypeSuiteContent = { ...base, arch: document };
       const updated = appendDesignSuiteVersion(projectRoot, {
         suiteId,

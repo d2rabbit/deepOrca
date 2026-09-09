@@ -82,9 +82,10 @@ explicit: layers, modules, data, flows, risks.
 （表格:风险 / 影响 / 对策 / 优先级。至少 2 行,没有则写"无重大架构风险"。）
 ```
 
-4. Call the `save_suite_arch` tool with the complete markdown document — that
-   persists it as the suite's arch artifact. Do NOT use the `write` tool; do
-   NOT create files yourself.
+4. Return the complete markdown document as your final message, wrapped in
+   ONE markdown code fence — the caller (the prototype.arch action) validates
+   it and persists it via `save_suite_arch` itself. Do NOT call any tool; do
+   NOT use the `write` tool; do NOT create files yourself.
 
 ## Discipline
 

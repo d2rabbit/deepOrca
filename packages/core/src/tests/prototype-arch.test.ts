@@ -133,3 +133,99 @@ test("looksLikeArchDoc: heading + mermaid fence required", () => {
   assert.equal(looksLikeArchDoc("# 架构\n\n正文"), false);
   assert.equal(looksLikeArchDoc("# 架构\n\n```mermaid\ngraph TB\n```\n"), true);
 });
+
+// ── extractMarkdownDocument truncation regressions (review 2026-09-09) ──────
+
+/** Two diagrams: truncation at the SECOND one keeps the first complete, so a
+ *  salvaging extractor still passes looksLikeArchDoc on the half document. */
+const TWO_DIAGRAM_DOC = [
+  "# 番茄钟 技术架构文档",
+  "",
+  "## 2. 系统架构",
+  "",
+  "```mermaid",
+  "graph TB",
+  "  ui[界面]",
+  "```",
+  "",
+  "## 3. 数据模型",
+  "",
+  "```mermaid",
+  "erDiagram",
+  "  TASK ||--o{ SESSION : has",
+  "```",
+].join("\n");
+
+const PASSED = { verification: { status: "passed", checks: [], generatedAt: "2026-09-08T00:00:00.000Z" } };
+
+test("prototype.arch: prose before the wrapper fence must not route into the lazy extractor (导语)", async () => {
+  const mcpCalls: McpCall[] = [];
+  const res = await prototypeArchRun(
+    { suiteId: REF.suiteId, versionId: REF.versionId },
+    makeCtx({ ...PASSED, generated: "好的，以下是技术架构文档：\n\n```markdown\n" + ARCH_DOC + "\n```", mcpCalls })
+  );
+  assert.equal(res.ok, true);
+  const arch = mcpCalls.find((c) => c.name.endsWith("save_suite_arch"));
+  assert.equal(arch?.args.document, ARCH_DOC, "full document extracted, not truncated at the first inner fence");
+});
+
+test("prototype.arch: wrapped output truncated mid-inner-fence is refused despite an even fence count", async () => {
+  const mcpCalls: McpCall[] = [];
+  // Outer opener + unclosed inner opener = 2 line-anchored fences (even) —
+  // the old parity check salvaged the half document (diagram 1 carried it
+  // through looksLikeArchDoc). The last fence must be a bare closing ```.
+  const truncated = "```markdown\n" + TWO_DIAGRAM_DOC.slice(0, TWO_DIAGRAM_DOC.lastIndexOf("```"));
+  const res = await prototypeArchRun(
+    { suiteId: REF.suiteId, versionId: REF.versionId },
+    makeCtx({ ...PASSED, generated: truncated, mcpCalls })
+  );
+  assert.equal(res.ok, false);
+  assert.match(res.error ?? "", /diagram-less/);
+  assert.equal(mcpCalls.filter((c) => c.name.endsWith("save_suite_arch")).length, 0);
+});
+
+test("prototype.arch: bare markdown truncated mid-mermaid is refused (旧 extractGeneratedBody 防线不得回归)", async () => {
+  const mcpCalls: McpCall[] = [];
+  // extractGeneratedBody refuses opened-but-never-closed output; the bare
+  // branch of the nested extractor must not quietly reopen that hole.
+  const truncated = TWO_DIAGRAM_DOC.slice(0, TWO_DIAGRAM_DOC.lastIndexOf("```"));
+  const res = await prototypeArchRun(
+    { suiteId: REF.suiteId, versionId: REF.versionId },
+    makeCtx({ ...PASSED, generated: truncated, mcpCalls })
+  );
+  assert.equal(res.ok, false);
+  assert.match(res.error ?? "", /diagram-less/);
+  assert.equal(mcpCalls.filter((c) => c.name.endsWith("save_suite_arch")).length, 0);
+});
+
+test("prototype.arch: an inline ``` mention after the wrapper closer must not pollute the body", async () => {
+  const mcpCalls: McpCall[] = [];
+  const res = await prototypeArchRun(
+    { suiteId: REF.suiteId, versionId: REF.versionId },
+    makeCtx({
+      ...PASSED,
+      generated: "```markdown\n" + ARCH_DOC + "\n```\n\n图请用 ```mermaid 围栏。",
+      mcpCalls,
+    })
+  );
+  assert.equal(res.ok, true);
+  const arch = mcpCalls.find((c) => c.name.endsWith("save_suite_arch"));
+  assert.equal(arch?.args.document, ARCH_DOC, "closer search is line-anchored; the trailing note is dropped");
+});
+
+test("prototype.arch: a complete bare markdown document (no wrapper) persists in full", async () => {
+  const mcpCalls: McpCall[] = [];
+  // The bare branch must stay alive: heading-first output with inner mermaid
+  // fences is the off-wrapper fallback shape and used to be returned whole.
+  const res = await prototypeArchRun(
+    { suiteId: REF.suiteId, versionId: REF.versionId },
+    makeCtx({ ...PASSED, generated: TWO_DIAGRAM_DOC, mcpCalls })
+  );
+  assert.equal(res.ok, true);
+  const arch = mcpCalls.find((c) => c.name.endsWith("save_suite_arch"));
+  assert.equal(arch?.args.document, TWO_DIAGRAM_DOC, "bare documents are returned whole, never re-extracted");
+});
+
+test("looksLikeArchDoc: an inline ```mermaid mention is not a diagram", () => {
+  assert.equal(looksLikeArchDoc("# 架构\n\n图表一律 ```mermaid 围栏，不用 ASCII 伪图。"), false);
+});

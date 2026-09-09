@@ -124,12 +124,18 @@ export function looksLikeSpecDocument(markdown: string): boolean {
  * Extract a complete markdown document (PRD / 技术架构文档) from subagent
  * output. These documents nest ```mermaid fences, and models wrap the whole
  * document in a ```markdown fence — the single-fence lazy extractor
- * (extractGeneratedBody) truncates at the first inner fence. Decision tree:
- *   wrapped + balanced fence count  → unwrap (first fence line … last fence),
- *   wrapped + unbalanced            → null (truncated output: refuse, never
- *                                     salvage a half document),
- *   bare markdown starting with "#" → the whole trimmed content is the doc,
- *   anything else                   → the single-fence extraction result.
+ * (extractGeneratedBody) truncates at the first inner fence. Decision tree
+ * over a LINE-ANCHORED fence scan (a ``` merely mentioned mid-line never
+ * counts, so the closer search cannot be dragged onto a trailing note):
+ *   wrapped (first fence at position 0) → unwrap (first fence line … last),
+ *   prose then a wrapped document       → unwrap when the payload reads as a
+ *                                         markdown document, else defer,
+ *   bare markdown starting with "#"     → the whole trimmed content is the doc,
+ *   anything else                       → the single-fence extraction result.
+ * A stream cut off mid-fence always leaves its opener unclosed, so the last
+ * line-anchored fence is an opener (```lang), not a bare closing ``` — that
+ * shape is refused. Fence-count parity cannot do this: a wrap truncated
+ * inside an inner fence is ALSO even (1 + 2k + 1).
  */
 function extractMarkdownDocument(result: unknown): string | null {
   const direct = extractGeneratedBody(result);
@@ -137,20 +143,30 @@ function extractMarkdownDocument(result: unknown): string | null {
     typeof (result as { content?: unknown })?.content === "string" ? (result as { content: string }).content : null;
   if (raw === null) return direct;
   const trimmed = raw.trim();
-  const fenceCount = (raw.match(/^[ \t]*```/gm) ?? []).length;
-  if (trimmed.startsWith("```")) {
-    if (fenceCount >= 2 && fenceCount % 2 === 0) {
-      const openerEnd = trimmed.indexOf("\n");
-      const closerStart = trimmed.lastIndexOf("```");
-      if (openerEnd !== -1 && closerStart > openerEnd) {
-        const body = trimmed.slice(openerEnd + 1, closerStart).trim();
-        if (body) return body;
-      }
-    }
-    return null;
+  const fences = [...trimmed.matchAll(/^[ \t]*```.*$/gm)];
+  if (fences.length === 0) return direct;
+  if (!/^[ \t]*```[ \t]*$/.test(fences[fences.length - 1][0])) return null;
+  const firstIndex = fences[0].index ?? 0;
+  const lastIndex = fences[fences.length - 1].index ?? 0;
+  if (firstIndex === 0) {
+    // Wrapped: the prompt asked for exactly one markdown code fence.
+    const openerEnd = trimmed.indexOf("\n");
+    const body = openerEnd !== -1 ? trimmed.slice(openerEnd + 1, lastIndex).trim() : null;
+    return body || null;
   }
-  if (fenceCount > 0 && trimmed.startsWith("#")) return trimmed;
-  return direct;
+  if (!trimmed.startsWith("#")) {
+    // Leading prose: unwrap only when the first fence is genuinely the
+    // wrapper (its payload reads as a markdown document); when the prose
+    // precedes a bare document, defer to the single-fence extractor.
+    const openerEnd = trimmed.indexOf("\n", firstIndex);
+    const candidate = openerEnd !== -1 ? trimmed.slice(openerEnd + 1, lastIndex).trim() : null;
+    if (candidate && candidate.startsWith("#")) return candidate;
+    return direct;
+  }
+  // Bare markdown (no wrapper): the whole trimmed content is the document —
+  // its fences are inner ones and the bare-closer check above already
+  // guarantees none of them is an unclosed opener.
+  return trimmed;
 }
 
 function parseJsonRecord(text: string | undefined): Record<string, unknown> | null {
@@ -641,9 +657,10 @@ export const prototypeArchDefinition: ActionDefinition<PrototypeArchInput> = {
 };
 
 /** An architecture document must be a real markdown doc AND carry at least one
- *  Mermaid diagram — the 标准化 format contract (架构图/数据模型/流程必有图). */
+ *  Mermaid diagram — the 标准化 format contract (架构图/数据模型/流程必有图).
+ *  Line-anchored: prose merely mentioning ```mermaid is not a diagram. */
 export function looksLikeArchDoc(markdown: string): boolean {
-  return /^#{1,6}\s+\S/m.test(markdown) && /```[ \t]*mermaid/i.test(markdown);
+  return /^#{1,6}\s+\S/m.test(markdown) && /^[ \t]*```[ \t]*mermaid/im.test(markdown);
 }
 
 export const prototypeArchRun: ActionRun<PrototypeArchInput, PrototypeArchOutput> = async (input, ctx) => {
@@ -680,8 +697,8 @@ export const prototypeArchRun: ActionRun<PrototypeArchInput, PrototypeArchOutput
       silent: true,
     });
     // 架构文档内嵌 ```mermaid 围栏,单围栏惰性抽取会在第一个内层围栏处截断;
-    // 此时剥掉外层围栏重取(首行 ```lang 到最后一个 ```)。
-    // 奇数围栏 = 外层未闭合 = 截断输出:拒绝,而不是抢救半份文档。
+    // extractMarkdownDocument 按行锚定围栏剥壳,最后一个围栏不是裸闭合行的
+    // 输出一律视为截断:拒绝,而不是抢救半份文档。
     const document = extractMarkdownDocument(generated);
     if (!document || !looksLikeArchDoc(document)) {
       return {

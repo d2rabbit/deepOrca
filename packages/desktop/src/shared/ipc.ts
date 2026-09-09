@@ -447,8 +447,9 @@ export type TaskTraceStep = {
   argFull?: string;
   ok?: boolean;
   fail?: boolean;
-  /** Terminal marker: no tool result was recorded before the log ended —
-   *  a landed trace is never "in progress", this call was interrupted. */
+  /** Terminal marker: no tool result was recorded before the log ended — a
+   *  landed trace marks this call interrupted, unless the producing session
+   *  was still in flight (opts.inFlight skips the terminal sweep). */
   interrupted?: boolean;
   ms?: string;
   mcp?: string;

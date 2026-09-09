@@ -305,8 +305,9 @@ async function assertRendererGuards(metaPath) {
   if (!existsSync(metaPath)) {
     // A missing metafile must fail the build, not skip the guard — silently
     // passing would make A6/B8 bypassable by any metafile write failure.
-    console.error("[desktop] GUARD FAIL — renderer metafile missing, A6/B8 bundle guard cannot run");
-    process.exit(1);
+    // Throw (not process.exit): run().catch is the single failure channel,
+    // and an immediate exit can truncate piped stderr carrying this message.
+    throw new Error("[desktop] GUARD FAIL — renderer metafile missing, A6/B8 bundle guard cannot run");
   }
   const meta = JSON.parse(readFileSync(metaPath, "utf8"));
   const banned = ["node_modules/three/", "node_modules/leaflet/", "node_modules/hls.js/", "node_modules/@marp-team/"];
@@ -314,10 +315,9 @@ async function assertRendererGuards(metaPath) {
     .map((k) => k.replaceAll("\\", "/"))
     .filter((k) => banned.some((b) => k.includes(b)));
   if (offenders.length > 0) {
-    console.error(
+    throw new Error(
       `[desktop] GUARD FAIL — banned modules in renderer bundle (A6/B8):\n  ${offenders.slice(0, 8).join("\n  ")}`
     );
-    process.exit(1);
   }
 }
 
@@ -526,8 +526,7 @@ async function run() {
   // the renderer build broke, so fail here rather than guard-skip downstream.
   const rendererMetafile = results[5]?.metafile;
   if (!rendererMetafile) {
-    console.error("[desktop] GUARD FAIL — renderer build produced no metafile");
-    process.exit(1);
+    throw new Error("[desktop] GUARD FAIL — renderer build produced no metafile");
   }
   await (
     await import("node:fs/promises")

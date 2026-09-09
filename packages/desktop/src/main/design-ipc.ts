@@ -329,9 +329,10 @@ export function registerDesignIpc(helpers: DesignIpcHelpers, deps: DesignIpcDeps
     return typeof spec === "string" && spec.trim() ? { spec, title: suite.title } : null;
   };
 
-  /** Exports currently running (keyed root:suite:version:kind) — double-clicks
-   *  and duplicate invocations serialize instead of interleaving 'w'-truncate
-   *  writes into a corrupted slides.html/pdf. */
+  /** Exports currently running (keyed root:suite — deliberately NOT version
+   *  or kind: html/pdf both write the same per-suite slides.html, and the PDF
+   *  reads it back) — double-clicks and duplicate invocations serialize
+   *  instead of interleaving 'w'-truncate writes into a corrupted derivative. */
   const inFlightExports = new Set<string>();
 
   handle(
@@ -364,10 +365,11 @@ export function registerDesignIpc(helpers: DesignIpcHelpers, deps: DesignIpcDeps
       const dir = designSuiteDir(resolved, id);
       if (!dir) return { ok: false, error: "unsafe suite id" };
       if (kind === "pdf" && !deps.renderPdf) return { ok: false, error: "pdf renderer unavailable" };
-      // Serialize exports per (suite, version): both kinds write the same
-      // slides.html (the PDF reads it back), so concurrent html+pdf runs would
-      // interleave 'w'-truncate writes into a corrupted derivative.
-      const exportKey = `${resolved}:${id}:${versionId ?? ""}`;
+      // Serialize per suite: html and pdf both write slides.html (the PDF
+      // reads it back), and different versions of one suite share the same
+      // derivative path — per-version keys would let two runs interleave
+      // their 'w'-truncate writes into a corrupted derivative.
+      const exportKey = `${resolved}:${id}`;
       if (inFlightExports.has(exportKey)) return { ok: false, error: "slide export already in progress" };
       inFlightExports.add(exportKey);
       try {

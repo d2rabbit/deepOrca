@@ -62,7 +62,7 @@ function isStaleRoot(root: string): boolean {
  * so every identity check goes through this key: resolve + realpath, lowercased
  * on win32. Falls back to `path.resolve` when the path can't be stat'ed.
  */
-function rootKey(root: string): string {
+export function rootKey(root: string): string {
   let resolved = path.resolve(root);
   try {
     resolved = realpathSync(resolved);

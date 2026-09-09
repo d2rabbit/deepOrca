@@ -446,6 +446,7 @@ export {
   archScanRunRun,
   OPENUI_CREATE_CONTRACT,
   OPENUI_PRESERVE_CONTRACT,
+  looksLikeArchDoc,
   configureArchifyPaths,
   getArchifyPaths,
   configureArchRenderer,

@@ -125,3 +125,24 @@ test("spec-slides IPC: unregistered root / missing suite degrade to ok:false", a
   const noSuite = (await call("prototype:specSlides")("/tmp/never", "ghost")) as { ok: boolean };
   assert.equal(noSuite.ok, false);
 });
+
+test("spec-slides IPC: exports serialize per suite — a concurrent different-version export is refused", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "deeporca-slides-"));
+  try {
+    fs.mkdirSync(path.join(root, ".deeporca", "designs", "s1"), { recursive: true });
+    const call = boot(root, SUITE);
+    // Both kinds AND both versions write the same per-suite slides.html (the
+    // PDF reads it back) — the mutex must be per suite, not per version, or
+    // two runs interleave 'w'-truncate writes into a corrupted derivative.
+    const first = call("prototype:specExportSlides")(root, "s1", "html") as Promise<{ ok: boolean }>;
+    const second = (await call("prototype:specExportSlides")(root, "s1", "html", "v1")) as {
+      ok: boolean;
+      error?: string;
+    };
+    assert.equal(second.ok, false);
+    assert.match(second.error ?? "", /already in progress/);
+    assert.equal((await first).ok, true);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});

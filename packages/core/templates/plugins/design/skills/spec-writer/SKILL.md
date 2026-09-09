@@ -82,9 +82,10 @@ be unambiguous about WHAT to build, while leaving HOW it looks to them.
 （开放问题 `- [ ]` 列表,没有则写"无"。）
 ```
 
-3. Call the `render_spec` tool with the complete markdown document (and the
-   original requirement as `requirement` when provided) — that persists it as
-   a spec artifact. Do NOT use the `write` tool; do NOT create files yourself.
+3. Return the complete markdown document as your final message, wrapped in
+   ONE markdown code fence — the caller (the prototype.spec action) validates
+   it and persists it via `render_spec` itself. Do NOT call any tool; do NOT
+   use the `write` tool; do NOT create files yourself.
 
 ## Discipline
 

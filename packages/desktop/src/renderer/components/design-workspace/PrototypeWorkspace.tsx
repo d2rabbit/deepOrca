@@ -233,13 +233,18 @@ export function PrototypeWorkspace({
     setSlides(null);
     setSlidesPage(1);
   }, [selectedVersion?.versionId, suite?.id]);
-  /** ←/→ paging: the deck is a stack of 100vh SVG slides inside the frame;
-   *  scroll it viewport-by-viewport (sandbox keeps the frame script-free). */
   /** 幻灯片模式(user ask 2026-09-09):marp 页面固定 1280×720,按容器宽度
-   *  zoom 适配——否则要么超宽溢出、要么右侧留出大片死区。ResizeObserver
-   *  防抖到 0.1% 精度,避免 srcDoc 频繁重载。 */
+   *  zoom 适配——否则要么超宽溢出、要么右侧留出大片死区。0.5% 滞回只限定
+   *  srcDoc 重载粒度(拖拽一次仍会重载数次,并非防抖)。 */
   const slidesBoxRef = useRef<HTMLDivElement | null>(null);
   const [slidesZoom, setSlidesZoom] = useState(1);
+  /** 缩放后页高(720 * zoom)的镜像 ref:iframe 的 scroll 监听只在 onLoad
+   *  注册一次,闭包里的 state 会过期。翻页与页码必须共用同一坐标口径——
+   *  根元素 CSS zoom 是布局期缩放,scrollY/scrollBy 都工作在缩放后坐标。 */
+  const slidesZoomRef = useRef(1);
+  useEffect(() => {
+    slidesZoomRef.current = slidesZoom;
+  }, [slidesZoom]);
   useEffect(() => {
     if (tab !== "spec" || specView !== "slides") return;
     const box = slidesBoxRef.current;
@@ -252,20 +257,23 @@ export function PrototypeWorkspace({
     });
     observer.observe(box);
     return () => observer.disconnect();
-  }, [tab, specView]);
+    // content.spec gates the observed container's mount — re-run when it
+    // changes so a re-mounted box is re-observed, never a detached node.
+  }, [tab, specView, content.spec]);
 
-  /** 分页以 marp 固定的文档像素(每页 720)计——html{zoom} 只缩放渲染,
-   *  不改变文档坐标,滚动偏移与缩放因子无关。 */
   const slideStep = (dir: 1 | -1): void => {
     const win = slidesFrameRef.current?.contentWindow;
     if (!win) return;
-    win.scrollBy({ top: dir * 720 * slidesZoom, behavior: "smooth" });
+    win.scrollBy({ top: dir * 720 * slidesZoomRef.current, behavior: "smooth" });
   };
   const handleSlidesFrameLoad = (): void => {
     const win = slidesFrameRef.current?.contentWindow;
     if (!win) return;
+    // zoom lives in the srcDoc, so every zoom change reloads the frame and
+    // resets scrollY to 0 — the page indicator must follow it back to 1.
+    setSlidesPage(1);
     win.addEventListener("scroll", () => {
-      const page = Math.round(win.scrollY / 720) + 1;
+      const page = Math.round(win.scrollY / (720 * slidesZoomRef.current)) + 1;
       setSlidesPage(Math.min(Math.max(1, page), Math.max(1, slidesPagesRef.current)));
     });
   };

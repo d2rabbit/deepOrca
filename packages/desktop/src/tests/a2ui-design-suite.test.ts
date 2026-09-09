@@ -417,3 +417,53 @@ test("legacy update against a suite-normalized artifact fails loudly instead of 
     await client.close();
   }
 });
+
+test("save_suite_arch enforces the verification gate and the arch contract at the write boundary", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "a2ui-suite-arch-"));
+  roots.push(root);
+  const client = await clientFor(root);
+  try {
+    const first = await client.callTool({
+      name: "render_spec",
+      arguments: { document: "# Tasks\n\n## Page list\n- Board", requirement: "Task board", note: "initial" },
+    });
+    const ref = artifactRefOf(first);
+    const ARCH = "# 架构\n\n```mermaid\ngraph TB\n  a[界面]\n```";
+
+    // The tool is model-reachable directly — the prototype.arch action's
+    // verification gate must hold here too, not only in the action layer.
+    const locked = await client.callTool({
+      name: "save_suite_arch",
+      arguments: { suiteId: ref.suiteId, versionId: ref.versionId, document: ARCH },
+    });
+    assert.equal(locked.isError, true);
+    assert.match(text(locked), /verification must pass/);
+
+    // Verify the suite, then the standardized-format contract still applies.
+    await client.callTool({
+      name: "save_suite_result",
+      arguments: { suiteId: ref.suiteId, versionId: ref.versionId, verification: { status: "passed", checks: [] } },
+    });
+    const head = readDesignSuite(root, ref.suiteId)?.currentVersionId ?? "";
+    assert.notEqual(head, ref.versionId, "verification append moved the head");
+    const diagramLess = await client.callTool({
+      name: "save_suite_arch",
+      arguments: { suiteId: ref.suiteId, versionId: head, document: "# 架构\n\n正文没有图。" },
+    });
+    assert.equal(diagramLess.isError, true);
+    assert.match(text(diagramLess), /mermaid/);
+
+    // A valid document against the head persists and must not downgrade the
+    // already-passed verification to "ready".
+    const saved = await client.callTool({
+      name: "save_suite_arch",
+      arguments: { suiteId: ref.suiteId, versionId: head, document: ARCH },
+    });
+    assert.notEqual(saved.isError, true);
+    const headContent = readDesignSuite(root, ref.suiteId)?.currentVersion?.content as PrototypeSuiteContent;
+    assert.equal(headContent.verification?.status, "passed");
+    assert.match(headContent.arch ?? "", /```mermaid/);
+  } finally {
+    await client.close();
+  }
+});
