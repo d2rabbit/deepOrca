@@ -21,8 +21,34 @@ import { existsSync, readFileSync, readdirSync, rmSync, chmodSync, renameSync, w
 import crypto from "node:crypto";
 import path from "node:path";
 
-/** Known subagent prompt prefixes that leaked as session summaries. */
-const LEAKED_PREFIXES = ["Scan the codebase"];
+/**
+ * Known subagent prompt prefixes that leaked as session summaries. The design
+ * pipeline (prototype.spec/materialize/revise/arch, design.materialize/
+ * review/revise) runs every generation through runSubagent({silent:true}) —
+ * its prompts are written as the sub-session's only user turn, so the summary
+ * is the prompt's first 100 chars. Entries whose flag was already washed by
+ * the pre-fix normalize whitelist (user ask 2026-09-09) are re-claimed here by
+ * prefix; hasUserTurn keeps any session the user actually typed into.
+ */
+const LEAKED_PREFIXES = [
+  "Scan the codebase",
+  // prototype.spec
+  "Write the complete structured PRD for the requirement below",
+  // prototype.materialize / design.materialize
+  "Create the complete OpenUI Lang prototype for the requirements document below",
+  "Create a complete OpenUI Lang program for this requirement",
+  "Create a complete OpenUI Lang program elevating the selected prototype",
+  // prototype.revise (spec/openui) / design.revise (design)
+  "Revise only the spec content below",
+  "Revise only the openui content below",
+  "Revise only this OpenUI Lang target",
+  "Revise the tokens JSON only",
+  "Revise the components JSON only",
+  // design.review
+  "Review the OpenUI design and existing deterministic quality below",
+  // prototype.arch
+  "Write the complete standardized technical architecture document derived from the approved PRD below",
+];
 
 type DiskEntry = {
   id: string;

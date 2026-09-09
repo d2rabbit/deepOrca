@@ -1445,6 +1445,31 @@ test("workspaceDir survives the sessions-index round trip after a reload", async
   assert.equal(reloaded.getSession(sessionId)?.workspaceDir, expected);
 });
 
+test("isSilentSubagent survives the sessions-index round trip after a reload", async () => {
+  const workspace = createTempDir("deepcode-silentsubagent-roundtrip-workspace-");
+  const home = createTempDir("deepcode-silentsubagent-roundtrip-home-");
+  setHomeDir(home);
+  globalThis.fetch = (async () => ({ ok: true, text: async () => "" }) as Response) as typeof fetch;
+
+  const manager = createSessionManager(workspace);
+  (manager as any).activateSession = async () => {};
+
+  // runSubagent silent 模式的创建路径:silentSubagentActive 置位后 createSession。
+  (manager as any).silentSubagentActive = true;
+  const subSessionId = await manager.createSession({
+    text: "Write the complete structured PRD for the requirement below",
+  });
+  (manager as any).silentSubagentActive = false;
+  assert.equal(manager.getSession(subSessionId)?.isSilentSubagent, true, "createSession flagged the sub-session");
+
+  // A fresh manager over the same workspace reloads the index from disk —
+  // normalizeSessionEntry must whitelist isSilentSubagent or the first
+  // debounced flush after a restart permanently erases it and the pipeline
+  // sub-session leaks into the sidebar (user ask 2026-09-09).
+  const reloaded = createSessionManager(workspace);
+  assert.equal(reloaded.getSession(subSessionId)?.isSilentSubagent, true);
+});
+
 test("normalizeSessionEntry tolerates a missing or non-string workspaceDir", () => {
   const workspace = createTempDir("deepcode-workspacedir-normalize-workspace-");
   const home = createTempDir("deepcode-workspacedir-normalize-home-");

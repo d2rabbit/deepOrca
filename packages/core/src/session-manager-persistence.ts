@@ -1434,6 +1434,11 @@ export abstract class SessionManagerPersistence extends SessionManagerSkills {
       // depth-lane: whitelisted like every other field — an unlisted persisted
       // field is silently dropped on the first post-restart flush.
       lane: value.lane === "express" || value.lane === "deep" ? value.lane : undefined,
+      // Silent subagent — same whitelist rule as lane: without this, EVERY
+      // manager (re)construction (restart, window reload) stripped the flag
+      // from persisted entries and leaked pipeline sub-sessions into the
+      // sidebar as "已中断"/processing conversations (user ask 2026-09-09).
+      isSilentSubagent: value.isSilentSubagent === true || undefined,
       taskRef: this.normalizeTaskRef(value.taskRef),
       // Whitelisted like every other field — an unlisted persisted field is
       // silently dropped on the first post-restart updateSessionEntry flush.
