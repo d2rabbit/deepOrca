@@ -639,15 +639,27 @@ export const prototypeVerifyRun: ActionRun<PrototypeVerifyInput, PrototypeVerify
     },
   ];
   for (const [index, check] of (input.checks ?? []).entries()) {
-    checks.push({
+    const resolved: PrototypeVerificationCheck = {
       id: check.id?.trim() || `external-${index + 1}`,
       label: check.label,
       status: check.passed ? "passed" : "failed",
       ...(check.observation?.trim() ? { observation: check.observation.trim() } : {}),
-    });
+    };
+    // 按 id 消项:传入的 check 若命中已随行的观察项,则覆写其状态(这是
+    // "revise 加观察 → 处理 → verify 消项"回路的结算端),否则作为新外部项追加。
+    const carriedIndex = checks.findIndex(
+      (existing) => existing.id === resolved.id && !deterministicIds.has(existing.id)
+    );
+    if (carriedIndex !== -1) checks[carriedIndex] = resolved;
+    else checks.push(resolved);
   }
+  // 整体状态三档:有 failed 即 failed;否则有 pending(未消解的观察项)为
+  // pending;全 passed/healed 才 passed。pending 是"待人工确认"而非"失败"——
+  // 否则携带逻辑会把文档化回路变成永久 failed 的死锁(评审 C)。
+  const hasFailed = checks.some((check) => check.status === "failed");
+  const hasPending = checks.some((check) => check.status === "pending");
   const verification: PrototypeVerificationResult = {
-    status: checks.every((check) => check.status === "passed" || check.status === "healed") ? "passed" : "failed",
+    status: hasFailed ? "failed" : hasPending ? "pending" : "passed",
     checks,
     generatedAt: new Date().toISOString(),
     healingRounds: content.verification?.healingRounds ?? 0,

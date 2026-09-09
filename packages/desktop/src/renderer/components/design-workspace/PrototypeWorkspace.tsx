@@ -120,6 +120,8 @@ export function PrototypeWorkspace({
         if (!targetId) {
           setSuite(null);
           setSelectedVersion(null);
+          // 库清空也是一次成功加载:清掉可能残留的错误态(评审 B)。
+          setError(null);
           return;
         }
         const next = await suiteApi.designSuiteRead(root, targetId);
@@ -141,10 +143,17 @@ export function PrototypeWorkspace({
             ? prev
             : (next?.currentVersion ?? null)
         );
+        // 成功加载清除前台失败残留的错误态:后台刷新成功必须能把工作区从
+        // 错误页自愈回数据页(评审 B)。后台失败不写错误——保持旧数据可见,
+        // 不整页撕成错误态。
+        setError(null);
       } catch (cause) {
         if (seq === loadSeq.current && !background) setError(cause instanceof Error ? cause.message : String(cause));
       } finally {
-        if (seq === loadSeq.current && !background) setLoading(false);
+        // seq 仍是最新者必须收尾 loading——无论前台还是后台。否则前台 load
+        // 被后台刷新超越时双方都跳过收尾,loading 永久卡死(评审 A:恢复
+        // edaf5b968 的"最新 load 必收尾"不变式)。
+        if (seq === loadSeq.current) setLoading(false);
       }
     },
     [root, suiteId]
@@ -504,6 +513,20 @@ export function PrototypeWorkspace({
     void (async () => {
       const ref = await runAction("prototype.verify", { suiteId: suite.id, versionId: selectedVersion.versionId });
       if (ref) pushDesignToast("success", t("prototypeWorkspace.toastVerified"));
+    })();
+  };
+
+  /** 消项(评审 C):把一条 pending 观察项标记为已解决——走 prototype.verify
+   *  的按 id 结算端覆写该检查,不再追加新项。 */
+  const resolveCheck = (check: { id: string; label: string; observation?: string }) => {
+    if (!suite || !selectedVersion) return;
+    void (async () => {
+      const ref = await runAction("prototype.verify", {
+        suiteId: suite.id,
+        versionId: selectedVersion.versionId,
+        checks: [{ id: check.id, label: check.label, passed: true }],
+      });
+      if (ref) pushDesignToast("success", t("prototypeWorkspace.checkResolved"));
     })();
   };
 
@@ -1058,6 +1081,15 @@ export function PrototypeWorkspace({
                             onClick={() => void revise(check.observation ?? check.label)}
                           >
                             <IconSparkle /> {t("prototypeWorkspace.fixFinding")}
+                          </button>
+                        ) : null}
+                        {check.status === "pending" ? (
+                          <button
+                            type="button"
+                            disabled={readOnly || busy !== null}
+                            onClick={() => resolveCheck(check)}
+                          >
+                            <IconCheck /> {t("prototypeWorkspace.resolveCheck")}
                           </button>
                         ) : null}
                       </div>

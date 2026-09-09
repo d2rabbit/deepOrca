@@ -1657,6 +1657,8 @@ export const en = {
     "Spec acceptance criteria → deterministic structural checks + external observations → written to the version's verification (exportable with .ddp). Re-run from this page or the prototype toolbar.",
   "prototypeWorkspace.checkStatus.pending": "Pending",
   "prototypeWorkspace.checkStatus.passed": "Pass",
+  "prototypeWorkspace.resolveCheck": "Mark resolved",
+  "prototypeWorkspace.checkResolved": "Observation marked resolved",
   "prototypeWorkspace.checkStatus.failed": "Fail",
   "prototypeWorkspace.checkStatus.healed": "Healed",
   "prototypeWorkspace.reportChecks": "Checks",

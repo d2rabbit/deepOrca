@@ -1649,6 +1649,8 @@ export const ko: Record<MessageKey, string> = {
     "명세 수용 기준 → 결정론적 구조 검사 + 외부 관찰 → 버전의 verification에 기록(.ddp로 내보내기 가능). 이 페이지 또는 프로토타입 툴바에서 다시 실행할 수 있습니다.",
   "prototypeWorkspace.checkStatus.pending": "대기",
   "prototypeWorkspace.checkStatus.passed": "통과",
+  "prototypeWorkspace.resolveCheck": "해결됨으로 표시",
+  "prototypeWorkspace.checkResolved": "지적 사항이 해결됨으로 표시되었습니다",
   "prototypeWorkspace.checkStatus.failed": "미통과",
   "prototypeWorkspace.checkStatus.healed": "자가 치유",
   "prototypeWorkspace.reportChecks": "검사 항목",

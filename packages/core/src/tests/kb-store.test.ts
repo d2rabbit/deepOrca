@@ -49,6 +49,13 @@ before(() => {
     ["---", "title: 认证模块", "type: module", "---", "", "# 认证模块", "", "认证走 JWT 与刷新令牌。"].join("\n")
   );
   fs.writeFileSync(path.join(wikiDir, "stub.md"), "# x");
+  // 仪表盘守卫的对照物:失败 init 的骨架 index.md(≤512B)+ 双语阶段遗留变体页,
+  // 都不得作为页面被列举(kb-store 头注声明的探针 parity)。
+  fs.writeFileSync(path.join(wikiDir, "index.md"), "# index");
+  fs.writeFileSync(
+    path.join(wikiDir, "architecture.zh.md"),
+    ["---", "title: 架构总览(旧双语变体)", "---", "", "legacy"].join("\n")
+  );
 
   // Architecture maps: one delivered architecture IR + a hollow leftover.
   const protoDir = path.join(root, ".deeporca", "prototypes");
@@ -84,6 +91,8 @@ test("listWikiPages walks subdirectories and parses OKF frontmatter", () => {
   const names = pages.map((p) => p.name);
   assert.ok(names.includes("architecture"), "top-level page listed");
   assert.ok(names.includes("modules/auth"), "subdir page listed with store-relative name");
+  assert.ok(!names.includes("index"), "skeleton index.md (≤512B) not counted as a page");
+  assert.ok(!names.includes("architecture.zh"), "legacy bilingual variant not counted as a page");
   const auth = pages.find((p) => p.name === "modules/auth")!;
   assert.equal(auth.title, "认证模块");
   assert.equal(auth.type, "module");

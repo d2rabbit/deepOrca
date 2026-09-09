@@ -1616,6 +1616,8 @@ export const zhTW: Record<MessageKey, string> = {
     "需求文件「驗收標準」→ 確定性結構檢查 + 外部觀察項 → 結果寫入版本 verification，可隨 .ddp 匯出。可在本頁或原型工具列觸發。",
   "prototypeWorkspace.checkStatus.pending": "待定",
   "prototypeWorkspace.checkStatus.passed": "通過",
+  "prototypeWorkspace.resolveCheck": "標記已解決",
+  "prototypeWorkspace.checkResolved": "觀察項已標記解決",
   "prototypeWorkspace.checkStatus.failed": "未通過",
   "prototypeWorkspace.checkStatus.healed": "自癒",
   "prototypeWorkspace.reportChecks": "驗收項",

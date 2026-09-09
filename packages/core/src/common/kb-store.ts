@@ -21,6 +21,18 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import matter from "gray-matter";
 import { WIKI_STORE_DIR, DEEPORCA_PROJECT_DIR } from "./generated-dirs";
+import { isWikiVariantFile } from "../actions/wiki-variants";
+
+/**
+ * Wiki page guards — the SAME lines the knowledge dashboard's probes enforce
+ * (knowledge-ipc.ts) and the codebase invariant "same 512B line everywhere"
+ * (wiki-cli): (1) the removed bilingual stage's legacy `*.zh.md` / `*.en.md`
+ * siblings stay on disk but are not pages; (2) a bare root `index.md`
+ * skeleton (failed-init leftover, <512B real-world) must not read as a
+ * generated page. `readWikiPage` still serves explicit requests — only
+ * list/overview parity is guarded here.
+ */
+const SKELETON_PAGE_BYTES = 512;
 
 const PROTOTYPES_DIR = `${DEEPORCA_PROJECT_DIR}/prototypes`;
 
@@ -142,7 +154,7 @@ function walkWikiPages(dir: string, relPrefix: string, out: KbWikiPage[]): void 
     const rel = relPrefix ? `${relPrefix}/${entry.name}` : entry.name;
     if (entry.isDirectory()) {
       walkWikiPages(full, rel, out);
-    } else if (entry.isFile() && entry.name.endsWith(".md")) {
+    } else if (entry.isFile() && entry.name.endsWith(".md") && !isWikiVariantFile(entry.name)) {
       try {
         const stat = fs.statSync(full);
         const raw = fs.readFileSync(full, "utf8");
@@ -168,7 +180,10 @@ export function listWikiPages(root: string): KbWikiPage[] {
   if (!fs.existsSync(dir)) return [];
   const pages: KbWikiPage[] = [];
   walkWikiPages(dir, "", pages);
-  return pages.sort((a, b) => (a.title ?? a.name).localeCompare(b.title ?? b.name));
+  const counted = pages.filter(
+    (page) => !(page.path === `${WIKI_STORE_DIR}/index.md` && page.sizeBytes <= SKELETON_PAGE_BYTES)
+  );
+  return counted.sort((a, b) => (a.title ?? a.name).localeCompare(b.title ?? b.name));
 }
 
 /** Read one wiki page by store-relative name ("architecture", "modules/auth").

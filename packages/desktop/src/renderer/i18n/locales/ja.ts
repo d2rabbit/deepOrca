@@ -1658,6 +1658,8 @@ export const ja: Record<MessageKey, string> = {
     "仕様の受け入れ基準 → 決定論的な構造チェック + 外部観察 → バージョンの verification に記録（.ddp で書き出し可能）。このページまたはプロトタイプツールバーから再実行できます。",
   "prototypeWorkspace.checkStatus.pending": "保留中",
   "prototypeWorkspace.checkStatus.passed": "合格",
+  "prototypeWorkspace.resolveCheck": "解決済みにする",
+  "prototypeWorkspace.checkResolved": "指摘事項を解決済みにしました",
   "prototypeWorkspace.checkStatus.failed": "不合格",
   "prototypeWorkspace.checkStatus.healed": "自己修復",
   "prototypeWorkspace.reportChecks": "チェック項目",

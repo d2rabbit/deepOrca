@@ -191,6 +191,8 @@ export function DesignWorkspace({
           if (source) setBasis(`${source.suiteId}:${source.versionId}`);
           if (next.currentVersion.content.designSystemId) setDesignSystemId(next.currentVersion.content.designSystemId);
         }
+        // 成功加载清除前台失败残留的错误态(评审 B)。
+        setError(null);
       } catch (cause) {
         if (seq === loadSeq.current && !background) setError(cause instanceof Error ? cause.message : String(cause));
       } finally {

@@ -1613,6 +1613,8 @@ export const zh: Record<MessageKey, string> = {
     "需求文档「验收标准」→ 确定性结构检查 + 外部观察项 → 结果写入版本 verification，可随 .ddp 导出。可在本页或原型工具条触发。",
   "prototypeWorkspace.checkStatus.pending": "待定",
   "prototypeWorkspace.checkStatus.passed": "通过",
+  "prototypeWorkspace.resolveCheck": "标记已解决",
+  "prototypeWorkspace.checkResolved": "观察项已标记解决",
   "prototypeWorkspace.checkStatus.failed": "未通过",
   "prototypeWorkspace.checkStatus.healed": "自愈",
   "prototypeWorkspace.reportChecks": "验收项",
