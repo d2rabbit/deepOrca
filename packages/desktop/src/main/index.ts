@@ -3,7 +3,7 @@
 // events to the renderer.
 
 import { app, BrowserWindow, dialog, ipcMain, session as electronSession, shell } from "electron";
-import { dirname, join, delimiter, resolve as pathResolve, sep as pathSep } from "node:path";
+import { basename, dirname, extname, join, delimiter, resolve as pathResolve, sep as pathSep } from "node:path";
 import { createRequire as nodeCreateRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { open, readdir, readFile, writeFile, stat } from "node:fs/promises";
@@ -2444,10 +2444,57 @@ function registerEditorIpc({ handle, handlePrivileged }: IpcHelpers): void {
   // ── Editor module ───────────────────────────────────────────────────────
   handle(IpcRequest.EditorReadFile, (filePath: string) => handleEditorReadFile(getBridge().projectRoot, filePath));
   handle(IpcRequest.EditorReadBinary, (filePath: string) => handleEditorReadBinary(getBridge().projectRoot, filePath));
+  // Extensions whose shell "open" default-handler EXECUTES code instead of
+  // rendering content. safePathWithinRoot already bounds the path to the
+  // workspace, but the workspace is agent-writable — opening one of these is
+  // one click from running whatever landed there, so require an explicit
+  // local confirmation first.
+  const EXECUTE_ON_OPEN_EXTENSIONS = new Set([
+    "exe",
+    "msi",
+    "bat",
+    "cmd",
+    "com",
+    "scr",
+    "pif",
+    "lnk",
+    "app",
+    "pkg",
+    "command",
+    "sh",
+    "bash",
+    "appimage",
+    "desktop",
+    "deb",
+    "rpm",
+    "vbs",
+    "vbe",
+    "wsf",
+    "wsh",
+    "jse",
+    "jar",
+  ]);
   handlePrivileged(IpcRequest.EditorOpenSystem, async (filePath: string) => {
     // Containment-checked hand-off to the OS shell (A3 escape hatch).
     const absPath = safePathWithinRoot(getBridge().projectRoot, filePath);
     if (!absPath) return { ok: false, error: "Path escapes project root" };
+    const ext = extname(absPath).slice(1).toLowerCase();
+    if (EXECUTE_ON_OPEN_EXTENSIONS.has(ext)) {
+      const options = {
+        type: "warning" as const,
+        title: "Open executable file",
+        message: `"${basename(absPath)}" can run code on this machine.`,
+        detail: "It will be handed to the OS shell. Open it anyway?",
+        buttons: ["Open", "Cancel"],
+        defaultId: 1,
+        cancelId: 1,
+        noLink: true,
+      };
+      const { response } = mainWindow
+        ? await dialog.showMessageBox(mainWindow, options)
+        : await dialog.showMessageBox(options);
+      if (response !== 0) return { ok: false, error: "open canceled" };
+    }
     const openError = await shell.openPath(absPath);
     return openError ? { ok: false, error: openError } : { ok: true };
   });

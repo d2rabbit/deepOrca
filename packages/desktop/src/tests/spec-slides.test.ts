@@ -17,6 +17,7 @@ import {
   countRemoteImages,
   hasMarpFrontMatter,
   renderSpecSlides,
+  sanitizeSlidesHtml,
 } from "../main/tools/spec-slides";
 
 const SPEC = `# 登录模块重设计
@@ -100,4 +101,29 @@ test("spec-slides: remote images counted, theme bakes per appearance, export doc
   assert.ok(doc.startsWith("<!doctype html>"));
   assert.ok(doc.includes('Content-Security-Policy" content="default-src'));
   assert.ok(doc.includes("登录 &lt;重设计&gt;"));
+});
+
+test("spec-slides: a planted meta refresh never reaches the deck as a live tag (user ask 2026-09-09)", async () => {
+  // marp-core's sanitizer escapes disallowed raw HTML; the render chokepoint's
+  // own strip is the second line (it must survive marp-core upgrades — the
+  // invariant is navigation-proof output, not a particular sanitizer version).
+  const withRefresh = await renderSpecSlides(
+    `${SPEC}\n\n<meta http-equiv="refresh" content="0;url=https://evil.example">\n`,
+    { title: "t" }
+  );
+  assert.ok(!/<meta[\s>]/i.test(withRefresh.html), "no live <meta> tag survives the render");
+  assert.ok(withRefresh.html.includes("&lt;meta"), "the planted tag degrades to display text");
+
+  // The chokepoint strip itself, however the tag is spelled.
+  assert.equal(sanitizeSlidesHtml('<section><META HTTP-EQUIV="Refresh" CONTENT="5"></section>'), "<section></section>");
+  assert.equal(
+    sanitizeSlidesHtml("<section><meta http-equiv='refresh' content='0;url=x'></section>"),
+    "<section></section>"
+  );
+  // Non-refresh metas are none of this layer's business.
+  assert.equal(sanitizeSlidesHtml('<meta charset="utf-8">'), '<meta charset="utf-8">');
+
+  // form-action does not fall back to default-src — pinned explicitly.
+  const doc = buildSlidesHtml(withRefresh.html, withRefresh.css, "t");
+  assert.ok(doc.includes("form-action 'none'"));
 });

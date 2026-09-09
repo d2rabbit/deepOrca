@@ -186,6 +186,15 @@ export function normalizeSessionTrace(
       const up = msg.meta?.userPrompt;
       const text = (typeof up?.text === "string" && up.text.trim()) || (msg.content ?? "").trim();
       if (!text || msg.meta?.asThinking || msg.meta?.isSummary) continue;
+      // Turn boundary: calls still open from the PREVIOUS turn can never
+      // receive their results anymore — sweep them to interrupted here. The
+      // terminal sweep at loop end only sees the final segment (open resets
+      // below), and the inFlight exemption must stay scoped to exactly that
+      // segment; without this, an earlier interrupted turn renders badge-less
+      // forever.
+      for (const o of open) {
+        if (!o.step.ok && !o.step.fail) o.step.interrupted = true;
+      }
       turns.push({ user: clip(text, TEXT_MAX * 2), at: msg.createTime, steps: [] });
       open = [];
       continue;

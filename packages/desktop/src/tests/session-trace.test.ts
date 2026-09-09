@@ -184,6 +184,41 @@ test("session-trace: inFlight session skips the terminal sweep — unmatched cal
   assert.equal(live.turns[0].steps[0].interrupted, undefined);
 });
 
+test("session-trace: a turn boundary sweeps the PREVIOUS turn's unanswered calls even when live (user ask 2026-09-09)", () => {
+  // `open` resets at every user message, so the terminal sweep only ever saw
+  // the final segment — an interrupted EARLIER turn rendered badge-less
+  // forever, and the inFlight exemption covered it too. The boundary sweep
+  // closes those turns; inFlight stays scoped to exactly the live segment.
+  const messages = [
+    msg({ role: "user", content: "第一轮", createTime: "2026-09-01T10:00:00.000Z" }, 1),
+    msg(
+      {
+        role: "assistant",
+        messageParams: { tool_calls: [call("c1", "bash", '{"command":"old"}')] },
+        createTime: "2026-09-01T10:00:05.000Z",
+      },
+      2
+    ),
+    msg({ role: "user", content: "第二轮", createTime: "2026-09-01T11:00:00.000Z" }, 3),
+    msg(
+      {
+        role: "assistant",
+        messageParams: { tool_calls: [call("c2", "bash", '{"command":"pnpm test"}')] },
+        createTime: "2026-09-01T11:00:05.000Z",
+      },
+      4
+    ),
+  ] as never;
+  const landed = normalizeSessionTrace("s1", "demo", messages);
+  const live = normalizeSessionTrace("s1", "demo", messages, { inFlight: true });
+  // Turn 1's unanswered call is over either way — that turn has ended.
+  assert.equal(landed.turns[0].steps[0].interrupted, true);
+  assert.equal(live.turns[0].steps[0].interrupted, true);
+  // Turn 2's unanswered call: landed → interrupted; live → still exempt.
+  assert.equal(landed.turns[1].steps[0].interrupted, true);
+  assert.equal(live.turns[1].steps[0].interrupted, undefined);
+});
+
 test("session-trace: missing tool_call_id falls back by position — the step keeps its verdict, the sweep must not re-mark it interrupted (user ask 2026-09-08)", () => {
   // The tolerance fallback assigns the result onto open's tail WITHOUT
   // removing it from `open`; the terminal sweep used to stamp interrupted on

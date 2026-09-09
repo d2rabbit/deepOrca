@@ -219,17 +219,31 @@ export async function renderSpecSlides(
   const marp = new Marp({ script: false });
   marp.themeSet.add(THEMES[opts.appearance === "dark" ? "dark" : "light"]);
   const { html, css } = marp.render(markdown);
+  const safeHtml = sanitizeSlidesHtml(html);
   return {
-    html,
+    html: safeHtml,
     css,
-    pages: (html.match(/<section\b/g) ?? []).length,
+    pages: (safeHtml.match(/<section\b/g) ?? []).length,
     remoteImages: countRemoteImages(markdown),
   };
 }
 
+/** Marpit passes raw HTML in the markdown through untouched — and specs are
+ *  LLM-generated content, so a planted `<meta http-equiv="refresh">` would
+ *  navigate both the preview iframe and the exported deck with no user
+ *  gesture. marp-core's own sanitizer currently escapes disallowed tags, but
+ *  navigation is outside CSP's default-src reach either way, so this strips
+ *  them at the one render chokepoint shared by preview and both exports —
+ *  an invariant that must survive marp-core upgrades. Exported for the test. */
+export function sanitizeSlidesHtml(html: string): string {
+  return html.replace(/<meta\b[^>]*http-equiv\s*=\s*["']?refresh\b[^>]*>/gi, "");
+}
+
 /** CSP for exported decks: self-contained, offline, remote content blocked
- *  (B10 — the default-deny leg of the remote-image policy). */
-const SLIDES_CSP = "default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:";
+ *  (B10 — the default-deny leg of the remote-image policy). `form-action`
+ *  does NOT fall back to default-src, so it is pinned explicitly — a planted
+ *  `<form>` must not be able to submit anywhere either. */
+const SLIDES_CSP = "default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:; form-action 'none'";
 
 function escapeHtml(text: string): string {
   let out = "";
