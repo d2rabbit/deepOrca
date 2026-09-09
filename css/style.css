@@ -776,59 +776,63 @@ section {
   font-size: 1rem;
 }
 
-/* ============ 04 Preview ============ */
-.shot-feature {
+/* ============ 04 Preview (coming soon) ============ */
+.soon-grid {
   display: grid;
-  grid-template-columns: 1.15fr 1fr 1fr;
-  gap: 1.6rem;
-  margin-bottom: 1.6rem;
-}
-
-.shot-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 1.6rem;
 }
 
-.shot {
+.soon {
   position: relative;
   min-width: 0;
   margin: 0;
 }
 
-.shot-tag {
+.soon-tag {
   position: absolute;
-  top: 0.75rem;
-  left: 0.75rem;
+  top: -2px;
+  left: -2px;
   z-index: 2;
   background: var(--ink);
   color: var(--bg);
+  font-family: var(--mono);
   font-size: 0.62rem;
   font-weight: 700;
   letter-spacing: 0.14em;
   padding: 0.28rem 0.55rem;
 }
 
-.shot img {
-  display: block;
-  width: 100%;
-  border: 2px solid var(--ink);
-  background: var(--surface-2);
-  transition: transform 0.18s var(--ease), box-shadow 0.18s var(--ease);
+.soon-frame {
+  position: relative;
+  aspect-ratio: 16 / 10;
+  border: 2px dashed var(--hair-2);
+  background: var(--surface);
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  transition: border-color 0.18s;
 }
 
-.shot:hover img {
-  transform: translate(-3px, -3px);
-  box-shadow: 6px 6px 0 var(--accent);
+.soon:hover .soon-frame {
+  border-color: var(--accent);
 }
 
-.shot figcaption {
+.soon-ghost {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.12em;
+  color: var(--text-3);
+  text-align: center;
+}
+
+.soon figcaption {
   margin-top: 0.65rem;
   font-size: 0.82rem;
   color: var(--text-2);
 }
 
-.shot figcaption::before {
+.soon figcaption::before {
   content: "— ";
   color: var(--accent);
   font-weight: 700;
@@ -1231,9 +1235,6 @@ section {
   .coord-cards {
     grid-template-columns: repeat(2, 1fr);
   }
-  .shot-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
 }
 
 @media (max-width: 960px) {
@@ -1267,6 +1268,9 @@ section {
   .nav-links {
     gap: 1.1rem;
   }
+  .soon-grid {
+    grid-template-columns: 1fr;
+  }
   .coord-head {
     grid-template-columns: 1fr;
   }
@@ -1297,9 +1301,6 @@ section {
     grid-template-columns: 1fr;
   }
   .coord-cards {
-    grid-template-columns: 1fr;
-  }
-  .shot-grid {
     grid-template-columns: 1fr;
   }
   .hero-ctas {
