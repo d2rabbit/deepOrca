@@ -8,10 +8,11 @@
  *  - OpenWiki: markdown pages with OKF frontmatter under the canonical
  *    `.deeporca/deepwiki/` store (modules/ and workflows/ subdirs included —
  *    the store is walked recursively, unlike the flat wiki.list-pages action).
- *  - Architecture maps: archify typed-IR `arch-*.<type>.json` artifacts under
- *    `.deeporca/prototypes/` with their delivered `.html` siblings (archify
- *    era: 摒弃自有 mermaid 方案, the IR JSON — not the HTML — is the agent-
- *    readable knowledge).
+ *  - Architecture maps: archify typed-IR `*.<type>.json` artifacts under
+ *    `.deeporca/prototypes/` (conventionally `arch-*`, but the suffix is the
+ *    contract — same as the vendored CLI's archifyTypeOf) with their delivered
+ *    `.html` siblings (archify era: 摒弃自有 mermaid 方案, the IR JSON — not
+ *    the HTML — is the agent-readable knowledge).
  *
  * Everything is read-only and escape-guarded; absent stores resolve to empty
  * results so a project without a wiki never errors an agent's exploration.
@@ -316,7 +317,7 @@ export function readArchDiagram(root: string, name: string): KbDiagramRead {
   }
   const type = archTypeOf(path.basename(resolved));
   if (!type) {
-    throw new Error(`kb_read_diagram: "${name}" is not an archify typed-IR artifact (arch-*.<type>.json)`);
+    throw new Error(`kb_read_diagram: "${name}" is not an archify typed-IR artifact (*.<type>.json)`);
   }
   if (!fs.existsSync(resolved)) {
     throw new Error(`kb_read_diagram: no such diagram "${name}"`);
@@ -329,7 +330,9 @@ export function readArchDiagram(root: string, name: string): KbDiagramRead {
   const ir = JSON.parse(fs.readFileSync(resolved, "utf8")) as Record<string, unknown>;
   const meta = ir.meta as { title?: unknown; views?: unknown } | undefined;
   return {
-    name: rel,
+    // 与 listArchDiagrams 同规:返回无 .json 后缀的 base name,agent 拿
+    // read 的 name 可直接回传 list/read 对照(评审 H)。
+    name: rel.replace(/\.json$/, ""),
     type,
     ...(meta && typeof meta.title === "string" ? { title: meta.title } : {}),
     ...(meta && Array.isArray(meta.views) ? { views: meta.views as KbDiagramRead["views"] } : {}),

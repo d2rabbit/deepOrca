@@ -139,6 +139,8 @@ test("listArchDiagrams lists typed-IR artifacts, skips hollow leftovers and non-
 
 test("readArchDiagram returns knowledge-dense IR fields and rejects escapes", () => {
   const diag = readArchDiagram(root, "arch-demo.architecture");
+  // name 与 list 同规:无 .json 后缀,read 的返回可直接回传对照(评审 H)。
+  assert.equal(diag.name, "arch-demo.architecture");
   assert.equal(diag.title, "示例系统架构");
   assert.deepEqual(diag.views, [{ id: "main", label: "主链路", focus: ["a", "b"], note: "a → b" }]);
   assert.equal((diag.components as unknown[]).length, 2);

@@ -77,7 +77,8 @@ export function PrototypeWorkspace({
   const [device, setDevice] = useState<"desktop" | "mobile" | "tablet">("desktop");
   /** 交互播放模式(user ask 2026-09-09):进入后整个工作区变成可交互播放器——
    *  工具栏/版本轨/tab 冻结,元素选取与 AI 悬浮窗不可用;退出(Esc 或退出
-   *  按钮)后原样还原。只切换布尔、不卸载组件,聊天记录与选中态自然保留。 */
+   *  按钮)后原样还原。只切换布尔、不卸载组件,聊天记录自然保留;选中态
+   *  例外——进入播放时清空(outline 会冻在旧坐标,见播放按钮 D#3 注释)。 */
   const [playing, setPlaying] = useState(false);
   /** Confirmed 待确认 items (per selected version, session scope). */
   const [confirmedSpecItems, setConfirmedSpecItems] = useState<ReadonlySet<string>>(new Set());

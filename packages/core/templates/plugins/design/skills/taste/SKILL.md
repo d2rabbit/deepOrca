@@ -56,11 +56,11 @@ careless. This skill eliminates slop.
     recent artifacts — the new design MUST differ on **at least one axis**
     from each of them:
 
-    | Axis | Values (compute from front-matter tokens) |
-    |------|-------------------------------------------|
-    | Paper lightness band | `bg` relative luminance: **dark** < 0.30 · **mid** 0.30–0.85 · **light** > 0.85 |
-    | Display type family | first family of `fontDisplay`: serif · geometric-sans · humanist-sans · grotesque · mono · slab · display-serif · black-sans · system-fallback · other |
-    | Accent hue band | hue angle of `accent`: **warm** 10–60° · **cool** 200–300° · **neutral** (near-zero chroma) · **chromatic-other** (everything else) |
+    | Axis                 | Values (compute from front-matter tokens)                                                                                                              |
+    | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+    | Paper lightness band | `bg` relative luminance: **dark** < 0.30 · **mid** 0.30–0.85 · **light** > 0.85                                                                        |
+    | Display type family  | first family of `fontDisplay`: serif · geometric-sans · humanist-sans · grotesque · mono · slab · display-serif · black-sans · system-fallback · other |
+    | Accent hue band      | hue angle of `accent`: **warm** 10–60° · **cool** 200–300° · **neutral** (near-zero chroma) · **chromatic-other** (everything else)                    |
 
     Legal: dark paper + grotesque display + cool accent → next design keeps
     the dark paper but switches to serif display + warm accent (two axes
@@ -111,14 +111,14 @@ careless. This skill eliminates slop.
 
 Use this scale consistently:
 
-| Role | Size | Weight | Class |
-|------|------|--------|-------|
-| Display/Hero title | 32-56px | 800 | `.display` |
-| Section title (H2) | 24-36px | 700 | `h2` |
-| Card title (H3) | 18px | 600 | `.card-title` / `h3` |
-| Body text | 14-16px | 400 | `p` / `.lead` |
-| Caption/Label | 12px | 500-600 | `.eyebrow` / `.caption`（12px 是无障碍下限,与 design.lint 的 tiny-font 规则一致,不再放宽到 11px） |
-| Monospace/code | 13px | 400 | `.mono` |
+| Role               | Size    | Weight  | Class                                                                                             |
+| ------------------ | ------- | ------- | ------------------------------------------------------------------------------------------------- |
+| Display/Hero title | 32-56px | 800     | `.display`                                                                                        |
+| Section title (H2) | 24-36px | 700     | `h2`                                                                                              |
+| Card title (H3)    | 18px    | 600     | `.card-title` / `h3`                                                                              |
+| Body text          | 14-16px | 400     | `p` / `.lead`                                                                                     |
+| Caption/Label      | 12px    | 500-600 | `.eyebrow` / `.caption`（12px 是无障碍下限,与 design.lint 的 tiny-font 规则一致,不再放宽到 11px） |
+| Monospace/code     | 13px    | 400     | `.mono`                                                                                           |
 
 **Line height**: 1.5-1.7 for body, 1.1-1.2 for headings.
 
@@ -147,6 +147,7 @@ Use this scale consistently:
 ## Layout patterns
 
 ### Hero section
+
 ```
 [eyebrow]          ← small, accent color
 [Display Title]    ← large, bold
@@ -155,6 +156,7 @@ Use this scale consistently:
 ```
 
 ### Feature grid
+
 ```
 [Section title]
 [grid grid-3]
@@ -162,6 +164,7 @@ Use this scale consistently:
 ```
 
 ### Stats row
+
 ```
 [grid grid-3]
   [number]         ← large (28-48px), bold
@@ -172,6 +175,7 @@ Use this scale consistently:
 ## Self-check before submitting
 
 Before calling `render_design` or `render_openui`, verify:
+
 - [ ] Title and body use different sizes/weights
 - [ ] All spacing values are on the 4/8 scale
 - [ ] One accent color throughout
@@ -186,13 +190,13 @@ Before calling `render_design` or `render_openui`, verify:
 After rendering — judge the real output, not the plan — self-score the design
 1-5 on each dimension:
 
-| # | Dimension | Ask yourself |
-|---|-----------|--------------|
-| 1 | Hierarchy 层级 | Is the eye led correctly? Title dominates body, one focal point per view, scanning order is deliberate. |
-| 2 | Rhythm 节奏 | Do sections alternate density and pace, or does every section carry the same weight? Spacing breathes. |
-| 3 | Contrast 对比 | Size/weight/color contrast where it matters; every text/background pair ≥4.5:1. |
-| 4 | Restraint 克制 | One accent, no decoration without purpose, nothing screams. Deleted more than added. |
-| 5 | Craft 细节工艺 | Alignment, consistent radius, hover states, spacing on scale — details a human designer would catch. |
+| #   | Dimension      | Ask yourself                                                                                            |
+| --- | -------------- | ------------------------------------------------------------------------------------------------------- |
+| 1   | Hierarchy 层级 | Is the eye led correctly? Title dominates body, one focal point per view, scanning order is deliberate. |
+| 2   | Rhythm 节奏    | Do sections alternate density and pace, or does every section carry the same weight? Spacing breathes.  |
+| 3   | Contrast 对比  | Size/weight/color contrast where it matters; every text/background pair ≥4.5:1.                         |
+| 4   | Restraint 克制 | One accent, no decoration without purpose, nothing screams. Deleted more than added.                    |
+| 5   | Craft 细节工艺 | Alignment, consistent radius, hover states, spacing on scale — details a human designer would catch.    |
 
 Gate: **every dimension ≥3 AND total ≥20** before delivering. If below, iterate
 the weakest dimension once, re-score, then deliver anyway — and note the honest

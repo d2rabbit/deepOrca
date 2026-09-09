@@ -108,20 +108,20 @@ sections:
 
 ## Available CSS Classes
 
-| Class | Purpose |
-|-------|---------|
-| `.container` | Max-width wrapper (1200px default) |
-| `.section` | Vertical padding (80px default) |
-| `.grid`, `.grid-2/3/4` | CSS grid with gap |
-| `.topnav`, `.topnav-inner`, `.topnav-brand`, `.topnav-links` | Sticky navigation |
-| `.eyebrow` | Small uppercase accent label |
-| `.display` | Large hero title |
-| `.lead` | Muted lead paragraph |
-| `.btn`, `.btn-primary`, `.btn-ghost` | Buttons with hover states |
-| `.card`, `.card-icon`, `.card-title`, `.card-desc` | Feature cards |
-| `.ph-img` | Placeholder image (no external URLs) |
-| `.footer` | Footer with border-top |
-| `.mono` | Inline code style |
+| Class                                                        | Purpose                              |
+| ------------------------------------------------------------ | ------------------------------------ |
+| `.container`                                                 | Max-width wrapper (1200px default)   |
+| `.section`                                                   | Vertical padding (80px default)      |
+| `.grid`, `.grid-2/3/4`                                       | CSS grid with gap                    |
+| `.topnav`, `.topnav-inner`, `.topnav-brand`, `.topnav-links` | Sticky navigation                    |
+| `.eyebrow`                                                   | Small uppercase accent label         |
+| `.display`                                                   | Large hero title                     |
+| `.lead`                                                      | Muted lead paragraph                 |
+| `.btn`, `.btn-primary`, `.btn-ghost`                         | Buttons with hover states            |
+| `.card`, `.card-icon`, `.card-title`, `.card-desc`           | Feature cards                        |
+| `.ph-img`                                                    | Placeholder image (no external URLs) |
+| `.footer`                                                    | Footer with border-top               |
+| `.mono`                                                      | Inline code style                    |
 
 ## Workflow
 
@@ -134,17 +134,17 @@ If no project DESIGN.md exists, pick a built-in system. Full token presets
 (typography pairing, motion, components) live in `templates/design/systems/<name>.md`;
 the table carries the essential tokens:
 
-| System | Character | Pick when |
-|--------|-----------|-----------|
-| `dark-tech` | Dark, compact, indigo accent `#6366f1`, serif display + mono labels | Tech/productivity tools, dashboards |
-| `modern-minimal` | Light, airy, blue accent `#0070f3`, generous whitespace | Clean SaaS, corporate sites, docs |
-| `editorial` | Warm white, serif, dark-red accent `#8b0000`, sharp edges, print grid | Magazine, long-form reading, essays |
-| `brutalist-contrast` | Cream, hot-pink accent `#ff5d8f`, black borders + hard shadows, chunky type | Loud marketing, creative tools, youth brands |
-| `swiss-international` | Pure white, Swiss red `#d30000`, strict grid, grotesque type only | Systematic corporate, studios, typography-forward |
-| `terminal-mono` | Near-black, phosphor green `#00e676`, all monospace, dense | Developer tools, changelogs, hacker branding |
-| `glass-morphism` | Deep-indigo gradient, frosted panels, cyan `#22d3ee`, floating depth | Product launches, media/crypto, hero-heavy pages |
-| `soft-neumorphic` | Pale single-hue ground `#e0e5ec`, extruded soft shadows, no borders | Calm utility apps, wellness, settings screens |
-| `warm-handcrafted` | Cream + terracotta `#a34722`, humanist serif, stitched dashed borders | Artisanal/DTC, food & craft, nonprofit |
+| System                | Character                                                                   | Pick when                                         |
+| --------------------- | --------------------------------------------------------------------------- | ------------------------------------------------- |
+| `dark-tech`           | Dark, compact, indigo accent `#6366f1`, serif display + mono labels         | Tech/productivity tools, dashboards               |
+| `modern-minimal`      | Light, airy, blue accent `#0070f3`, generous whitespace                     | Clean SaaS, corporate sites, docs                 |
+| `editorial`           | Warm white, serif, dark-red accent `#8b0000`, sharp edges, print grid       | Magazine, long-form reading, essays               |
+| `brutalist-contrast`  | Cream, hot-pink accent `#ff5d8f`, black borders + hard shadows, chunky type | Loud marketing, creative tools, youth brands      |
+| `swiss-international` | Pure white, Swiss red `#d30000`, strict grid, grotesque type only           | Systematic corporate, studios, typography-forward |
+| `terminal-mono`       | Near-black, phosphor green `#00e676`, all monospace, dense                  | Developer tools, changelogs, hacker branding      |
+| `glass-morphism`      | Deep-indigo gradient, frosted panels, cyan `#22d3ee`, floating depth        | Product launches, media/crypto, hero-heavy pages  |
+| `soft-neumorphic`     | Pale single-hue ground `#e0e5ec`, extruded soft shadows, no borders         | Calm utility apps, wellness, settings screens     |
+| `warm-handcrafted`    | Cream + terracotta `#a34722`, humanist serif, stitched dashed borders       | Artisanal/DTC, food & craft, nonprofit            |
 
 ### Step 1 — Read seed.html for reference
 
@@ -161,18 +161,18 @@ Full definitions live in `templates/design/macrostructures/<name>.md` (~30
 lines each; read only the one you pick). Declare the choice in the YAML
 front-matter as `macrostructure: <name>`:
 
-| Macrostructure | Pick when |
-|----------------|-----------|
-| `landing-flow` | Classic conversion funnel (hero → proof → features → CTA). The default-slop shape — choosing it requires saying why none of the other nine fit |
-| `bento-grid` | "Everything we do" overview; mixed-size cells, grid IS the hero |
-| `long-document` | Content read top-to-bottom (essays, docs, policies) — one measure, no cards |
-| `manifesto` | A page that argues: few huge statements, one action, mostly whitespace |
-| `type-specimen` | Typography as the artwork (font pages, identity reveals) |
-| `editorial-spread` | Pairwise chapters (text + visual per unit); magazine rhythm |
-| `dashboard-cockpit` | Monitor/operate surfaces: panels, KPI strip, zero marketing |
-| `product-gallery` | Homogeneous items grid (store, catalog, assets) |
-| `pricing-table` | Plan comparison; aligned feature rows, one highlighted plan |
-| `documentation-hub` | Search-first reference; nav rail + content + outline |
+| Macrostructure      | Pick when                                                                                                                                      |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `landing-flow`      | Classic conversion funnel (hero → proof → features → CTA). The default-slop shape — choosing it requires saying why none of the other nine fit |
+| `bento-grid`        | "Everything we do" overview; mixed-size cells, grid IS the hero                                                                                |
+| `long-document`     | Content read top-to-bottom (essays, docs, policies) — one measure, no cards                                                                    |
+| `manifesto`         | A page that argues: few huge statements, one action, mostly whitespace                                                                         |
+| `type-specimen`     | Typography as the artwork (font pages, identity reveals)                                                                                       |
+| `editorial-spread`  | Pairwise chapters (text + visual per unit); magazine rhythm                                                                                    |
+| `dashboard-cockpit` | Monitor/operate surfaces: panels, KPI strip, zero marketing                                                                                    |
+| `product-gallery`   | Homogeneous items grid (store, catalog, assets)                                                                                                |
+| `pricing-table`     | Plan comparison; aligned feature rows, one highlighted plan                                                                                    |
+| `documentation-hub` | Search-first reference; nav rail + content + outline                                                                                           |
 
 The macrostructure is stack-agnostic (works for `.dd`, OpenUI, or raw HTML)
 and is one of the computable diversity axes — taste #11 requires consecutive
@@ -180,12 +180,12 @@ designs to vary; skeleton choice is where that variation starts.
 
 Then pick the section rhythm **within** the macrostructure:
 
-| Page kind | Default rhythm |
-|-----------|----------------|
-| Landing | hero → features → stats → cta |
-| Marketing | hero → log-list → cta |
-| Pricing | hero → comparison → cta |
-| Dashboard | hero → stats → features |
+| Page kind | Default rhythm                |
+| --------- | ----------------------------- |
+| Landing   | hero → features → stats → cta |
+| Marketing | hero → log-list → cta         |
+| Pricing   | hero → comparison → cta       |
+| Dashboard | hero → stats → features       |
 
 Large pages (>6 sections or >1500 words of content): use the optional two-stage
 flow in Step 2b instead of writing straight through.
@@ -234,6 +234,7 @@ opens automatically showing the compiled design.
 ### Step 6 — Iterate
 
 When the user requests changes:
+
 1. Edit the specific section in the .dd content.
 2. Call `update_design` with the full updated .dd content.
 3. Preview refreshes automatically.
@@ -257,7 +258,7 @@ Call `render_design` with the .dd content for preview.
 Write to `.deeporca/designs/<name>.dd` for persistence.
 One short summary after. Nothing after.
 
-## Pipeline mode — design.* actions (无人值守管线契约)
+## Pipeline mode — design.\* actions (无人值守管线契约)
 
 The `design.materialize` / `design.review` / `design.revise` actions run this
 skill SILENTLY with "Do not call tools" in the prompt. In that mode the .dd /

@@ -245,17 +245,19 @@ const PAGE_LIST_HEADER = /^(页面(名称|名|清单)?|屏幕|名称|name|screen
 
 /** Pages from the standardized 页面清单 table: first cell = page name (may be
  *  bold-wrapped), remaining cells = purpose / key elements & operations. The
- *  key-elements cell doubles as behavior entries (split on ；/;/、). Returns
+ *  key-elements cell doubles as behavior entries (split on ；/;/。). Returns
  *  null when the document has no 页面清单 section. */
 function extractPageListScreens(specMd: string): Screen[] | null {
   const lines = outsideFences(specMd).split(/\r?\n/);
-  const headingIndex = lines.findIndex((line) => /^#{1,6}\s+/.test(line) && /页面清单|page\s+list|pages\b/i.test(line));
+  // 零空格容忍(\s*):`##页面清单` 无空格 CJK 标题必须与 verify 的
+  // hasPageList 同规,否则能过验收的 PRD 会在简报侧找不到页面清单(评审 F)。
+  const headingIndex = lines.findIndex((line) => /^#{1,6}\s*/.test(line) && /页面清单|page\s+list|pages\b/i.test(line));
   if (headingIndex === -1) return null;
   const screens: Screen[] = [];
   let headerSkipped = false;
   for (let index = headingIndex + 1; index < lines.length; index++) {
     const line = lines[index].trim();
-    if (/^#{1,6}\s+/.test(line)) break; // 页面清单节结束
+    if (/^#{1,6}\s*/.test(line)) break; // 页面清单节结束(\s* 与上文同规,无空格 CJK 标题也要终止)
     if (!line.includes("|")) continue; // 节内说明文字(设计说明等)照常跳过
     const cells = splitTableRow(line);
     if (cells.length < 2 || isTableSeparator(cells)) continue;
