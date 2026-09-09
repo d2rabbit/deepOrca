@@ -670,36 +670,69 @@ section {
 .domnet-sub {
   font-size: 19px;
   color: var(--text-2);
-  max-width: 560px;
+  max-width: 620px;
   margin: 0 auto 38px;
 }
 
-.domnet-chips {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 16px;
-  margin-bottom: 34px;
-}
-
-.chip.lg {
-  width: 76px;
-  height: 76px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 30px;
-  font-weight: 650;
+.domnet-sub strong {
   color: var(--text);
-  border-radius: 24px;
-  border: 1px solid var(--hairline-2);
-  background: var(--glass-strong);
-  box-shadow: var(--shadow);
+  font-weight: 600;
 }
 
-.link-arrow {
-  color: var(--text-3);
-  letter-spacing: -1px;
+.domnet-cards {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin-bottom: 40px;
+}
+
+.domnet-card {
+  text-align: left;
+  border-radius: 18px;
+  border: 1px solid var(--hairline);
+  background: var(--glass-strong);
+  padding: 20px 20px 18px;
+  transition: transform 0.3s var(--ease), border-color 0.3s;
+}
+
+.domnet-card:hover {
+  transform: translateY(-3px);
+  border-color: var(--hairline-2);
+}
+
+.domnet-card h4 {
+  font-size: 15.5px;
+  font-weight: 640;
+  margin-bottom: 7px;
+}
+
+.domnet-card p {
+  font-size: 13px;
+  color: var(--text-2);
+  line-height: 1.55;
+}
+
+/* interactive concept frame */
+.domnet-frame {
+  position: relative;
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 1px solid var(--hairline);
+  background: var(--glass);
+  box-shadow: var(--shadow-lift);
+  text-align: left;
+}
+
+.domnet-stage {
+  background: #141419;
+}
+
+.domnet-stage iframe {
+  display: block;
+  width: 100%;
+  height: clamp(420px, 62vw, 700px);
+  border: 0;
 }
 
 .domnet-note {
@@ -958,6 +991,10 @@ section {
     grid-template-columns: 1fr;
   }
 
+  .domnet-cards {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
   .nav-links {
     display: none;
   }
@@ -985,10 +1022,7 @@ section {
     padding: 70px 24px 64px;
   }
 
-  .chip.lg {
-    width: 60px;
-    height: 60px;
-    font-size: 24px;
-    border-radius: 18px;
+  .domnet-cards {
+    grid-template-columns: 1fr;
   }
 }
