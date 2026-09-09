@@ -92,6 +92,8 @@ export async function buildDesignerPrompt() {
       "design.listCode",
       "design.readCode",
       "design.memorySearch",
+      // WP2.6:计时源——倒计时类交互的真数据通道(见 SKILL 手写区的计时契约)。
+      "design.clock",
     ],
     examples: [...(openuiPromptOptions.examples ?? []), DESIGNER_EXAMPLE],
     additionalRules: [...(openuiPromptOptions.additionalRules ?? []), ...DESIGNER_ADDITIONAL_RULES],

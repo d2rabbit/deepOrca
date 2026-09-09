@@ -202,10 +202,19 @@ export function PrototypePanel({
       if (saveTimer.current) clearTimeout(saveTimer.current);
       pendingStateRef.current = state;
       const elapsed = Date.now() - lastSavedAt.current;
+      // 交叉审查修正:flush 捕获「当次输入时」的作用域快照——若在节流窗口内
+      // 切设备/套件,旧端状态仍写回旧端槽位,而不是 scopeRef 指向的新槽。
+      const scopeAtUpdate = { ...scopeRef.current };
       const flush = () => {
         lastSavedAt.current = Date.now();
         saveTimer.current = null;
-        persist(state);
+        const savedScope = scopeRef.current;
+        scopeRef.current = scopeAtUpdate;
+        try {
+          persist(state);
+        } finally {
+          scopeRef.current = savedScope;
+        }
       };
       saveTimer.current = setTimeout(
         flush,

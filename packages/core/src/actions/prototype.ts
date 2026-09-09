@@ -131,7 +131,9 @@ function extractGeneratedBody(result: unknown): string | null {
  * including prose is "extracted") BEFORE it persists as a "ready" version.
  */
 export function looksLikeOpenuiProgram(code: string): boolean {
-  return /^[ \t]*[A-Za-z_$][\w$]*\s*=\s*\w/m.test(code) && /^[ \t]*root\s*=\s*\w/m.test(code);
+  // root 右侧允许 $page 开头(CREATE 契约的标准形态 `root = $page == "home" ? ...`——
+  // \w 不匹配 $,按契约写的程序曾被误拒为 truncated)。
+  return /^[ \t]*[A-Za-z_$][\w$]*\s*=\s*\w/m.test(code) && /^[ \t]*root\s*=\s*(?:\w|\$)/m.test(code);
 }
 
 /** A structured spec must carry at least one markdown section heading. */
@@ -684,8 +686,10 @@ export function findDeadButtons(code: string): string[] {
   for (const match of code.matchAll(/Action\(\s*\[\s*\]\s*\)/g)) {
     findings.push(`empty Action([]) — the button does nothing when clicked`);
   }
-  for (const match of code.matchAll(/\bButton\(\s*"[^"]*"\s*,\s*(?:'[^']*'|"[^"]*@[^"]*")\s*[,)]/g)) {
-    findings.push(`bare-string button action "${match[1]}" — use Action([...]), never a string`);
+  for (const match of code.matchAll(/\bButton\(\s*"[^"]*"\s*,\s*('[^']*'|"[^"]*")\s*[,)]/g)) {
+    // 第二位置参数只能是 Action 表达式;任何字符串(含误传的 variant 值)都是
+    // 参数错位/死按钮——官方库把字符串 action 在点击时静默抛错。
+    findings.push(`bare-string button action ${match[1]} — the second argument must be Action([...]), never a string`);
   }
   return findings;
 }
@@ -711,28 +715,17 @@ export const prototypeVerifyRun: ActionRun<PrototypeVerifyInput, PrototypeVerify
   // 项、外部 checks)必须随行——文档化回路是"revise 加观察 → 重新 verify",
   // 整体替换的 save_suite_result 若不携带就会把 pending 项静默清掉。
   // 机械检查的 id 前缀:每次重算,携带时按前缀淘汰旧实例(否则一次 verify
-  // 累积一批过期检查)。deterministic 四项为固定 id,其余用前缀匹配。
+  // 累积一批过期检查)。交叉审查修正(2026-09-10):统一 auto: 保留命名空间——
+  // 此前 nav-/page-/coverage- 等通用前缀会把调用方按同前缀命名的外部 checks
+  // (如 nav-smoke-test)在下一次 verify 时静默丢弃;auto: 是保留前缀。
   const deterministicIds = new Set(["spec-non-empty", "page-list-present", "openui-non-empty", "openui-root"]);
-  const deterministicPrefixes = [
-    "variant-mobile-",
-    "variant-tablet-",
-    "platform-",
-    "nav-",
-    "page-",
-    "coverage-",
-    "dead-button-",
-    // 带设备后缀的变体版
-    "nav-mobile-",
-    "nav-tablet-",
-    "page-mobile-",
-    "page-tablet-",
-    "coverage-mobile-",
-    "coverage-tablet-",
-    "dead-button-mobile-",
-    "dead-button-tablet-",
-  ];
+  const deterministicPrefixes = ["auto:"];
   const isMechanical = (id: string): boolean =>
     deterministicIds.has(id) || deterministicPrefixes.some((prefix) => id.startsWith(prefix));
+  const variants = content.openuiVariants ?? {};
+  // 交叉审查修正(2026-09-10):mobile-only PRD 的正常产物只有变体没有本体——
+  // 「程序存在」必须按任一端判定,否则 WP0 招牌场景被桌面本位检查永久判死。
+  const variantsExist = Boolean(variants.mobile?.trim() || variants.tablet?.trim());
   const carried = (content.verification?.checks ?? []).filter((check) => !isMechanical(check.id));
   const checks: PrototypeVerificationCheck[] = [
     ...carried,
@@ -742,18 +735,21 @@ export const prototypeVerifyRun: ActionRun<PrototypeVerifyInput, PrototypeVerify
       label: "Specification declares a page list",
       status: hasPageList(spec) ? "passed" : "failed",
     },
-    { id: "openui-non-empty", label: "OpenUI program is non-empty", status: openui ? "passed" : "failed" },
+    {
+      id: "openui-non-empty",
+      label: "A prototype program exists (base or any platform variant)",
+      status: openui || variantsExist ? "passed" : "failed",
+    },
     {
       id: "openui-root",
-      label: "OpenUI program declares root",
-      status: /(?:^|\n)\s*root\s*=/.test(openui) ? "passed" : "failed",
+      label: "The base program declares root (when present)",
+      status: !openui || /(?:^|\n)\s*root\s*=/.test(openui) ? "passed" : "failed",
     },
   ];
   // ── WP0.4 平台一致性:PRD 声明端 vs 实际生成端 ──
   // 声明端(目标平台行)决定"应该有哪些端";生成端 = 本体(desktop)+ 变体槽。
   // 缺端 failed(声明了 mobile 却没生成)、多端 warning(生成了未声明端)、
   // 未声明(legacy PRD)观察项推动补 PRD——指令遵循的验收闭环。
-  const variants = content.openuiVariants ?? {};
   const generatedDevices = new Set<string>(openui ? ["desktop"] : []);
   for (const device of ["mobile", "tablet"] as const) {
     if (variants[device]?.trim()) generatedDevices.add(device);
@@ -761,7 +757,7 @@ export const prototypeVerifyRun: ActionRun<PrototypeVerifyInput, PrototypeVerify
   const declared = extractTargetPlatforms(spec);
   if (!declared) {
     checks.push({
-      id: "platform-undeclared",
+      id: "auto:platform-undeclared",
       label: "PRD declares target platforms (目标平台)",
       status: "pending",
       observation: "PRD 未声明目标平台——重新生成需求文档时补充「目标平台」行,materialize 将按声明决定生成端。",
@@ -770,7 +766,7 @@ export const prototypeVerifyRun: ActionRun<PrototypeVerifyInput, PrototypeVerify
     for (const device of declared) {
       if (!generatedDevices.has(device)) {
         checks.push({
-          id: `platform-${device}-missing`,
+          id: `auto:platform-${device}-missing`,
           label: `PRD-declared platform "${device}" was generated`,
           status: "failed",
           observation: `PRD 声明 ${device} 端但该端程序缺失——重新 materialize(或补 devices)后重验。`,
@@ -780,7 +776,7 @@ export const prototypeVerifyRun: ActionRun<PrototypeVerifyInput, PrototypeVerify
     for (const device of generatedDevices) {
       if (!declared.includes(device as (typeof declared)[number])) {
         checks.push({
-          id: `platform-${device}-extra`,
+          id: `auto:platform-${device}-extra`,
           label: `Generated platform "${device}" is PRD-declared`,
           status: "pending",
           observation: `生成了 PRD 未声明的 ${device} 端——确认是否为有意补充,否则从 PRD 或原型中移除。`,
@@ -804,13 +800,13 @@ export const prototypeVerifyRun: ActionRun<PrototypeVerifyInput, PrototypeVerify
     // 卡片流 vs 表格)构成实质不同 → 低分通过。
     if (device !== "desktop") {
       checks.push({
-        id: `variant${suffix}-root`,
+        id: `auto:variant${suffix}-root`,
         label: `${device} platform variant declares its own root`,
         status: /(?:^|\n)\s*root\s*=/.test(code) ? "passed" : "failed",
       });
       const similarity = componentJaccard(openui, code);
       checks.push({
-        id: `variant${suffix}-distinct`,
+        id: `auto:variant${suffix}-distinct`,
         label: `${device} platform variant is a structurally distinct program`,
         status: similarity >= 0.92 ? "failed" : "passed",
         ...(similarity >= 0.92
@@ -826,7 +822,7 @@ export const prototypeVerifyRun: ActionRun<PrototypeVerifyInput, PrototypeVerify
     for (const target of pages.navTargets) {
       if (!known.has(target)) {
         checks.push({
-          id: `nav${suffix}-${target}-dangling`,
+          id: `auto:nav${suffix}-${target}-dangling`,
           label: `Navigation target "${target}" has a matching $page view`,
           status: "failed",
           observation: `@Set($page, "${target}") 指向未声明/未比较的页面——拼写错误或缺失视图分支。`,
@@ -837,7 +833,7 @@ export const prototypeVerifyRun: ActionRun<PrototypeVerifyInput, PrototypeVerify
     for (const page of known) {
       if (page !== pages.initial && !pages.navTargets.has(page)) {
         checks.push({
-          id: `page${suffix}-${page}-orphan`,
+          id: `auto:page${suffix}-${page}-orphan`,
           label: `Page "${page}" is reachable via navigation`,
           status: "failed",
           observation: `页面 "${page}" 有视图分支但没有任何 @Set 导航到它(也非初始页)——补入口或删除分支。`,
@@ -852,7 +848,7 @@ export const prototypeVerifyRun: ActionRun<PrototypeVerifyInput, PrototypeVerify
         for (const page of pageList.pages) {
           if (!known.has(page.id!)) {
             checks.push({
-              id: `coverage${suffix}-${page.id}-missing`,
+              id: `auto:coverage${suffix}-${page.id}-missing`,
               label: `PRD page "${page.name}" (${page.id}) is implemented`,
               status: "failed",
               observation: `页面清单中的「${page.name}」未出现在 $page 页面集——原型未覆盖 PRD。`,
@@ -862,7 +858,7 @@ export const prototypeVerifyRun: ActionRun<PrototypeVerifyInput, PrototypeVerify
         for (const page of known) {
           if (!ids.has(page)) {
             checks.push({
-              id: `coverage${suffix}-${page}-extra`,
+              id: `auto:coverage${suffix}-${page}-extra`,
               label: `Program page "${page}" exists in the PRD page list`,
               status: "pending",
               observation: `程序页面 "${page}" 不在页面清单中——确认是否为有意补充(如详情子页)。`,
@@ -874,7 +870,7 @@ export const prototypeVerifyRun: ActionRun<PrototypeVerifyInput, PrototypeVerify
         const programCount = known.size;
         if (prdCount !== programCount) {
           checks.push({
-            id: `coverage${suffix}-count`,
+            id: `auto:coverage${suffix}-count`,
             label: "Program page count matches the PRD page list",
             status: "pending",
             observation: `PRD 列出 ${prdCount} 页,程序 ${programCount} 页(旧格式 PRD 无页面 ID 列,仅数量比对)——重新生成需求文档可启用逐页比对。`,
@@ -885,7 +881,7 @@ export const prototypeVerifyRun: ActionRun<PrototypeVerifyInput, PrototypeVerify
     // 死按钮(WP2.3 的 core 确定性面;渲染前修复环另有 validate verdict)。
     for (const [index, finding] of findDeadButtons(code).entries()) {
       checks.push({
-        id: `dead-button${suffix}-${index + 1}`,
+        id: `auto:dead-button${suffix}-${index + 1}`,
         label: `No dead buttons${suffix ? ` (${device})` : ""}`,
         status: "failed",
         observation: finding,

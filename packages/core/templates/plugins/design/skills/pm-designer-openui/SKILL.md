@@ -84,6 +84,23 @@ control that only LOOKS clickable is a defect:
 - When revising, keep unrelated statements byte-identical — never
   restructure sections that already work.
 
+## Timer contract (计时契约)
+
+The DSL has no self-decrementing state — any real countdown (番茄钟/倒计时/限时
+交互) uses the `design.clock` tool with a per-second Query refresh:
+
+```
+$timerStart = 0
+timer = Query("design.clock", {startAt: $timerStart, total: 1500}, {remaining: 1500, clock: "25:00", finished: false}, 1)
+timerDisplay = TextContent(timer.clock, "large-heavy")
+startBtn = Button("开始", Action([@Set($timerStart, 1738000000000)]))
+```
+
+- the trailing `1` re-fetches every second (Query's refreshInterval);
+- `timer.clock` is pre-formatted MM:SS — render it directly;
+- anchor `startAt` with a demo epoch (frozen but plausible) or `Date.now()`-style
+  live values; `finished` drives the end-state branch.
+
 ## PRD page mapping (指令遵循)
 
 When the requirements document's 页面清单 carries 页面ID values, those ids ARE
@@ -468,6 +485,7 @@ Use these with Query() for read operations or Mutation() for write operations. T
 - design.listCode
 - design.readCode
 - design.memorySearch
+- design.clock
 
 CRITICAL: Use ONLY the tools listed above in Query() and Mutation() calls. Do NOT invent or guess tool names. If the user asks for functionality that doesn't match any available tool, use realistic mock data instead of fabricating a tool call.
 

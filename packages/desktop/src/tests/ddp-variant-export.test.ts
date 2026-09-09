@@ -45,14 +45,17 @@ test("ddp without variants keeps the legacy three-entry shape", () => {
   );
 });
 
-test("standalone html embeds the program and loads the official bundle", () => {
+test("standalone html: honest source-delivery page (交叉审查: 官方无浏览器 bundle,CDN 路线已移除)", () => {
   const html = buildStandaloneOpenuiHtml("标题", 'root = Text("hi")');
-  assert.match(html, /@openuidev\/browser/);
+  // 诚实降级:不再引用不存在的 CDN 包;交付自包含源码查看页(零网络依赖)。
+  assert.doesNotMatch(html, /unpkg\.com|cdn/, "no dead CDN reference");
+  assert.ok(
+    html.includes("root = Text(&quot;hi&quot;)") || html.includes('root = Text("hi")'),
+    "program visible in the source view"
+  );
+  // JSON 嵌入经 JSON.stringify(引号/换行转义) + </script> 二次转义防注入。
   assert.match(html, /type="application\/json"/);
-  assert.ok(html.includes('root = Text("hi")'), "program embedded verbatim");
-  // </script> 在 JSON 嵌入中被转义,防提前闭合注入
   const hostile = buildStandaloneOpenuiHtml("t", 'x = Text("</script><b>pwn</b>")');
-  // 有效负载被转义为 <\/script>,JSON script 标签不会被提前闭合。
-  assert.ok(!hostile.includes("</script><b>"), "script-closing payload escaped");
-  assert.ok(hostile.includes("<\\/script>"), "payload present but escaped");
+  assert.ok(!hostile.includes("</script><b>"), "script-closing payload escaped in JSON embed");
+  assert.ok(hostile.includes("<\\/script>"), "payload present but escaped inside the JSON string");
 });

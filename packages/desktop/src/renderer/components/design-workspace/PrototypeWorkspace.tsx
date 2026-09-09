@@ -212,20 +212,23 @@ export function PrototypeWorkspace({
   const specTodos = useMemo(() => {
     if (!content.spec) return [] as string[];
     const lines = content.spec.split("\n");
-    // WP3.1:只认「待确认」标题行(## 待确认/##7. 待确认),不从正文/表格里的
-    // 早现字样起算——否则验收标准的 - [ ] 全被误吞,生成按钮被锁死;采集也在
-    // 下一个节标题处终止,并剥掉 [ ] 复选框前缀。
-    const start = lines.findIndex((line) => /^#{1,6}\s*(?:\d+[.)、]?\s*)?待确认\s*$/.test(line.trim()));
+    // WP3.1 + 交叉审查修正:只认「待确认」标题行(允许 ##待确认 无空格与
+    // 「：范围」后缀,\s*$ 会漏掉带后缀标题导致按钮静默放行);不从正文/表格
+    // 早现字样起算;采集在下一个节标题处终止(终止与起始同口径:trim+无空格);
+    // 只收列表行(散文/表格行不当待确认项)。
+    const isHeading = (line: string): boolean => /^#{1,6}\s*\S/.test(line.trim());
+    const start = lines.findIndex((line) => /^#{1,6}\s*(?:\d+[.)、]?\s*)?待确认(\s|$|[:：:（(])/.test(line.trim()));
     if (start === -1) return [];
     const todos: string[] = [];
     for (const line of lines.slice(start + 1)) {
-      if (/^#{1,6}\s/.test(line)) break; // 待确认节结束
+      if (isHeading(line)) break; // 待确认节结束
       const item = line
         .trim()
         .replace(/^[-*]\s+/, "")
         .replace(/^\[[ xX]\]\s*/, "")
         .trim();
-      if (item) todos.push(item);
+      // 只收原本就是列表项的行(剥前缀后非空)。
+      if (item && /^[-*]\s+/.test(line.trim())) todos.push(item);
     }
     return todos;
   }, [content.spec]);
@@ -690,7 +693,17 @@ export function PrototypeWorkspace({
         return (
           <span className="ui-design-version-set">
             <i className={version.content.spec ? undefined : "miss"}>{t("prototypeWorkspace.setTitleSpec")}</i>
-            <i className={version.content.openui ? undefined : "miss"}>{t("prototypeWorkspace.setTitleProto")}</i>
+            <i
+              className={
+                (version.content as { openui?: string; openuiVariants?: Record<string, string> }).openui ||
+                (version.content as { openuiVariants?: Record<string, string> }).openuiVariants?.mobile ||
+                (version.content as { openuiVariants?: Record<string, string> }).openuiVariants?.tablet
+                  ? undefined
+                  : "miss"
+              }
+            >
+              {t("prototypeWorkspace.setTitleProto")}
+            </i>
             <i className={version.content.verification ? undefined : "miss"}>
               {t("prototypeWorkspace.setTitleReport")}
             </i>

@@ -122,32 +122,34 @@ export function buildDdpPackage(
 }
 
 /**
- * WP4.3 standalone playable HTML — OpenUI's official browser-bundle pattern
- * (iframe-free single file): load the CDN bundle, mount the renderer on the
- * program embedded as a JSON script tag. Opens by double-click, no host, no
- * build step; interactions ($page navigation, $state bindings) run in-page.
+ * WP4.3 standalone HTML for a platform variant — 交叉审查修正(2026-09-10):
+ * OpenUI 官方没有浏览器 UMD bundle(@openuidev/browser 于 npm 不存在,404 实证),
+ * 此前假设的 CDN+window.OpenUI.render 路线是死路径。诚实降级:交付一个自包含
+ * 的「源码 + 平台说明」查看页(双击可开、零依赖、零网络),并在页面顶部说明
+ * 在 DeepOrca 工作区内打开可获得完整交互预览。待官方提供浏览器 bundle 后
+ * 再升级为可播放版本。
  */
 export function buildStandaloneOpenuiHtml(title: string, openuiSource: string): string {
-  const escaped = openuiSource.replace(/<\/script>/gi, "<\\/script>");
+  // JSON.stringify 转义引号/换行,再做 </script> 转义防提前闭合(JSON 里 \/ 合法)。
+  const embedded = JSON.stringify(openuiSource).replace(/<\/script>/gi, "<\\/script>");
+  const escapeHtml = (text: string): string => text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   return [
     "<!doctype html>",
     '<html lang="zh">',
     "<head>",
     '<meta charset="utf-8">',
-    `<title>${title}</title>`,
-    '<script src="https://unpkg.com/@openuidev/browser@0.2.12/dist/index.global.js"></script>',
-    "<style>body{margin:0;font-family:system-ui,sans-serif}#app{padding:16px}</style>",
+    `<title>${escapeHtml(title)}</title>`,
+    "<style>",
+    "body{margin:0;padding:24px;font-family:system-ui,-apple-system,sans-serif;color:#1f2328;background:#fff}",
+    ".note{padding:10px 14px;border:1px solid #d0d7de;border-radius:8px;background:#f6f8fa;font-size:13px;color:#57606a}",
+    "pre{padding:16px;border:1px solid #d0d7de;border-radius:8px;background:#f6f8fa;font-size:12.5px;line-height:1.6;overflow:auto;white-space:pre-wrap}",
+    "</style>",
     "</head>",
     "<body>",
-    '<div id="app"></div>',
-    `<script id="openui-source" type="application/json">${escaped}</script>`,
-    "<script>",
-    "const source = JSON.parse(document.getElementById('openui-source').textContent);",
-    "const root = document.getElementById('app');",
-    // The bundle exposes { render, openuiLibrary, … } on window.OpenUI; render
-    // mounts the official renderer with the official component library.
-    "window.OpenUI.render({ target: root, code: source, library: window.OpenUI.openuiLibrary });",
-    "</script>",
+    `<h2>${escapeHtml(title)}</h2>`,
+    '<p class="note">这是该平台变体的 OpenUI Lang 源码交付件。在 DeepOrca 的原型工作区打开此套件可获得完整的交互预览（导航、表单、状态联动的渲染由应用内运行时承载）。</p>',
+    `<pre>${escapeHtml(openuiSource)}</pre>`,
+    `<script id="openui-source" type="application/json">${embedded}</script>`,
     "</body>",
     "</html>",
   ].join("\n");

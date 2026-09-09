@@ -117,6 +117,7 @@ test("materialize repairs a parser-invalid draft and persists the repaired progr
       subagentCalls,
     })
   );
+  if (!res.ok) console.log("ERROR:", res.error);
   assert.equal(res.ok, true);
   assert.equal(subagentCalls.length, 2, "initial generation + one repair round");
   assert.equal(subagentCalls[1].skill, "pm-designer-openui");
@@ -163,6 +164,55 @@ test("materialize keeps the last good draft when a repair round returns garbage"
   assert.equal(subagentCalls.length, 2);
   const render = mcpCalls.find((c) => c.name.endsWith("render_openui"));
   assert.equal(render?.args.code, BAD_CODE, "garbage repair output is discarded, not persisted");
+});
+
+test("materialize repairs a dead-button verdict (WP2.3: findDeadButtons 前置进修复环)", async () => {
+  const mcpCalls: McpCall[] = [];
+  const subagentCalls: Array<{ skill: string; prompt: string }> = [];
+  // 初稿带两个死按钮(空 Action + bare-string);validator 以 deadButtons 报 invalid,
+  // 修复一轮后干净。修复环必须在持久化前消费 deadButtons 类别。
+  const deadDraft = [
+    '$page = "home"',
+    'root = $page == "home" ? homeView : null',
+    "homeView = Card([])",
+    'dead1 = Button("Save", Action([]))',
+    "dead2 = Button(\"Go\", 'submit:login')",
+  ].join("\n");
+  const fixed = [
+    '$page = "home"',
+    'root = $page == "home" ? homeView : null',
+    "homeView = Card([])",
+    'ok1 = Button("Save", Action([@Set($page, "home")]))',
+    'ok2 = Button("Go", Action([@Set($page, "home")]))',
+  ].join("\n");
+  const res = await prototypeMaterializeRun(
+    { suiteId: REF.suiteId, versionId: REF.versionId },
+    makeCtx({
+      generatedScript: [fence(deadDraft), fence(fixed)],
+      validationScript: [
+        JSON.stringify({
+          valid: false,
+          errors: [],
+          unresolved: [],
+          orphaned: [],
+          deadButtons: [
+            "empty Action([]) — the button does nothing when clicked",
+            "bare-string button action 'submit:login' — the second argument must be Action([...]), never a string",
+          ],
+        }),
+        JSON.stringify({ valid: true, errors: [], unresolved: [], orphaned: [], deadButtons: [] }),
+      ],
+      mcpCalls,
+      subagentCalls,
+    })
+  );
+  assert.equal(res.ok, true);
+  // 修复提示词必须点名 dead-button 发现(模型才知道要修什么)。
+  assert.match(subagentCalls[1]?.prompt ?? "", /dead-button/);
+  assert.match(subagentCalls[1]?.prompt ?? "", /submit:login/, "bare-string 目标字符串出现在修复指令里");
+  // 持久化的是修复后的程序。
+  const render = mcpCalls.find((call) => call.name.endsWith("render_openui"));
+  assert.ok(String(render?.args.code).includes('@Set($page, "home")'), "repaired program persisted");
 });
 
 test("materialize exhausts the repair budget and emits the leftover count", async () => {

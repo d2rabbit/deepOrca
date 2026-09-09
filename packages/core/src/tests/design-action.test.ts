@@ -186,7 +186,7 @@ test("prototype.verify: legacy PRD without 目标平台 yields a pending observa
   // platform-undeclared 是观察项 → 整体 pending(推动补 PRD),不是 failed。
   assert.equal(result.verification?.status, "pending");
   assert.ok(
-    result.verification?.checks.some((check) => check.id === "platform-undeclared"),
+    result.verification?.checks.some((check) => check.id === "auto:platform-undeclared"),
     "undeclared platform observation present"
   );
 });
@@ -207,7 +207,7 @@ test("prototype.verify: PRD-declared platform missing from the program fails (WP
     })
   );
   assert.equal(result.verification?.status, "failed");
-  assert.ok(result.verification?.checks.some((check) => check.id === "platform-mobile-missing"));
+  assert.ok(result.verification?.checks.some((check) => check.id === "auto:platform-mobile-missing"));
 });
 
 test("prototype.verify: dangling nav target / orphan page / missing PRD page fail (WP2.2)", async () => {
@@ -238,9 +238,9 @@ test("prototype.verify: dangling nav target / orphan page / missing PRD page fai
   );
   assert.equal(result.verification?.status, "failed");
   const ids = result.verification?.checks.filter((c) => c.status === "failed").map((c) => c.id) ?? [];
-  assert.ok(ids.includes("nav-dashbord-dangling"), "dangling nav target flagged");
-  assert.ok(ids.includes("page-orders-orphan"), "orphan page flagged");
-  assert.ok(ids.includes("coverage-settings-missing"), "missing PRD page flagged");
+  assert.ok(ids.includes("auto:nav-dashbord-dangling"), "dangling nav target flagged");
+  assert.ok(ids.includes("auto:page-orders-orphan"), "orphan page flagged");
+  assert.ok(ids.includes("auto:coverage-settings-missing"), "missing PRD page flagged");
 });
 
 test("prototype.verify: dead buttons fail (WP2.3 core)", async () => {
@@ -258,7 +258,75 @@ test("prototype.verify: dead buttons fail (WP2.3 core)", async () => {
     makeCtx({ prototype: { spec, openui }, mcpCalls })
   );
   assert.equal(result.verification?.status, "failed");
-  assert.ok((result.verification?.checks ?? []).some((check) => check.id.startsWith("dead-button-")));
+  assert.ok((result.verification?.checks ?? []).some((check) => check.id.startsWith("auto:dead-button-")));
+});
+
+test("prototype.verify: mobile-only PRD with variant-only program passes (交叉审查: 桌面本位检查不得判死)", async () => {
+  const mcpCalls: McpCall[] = [];
+  const spec = "| 目标平台 | mobile |\n\n## Page list\n\n| Page | Page ID |\n| --- | --- |\n| Home | home |";
+  // mobile-only 的正常产物:没有桌面本体,只有 mobile 变体。
+  const mobileProgram = [
+    '$page = "home"',
+    'root = $page == "home" ? homeView : null',
+    "homeView = Card([])",
+    'btn = Button("h", Action([@Set($page, "home")]))',
+  ].join("\n");
+  const result = await prototypeVerifyRun(
+    { suiteId: PROTOTYPE_REF.suiteId, versionId: PROTOTYPE_REF.versionId },
+    makeCtx({ prototype: { spec, openui: undefined, openuiVariants: { mobile: mobileProgram } }, mcpCalls })
+  );
+  assert.equal(result.verification?.status, "passed", "variant-only suite verifies clean");
+  const failed = result.verification?.checks.filter((c) => c.status === "failed") ?? [];
+  assert.equal(failed.length, 0, `no failed checks: ${JSON.stringify(failed.map((c) => c.id))}`);
+});
+
+test("prototype.verify: extra generated platform yields a pending observation (WP0.4)", async () => {
+  const mcpCalls: McpCall[] = [];
+  const spec = "| 目标平台 | web |\n\n## Page list\n\n| Page | Page ID |\n| --- | --- |\n| Home | home |";
+  const program = [
+    '$page = "home"',
+    'root = $page == "home" ? homeView : null',
+    "homeView = Card([])",
+    'btn = Button("h", Action([@Set($page, "home")]))',
+  ].join("\n");
+  const tablet = program.replace("homeView", "tabletHome").replace("btn", "tBtn") + '\nsidePanel = Stack([], "row")';
+  const result = await prototypeVerifyRun(
+    { suiteId: PROTOTYPE_REF.suiteId, versionId: PROTOTYPE_REF.versionId },
+    makeCtx({ prototype: { spec, openui: program, openuiVariants: { tablet } }, mcpCalls })
+  );
+  // 多端是 pending 观察项,不是 failed——整体停在 pending 推动人工确认。
+  assert.equal(result.verification?.status, "pending");
+  assert.ok(result.verification?.checks.some((c) => c.id === "auto:platform-tablet-extra"));
+});
+
+test("prototype.verify: external checks with mechanical-looking prefixes survive (auto: 命名空间)", async () => {
+  const mcpCalls: McpCall[] = [];
+  const spec = "| 目标平台 | web |\n\n## Page list\n\n| Page | Page ID |\n| --- | --- |\n| Home | home |";
+  const program = [
+    '$page = "home"',
+    'root = $page == "home" ? homeView : null',
+    "homeView = Card([])",
+    'btn = Button("h", Action([@Set($page, "home")]))',
+  ].join("\n");
+  const result = await prototypeVerifyRun(
+    { suiteId: PROTOTYPE_REF.suiteId, versionId: PROTOTYPE_REF.versionId },
+    makeCtx({
+      prototype: {
+        spec,
+        openui: program,
+        verification: {
+          status: "pending",
+          checks: [{ id: "nav-smoke-test", label: "外部导航冒烟", status: "pending", observation: "人工检查" }],
+          healingRounds: 0,
+        },
+      },
+      mcpCalls,
+    })
+  );
+  assert.ok(
+    result.verification?.checks.some((c) => c.id === "nav-smoke-test" && c.status === "pending"),
+    "外部 check(通用前缀命名)不被机械淘汰误杀"
+  );
 });
 
 test("prototype.verify: renamed desktop copy as variant fails distinct (WP4.2)", async () => {
@@ -277,7 +345,7 @@ test("prototype.verify: renamed desktop copy as variant fails distinct (WP4.2)",
     makeCtx({ prototype: { spec, openui, openuiVariants: { mobile: renamedCopy } }, mcpCalls })
   );
   assert.equal(result.verification?.status, "failed");
-  assert.ok(result.verification?.checks.some((check) => check.id === "variant-mobile-distinct"));
+  assert.ok(result.verification?.checks.some((check) => check.id === "auto:variant-mobile-distinct"));
 });
 
 test("design.materialize injects the selected bundled system and source prototype", async () => {

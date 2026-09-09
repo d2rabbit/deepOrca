@@ -1007,6 +1007,8 @@ export function saveFormState(root: string, id: string, state: unknown, slot?: s
 
 /** Read a persisted form state for hydration; null when none was saved. */
 export function readFormState(root: string, id: string, slot?: string): unknown | null {
+  // 与 save 同规:非法 slot 拒绝(不静默读共享槽)。
+  if (slot && !/^[a-z0-9-]{1,32}$/.test(slot)) return null;
   const dir = resolveArtifactDir(root, id);
   if (!dir) return null;
   try {

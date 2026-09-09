@@ -86,8 +86,12 @@ export function extractTargetPlatforms(spec: string): OpenuiDevice[] | null {
   // ——只有负载里出现平台关键词时才采用负载,否则按整段解析。
   const parenPayloads = [...declared.matchAll(/[（(]([^）)]+)[）)]/g)].map((m) => m[1]);
   const comboPayload = parenPayloads.find((payload) => PLATFORM_KEYWORDS.some(({ pattern }) => pattern.test(payload)));
-  const tokens = (comboPayload ?? declared).split(/[+,、/，；;]|和|\s{1,}/);
+  const source = comboPayload ?? declared;
   const devices = new Set<OpenuiDevice>();
+  // 交叉审查修正:只按标点分隔(+、/、，、；、和),不按空白分词——"桌面端 App"
+  // 是一个不可拆的复合词,按空白拆成 ["桌面端","App"] 会分别命中 desktop 与
+  // mobile(幽灵端);每段整体模式匹配,PLATFORM_KEYWORDS 已按特异性排序。
+  const tokens = source.split(/[+,/，、；;]|和/);
   for (const token of tokens) {
     const cleaned = token.trim();
     if (!cleaned) continue;

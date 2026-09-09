@@ -65,6 +65,29 @@
 - [ ] A-3 原型专用组件目录（Timer 环/进度环/空态卡）挂自有 library 桥，library.prompt() 自动生成提示词
 - [ ] A-4 母版纪律机械化（shell 具名语句引用检查；改壳传播长期靠 A-3 组件化）
 
+## 多重交叉审查(2026-09-10,4 路并行:core 正则推演/desktop 工具实证/renderer 闭包推演/EARS 逐条对照)
+
+已修复的审查发现:
+- 🔴 standalone 导出双死路径:@openuidev/browser CDN 包不存在(npm 404 实证)→ 诚实降级为
+  零依赖源码交付页;Lang 源码未 JSON.stringify 嵌入 JSON script → 已修(转义断言入测试)
+- 🔴 variant-only 套件被桌面本位检查永久判死(mobile-only PRD 招牌场景)→
+  openui-non-empty/root 改为任一端语义,新增回归测试
+- 🟠 bare-string 死按钮正则是准死正则(双引号需含@)+消息引用不存在的捕获组 → 全量字符串+捕获组
+- 🟠 机械 check 前缀(nav-/page- 等)误杀同前缀外部 checks → 统一 auto: 保留命名空间,新增存活测试
+- 🟠 "桌面端 App" 空白分词产生幽灵 mobile 端 → 只按标点分隔,复合词整体匹配
+- 🟠 specTodos 带后缀标题(## 待确认:xxx)静默放行 + 节终止不对称 → 正则修正
+- 🟠 表单状态节流尾部跨槽泄漏(切设备 2s 内旧端写新端槽)→ flush 捕获当次作用域
+- 🟡 looksLikeOpenuiProgram 不认 root = $page 形态(按 CREATE 契约写的程序被
+  materialize 误拒为 truncated——审查推演外的新发现)→ 正则放宽
+- 🟡 计时契约被 openui:prompt 重生成吃掉(插入位置在生成区内)→ 移至手写区+生成器 tools 数组
+- 🟡 非法 formState slot 静默写共享槽 → 拒绝;validate_openui description 补 deadButtons;
+  版本轨徽章按任一端判定
+
+已知残留(记录不修):Action([]) 检测对注释/字符串字面量中的同形文本误报(静态
+正则无词法感知,fail-open 修复环兜底);SpecDocumentView 标题前围栏吞标题
+(CommonMark 边缘,契约内不触发);EARS 8/14-18 的 renderer 级测试与三端
+真实集成测试仍缺(tasks 声称的验收未全落地,后续补)。
+
 ## 收尾
 
 - [ ] 全量验证：format:check + core/desktop typecheck + 两包测试全绿

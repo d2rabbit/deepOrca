@@ -1024,7 +1024,7 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
     {
       description:
         "Validate an OpenUI Lang program against the official component schema (local parser). " +
-        "Returns JSON: { valid, incomplete, statementCount, errors[{code,component,path,message}], " +
+        "Returns JSON: { valid, incomplete, statementCount, errors[{code,component,path,message}], deadButtons[], " +
         "unresolved[], orphaned[] }. Run this before render_openui/update_openui and fix every finding.",
       inputSchema: {
         code: z.string().describe("Complete OpenUI Lang program"),
