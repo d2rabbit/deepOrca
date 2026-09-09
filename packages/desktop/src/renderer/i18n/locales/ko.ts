@@ -1662,6 +1662,11 @@ export const ko: Record<MessageKey, string> = {
   "prototypeWorkspace.device.desktop": "데스크톱",
   "prototypeWorkspace.device.mobile": "모바일 375",
   "prototypeWorkspace.device.tablet": "태블릿",
+  "prototypeWorkspace.playMode": "인터랙티브 데모",
+  "prototypeWorkspace.playModeActive": "인터랙티브 데모 재생 중",
+  "prototypeWorkspace.playModeExit": "데모 종료",
+  "prototypeWorkspace.playModeHint":
+    "프로토타입이 클릭 가능한 재생 모드로 전환되었습니다. 편집과 AI 지시는 일시 중지되며 Esc로 돌아갑니다.",
   "designWorkspace.tokensOther": "기타",
   "designWorkspace.diffTitle": "수정 요약",
   "designWorkspace.atomPrimary": "기본 작업",

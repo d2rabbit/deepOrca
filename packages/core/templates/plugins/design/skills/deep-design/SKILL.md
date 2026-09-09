@@ -256,3 +256,27 @@ Write the .dd file to `.deeporca/designs/<name>.dd` for persistence.
 Call `render_design` with the .dd content for preview.
 Write to `.deeporca/designs/<name>.dd` for persistence.
 One short summary after. Nothing after.
+
+## Pipeline mode — design.* actions (无人值守管线契约)
+
+The `design.materialize` / `design.review` / `design.revise` actions run this
+skill SILENTLY with "Do not call tools" in the prompt. In that mode the .dd /
+render_design / file-write workflow above does NOT apply — the host persists
+everything. The pipeline prompt dictates which of three sub-contracts to
+fulfill; return ONLY the fenced content it asks for:
+
+1. **design.materialize → OpenUI Lang program.** Return one complete `openui`
+   code fence: a single interactive application (`root = Stack(...)`, `$page`
+   navigation, `Action([@Set(...)])`), respecting the given bundled design
+   system verbatim. Do NOT emit .dd HTML.
+2. **design.review → one review JSON object.** Return one `json` fence:
+   `{"status": "passed"|"failed", "composite": <0..1>, "evidence": {...}}`
+   where evidence carries concrete quoted selectors/tokens/observations.
+   Text-only review — never claim browser or runtime checks.
+3. **design.revise (tokens/components) → one JSON object.** Return the
+   complete revised `tokens` or `components` JSON in one `json` fence,
+   preserving unrelated values. For `part: "design"` return the complete
+   revised OpenUI Lang program (one `openui` fence), preserving the `$page`
+   structure and `Action` wiring.
+
+In all three cases: no tool calls, no file writes, nothing outside the fence.

@@ -296,6 +296,32 @@ export {
   type VisionServerLike,
 } from "./mcp/vision-seam";
 
+// KB MCP seam — the generated knowledge base (deepwiki + architecture maps)
+// as generic MCP tools for every agent session (user ask 2026-09-09: 知识库
+// 不能是孤岛). Desktop injects the server builder at boot; the pure store
+// readers live in common/kb-store.ts.
+export {
+  KB_MCP_SERVER_NAME,
+  configureKbServerBuilder,
+  getKbServerBuilder,
+  type KbServerBuilder,
+  type KbServerLike,
+} from "./mcp/kb-seam";
+export {
+  kbOverview,
+  listWikiPages,
+  readWikiPage,
+  searchWikiPages,
+  listArchDiagrams,
+  readArchDiagram,
+  type KbOverview,
+  type KbWikiPage,
+  type KbWikiPageRead,
+  type KbSearchHit,
+  type KbDiagramSummary,
+  type KbDiagramRead,
+} from "./common/kb-store";
+
 // Semantic skill/tool routing. The host injects the vendored embedding model dir
 // and a logger (same pattern as codegraph/serena above), and closes the shared
 // embedding service — which holds onnxruntime native handles — on app teardown.

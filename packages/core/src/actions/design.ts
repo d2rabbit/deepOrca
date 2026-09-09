@@ -84,7 +84,7 @@ export const designMaterializeDefinition: ActionDefinition<DesignMaterializeInpu
   id: "design.materialize",
   description:
     "UI-design module entry: materialize a requirement (one sentence is fine) and/or an existing prototype " +
-    "into a UI/UX design document (.dd) via the deep-design skill. When a prototype artifact is given, the " +
+    "into an OpenUI Lang UI suite version via the deep-design skill. When a prototype artifact is given, the " +
     "design covers its pages and flows. Prototype generation is a separate module (prototype.spec → " +
     "prototype.materialize).",
   category: "design",
@@ -116,7 +116,10 @@ export const designMaterializeRun: ActionRun<DesignMaterializeInput, DesignMater
   const prototypeId = input?.prototypeArtifactId?.trim();
   const prototypeSuiteId = input?.prototypeSuiteId?.trim();
   const prototypeVersionId = input?.prototypeVersionId?.trim();
-  const designSystemId = input?.designSystemId?.trim() || "dark-tech";
+  // undefined/null → 默认 dark-tech;显式空串/空白是调用方错误,不是默认值
+  // ——否则下方的 required 检查永远不可达(F10)。
+  const rawDesignSystemId = input?.designSystemId?.trim();
+  const designSystemId = rawDesignSystemId === undefined ? "dark-tech" : rawDesignSystemId;
   const suiteId = input?.suiteId?.trim();
   const versionId = input?.versionId?.trim();
   if (!requirement && !prototypeId && !prototypeSuiteId) {
@@ -185,6 +188,7 @@ export const designMaterializeRun: ActionRun<DesignMaterializeInput, DesignMater
         error: "deep-design returned an empty or truncated OpenUI program (no root/component statements) — regenerate",
       };
     }
+    if (ctx.signal.aborted) return { ok: false, error: "cancelled" };
     const saved = await executeA2ui(ctx, "render_openui", {
       code: content,
       requirement: effectiveRequirement,
@@ -494,6 +498,7 @@ export const designReviewRun: ActionRun<DesignReviewInput, DesignReviewOutput> =
     };
   }
   const review = validated.review;
+  if (ctx.signal.aborted) return { ok: false, error: "cancelled" };
   const saved = await executeA2ui(ctx, "save_suite_result", {
     suiteId,
     versionId,
@@ -574,6 +579,7 @@ export const designReviseRun: ActionRun<DesignReviseInput, SuiteActionOutput> = 
         error: "deep-design returned empty or structurally invalid content (truncated output?) — regenerate",
       };
     }
+    if (ctx.signal.aborted) return { ok: false, error: "cancelled" };
     const saved = await executeA2ui(ctx, "update_openui", {
       suiteId,
       versionId,

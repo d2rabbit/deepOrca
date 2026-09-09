@@ -35,6 +35,7 @@ import { SKILL_SPECTOR_MCP_SERVER_NAME, isSkillSpectorDisabled } from "./common/
 import { type RouterBundle, createRouters, getConfiguredRoutingModelDir } from "./routing";
 import type { ToolDefinition } from "./prompt";
 import { VISION_MCP_SERVER_NAME, getVisionServerBuilder } from "./mcp/vision-seam";
+import { KB_MCP_SERVER_NAME, getKbServerBuilder } from "./mcp/kb-seam";
 import type { LLMDecomposer } from "./routing/types";
 import type { McpServerConfig } from "./settings";
 import type { MemoryProvider, SessionMessage } from "./session-types";
@@ -557,6 +558,21 @@ If the query is simple (single intent), respond with a single-element array.`;
         await this.mcpManager.connectInProcessServer(VISION_MCP_SERVER_NAME, visionServer);
       } catch (error) {
         console.error("[session] vision MCP server failed:", error);
+      }
+    }
+
+    // Connect the built-in KB MCP server (kb_overview / list_pages / read_page
+    // / search_pages / list_diagrams / read_diagram). Gives every agent session
+    // a generic read surface over the generated knowledge base — deepwiki pages
+    // and archify architecture maps (user ask 2026-09-09: 知识库不能是孤岛).
+    // No settings gate: local reads only, empty results when nothing is built.
+    const kbBuilder = getKbServerBuilder();
+    if (kbBuilder) {
+      try {
+        const kbServer = kbBuilder(this.projectRoot);
+        await this.mcpManager.connectInProcessServer(KB_MCP_SERVER_NAME, kbServer);
+      } catch (error) {
+        console.error("[session] kb MCP server failed:", error);
       }
     }
 

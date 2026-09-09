@@ -41,6 +41,7 @@ import {
   configureCodegraphController,
   configureWikiController,
   configureVisionServerBuilder,
+  configureKbServerBuilder,
   configureA2uiServerBuilder,
   configureActivityFramesServerBuilder,
   configureGitmcpConfigBuilder,
@@ -121,6 +122,7 @@ import { CrgCliController } from "./tools/crg-cli.js";
 import { registerDesignIpc as registerDesignStoreIpc } from "./design-ipc.js";
 import { listDesignArtifacts } from "./tools/design-store.js";
 import { a2uiServerBuilder } from "./tools/a2ui/index.js";
+import { buildKbServer } from "./tools/kb-mcp.js";
 import { buildActivityFramesServer } from "./tools/activity-frames/index.js";
 import {
   handleEditorReadBinary,
@@ -376,6 +378,11 @@ configureVisionServerBuilder(buildVisionServer);
 // A2UI MCP: built-in in-process MCP server for interactive prototypes/designs.
 // The builder + surface lifecycle are injected here; core connects via seam.
 configureA2uiServerBuilder(a2uiServerBuilder);
+
+// KB MCP: built-in in-process MCP server exposing the generated knowledge base
+// (deepwiki + architecture maps) to every agent session — 知识库不再只是
+// 桌面仪表盘的孤岛(user ask 2026-09-09)。core connects via seam.
+configureKbServerBuilder(buildKbServer);
 
 // Activity-Frames MCP: built-in in-process MCP server for behavioral memory.
 configureActivityFramesServerBuilder(buildActivityFramesServer);

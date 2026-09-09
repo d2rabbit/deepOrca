@@ -472,6 +472,86 @@
   border-bottom: 1px solid var(--ui-border-soft);
 }
 
+/* ── 交互播放模式(user ask 2026-09-09)────────────────────────────────
+   进入后整个工作区成为可交互播放器:冻结 frame 编辑入口、隐藏版本轨、
+   工具栏换成播放横条、元素选取与 AI 悬浮窗不可用;Esc/退出按钮返回。 */
+.ui-design-workspace[data-locked] .ui-design-version-rail {
+  display: none;
+}
+
+.ui-design-workspace[data-locked] .ui-design-workspace-tab:not(.active),
+.ui-design-workspace[data-locked] .ui-design-workspace-close {
+  pointer-events: none;
+  opacity: 0.45;
+}
+
+.ui-design-agent-slot {
+  display: contents;
+}
+
+.ui-design-agent-slot[data-hidden] {
+  display: none;
+}
+
+.ui-design-playing-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  padding: 8px 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--ui-success) 35%, transparent);
+  background: color-mix(in srgb, var(--ui-success) 8%, transparent);
+  font-size: 12px;
+  color: var(--ui-text);
+}
+
+.ui-design-playing-bar .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ui-success);
+  animation: ui-playing-pulse 1.6s var(--ui-ease, ease) infinite;
+}
+
+.ui-design-playing-bar .hint {
+  flex: 1;
+  overflow: hidden;
+  color: var(--ui-text-dim);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ui-design-playing-bar button {
+  flex: none;
+  padding: 4px 12px;
+  border: 1px solid color-mix(in srgb, var(--ui-success) 45%, transparent);
+  border-radius: var(--ui-radius, 8px);
+  background: transparent;
+  color: var(--ui-success);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.ui-design-playing-bar button:hover {
+  background: color-mix(in srgb, var(--ui-success) 12%, transparent);
+}
+
+@keyframes ui-playing-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-design-playing-bar .dot {
+    animation: none;
+  }
+}
+
 .ui-design-toolbar textarea {
   min-width: min(360px, 100%);
   min-height: 62px;

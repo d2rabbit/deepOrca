@@ -18,3 +18,16 @@ export const OPENUI_CREATE_CONTRACT =
   'It must be ONE directly interactive application, never stacked screens: declare `$page = "<first-page>"`, ' +
   'render each page\'s view behind a ternary (`$page == "orders" ? ordersView : null`), and navigate via ' +
   'buttons carrying `Action([@Set($page, "target")])` under a persistent shell.';
+
+/**
+ * Prototype quality bar distilled from the pm-designer-openui quality contract
+ * (interactive / high-fidelity / editable). One shared sentence set so the
+ * prompt cannot drift from the skill — previously materialize restated both
+ * contracts inline and had already diverged.
+ */
+export const OPENUI_QUALITY_CONTRACT =
+  "Quality bar: the prototype must feel ALIVE — every implied control (tabs/modals/forms/filters/" +
+  "switches/row actions) works via $state + Action, no dead buttons, every page reachable in one click, " +
+  "empty/confirm/loading feedback wired; HIGH FIDELITY — real product copy in the document's language, " +
+  "believable internally-consistent demo data, at most one primary CTA per screen, no lorem ipsum; " +
+  "EDITABLE — semantic identifiers and demo data factored into named statements.";

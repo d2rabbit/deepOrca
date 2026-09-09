@@ -1670,6 +1670,11 @@ export const ja: Record<MessageKey, string> = {
   "prototypeWorkspace.device.desktop": "デスクトップ",
   "prototypeWorkspace.device.mobile": "モバイル 375",
   "prototypeWorkspace.device.tablet": "タブレット",
+  "prototypeWorkspace.playMode": "インタラクティブ演示",
+  "prototypeWorkspace.playModeActive": "インタラクティブ演示中",
+  "prototypeWorkspace.playModeExit": "演示を終了",
+  "prototypeWorkspace.playModeHint":
+    "プロトタイプが操作可能な再生モードになりました。編集と AI 指示は一時停止中。Esc で戻ります。",
   "designWorkspace.tokensOther": "その他",
   "designWorkspace.diffTitle": "改訂サマリー",
   "designWorkspace.atomPrimary": "主要操作",

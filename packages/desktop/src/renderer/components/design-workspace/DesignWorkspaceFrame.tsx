@@ -23,6 +23,9 @@ type Props<T extends string> = {
   empty?: boolean;
   error?: string | null;
   onBack?: () => void;
+  /** 交互播放模式(user ask 2026-09-09):冻结 frame 的所有编辑入口——
+   *  tab/版本轨/返回都不可点,版本轨隐藏,画布获得全部空间。 */
+  locked?: boolean;
   children?: ReactNode;
 };
 
@@ -62,6 +65,7 @@ export function DesignWorkspaceFrame<T extends string>({
   empty = false,
   error,
   onBack,
+  locked = false,
   children,
 }: Props<T>): JSX.Element {
   const { t } = useI18n();
@@ -69,7 +73,7 @@ export function DesignWorkspaceFrame<T extends string>({
   const railVersions = [...versions].reverse();
 
   return (
-    <section className="ui-design-workspace" data-testid="design-workspace-frame">
+    <section className="ui-design-workspace" data-locked={locked || undefined} data-testid="design-workspace-frame">
       <header className="ui-design-workspace-head">
         <div className="ui-design-workspace-tabs" role="tablist">
           {tabs.map((tab) => (
@@ -79,6 +83,7 @@ export function DesignWorkspaceFrame<T extends string>({
               role="tab"
               aria-selected={activeTab === tab.id}
               className={`ui-design-workspace-tab${activeTab === tab.id ? " active" : ""}`}
+              disabled={locked}
               onClick={() => onTabChange(tab.id)}
             >
               {tab.label}
@@ -92,6 +97,7 @@ export function DesignWorkspaceFrame<T extends string>({
           <button
             type="button"
             className="ui-design-workspace-close"
+            disabled={locked}
             onClick={onBack}
             aria-label={t("designWorkspace.backToConversation")}
           >
@@ -115,6 +121,7 @@ export function DesignWorkspaceFrame<T extends string>({
                 type="button"
                 key={version.versionId}
                 className={`ui-design-version-item${version.versionId === selectedVersionId ? " active" : ""}`}
+                disabled={locked}
                 onClick={() => onVersionChange(version.versionId)}
                 data-version-id={version.versionId}
               >
@@ -134,7 +141,12 @@ export function DesignWorkspaceFrame<T extends string>({
           {readOnly ? (
             <div className="ui-design-readonly" role="status">
               <span>{t("designWorkspace.readOnly")}</span>
-              <button type="button" onClick={() => latestVersionId && onVersionChange(latestVersionId)}>
+              {/* 播放锁定期间禁用:否则可以在播放中偷渡版本切换(D#2)。 */}
+              <button
+                type="button"
+                disabled={locked}
+                onClick={() => latestVersionId && onVersionChange(latestVersionId)}
+              >
                 {t("designWorkspace.backToLatest")}
               </button>
             </div>

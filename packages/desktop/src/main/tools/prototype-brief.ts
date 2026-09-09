@@ -183,7 +183,8 @@ function isListItem(line: string): boolean {
 
 /** The text after the list marker ("- " is two characters; "- [x] " six). */
 function listItemText(line: string): string {
-  if (line.startsWith("- [")) {
+  // `- [` 与 `* [` 同等处理,否则 `* [ ] 事项` 会把 "[ ]" 标记漏进简报。
+  if (/^[-*] \[/.test(line)) {
     const close = line.indexOf("]");
     return close === -1 ? line.slice(2).trim() : line.slice(close + 1).trim();
   }
@@ -192,6 +193,13 @@ function listItemText(line: string): string {
 
 /** `## ` sections are screens; list items inside them are behavior entries. */
 function extractScreens(specMd: string): Screen[] {
+  // 标准化 PRD 契约(spec-writer)把每个页面列为「页面清单」节下的 GFM 表格
+  // 行——七个固定小节(背景与目标/验收标准…)不是屏幕。此前整篇按 `## ` 切,
+  // 小节名会混进屏幕清单,页面导航与屏幕名做闭合检查必然 miss → gaps 非空 →
+  // 一份合格 PRD 被整体拒掉。有页面清单表格时以表格行为准;识别不到才回退
+  // 旧的 `## ` 扫描(兼容 legacy/自由格式文档)。
+  const fromPageList = extractPageListScreens(specMd);
+  if (fromPageList && fromPageList.length > 0) return fromPageList;
   const scan = outsideFences(specMd).split(/\r?\n/);
   const screens: Screen[] = [];
   const flush = (name: string, body: string[]) => {
@@ -217,6 +225,58 @@ function extractScreens(specMd: string): Screen[] {
   }
   flush(current, body);
   return screens.filter((screen) => screen.name !== "-" || screen.body.trim());
+}
+
+/** Split a GFM table row into trimmed cells (`| a | b |` → ["a", "b"]). */
+function splitTableRow(line: string): string[] {
+  return line
+    .trim()
+    .replace(/^\|/, "")
+    .replace(/\|$/, "")
+    .split("|")
+    .map((cell) => cell.trim());
+}
+
+function isTableSeparator(cells: string[]): boolean {
+  return cells.length > 0 && cells.every((cell) => /^:?-{2,}:?$/.test(cell.replace(/\s/g, "")) || cell === "");
+}
+
+const PAGE_LIST_HEADER = /^(页面(名称|名|清单)?|屏幕|名称|name|screen|page(\s+name)?)$/i;
+
+/** Pages from the standardized 页面清单 table: first cell = page name (may be
+ *  bold-wrapped), remaining cells = purpose / key elements & operations. The
+ *  key-elements cell doubles as behavior entries (split on ；/;/、). Returns
+ *  null when the document has no 页面清单 section. */
+function extractPageListScreens(specMd: string): Screen[] | null {
+  const lines = outsideFences(specMd).split(/\r?\n/);
+  const headingIndex = lines.findIndex((line) => /^#{1,6}\s+/.test(line) && /页面清单|page\s+list|pages\b/i.test(line));
+  if (headingIndex === -1) return null;
+  const screens: Screen[] = [];
+  let headerSkipped = false;
+  for (let index = headingIndex + 1; index < lines.length; index++) {
+    const line = lines[index].trim();
+    if (/^#{1,6}\s+/.test(line)) break; // 页面清单节结束
+    if (!line.includes("|")) continue; // 节内说明文字(设计说明等)照常跳过
+    const cells = splitTableRow(line);
+    if (cells.length < 2 || isTableSeparator(cells)) continue;
+    const name = cells[0].replace(/[`*]/g, "").trim();
+    if (!name) continue;
+    // 首个表格行若是表头(页面名称/页面/目的/…)则跳过。
+    if (!headerSkipped) {
+      headerSkipped = true;
+      if (PAGE_LIST_HEADER.test(name) || /^(目的|purpose|关键元素)/i.test(cells[1])) continue;
+    }
+    const rest = cells
+      .slice(1)
+      .map((cell) => cell.replace(/[`*]/g, "").trim())
+      .filter(Boolean);
+    const entries = rest
+      .flatMap((cell) => cell.split(/[；;。]/))
+      .map((entry) => entry.replace(/^\d+[.)、]\s*/, "").trim())
+      .filter((entry) => entry.length > 1);
+    screens.push({ name, body: rest.join("；"), entries });
+  }
+  return screens;
 }
 
 /** 待确认 items — same convention the workspace spec tab already parses. */

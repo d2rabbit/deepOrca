@@ -118,75 +118,87 @@ export function DesignWorkspace({
   /** Id of the suite the workspaces currently view — a re-target (suiteId prop
    *  change) must clear the selection/drift/diff surfaces (re-review M5). */
   const viewedSuiteIdRef = useRef<string | null>(null);
-  const load = useCallback(async () => {
-    const seq = ++loadSeq.current;
-    setLoading(true);
-    setError(null);
-    try {
-      const [uiSummaries, prototypeSummaries, catalogItems] = await Promise.all([
-        suiteApi.designSuiteList(root, "ui"),
-        suiteApi.designSuiteList(root, "prototype"),
-        suiteApi.designSystemCatalog(),
-      ]);
-      if (seq !== loadSeq.current) return;
-      const prototypeSuites = await Promise.all(
-        prototypeSummaries.map((summary) => suiteApi.designSuiteRead(root, summary.id))
-      );
-      if (seq !== loadSeq.current) return;
-      // Store versions are oldest-first; bases default to the newest (vN) — mockup 基底默认最新.
-      const bases = prototypeSuites.flatMap((prototypeSuite) =>
-        prototypeSuite
-          ? [...prototypeSuite.versions]
-              .reverse()
-              .filter((version) => isPrototypeContent(version.content) && Boolean(version.content.openui))
-              .map((version, index) => ({
-                suiteId: prototypeSuite.id,
-                versionId: version.versionId,
-                label: `${prototypeSuite.title} · v${prototypeSuite.versions.length - index}`,
-              }))
-          : []
-      );
-      const effectiveCatalog = catalogItems.length
-        ? catalogItems
-        : fallbackCatalogIds.map((id) => ({ id, title: t(`designWorkspace.catalog.${id}`), description: "" }));
-      setPrototypeBases(bases);
-      setCatalog(effectiveCatalog);
-      setBasis((current) => current || (bases[0] ? `${bases[0].suiteId}:${bases[0].versionId}` : ""));
-      setDesignSystemId((current) => current || effectiveCatalog[0]?.id || "");
+  /**
+   * `background` 刷新(suite 变更订阅)不置 loading:frame 在 loading 期间
+   * 会整体换掉 children——此前同 root 下任何 suite 事件都会把画布/选中态/
+   * AI 聊天记录卸载重建(回归审查 D#4/D#5)。基底列表仍要全量重读(不过滤
+   * suiteId),但改为静默刷新。
+   */
+  const load = useCallback(
+    async (opts?: { background?: boolean }) => {
+      const background = opts?.background === true;
+      const seq = ++loadSeq.current;
+      if (!background) {
+        setLoading(true);
+        setError(null);
+      }
+      try {
+        const [uiSummaries, prototypeSummaries, catalogItems] = await Promise.all([
+          suiteApi.designSuiteList(root, "ui"),
+          suiteApi.designSuiteList(root, "prototype"),
+          suiteApi.designSystemCatalog(),
+        ]);
+        if (seq !== loadSeq.current) return;
+        const prototypeSuites = await Promise.all(
+          prototypeSummaries.map((summary) => suiteApi.designSuiteRead(root, summary.id))
+        );
+        if (seq !== loadSeq.current) return;
+        // Store versions are oldest-first; bases default to the newest (vN) — mockup 基底默认最新.
+        const bases = prototypeSuites.flatMap((prototypeSuite) =>
+          prototypeSuite
+            ? [...prototypeSuite.versions]
+                .reverse()
+                .filter((version) => isPrototypeContent(version.content) && Boolean(version.content.openui))
+                .map((version, index) => ({
+                  suiteId: prototypeSuite.id,
+                  versionId: version.versionId,
+                  label: `${prototypeSuite.title} · v${prototypeSuite.versions.length - index}`,
+                }))
+            : []
+        );
+        const effectiveCatalog = catalogItems.length
+          ? catalogItems
+          : fallbackCatalogIds.map((id) => ({ id, title: t(`designWorkspace.catalog.${id}`), description: "" }));
+        setPrototypeBases(bases);
+        setCatalog(effectiveCatalog);
+        setBasis((current) => current || (bases[0] ? `${bases[0].suiteId}:${bases[0].versionId}` : ""));
+        setDesignSystemId((current) => current || effectiveCatalog[0]?.id || "");
 
-      const targetId = suiteId && uiSummaries.some((item) => item.id === suiteId) ? suiteId : uiSummaries[0]?.id;
-      if (!targetId) {
-        setSuite(null);
-        setSelectedVersion(null);
-        return;
+        const targetId = suiteId && uiSummaries.some((item) => item.id === suiteId) ? suiteId : uiSummaries[0]?.id;
+        if (!targetId) {
+          setSuite(null);
+          setSelectedVersion(null);
+          return;
+        }
+        const next = await suiteApi.designSuiteRead(root, targetId);
+        if (seq !== loadSeq.current) return;
+        if ((next?.id ?? null) !== viewedSuiteIdRef.current) {
+          viewedSuiteIdRef.current = next?.id ?? null;
+          setSelection(null);
+          setDrift(null);
+          setDiff(null);
+        }
+        setSuite(next);
+        // Keep the user's version selection across background refreshes (mockup
+        // 版本漫游); only snap back when the viewed version no longer exists.
+        setSelectedVersion((prev) =>
+          prev && next?.versions.some((version) => version.versionId === prev.versionId)
+            ? prev
+            : (next?.currentVersion ?? null)
+        );
+        if (next?.currentVersion && isUiContent(next.currentVersion.content)) {
+          const source = next.currentVersion.content.sourcePrototype;
+          if (source) setBasis(`${source.suiteId}:${source.versionId}`);
+          if (next.currentVersion.content.designSystemId) setDesignSystemId(next.currentVersion.content.designSystemId);
+        }
+      } catch (cause) {
+        if (seq === loadSeq.current && !background) setError(cause instanceof Error ? cause.message : String(cause));
+      } finally {
+        if (seq === loadSeq.current && !background) setLoading(false);
       }
-      const next = await suiteApi.designSuiteRead(root, targetId);
-      if (seq !== loadSeq.current) return;
-      if ((next?.id ?? null) !== viewedSuiteIdRef.current) {
-        viewedSuiteIdRef.current = next?.id ?? null;
-        setSelection(null);
-        setDrift(null);
-        setDiff(null);
-      }
-      setSuite(next);
-      // Keep the user's version selection across background refreshes (mockup
-      // 版本漫游); only snap back when the viewed version no longer exists.
-      setSelectedVersion((prev) =>
-        prev && next?.versions.some((version) => version.versionId === prev.versionId)
-          ? prev
-          : (next?.currentVersion ?? null)
-      );
-      if (next?.currentVersion && isUiContent(next.currentVersion.content)) {
-        const source = next.currentVersion.content.sourcePrototype;
-        if (source) setBasis(`${source.suiteId}:${source.versionId}`);
-        if (next.currentVersion.content.designSystemId) setDesignSystemId(next.currentVersion.content.designSystemId);
-      }
-    } catch (cause) {
-      if (seq === loadSeq.current) setError(cause instanceof Error ? cause.message : String(cause));
-    } finally {
-      if (seq === loadSeq.current) setLoading(false);
-    }
-  }, [root, suiteId, t]);
+    },
+    [root, suiteId, t]
+  );
 
   useEffect(() => {
     void load();
@@ -194,7 +206,7 @@ export function DesignWorkspace({
 
   useEffect(() => {
     return subscribeToSuiteChanges((event) => {
-      if (event.root === root) void load();
+      if (event.root === root) void load({ background: true });
     });
   }, [load, root]);
 
@@ -259,7 +271,7 @@ export function DesignWorkspace({
         }
         const ref = artifactRefFromResult(result);
         if (ref) await selectArtifactRef(ref);
-        else await load();
+        else await load({ background: true });
         return ref;
       } catch (cause) {
         setError(cause instanceof Error ? cause.message : String(cause));

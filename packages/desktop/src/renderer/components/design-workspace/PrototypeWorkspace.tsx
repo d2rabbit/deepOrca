@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type JSX } from "rea
 import { api } from "../../api";
 import { useI18n } from "../../i18n";
 import { pushDesignToast } from "../../lib/toast-bus";
-import { IconCheck, IconClose, IconFile, IconPalette, IconRefresh, IconSparkle } from "../../ui/icons";
+import { IconCheck, IconClose, IconFile, IconPalette, IconPlay, IconRefresh, IconSparkle } from "../../ui/icons";
 import { PrototypePanel, type PrototypeSelection } from "../PrototypePanel";
 import { subscribeToSuiteChanges, suiteApi } from "./api";
 import { DesignWorkspaceFrame, versionLabel } from "./DesignWorkspaceFrame";
@@ -61,9 +61,11 @@ export function PrototypeWorkspace({
   const [tab, setTab] = useState<PrototypeTab>(validInitial);
   useEffect(() => {
     // Mid-session deep links (#prototype/report, #prototype/arch) retarget the
-    // open workspace.
+    // open workspace. 播放横条只在 proto tab 渲染——深链把 tab 切走时若不复位
+    // playing,工作区会停在冻结态且没有可见的退出按钮(回归审查 D#1)。
     if (initialTab === "spec" || initialTab === "proto" || initialTab === "report" || initialTab === "arch") {
       setTab(initialTab);
+      if (initialTab !== "proto") setPlaying(false);
     }
   }, [initialTab]);
   const [requirement, setRequirement] = useState("");
@@ -73,6 +75,10 @@ export function PrototypeWorkspace({
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [device, setDevice] = useState<"desktop" | "mobile" | "tablet">("desktop");
+  /** 交互播放模式(user ask 2026-09-09):进入后整个工作区变成可交互播放器——
+   *  工具栏/版本轨/tab 冻结,元素选取与 AI 悬浮窗不可用;退出(Esc 或退出
+   *  按钮)后原样还原。只切换布尔、不卸载组件,聊天记录与选中态自然保留。 */
+  const [playing, setPlaying] = useState(false);
   /** Confirmed 待确认 items (per selected version, session scope). */
   const [confirmedSpecItems, setConfirmedSpecItems] = useState<ReadonlySet<string>>(new Set());
   const [diff, setDiff] = useState<{ added: number; removed: number; lines: string[] } | null>(null);
@@ -94,50 +100,64 @@ export function PrototypeWorkspace({
   const loadSeq = useRef(0);
   /** Suite currently viewed — re-targets clear the per-suite surfaces (M5). */
   const viewedSuiteIdRef = useRef<string | null>(null);
-  const load = useCallback(async () => {
-    const seq = ++loadSeq.current;
-    setLoading(true);
-    setError(null);
-    try {
-      const summaries = await suiteApi.designSuiteList(root, "prototype");
-      if (seq !== loadSeq.current) return;
-      const targetId = suiteId && summaries.some((item) => item.id === suiteId) ? suiteId : summaries[0]?.id;
-      if (!targetId) {
-        setSuite(null);
-        setSelectedVersion(null);
-        return;
+  /**
+   * `background` 刷新(suite 变更订阅、动作后的静默兜底)不置 loading:frame
+   * 在 loading 期间会整体换掉 children——此前每次修订事件都把画布/选中态/
+   * AI 聊天记录卸载重建(回归审查 D#4)。仅首载与显式重载走前台路径。
+   */
+  const load = useCallback(
+    async (opts?: { background?: boolean }) => {
+      const background = opts?.background === true;
+      const seq = ++loadSeq.current;
+      if (!background) {
+        setLoading(true);
+        setError(null);
       }
-      const next = await suiteApi.designSuiteRead(root, targetId);
-      if (seq !== loadSeq.current) return;
-      if ((next?.id ?? null) !== viewedSuiteIdRef.current) {
-        // Re-target (suiteId prop change): clear the stale selection/diff so
-        // an old-canvas popover cannot revise the NEW suite (re-review M5).
-        viewedSuiteIdRef.current = next?.id ?? null;
-        setSelection(null);
-        setDiff(null);
-        setConfirmedSpecItems(new Set());
+      try {
+        const summaries = await suiteApi.designSuiteList(root, "prototype");
+        if (seq !== loadSeq.current) return;
+        const targetId = suiteId && summaries.some((item) => item.id === suiteId) ? suiteId : summaries[0]?.id;
+        if (!targetId) {
+          setSuite(null);
+          setSelectedVersion(null);
+          return;
+        }
+        const next = await suiteApi.designSuiteRead(root, targetId);
+        if (seq !== loadSeq.current) return;
+        if ((next?.id ?? null) !== viewedSuiteIdRef.current) {
+          // Re-target (suiteId prop change): clear the stale selection/diff so
+          // an old-canvas popover cannot revise the NEW suite (re-review M5).
+          // 切 suite 同时退出播放——播放态只对当时的版本有意义(D#1)。
+          viewedSuiteIdRef.current = next?.id ?? null;
+          setSelection(null);
+          setDiff(null);
+          setConfirmedSpecItems(new Set());
+          setPlaying(false);
+        }
+        setSuite(next);
+        // Keep the user's version selection across background refreshes.
+        setSelectedVersion((prev) =>
+          prev && next?.versions.some((version) => version.versionId === prev.versionId)
+            ? prev
+            : (next?.currentVersion ?? null)
+        );
+      } catch (cause) {
+        if (seq === loadSeq.current && !background) setError(cause instanceof Error ? cause.message : String(cause));
+      } finally {
+        if (seq === loadSeq.current && !background) setLoading(false);
       }
-      setSuite(next);
-      // Keep the user's version selection across background refreshes.
-      setSelectedVersion((prev) =>
-        prev && next?.versions.some((version) => version.versionId === prev.versionId)
-          ? prev
-          : (next?.currentVersion ?? null)
-      );
-    } catch (cause) {
-      if (seq === loadSeq.current) setError(cause instanceof Error ? cause.message : String(cause));
-    } finally {
-      if (seq === loadSeq.current) setLoading(false);
-    }
-  }, [root, suiteId]);
+    },
+    [root, suiteId]
+  );
 
   useEffect(() => {
     void load();
   }, [load]);
 
   useEffect(() => {
+    // 订阅路径永远是后台刷新:不闪屏、不丢挂载态。
     return subscribeToSuiteChanges((event) => {
-      if (event.root === root && (!suiteId || event.suiteId === suiteId)) void load();
+      if (event.root === root && (!suiteId || event.suiteId === suiteId)) void load({ background: true });
     });
   }, [load, root, suiteId]);
 
@@ -413,6 +433,20 @@ export function PrototypeWorkspace({
   }, [pendingSpecTodos.length, specTodos.length, t]);
   const readOnly = Boolean(suite && selectedVersion && selectedVersion.versionId !== suite.currentVersionId);
 
+  // 播放模式:Esc 退出(对齐 easy-prototype 演示模式),版本内容失去原型时
+  // 自动退出,避免停在空播放器里。
+  useEffect(() => {
+    if (!playing) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setPlaying(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [playing]);
+  useEffect(() => {
+    if (playing && !content.openui) setPlaying(false);
+  }, [playing, content.openui]);
+
   const selectArtifactRef = useCallback(
     async (ref: { suiteId: string; versionId: string }) => {
       const [nextSuite, nextVersion] = await Promise.all([
@@ -442,7 +476,7 @@ export function PrototypeWorkspace({
         }
         const ref = artifactRefFromResult(result);
         if (ref) await selectArtifactRef(ref);
-        else await load();
+        else await load({ background: true });
         return ref;
       } catch (cause) {
         setError(cause instanceof Error ? cause.message : String(cause));
@@ -604,9 +638,10 @@ export function PrototypeWorkspace({
       empty={!suite}
       error={error}
       onBack={onBack}
+      locked={playing}
     >
       <div className="ui-design-workspace-content" data-active-tab={tab}>
-        {diff ? (
+        {!playing && diff ? (
           <aside className="ui-design-diff-card">
             <header>
               <strong>{t("designWorkspace.diffTitle")}</strong>
@@ -782,51 +817,76 @@ export function PrototypeWorkspace({
             className="ui-design-preview-stage"
             onClick={(event) => event.target === event.currentTarget && setSelection(null)}
           >
-            <div className="ui-design-toolbar compact">
-              {selectedVersion ? (
-                <>
-                  <span className="ui-design-vbadge">
-                    {versionLabel(suite?.versions, selectedVersion.versionId) ?? "-"} ·{" "}
-                    {t(`designWorkspace.status.${selectedVersion.status}`)}
-                  </span>
-                  {content.verification ? (
-                    <span className="ui-design-vnote">
-                      {t("prototypeWorkspace.vbadgeNote", {
-                        passed: content.verification.checks.filter((check) => check.status === "passed").length,
-                        total: content.verification.checks.length,
-                        heal: content.verification.healingRounds ?? 0,
-                      })}
+            {!playing ? (
+              <div className="ui-design-toolbar compact">
+                {selectedVersion ? (
+                  <>
+                    <span className="ui-design-vbadge">
+                      {versionLabel(suite?.versions, selectedVersion.versionId) ?? "-"} ·{" "}
+                      {t(`designWorkspace.status.${selectedVersion.status}`)}
                     </span>
-                  ) : null}
-                </>
-              ) : null}
-              <div className="seg">
-                {(["desktop", "mobile", "tablet"] as const).map((d) => (
-                  <button key={d} type="button" className={device === d ? "on" : ""} onClick={() => setDevice(d)}>
-                    {t(`prototypeWorkspace.device.${d}`)}
-                  </button>
-                ))}
+                    {content.verification ? (
+                      <span className="ui-design-vnote">
+                        {t("prototypeWorkspace.vbadgeNote", {
+                          passed: content.verification.checks.filter((check) => check.status === "passed").length,
+                          total: content.verification.checks.length,
+                          heal: content.verification.healingRounds ?? 0,
+                        })}
+                      </span>
+                    ) : null}
+                  </>
+                ) : null}
+                <div className="seg">
+                  {(["desktop", "mobile", "tablet"] as const).map((d) => (
+                    <button key={d} type="button" className={device === d ? "on" : ""} onClick={() => setDevice(d)}>
+                      {t(`prototypeWorkspace.device.${d}`)}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  className="primary"
+                  disabled={!content.spec || busy !== null || readOnly}
+                  onClick={materialize}
+                >
+                  <IconPalette /> {t("prototypeWorkspace.materialize")}
+                </button>
+                <button type="button" disabled={!content.openui || busy !== null || readOnly} onClick={verify}>
+                  <IconCheck /> {t("prototypeWorkspace.verify")}
+                </button>
+                <button
+                  type="button"
+                  disabled={!suite || !selectedVersion || busy !== null}
+                  onClick={() => void exportVersion()}
+                >
+                  {t("designWorkspace.exportVersion")}
+                </button>
+                <button
+                  type="button"
+                  disabled={!content.openui || busy !== null}
+                  title={t("prototypeWorkspace.playModeHint")}
+                  onClick={() => {
+                    // 进入播放前清掉元素选中:outline 会冻在旧坐标上,退出后
+                    // popover 也会以过期 bounds 复现(回归审查 D#3)。
+                    setSelection(null);
+                    setPlaying(true);
+                  }}
+                >
+                  <IconPlay /> {t("prototypeWorkspace.playMode")}
+                </button>
               </div>
-              <button
-                type="button"
-                className="primary"
-                disabled={!content.spec || busy !== null || readOnly}
-                onClick={materialize}
-              >
-                <IconPalette /> {t("prototypeWorkspace.materialize")}
-              </button>
-              <button type="button" disabled={!content.openui || busy !== null || readOnly} onClick={verify}>
-                <IconCheck /> {t("prototypeWorkspace.verify")}
-              </button>
-              <button
-                type="button"
-                disabled={!suite || !selectedVersion || busy !== null}
-                onClick={() => void exportVersion()}
-              >
-                {t("designWorkspace.exportVersion")}
-              </button>
-            </div>
-            {progress ? <div className="ui-design-gen-progress">{progress}</div> : null}
+            ) : (
+              // 播放态横条:替换工具栏,提示当前处于交互演示 + 退出入口。
+              <div className="ui-design-playing-bar">
+                <i className="dot" aria-hidden="true" />
+                <span>{t("prototypeWorkspace.playModeActive")}</span>
+                <span className="hint">{t("prototypeWorkspace.playModeHint")}</span>
+                <button type="button" onClick={() => setPlaying(false)}>
+                  {t("prototypeWorkspace.playModeExit")}
+                </button>
+              </div>
+            )}
+            {!playing && progress ? <div className="ui-design-gen-progress">{progress}</div> : null}
             <div className="ui-design-canvas-area">
               {content.openui ? (
                 <div className={`ui-design-device ui-design-device-${device}`}>
@@ -843,7 +903,7 @@ export function PrototypeWorkspace({
                     authoringLibrary={suite?.authoringLibrary}
                     onIterate={(instruction) => revise(instruction)}
                     onSelectionChange={handlePrototypeSelection}
-                    selectionEnabled={!readOnly}
+                    selectionEnabled={!readOnly && !playing}
                     selectionNodePath={selection?.nodePath ?? null}
                     hideComposer
                   />
@@ -873,14 +933,16 @@ export function PrototypeWorkspace({
                 </div>
               )}
             </div>
-            <SelectionPopover
-              selection={selection}
-              readOnly={readOnly}
-              quickFixes={[t("prototypeWorkspace.selectionCopy"), t("prototypeWorkspace.selectionSpacing")]}
-              onClose={() => setSelection(null)}
-              onFix={(instruction) => revise(instruction, selection?.nodePath)}
-              onExecute={executePrototypeAction}
-            />
+            {!playing ? (
+              <SelectionPopover
+                selection={selection}
+                readOnly={readOnly}
+                quickFixes={[t("prototypeWorkspace.selectionCopy"), t("prototypeWorkspace.selectionSpacing")]}
+                onClose={() => setSelection(null)}
+                onFix={(instruction) => revise(instruction, selection?.nodePath)}
+                onExecute={executePrototypeAction}
+              />
+            ) : null}
           </section>
         ) : null}
 
@@ -1071,13 +1133,17 @@ export function PrototypeWorkspace({
             )}
           </article>
         ) : null}
-        <FloatingDesignAgent
-          tabLabel={tabLabels[tab]}
-          quickItems={quickItems[tab] ?? []}
-          disabled={readOnly || !suite || tab === "arch"}
-          busy={busy !== null}
-          onSubmit={(instruction) => revise(instruction).then((done) => done !== null)}
-        />
+        {/* 播放时隐藏但保持挂载:聊天记录在组件 state 里,卸载会丢——
+            退出播放后继续之前的对话。 */}
+        <div className="ui-design-agent-slot" data-hidden={playing || undefined}>
+          <FloatingDesignAgent
+            tabLabel={tabLabels[tab]}
+            quickItems={quickItems[tab] ?? []}
+            disabled={readOnly || !suite || tab === "arch" || playing}
+            busy={busy !== null}
+            onSubmit={(instruction) => revise(instruction).then((done) => done !== null)}
+          />
+        </div>
       </div>
     </DesignWorkspaceFrame>
   );

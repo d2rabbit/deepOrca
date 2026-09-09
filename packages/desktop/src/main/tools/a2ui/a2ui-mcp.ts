@@ -978,6 +978,9 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
             ...(requirement ? { requirement } : {}),
             spec: document,
             openui: undefined,
+            // spec 重写后旧架构文档随之失效,与 openui 同等重置(否则新版本
+            // 会带着与当前 PRD 不符的"已批准架构")。
+            arch: undefined,
             verification: { status: "pending", checks: [] },
           }),
           "draft"
@@ -1189,6 +1192,8 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
               : {
                   ...((base ?? {}) as PrototypeSuiteContent),
                   openui: code,
+                  // 原型重写后旧架构文档随之失效(与 render_spec 同规)。
+                  arch: undefined,
                   verification: { status: "pending", checks: [] },
                 },
           "ready"

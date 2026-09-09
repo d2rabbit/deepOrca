@@ -418,6 +418,21 @@ export function IconSparkle(): JSX.Element {
   );
 }
 
+/** Play triangle — interactive prototype demo (播放模式) */
+export function IconPlay(): JSX.Element {
+  return (
+    <svg {...S}>
+      <path
+        d="M6.8 4.6v10.8l8.8-5.4-8.8-5.4Z"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 /** Bulleted list — instruction TOC head */
 export function IconList(): JSX.Element {
   return (

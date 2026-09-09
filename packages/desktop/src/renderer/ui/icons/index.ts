@@ -93,6 +93,7 @@ export {
   IconBot,
   IconShield,
   IconSparkle,
+  IconPlay,
   IconList,
   IconTerminal,
   IconSlashCommand,

@@ -1669,6 +1669,11 @@ export const en = {
   "prototypeWorkspace.device.desktop": "Desktop",
   "prototypeWorkspace.device.mobile": "Mobile 375",
   "prototypeWorkspace.device.tablet": "Tablet",
+  "prototypeWorkspace.playMode": "Interactive demo",
+  "prototypeWorkspace.playModeActive": "Interactive demo playing",
+  "prototypeWorkspace.playModeExit": "Exit demo",
+  "prototypeWorkspace.playModeHint":
+    "The prototype is now live and clickable. Editing and AI guidance are paused — press Esc to resume.",
   "designWorkspace.tokensOther": "Other",
   "designWorkspace.diffTitle": "Revision summary",
   "designWorkspace.atomPrimary": "Primary",

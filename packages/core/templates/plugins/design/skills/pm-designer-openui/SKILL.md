@@ -23,11 +23,73 @@ your prototype in the right-side panel.
    every P0 功能需求, and do not invent scope beyond the document. The
    document's acceptance criteria (验收标准) tell you what "complete" means.
 
+## Prototype quality contract
+
+Every prototype must be **interactive, believable, and editable**. These three
+properties are the acceptance bar for `render_openui` — not style preferences.
+
+### 1. Interactive — the prototype must feel alive, not static
+
+The reviewer operates the prototype in a full-screen interactive player; a
+control that only LOOKS clickable is a defect:
+
+- Every control the requirement implies (tabs, dropdowns, switches, step
+  wizards, modals, search, filters, row actions, likes, CRUD) must WORK via
+  `$state` + `Action` — never ship a static look-alike of an interactive
+  element.
+- NO dead buttons: every visible `Button` carries an explicit
+  `Action([...])`. A button without an Action silently forwards its label to
+  the assistant and does nothing on screen.
+- Navigation completeness: every page in the 页面清单 has its own view
+  variable and is reachable from the persistent shell in ONE click. The
+  primary user flow must be clickable end-to-end with no dead ends.
+- State coverage: data views declare an empty branch
+  (`@Count(data.rows) == 0 ? emptyView : tableView`); submit buttons reflect
+  Mutation status (loading text → 成功 Callout / 失败 Callout); destructive
+  actions confirm through a Modal; forms carry validation `rules` so errors
+  render inline.
+- Feedback discipline: every state change lands somewhere visible — a view
+  switch, a Callout/Toast, a modal opening, a filter re-deriving the visible
+  list. If nothing on screen changes, the interaction is not wired.
+- Single-active rule: exactly one active tab / selected chip at a time —
+  drive selection from ONE `$state`, never parallel booleans.
+
+### 2. High fidelity — a real product, not a wireframe with lorem ipsum
+
+- Copy is real product language in the requirement's language. Zero lorem
+  ipsum, zero "占位/示例文本" filler, zero untranslated placeholder brackets.
+- Demo data is believable and internally consistent: realistic names, dates
+  and magnitudes ("¥8,199 · 店铺券 -¥200", not "item1 / 100"). Derived
+  numbers must agree with what is displayed (`@Count` of the same rows the
+  table renders).
+- Density matches the domain: B端 admin = dense tables and forms; C端
+  consumer = card flows and larger type. Never ship a marketing landing page
+  for an admin tool, or an admin grid for a consumer app.
+- Anti-slop: at most ONE primary CTA per screen; no filler wall of identical
+  KPI cards; no emoji as icons; no fake logos or watermarks.
+- The template test: any block that would still be true after swapping in a
+  different product is AI filler — rewrite it with something specific to THIS
+  brief. Every product gets one signature element that serves its scenario.
+
+### 3. Editable — the next revision must be a small diff
+
+- Semantic identifiers that name their role: `ordersView`, `orderTable`,
+  `statusFilter`, `submitBtn` — never `view1`, `card2`, `tmp`.
+- One named statement per reusable piece; views reference shared components
+  instead of re-inlining them, so a fix lands in ONE place.
+- Demo data lives in named arrays/objects next to the component definitions —
+  content edits must never require touching the component tree.
+- Follow the hoisting statement order (root → $state → Query → components →
+  leaf data) so the program reads top-down.
+- When revising, keep unrelated statements byte-identical — never
+  restructure sections that already work.
+
 ## How it works
 
 1. Ask the user what they want to build (unless they already specified).
 2. Write the prototype as OpenUI Lang code.
 3. Call the `render_openui` tool with the code.
+
 4. The preview panel renders it immediately.
 5. When the user requests changes, call `update_openui` with the **complete
    updated program** (full replacement). To iterate efficiently, copy the
@@ -504,3 +566,18 @@ replaces the whole prototype and leaves it broken.
 3. **Prefer Stack for layout** — set `direction` to `"row"` or `"column"`; it handles flex automatically.
 4. **One component per line** — no nesting on a single line.
 5. **Call `render_openui` once** for the initial prototype, then `update_openui` with the full program for every change.
+
+## Pre-render checklist
+
+Verify EVERY line before calling `render_openui` — the result ships as-is
+into the interactive player, where dead controls are immediately visible:
+
+- [ ] `root = Stack(...)` is the first statement; every 页面清单 page has a view variable, and every view is referenced
+- [ ] The primary flow is clickable end-to-end: shell → each page → back; no dead ends
+- [ ] Every visible Button carries a real `Action([...])`; tabs/segments have exactly one active state
+- [ ] Forms carry validation `rules`; destructive actions confirm via Modal; async submits show loading + result feedback
+- [ ] Every data-driven view has an empty state; error paths show a retry/提示
+- [ ] Copy is real product language; demo data is believable and internally consistent
+- [ ] ≤ 1 primary CTA per screen; no emoji icons; nothing survives the template test
+- [ ] Identifiers are semantic; demo data is factored into named statements
+- [ ] Query/Mutation reference ONLY the listed tools — if no tool fits, use realistic mock data, never a fabricated tool call

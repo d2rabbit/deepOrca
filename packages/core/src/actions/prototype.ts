@@ -7,7 +7,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { randomUUID } from "node:crypto";
 import type { ActionContext, ActionDefinition, ActionRun } from "./types";
-import { OPENUI_CREATE_CONTRACT, OPENUI_PRESERVE_CONTRACT } from "./openui-contract";
+import { OPENUI_CREATE_CONTRACT, OPENUI_PRESERVE_CONTRACT, OPENUI_QUALITY_CONTRACT } from "./openui-contract";
 
 const DESIGNS_DIR = ".deeporca/designs";
 const SPEC_FILE = "spec.md";
@@ -412,8 +412,11 @@ export const prototypeSpecRun: ActionRun<PrototypeSpecInput, PrototypeSpecOutput
     const generated = await ctx.runSubagent({
       skill: "spec-writer",
       prompt:
-        "Write the complete structured requirements document for the requirement below. Include background/goals, " +
-        "users/scenarios, functional requirements, an explicit page list, and acceptance criteria. Do not call tools. " +
+        // 提示词只指到技能契约,不逐字复述节名(节名与技能文档漂移就是当初
+        // "两份矛盾清单"的根因)。管线模式由"Do not call tools"声明:持久化
+        // 由本 action 通过 render_spec 完成,子代理只回文档。
+        "Write the complete structured PRD for the requirement below, following the spec-writer document " +
+        "contract exactly. Do not call tools. " +
         "Return only the complete markdown document in one markdown code fence.\n\n" +
         requirement,
       silent: true,
@@ -427,6 +430,7 @@ export const prototypeSpecRun: ActionRun<PrototypeSpecInput, PrototypeSpecOutput
         error: "spec-writer returned an empty or section-less requirements document (truncated output?) — regenerate",
       };
     }
+    if (ctx.signal.aborted) return { ok: false, error: "cancelled" };
     const saved = await executeA2ui(ctx, "render_spec", {
       document,
       requirement,
@@ -506,11 +510,13 @@ export const prototypeMaterializeRun: ActionRun<PrototypeMaterializeInput, Proto
       skill: "pm-designer-openui",
       prompt:
         "Create the complete OpenUI Lang prototype for the requirements document below. " +
-        "Build ONE directly interactive application, never a stack of separate screens: declare " +
-        '`$page = "<first-page>"`, give each page of the requirements\' page list its own view variable, ' +
-        'render exactly one view in root behind a ternary (`$page == "orders" ? ordersView : null`), keep a ' +
-        'persistent navigation shell, and switch views with buttons carrying `Action([@Set($page, "target")])`. ' +
-        "Cover its page list and flows strictly without inventing scope. Do not call tools. " +
+        // 契约单一来源(openui-contract.ts):单应用 $page 结构 + 质量底线
+        // (可交互/高保真/可编辑),详情见技能的质量契约节,提示词不另行复述。
+        OPENUI_CREATE_CONTRACT +
+        " " +
+        OPENUI_QUALITY_CONTRACT +
+        " Cover its page list and flows strictly without inventing scope. " +
+        "Do not call tools. " +
         "Return only the OpenUI Lang program in one code fence.\n\n" +
         spec,
       silent: true,
@@ -532,6 +538,7 @@ export const prototypeMaterializeRun: ActionRun<PrototypeMaterializeInput, Proto
       progressCode: "prototype.materialize.repairing",
       basePercent: 55,
     });
+    if (ctx.signal.aborted) return { ok: false, error: "cancelled" };
     const saved = await executeA2ui(ctx, "render_openui", {
       code: verifiedCode,
       ...(requirement ? { requirement } : {}),
@@ -611,7 +618,13 @@ export const prototypeVerifyRun: ActionRun<PrototypeVerifyInput, PrototypeVerify
   const content = read.value.content as PrototypeSuiteContent;
   const spec = content.spec?.trim() ?? "";
   const openui = content.openui?.trim() ?? "";
+  // 确定性四项每次重算;此前版本里的非确定性检查(revise 追加的 pending 观察
+  // 项、外部 checks)必须随行——文档化回路是"revise 加观察 → 重新 verify",
+  // 整体替换的 save_suite_result 若不携带就会把 pending 项静默清掉。
+  const deterministicIds = new Set(["spec-non-empty", "page-list-present", "openui-non-empty", "openui-root"]);
+  const carried = (content.verification?.checks ?? []).filter((check) => !deterministicIds.has(check.id));
   const checks: PrototypeVerificationCheck[] = [
+    ...carried,
     { id: "spec-non-empty", label: "Specification is non-empty", status: spec ? "passed" : "failed" },
     {
       id: "page-list-present",
@@ -637,8 +650,9 @@ export const prototypeVerifyRun: ActionRun<PrototypeVerifyInput, PrototypeVerify
     status: checks.every((check) => check.status === "passed" || check.status === "healed") ? "passed" : "failed",
     checks,
     generatedAt: new Date().toISOString(),
-    healingRounds: 0,
+    healingRounds: content.verification?.healingRounds ?? 0,
   };
+  if (ctx.signal.aborted) return { ok: false, error: "cancelled" };
   const saved = await executeA2ui(ctx, "save_suite_result", {
     suiteId,
     versionId,
@@ -759,6 +773,7 @@ export const prototypeReviseRun: ActionRun<PrototypeReviseInput, PrototypeSpecOu
       basePercent: 60,
     });
   }
+  if (ctx.signal.aborted) return { ok: false, error: "cancelled" };
   const saved = await executeA2ui(ctx, tool, args);
   return saved.ok
     ? { ok: true, artifactRef: saved.artifactRef, refreshStore: !saved.artifactRef }
@@ -844,6 +859,7 @@ export const prototypeArchRun: ActionRun<PrototypeArchInput, PrototypeArchOutput
         error: "arch-writer returned an empty or diagram-less architecture document (truncated output?) — regenerate",
       };
     }
+    if (ctx.signal.aborted) return { ok: false, error: "cancelled" };
     const saved = await executeA2ui(ctx, "save_suite_arch", {
       suiteId,
       versionId,

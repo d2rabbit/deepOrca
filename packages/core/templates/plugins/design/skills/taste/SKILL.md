@@ -117,7 +117,7 @@ Use this scale consistently:
 | Section title (H2) | 24-36px | 700 | `h2` |
 | Card title (H3) | 18px | 600 | `.card-title` / `h3` |
 | Body text | 14-16px | 400 | `p` / `.lead` |
-| Caption/Label | 11-12px | 500-600 | `.eyebrow` / `.caption` |
+| Caption/Label | 12px | 500-600 | `.eyebrow` / `.caption`（12px 是无障碍下限,与 design.lint 的 tiny-font 规则一致,不再放宽到 11px） |
 | Monospace/code | 13px | 400 | `.mono` |
 
 **Line height**: 1.5-1.7 for body, 1.1-1.2 for headings.
