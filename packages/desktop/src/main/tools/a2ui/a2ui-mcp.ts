@@ -981,6 +981,9 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
             // spec 重写后旧架构文档随之失效,与 openui 同等重置(否则新版本
             // 会带着与当前 PRD 不符的"已批准架构")。
             arch: undefined,
+            // 三端平台变体全部派生自旧 PRD,同等失效(评审:平台变体生命周期
+            // 与 openui 本体一致)。
+            openuiVariants: undefined,
             verification: { status: "pending", checks: [] },
           }),
           "draft"
@@ -1075,6 +1078,13 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
           .string()
           .optional()
           .describe("The user's original requirement text (persisted as requirement.md; pass when known)."),
+        device: z
+          .enum(["desktop", "mobile", "tablet"])
+          .optional()
+          .describe(
+            "Platform variant target (user ask 2026-09-09: 三端是平台化适配). desktop (default) writes the base " +
+              "openui program; mobile/tablet write structurally distinct platform variants (openuiVariants)."
+          ),
         ...suiteLineageSchema,
       },
     },
@@ -1088,6 +1098,8 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
       }
       const requirement =
         typeof args.requirement === "string" && args.requirement.trim() ? args.requirement : undefined;
+      const device =
+        args.device === "mobile" || args.device === "tablet" || args.device === "desktop" ? args.device : undefined;
       if (usesSuitePersistence(args)) {
         if (stringArg(args, "versionId") && !stringArg(args, "suiteId")) {
           return suiteError("versionId requires suiteId");
@@ -1121,7 +1133,16 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
               : {
                   ...((base ?? {}) as PrototypeSuiteContent),
                   ...(requirement ? { requirement } : {}),
-                  openui: code,
+                  // 平台分流(user ask 2026-09-09):desktop 写本体;mobile/tablet
+                  // 写 openuiVariants[device],本体保持桌面版不动。
+                  ...(device === "mobile" || device === "tablet"
+                    ? {
+                        openuiVariants: {
+                          ...((base as PrototypeSuiteContent | null)?.openuiVariants ?? {}),
+                          [device]: code,
+                        },
+                      }
+                    : { openui: code }),
                   verification: { status: "pending", checks: [] },
                 },
           "ready"
@@ -1162,6 +1183,13 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
         OPENUI_PRESERVE_CONTRACT,
       inputSchema: {
         code: z.string().describe("Complete updated OpenUI Lang program (full replacement, not delta)."),
+        device: z
+          .enum(["desktop", "mobile", "tablet"])
+          .optional()
+          .describe(
+            "Platform variant target: desktop (default) updates the base openui program; " +
+              "mobile/tablet update their openuiVariants entry."
+          ),
         ...suiteLineageSchema,
       },
     },
@@ -1171,6 +1199,8 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
       if (usesSuitePersistence(args)) {
         const suiteId = stringArg(args, "suiteId");
         if (!suiteId) return suiteError("update_openui suite mode requires suiteId");
+        const device =
+          args.device === "mobile" || args.device === "tablet" || args.device === "desktop" ? args.device : undefined;
         const targetKind: DesignSuiteKind =
           (projectRoot && suiteId ? readDesignSuiteKind(projectRoot, suiteId) : null) ?? "prototype";
         const sourcePrototype = sourcePrototypeArg(args);
@@ -1191,9 +1221,18 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
                 }
               : {
                   ...((base ?? {}) as PrototypeSuiteContent),
-                  openui: code,
+                  // 平台分流(与 render_openui 同规):desktop 改本体;
+                  // mobile/tablet 改自己的变体,本体与其它端不动。
+                  ...(device === "mobile" || device === "tablet"
+                    ? {
+                        openuiVariants: {
+                          ...((base as PrototypeSuiteContent | null)?.openuiVariants ?? {}),
+                          [device]: code,
+                        },
+                      }
+                    : { openui: code }),
                   // 原型重写后旧架构文档随之失效(与 render_spec 同规)。
-                  arch: undefined,
+                  ...(device === "mobile" || device === "tablet" ? {} : { arch: undefined }),
                   verification: { status: "pending", checks: [] },
                 },
           "ready"

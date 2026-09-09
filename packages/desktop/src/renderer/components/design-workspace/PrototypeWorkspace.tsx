@@ -13,6 +13,7 @@ import { diffLines, summarizeDiff } from "./diff";
 import type { DesignSuite, DesignSuiteVersion, PrototypeSuiteContent } from "./types";
 import { isPrototypeContent } from "./types";
 import { StreamdownView } from "../StreamdownView";
+import { SpecDocumentView } from "./SpecDocumentView";
 
 type PrototypeTab = "spec" | "proto" | "report" | "arch";
 
@@ -443,6 +444,13 @@ export function PrototypeWorkspace({
   }, [pendingSpecTodos.length, specTodos.length, t]);
   const readOnly = Boolean(suite && selectedVersion && selectedVersion.versionId !== suite.currentVersionId);
 
+  // 平台变体(user ask 2026-09-09):当前设备优先取自己的变体程序;没生成过
+  // 该端时回退桌面本体并给出提示——设备切换从此是平台切换,不是挤宽度。
+  const variants = (isPrototypeContent(content) ? content.openuiVariants : undefined) ?? {};
+  const activeDeviceCode =
+    device === "desktop" ? (content.openui ?? null) : (variants[device] ?? content.openui ?? null);
+  const deviceHasVariant = device === "desktop" ? Boolean(content.openui) : Boolean(variants[device]);
+
   // 播放模式:Esc 退出(对齐 easy-prototype 演示模式),版本内容失去原型时
   // 自动退出,避免停在空播放器里。
   useEffect(() => {
@@ -506,7 +514,13 @@ export function PrototypeWorkspace({
 
   const materialize = () => {
     if (!suite || !selectedVersion) return;
-    void runAction("prototype.materialize", { suiteId: suite.id, versionId: selectedVersion.versionId });
+    // 平台化适配(user ask 2026-09-09):生成即三端——desktop 本体 + mobile/
+    // tablet 结构化变体,每端一次独立生成,导航模型各不相同。
+    void runAction("prototype.materialize", {
+      suiteId: suite.id,
+      versionId: selectedVersion.versionId,
+      devices: ["desktop", "mobile", "tablet"],
+    });
   };
 
   const verify = () => {
@@ -557,7 +571,7 @@ export function PrototypeWorkspace({
         ? part === "spec"
           ? (content.spec ?? null)
           : part === "openui"
-            ? (content.openui ?? null)
+            ? (activeDeviceCode ?? null)
             : null
         : null;
     const ref = await runAction("prototype.revise", {
@@ -566,6 +580,8 @@ export function PrototypeWorkspace({
       part,
       target: target ?? part,
       instruction,
+      // 平台定向:proto tab 上修订落在当前设备(桌面即本体)
+      ...(tab === "proto" && device !== "desktop" ? { device } : {}),
     });
     if (!ref) return null;
     pushDesignToast("success", t("designWorkspace.toastRevised"));
@@ -781,9 +797,10 @@ export function PrototypeWorkspace({
                 )}
               </div>
             ) : content.spec ? (
-              // 标准 markdown 渲染:表格 / Mermaid 图 / 代码块正经展示
-              // (user ask 2026-09-08,与 chat 同一条 Streamdown 管线)。
-              <StreamdownView markdown={content.spec} className="ui-design-spec-md" />
+              // 结构化文档视图(user ask 2026-09-09:不是 markdown 平铺)——
+              // 信息表头卡 + 粘性目录 + 分节卡片;节体仍走 Streamdown 管线
+              // (表格/Mermaid/代码正经渲染)。
+              <SpecDocumentView markdown={content.spec} className="ui-design-spec-md" />
             ) : (
               <div className="ui-report-empty">{t("prototypeWorkspace.noSpec")}</div>
             )}
@@ -862,8 +879,21 @@ export function PrototypeWorkspace({
                 ) : null}
                 <div className="seg">
                   {(["desktop", "mobile", "tablet"] as const).map((d) => (
-                    <button key={d} type="button" className={device === d ? "on" : ""} onClick={() => setDevice(d)}>
+                    <button
+                      key={d}
+                      type="button"
+                      className={device === d ? "on" : ""}
+                      title={
+                        d === "desktop" || (variants as Record<string, string | undefined>)[d]
+                          ? undefined
+                          : t("prototypeWorkspace.variantMissing")
+                      }
+                      onClick={() => setDevice(d)}
+                    >
                       {t(`prototypeWorkspace.device.${d}`)}
+                      {d !== "desktop" && !(variants as Record<string, string | undefined>)[d] ? (
+                        <i className="ui-design-device-miss" aria-hidden="true" />
+                      ) : null}
                     </button>
                   ))}
                 </div>
@@ -920,9 +950,12 @@ export function PrototypeWorkspace({
                     <i />
                     <span>{suite?.title ?? "prototype"}</span>
                   </div>
+                  {!deviceHasVariant ? (
+                    <div className="ui-design-variant-fallback">{t("prototypeWorkspace.variantMissing")}</div>
+                  ) : null}
                   <PrototypePanel
                     a2uiJson=""
-                    openuiCode={content.openui}
+                    openuiCode={activeDeviceCode ?? ""}
                     mode="openui"
                     authoringLibrary={suite?.authoringLibrary}
                     onIterate={(instruction) => revise(instruction)}

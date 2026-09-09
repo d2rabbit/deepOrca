@@ -104,6 +104,9 @@ export interface PrototypeSuiteContent {
   requirement?: string;
   spec?: string;
   openui?: string;
+  /** 平台变体(user ask 2026-09-09):mobile/tablet 的结构性独立程序;desktop
+   *  即 openui 本体。与 core 的 PrototypeSuiteContent 镜像(评审 F11 已知)。 */
+  openuiVariants?: Partial<Record<"desktop" | "mobile" | "tablet", string>>;
   verification?: PrototypeVerificationResult;
   /** Technical architecture document (user ask 2026-09-08 技术架构模块). */
   arch?: string;

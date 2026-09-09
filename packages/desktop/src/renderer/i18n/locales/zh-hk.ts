@@ -1617,6 +1617,7 @@ export const zhHK: Record<MessageKey, string> = {
   "prototypeWorkspace.checkStatus.passed": "通過",
   "prototypeWorkspace.resolveCheck": "標記已解決",
   "prototypeWorkspace.checkResolved": "觀察項已標記解決",
+  "prototypeWorkspace.variantMissing": "該平台變體尚未生成——當前顯示桌面版，重新生成原型（含三端）後可獲得平台化適配",
   "prototypeWorkspace.checkStatus.failed": "未通過",
   "prototypeWorkspace.checkStatus.healed": "自癒",
   "prototypeWorkspace.reportChecks": "驗收項",

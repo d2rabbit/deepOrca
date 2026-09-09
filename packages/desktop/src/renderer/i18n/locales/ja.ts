@@ -1660,6 +1660,8 @@ export const ja: Record<MessageKey, string> = {
   "prototypeWorkspace.checkStatus.passed": "合格",
   "prototypeWorkspace.resolveCheck": "解決済みにする",
   "prototypeWorkspace.checkResolved": "指摘事項を解決済みにしました",
+  "prototypeWorkspace.variantMissing":
+    "このプラットフォームのバリアントは未生成です。デスクトップ版を表示中。プロトタイプを再生成（全プラットフォーム）するとプラットフォーム適応版が得られます",
   "prototypeWorkspace.checkStatus.failed": "不合格",
   "prototypeWorkspace.checkStatus.healed": "自己修復",
   "prototypeWorkspace.reportChecks": "チェック項目",

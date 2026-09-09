@@ -7,7 +7,14 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { randomUUID } from "node:crypto";
 import type { ActionContext, ActionDefinition, ActionRun } from "./types";
-import { OPENUI_CREATE_CONTRACT, OPENUI_PRESERVE_CONTRACT, OPENUI_QUALITY_CONTRACT } from "./openui-contract";
+import {
+  OPENUI_CREATE_CONTRACT,
+  OPENUI_DEVICE_CONTRACTS,
+  OPENUI_PRESERVE_CONTRACT,
+  OPENUI_QUALITY_CONTRACT,
+  normalizeOpenuiDevices,
+  type OpenuiDevice,
+} from "./openui-contract";
 
 const DESIGNS_DIR = ".deeporca/designs";
 const SPEC_FILE = "spec.md";
@@ -39,10 +46,16 @@ interface PrototypeVerificationResult {
   healingRounds?: number;
 }
 
+export type PrototypeDevice = "desktop" | "mobile" | "tablet";
+
 export interface PrototypeSuiteContent {
   requirement?: string;
   spec?: string;
   openui?: string;
+  /** 平台变体(user ask 2026-09-09:三端是平台化适配,不是同一程序挤宽度)。
+   *  desktop 桌面版即 openui 本体;mobile/tablet 是结构性不同的独立程序,
+   *  由 materialize 的 devices 循环生成、update_openui(device) 增量修订。 */
+  openuiVariants?: Partial<Record<PrototypeDevice, string>>;
   verification?: PrototypeVerificationResult;
   /** Technical architecture document (user ask 2026-09-08 技术架构模块). */
   arch?: string;
@@ -450,6 +463,9 @@ export interface PrototypeMaterializeInput {
   suiteId?: string;
   versionId?: string;
   specArtifactId?: string;
+  /** 目标平台(user ask 2026-09-09):缺省只生成桌面;传 ["desktop","mobile","tablet"]
+   *  生成三端结构化变体,每端一次生成 + 解析修复循环。 */
+  devices?: string[];
   note?: string;
 }
 
@@ -500,58 +516,81 @@ export const prototypeMaterializeRun: ActionRun<PrototypeMaterializeInput, Proto
   }
   if (!spec) return { ok: false, error: "requirements document not found; run prototype.spec first" };
 
-  ctx.emit({
-    message: "Generating OpenUI prototype from the selected specification",
-    percent: 50,
-    data: { code: "prototype.materialize.generating" },
-  });
+  const devices = normalizeOpenuiDevices(input?.devices);
   try {
-    const generated = await ctx.runSubagent({
-      skill: "pm-designer-openui",
-      prompt:
-        "Create the complete OpenUI Lang prototype for the requirements document below. " +
-        // 契约单一来源(openui-contract.ts):单应用 $page 结构 + 质量底线
-        // (可交互/高保真/可编辑),详情见技能的质量契约节,提示词不另行复述。
-        OPENUI_CREATE_CONTRACT +
-        " " +
-        OPENUI_QUALITY_CONTRACT +
-        " Cover its page list and flows strictly without inventing scope. " +
-        "Do not call tools. " +
-        "Return only the OpenUI Lang program in one code fence.\n\n" +
-        spec,
-      silent: true,
-    });
-    const code = extractGeneratedBody(generated);
-    if (!code || !looksLikeOpenuiProgram(code)) {
-      return {
-        ok: false,
-        error:
-          "pm-designer-openui returned an empty or truncated OpenUI program (no root/component statements) — regenerate",
-      };
+    // 平台化适配(user ask 2026-09-09):每个设备一次独立生成——各端是导航
+    // 模型/列布局/密度结构性不同的程序(设备契约见 openui-contract),不是
+    // 同一程序挤宽度。desktop 是本体(openui 字段),mobile/tablet 落
+    // openuiVariants,由 render_openui(device) 分流。
+    let artifactRef: ArtifactRef | undefined;
+    for (const [index, device] of devices.entries()) {
+      // 进度码保持稳定契约:单设备(缺省)与旧版完全一致(一次 generating);
+      // 多设备才发每端进度,码不变,renderer i18n 无需新增。
+      if (devices.length > 1) {
+        ctx.emit({
+          message: `[${index + 1}/${devices.length}] ${device} — generating the OpenUI prototype`,
+          percent: 15 + Math.round((index / devices.length) * 70),
+          data: { code: "prototype.materialize.generating", device },
+        });
+      } else {
+        ctx.emit({
+          message: "Generating OpenUI prototype from the selected specification",
+          percent: 50,
+          data: { code: "prototype.materialize.generating" },
+        });
+      }
+      const generated = await ctx.runSubagent({
+        skill: "pm-designer-openui",
+        prompt:
+          `Create the complete OpenUI Lang prototype for the requirements document below. ` +
+          OPENUI_DEVICE_CONTRACTS[device] +
+          " " +
+          // 契约单一来源(openui-contract.ts):单应用 $page 结构 + 质量底线
+          // (可交互/高保真/可编辑),详情见技能的质量契约节,提示词不另行复述。
+          OPENUI_CREATE_CONTRACT +
+          " " +
+          OPENUI_QUALITY_CONTRACT +
+          " Cover its page list and flows strictly without inventing scope. " +
+          "Do not call tools. " +
+          "Return only the OpenUI Lang program in one code fence.\n\n" +
+          spec,
+        silent: true,
+      });
+      const code = extractGeneratedBody(generated);
+      if (!code || !looksLikeOpenuiProgram(code)) {
+        return {
+          ok: false,
+          error:
+            `pm-designer-openui returned an empty or truncated OpenUI program for ${device} ` +
+            "(no root/component statements) — regenerate",
+        };
+      }
+      // Local validation loop: official parser verdict → patch prompt → retry,
+      // BEFORE persistence (user ask 2026-09-09). Fail-open when the desktop
+      // side has no validator. 修复环契约带设备契约:重生成时不得退回桌面壳。
+      const verifiedCode = await repairOpenuiProgram(ctx, {
+        code,
+        contract: `${OPENUI_CREATE_CONTRACT} ${OPENUI_DEVICE_CONTRACTS[device]}`,
+        progressCode: "prototype.materialize.repairing",
+        basePercent: devices.length > 1 ? 15 + Math.round(((index + 0.5) / devices.length) * 70) : 55,
+      });
+      if (ctx.signal.aborted) return { ok: false, error: "cancelled" };
+      const saved = await executeA2ui(ctx, "render_openui", {
+        code: verifiedCode,
+        device,
+        ...(requirement ? { requirement } : {}),
+        ...(suiteId ? { suiteId, versionId } : {}),
+        ...(input.note?.trim() ? { note: input.note.trim() } : {}),
+      });
+      if (!saved.ok) return saved;
+      if (saved.artifactRef) artifactRef = saved.artifactRef;
     }
-    // Local validation loop: official parser verdict → patch prompt → retry,
-    // BEFORE persistence (user ask 2026-09-09). Fail-open when the desktop
-    // side has no validator.
-    const verifiedCode = await repairOpenuiProgram(ctx, {
-      code,
-      contract: OPENUI_CREATE_CONTRACT,
-      progressCode: "prototype.materialize.repairing",
-      basePercent: 55,
-    });
-    if (ctx.signal.aborted) return { ok: false, error: "cancelled" };
-    const saved = await executeA2ui(ctx, "render_openui", {
-      code: verifiedCode,
-      ...(requirement ? { requirement } : {}),
-      ...(suiteId ? { suiteId, versionId } : {}),
-      ...(input.note?.trim() ? { note: input.note.trim() } : {}),
-    });
-    if (!saved.ok) return saved;
     ctx.emit({
       message: "OpenUI prototype saved with verification pending",
       percent: 100,
       data: { code: "prototype.materialize.saved" },
     });
-    return { ok: true, artifactRef: saved.artifactRef, refreshStore: !saved.artifactRef };
+    return { ok: true, artifactRef, refreshStore: !artifactRef };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : String(error) };
   }
@@ -638,6 +677,23 @@ export const prototypeVerifyRun: ActionRun<PrototypeVerifyInput, PrototypeVerify
       status: /(?:^|\n)\s*root\s*=/.test(openui) ? "passed" : "failed",
     },
   ];
+  // 平台变体检查(user ask 2026-09-09):每个已生成的变体必须声明 root 且
+  // 不是本体的复制品——三端同构正是要杜绝的"挤宽度"形态。
+  const variants = content.openuiVariants ?? {};
+  for (const device of ["mobile", "tablet"] as const) {
+    const variant = variants[device]?.trim() ?? "";
+    if (!variant) continue;
+    checks.push({
+      id: `variant-${device}-root`,
+      label: `${device} platform variant declares its own root`,
+      status: /(?:^|\n)\s*root\s*=/.test(variant) ? "passed" : "failed",
+    });
+    checks.push({
+      id: `variant-${device}-distinct`,
+      label: `${device} platform variant is a structurally distinct program`,
+      status: variant === openui ? "failed" : "passed",
+    });
+  }
   for (const [index, check] of (input.checks ?? []).entries()) {
     const resolved: PrototypeVerificationCheck = {
       id: check.id?.trim() || `external-${index + 1}`,
@@ -681,6 +737,9 @@ export interface PrototypeReviseInput {
   part: "spec" | "openui" | "verification";
   target: string;
   instruction: string;
+  /** 目标平台变体(user ask 2026-09-09):openui 修订可定向 mobile/tablet;
+   *  desktop/缺省修订本体。 */
+  device?: string;
   note?: string;
 }
 
@@ -748,11 +807,17 @@ export const prototypeReviseRun: ActionRun<PrototypeReviseInput, PrototypeSpecOu
   const current = input.part === "spec" ? content.spec : content.openui;
   if (!current?.trim()) return { ok: false, error: `${input.part} content is empty in the selected version` };
   const skill = input.part === "spec" ? "spec-writer" : "pm-designer-openui";
+  // openui 修订的设备定向:mobile/tablet 修订走对应变体,且修订提示带该端
+  // 平台契约——在手机版上"加一列"的语义与桌面版完全不同。
+  const device: OpenuiDevice | undefined =
+    input.part === "openui" && input.device && ["mobile", "tablet"].includes(input.device)
+      ? (input.device as OpenuiDevice)
+      : undefined;
   const generated = await ctx.runSubagent({
     skill,
     prompt:
       `Revise only the ${input.part} content below. Target: ${target}. Instruction: ${instruction}. ` +
-      (input.part === "openui" ? `${OPENUI_PRESERVE_CONTRACT} ` : "") +
+      (input.part === "openui" ? `${OPENUI_PRESERVE_CONTRACT} ${device ? OPENUI_DEVICE_CONTRACTS[device] : ""} ` : "") +
       "Preserve unrelated content and return only the complete revised document in one code fence. Do not call tools.\n\n" +
       current,
     silent: true,
@@ -772,6 +837,7 @@ export const prototypeReviseRun: ActionRun<PrototypeReviseInput, PrototypeSpecOu
     versionId,
     note: input.note?.trim() || `${input.part} revision: ${target}`,
   };
+  if (input.part === "openui" && device) args.device = device;
   if (input.part === "spec") {
     args.document = revised;
     if (content.requirement) args.requirement = content.requirement;

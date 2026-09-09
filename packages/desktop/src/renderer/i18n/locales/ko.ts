@@ -1651,6 +1651,8 @@ export const ko: Record<MessageKey, string> = {
   "prototypeWorkspace.checkStatus.passed": "통과",
   "prototypeWorkspace.resolveCheck": "해결됨으로 표시",
   "prototypeWorkspace.checkResolved": "지적 사항이 해결됨으로 표시되었습니다",
+  "prototypeWorkspace.variantMissing":
+    "이 플랫폼 변형이 아직 생성되지 않았습니다 — 데스크톱 버전을 표시 중입니다. 프로토타입을 재생성(전체 플랫폼)하면 플랫폼 적응 레이아웃을 얻을 수 있습니다",
   "prototypeWorkspace.checkStatus.failed": "미통과",
   "prototypeWorkspace.checkStatus.healed": "자가 치유",
   "prototypeWorkspace.reportChecks": "검사 항목",

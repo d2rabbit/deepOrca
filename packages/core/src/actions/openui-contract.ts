@@ -31,3 +31,38 @@ export const OPENUI_QUALITY_CONTRACT =
   "empty/confirm/loading feedback wired; HIGH FIDELITY — real product copy in the document's language, " +
   "believable internally-consistent demo data, at most one primary CTA per screen, no lorem ipsum; " +
   "EDITABLE — semantic identifiers and demo data factored into named statements.";
+
+/** Target platforms for device-variant prototypes (user ask 2026-09-09: 三端
+ *  必须是平台化适配,不是同一程序挤宽度). */
+export type OpenuiDevice = "desktop" | "mobile" | "tablet";
+
+export const OPENUI_DEVICES: readonly OpenuiDevice[] = ["desktop", "mobile", "tablet"];
+
+/**
+ * Per-platform shell contracts — each device gets a STRUCTURALLY different
+ * application (navigation model, column layout, density), never the same
+ * program squeezed to a width. Shared with the skill's 平台适配契约 section.
+ */
+export const OPENUI_DEVICE_CONTRACTS: Record<OpenuiDevice, string> = {
+  desktop:
+    "PLATFORM CONTRACT — desktop (≥1200px): persistent LEFT SIDEBAR navigation (menu items with labels, active state) " +
+    "plus a slim top bar (page title + primary global action); content uses the wide canvas — multi-column card grids, " +
+    "side-by-side panels, dense data TABLES with row actions. Never a single centered column.",
+  mobile:
+    "PLATFORM CONTRACT — mobile (375px): BOTTOM TAB BAR navigation pinned at the bottom of every page " +
+    "(3-5 tabs, icon-style short labels, active state), content is ONE stacked column sized for one hand; " +
+    "the primary CTA sits at the bottom within thumb reach; forms are full-width stacked fields; replace wide tables " +
+    "with CARD LISTS (one card per row). Never reuse the desktop sidebar or a wide table.",
+  tablet:
+    "PLATFORM CONTRACT — tablet (768px): SPLIT VIEW — a narrow left rail (navigation or master list) beside a " +
+    "detail pane; two-column layouts where desktop uses three and mobile uses one; comfortable touch targets. " +
+    "Neither a stretched phone column nor a shrunken desktop grid.",
+};
+
+/** Parse/normalize a caller-supplied device list against the known set. */
+export function normalizeOpenuiDevices(devices?: readonly string[]): OpenuiDevice[] {
+  if (!devices || devices.length === 0) return ["desktop"];
+  const known = new Set<string>(OPENUI_DEVICES);
+  const picked = devices.map((d) => d.trim()).filter((d): d is OpenuiDevice => known.has(d));
+  return picked.length > 0 ? [...new Set(picked)] : ["desktop"];
+}

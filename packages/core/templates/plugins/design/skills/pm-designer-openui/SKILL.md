@@ -84,6 +84,47 @@ control that only LOOKS clickable is a defect:
 - When revising, keep unrelated statements byte-identical — never
   restructure sections that already work.
 
+## Platform contract (平台适配契约)
+
+When the caller specifies a target platform (desktop / mobile / tablet), each
+device is a **structurally different application** — a different navigation
+model and column layout — never the same program squeezed to a width:
+
+- **desktop**: persistent left sidebar navigation + slim top bar; wide canvas
+  with multi-column card grids, side-by-side panels, dense data tables with
+  row actions.
+- **mobile**: bottom tab bar pinned on EVERY page (3-5 tabs, short labels,
+  active state); one stacked column sized for one hand; primary CTA at the
+  bottom in thumb reach; full-width stacked form fields; wide tables become
+  CARD LISTS (one card per row).
+- **tablet**: split view — narrow left rail beside a detail pane; two-column
+  layouts; comfortable touch targets.
+
+The shell components (sidebar / tab bar / rail) are named statements reused by
+every page view — switching platform changes the shell and the layout grammar,
+not just numbers.
+
+## Generation completeness (彻底生成)
+
+EVERY page in the 页面清单 gets a fully realized view variable in THIS program:
+real content, real data, working controls — not a placeholder, not "TODO",
+not one finished page plus three stubs. The reviewer switches pages through
+the nav; a stub page is the same defect as a missing page.
+
+## Arity & alignment discipline
+
+- Positional args go in the EXACT signature order. The classic swap that
+  silently breaks UI: `Tag(text, icon, size, variant)` — `Tag("连续 3 天", null, "sm", "success")`,
+  NEVER `Tag("连续 3 天", "sm", "success")` (the size string lands in the icon
+  slot and renders an empty glyph).
+- `$variables` hold scalars only (string/number/boolean). Never
+  `$minutes = [25]` or `$settings = {a: false}` — declare scalars
+  (`$minutes = 25`), and put structured demo data in named data statements.
+- Every `Button` needs a real action; `Action([])` is a dead button.
+- Alignment: group controls in `Stack(direction: "row")` with `align`; hero
+  numerals (timers, KPIs) get their own Card with `CardHeader`, not a bare
+  floating TextContent; consistent gaps — pick one gap scale per section.
+
 ## How it works
 
 1. Ask the user what they want to build (unless they already specified).

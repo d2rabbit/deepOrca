@@ -1659,6 +1659,8 @@ export const en = {
   "prototypeWorkspace.checkStatus.passed": "Pass",
   "prototypeWorkspace.resolveCheck": "Mark resolved",
   "prototypeWorkspace.checkResolved": "Observation marked resolved",
+  "prototypeWorkspace.variantMissing":
+    "No platform variant generated yet — showing the desktop version. Regenerate the prototype (all platforms) to get platform-adaptive layouts",
   "prototypeWorkspace.checkStatus.failed": "Fail",
   "prototypeWorkspace.checkStatus.healed": "Healed",
   "prototypeWorkspace.reportChecks": "Checks",

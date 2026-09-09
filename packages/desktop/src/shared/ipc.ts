@@ -1004,6 +1004,8 @@ export type PrototypeSuiteContent = {
   requirement?: string;
   spec?: string;
   openui?: string;
+  /** 平台变体(user ask 2026-09-09):mobile/tablet 的结构性独立程序。 */
+  openuiVariants?: Partial<Record<"desktop" | "mobile" | "tablet", string>>;
   verification?: PrototypeVerificationResult;
   /** Technical architecture document (user ask 2026-09-08 技术架构模块):
    *  standardized markdown derived from the PRD once verification passes. */

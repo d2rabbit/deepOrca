@@ -472,6 +472,132 @@
   border-bottom: 1px solid var(--ui-border-soft);
 }
 
+/* ── 需求文档结构化视图(user ask 2026-09-09:不是 markdown 平铺)────── */
+.ui-spec-doc {
+  display: grid;
+  min-height: 0;
+  flex: 1;
+  grid-template-columns: minmax(150px, 200px) minmax(0, 1fr);
+  gap: 0;
+}
+
+.ui-spec-doc-toc {
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-self: start;
+  max-height: calc(100vh - 140px);
+  padding: 12px 10px;
+  border-right: 1px solid var(--ui-border-soft);
+  overflow: auto;
+}
+
+.ui-spec-doc-toc-title {
+  margin-bottom: 8px;
+  color: var(--ui-text-dim);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.ui-spec-doc-toc-item {
+  padding: 5px 8px;
+  border-radius: var(--ui-radius, 8px);
+  color: var(--ui-text-dim);
+  font-size: 12px;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.ui-spec-doc-toc-item:hover {
+  background: color-mix(in srgb, var(--ui-accent, var(--ui-success)) 8%, transparent);
+  color: var(--ui-text);
+}
+
+.ui-spec-doc-toc-item.active {
+  background: color-mix(in srgb, var(--ui-accent, var(--ui-success)) 14%, transparent);
+  color: var(--ui-text);
+  font-weight: 600;
+}
+
+.ui-spec-doc-body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 12px;
+  padding: 4px 16px 20px;
+  overflow: auto;
+}
+
+.ui-spec-doc-head h1 {
+  margin: 8px 0 10px;
+  font-size: 20px;
+}
+
+.ui-spec-doc-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ui-spec-doc-meta-item {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  padding: 4px 10px;
+  border: 1px solid var(--ui-border-soft);
+  border-radius: 999px;
+  background: var(--ui-surface-raised, transparent);
+  font-size: 12px;
+}
+
+.ui-spec-doc-meta-item i {
+  color: var(--ui-text-faint);
+  font-style: normal;
+}
+
+.ui-spec-doc-meta-item b {
+  font-weight: 600;
+}
+
+.ui-spec-doc-section {
+  padding: 14px 16px;
+  border: 1px solid var(--ui-border-soft);
+  border-radius: var(--ui-radius-md, 12px);
+  background: color-mix(in srgb, var(--ui-surface-raised, transparent) 55%, transparent);
+  scroll-margin-top: 16px;
+}
+
+.ui-spec-doc-section h2 {
+  margin: 0 0 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--ui-border-soft);
+  font-size: 15px;
+}
+
+/* 平台变体(评审:三端是平台适配,不是挤宽度):未生成变体的端在切换器上
+   打点;画布顶部给回退提示条。 */
+.ui-design-device-miss {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  margin-left: 4px;
+  border-radius: 50%;
+  background: var(--ui-warn, #e6a23c);
+  vertical-align: middle;
+}
+
+.ui-design-variant-fallback {
+  flex: none;
+  padding: 6px 12px;
+  border-bottom: 1px dashed var(--ui-border-soft);
+  color: var(--ui-text-dim);
+  font-size: 12px;
+  text-align: center;
+}
+
 /* ── 交互播放模式(user ask 2026-09-09)────────────────────────────────
    进入后整个工作区成为可交互播放器:冻结 frame 编辑入口、隐藏版本轨、
    工具栏换成播放横条、元素选取与 AI 悬浮窗不可用;Esc/退出按钮返回。 */
