@@ -1616,6 +1616,7 @@ export const zh: Record<MessageKey, string> = {
   "prototypeWorkspace.resolveCheck": "标记已解决",
   "prototypeWorkspace.checkResolved": "观察项已标记解决",
   "prototypeWorkspace.variantMissing": "该平台变体尚未生成——当前显示桌面版，重新生成原型（含三端）后可获得平台化适配",
+  "prototypeWorkspace.slidesFailed": "幻灯片渲染失败，已回退文档视图：{error}",
   "prototypeWorkspace.checkStatus.failed": "未通过",
   "prototypeWorkspace.checkStatus.healed": "自愈",
   "prototypeWorkspace.reportChecks": "验收项",

@@ -64,8 +64,8 @@ export interface DesignStoreOps {
   readSuite(root: string, id: string): DesignSuite | null;
   readSuiteVersion(root: string, id: string, versionId: string): DesignSuiteVersion | null;
   deleteSuite(root: string, id: string): boolean;
-  saveFormState(root: string, id: string, state: unknown): boolean;
-  readFormState(root: string, id: string): unknown | null;
+  saveFormState(root: string, id: string, state: unknown, slot?: string): boolean;
+  readFormState(root: string, id: string, slot?: string): unknown | null;
   onArtifactChange(cb: (root: string) => void): () => void;
   onSuiteChange(cb: (event: DesignSuiteChangeEvent) => void): () => void;
 }
@@ -146,6 +146,8 @@ export interface SuiteExportExtras {
   verification?: PackageVerification;
   tokens?: unknown;
   components?: unknown;
+  /** WP4.1:prototype 套件的平台变体(mobile/tablet 源码)——随 .ddp 导出。 */
+  variants?: { mobile?: string; tablet?: string };
 }
 
 /** Export targets are per-module deliverables: prototype → .ddp, UI design → .ddu.
@@ -161,7 +163,7 @@ function buildPackage(
   const exportedAt = new Date().toISOString();
   const data =
     format === "ddp"
-      ? buildDdpPackage(artifact, content, exportedAt, extras?.verification)
+      ? buildDdpPackage(artifact, content, exportedAt, extras?.verification, extras?.variants)
       : format === "ddu-dd"
         ? buildDduPackage(
             artifact,
@@ -291,9 +293,13 @@ export function registerDesignIpc(helpers: DesignIpcHelpers, deps: DesignIpcDeps
     // §6.6 extras, per module: prototype suites ship the acceptance report
     // (.ddp + verification.md), UI suites ship the token/component contract
     // (.ddu + tokens.json/components.json). Optional — never fails the export.
+    const prototypeContent = projection.format === "ddp" ? (version.content as PrototypeSuiteContent) : null;
     const extras: SuiteExportExtras =
       projection.format === "ddp"
-        ? { verification: (version.content as PrototypeSuiteContent).verification }
+        ? {
+            verification: prototypeContent?.verification,
+            variants: prototypeContent?.openuiVariants,
+          }
         : {
             tokens: (version.content as UiSuiteContent).tokens,
             components: (version.content as UiSuiteContent).components,
@@ -305,14 +311,17 @@ export function registerDesignIpc(helpers: DesignIpcHelpers, deps: DesignIpcDeps
       return { ok: false, error: `package build failed: ${error instanceof Error ? error.message : String(error)}` };
     }
   });
-  handlePrivileged(IpcRequest.DesignSuiteSaveFormState, (root: string, id: string, state: Record<string, unknown>) => {
-    const resolved = pinned(root);
-    return resolved ? store.saveFormState(resolved, id, state) : false;
-  });
-  handle(IpcRequest.DesignSuiteReadFormState, (root: string, id: string) => {
+  handlePrivileged(
+    IpcRequest.DesignSuiteSaveFormState,
+    (root: string, id: string, state: Record<string, unknown>, slot?: string) => {
+      const resolved = pinned(root);
+      return resolved ? store.saveFormState(resolved, id, state, slot) : false;
+    }
+  );
+  handle(IpcRequest.DesignSuiteReadFormState, (root: string, id: string, slot?: string) => {
     const resolved = pinned(root);
     if (!resolved) return null;
-    const state = store.readFormState(resolved, id);
+    const state = store.readFormState(resolved, id, slot);
     return state && typeof state === "object" && !Array.isArray(state) ? (state as Record<string, unknown>) : null;
   });
   handle(IpcRequest.DesignSystemCatalog, () => (deps.readCatalog ?? readDesignSystemCatalog)());

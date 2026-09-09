@@ -181,9 +181,9 @@ const api: DesktopApi = {
   designSuiteDelete: (root, id) => ipcRenderer.invoke(IpcRequest.DesignSuiteDelete, root, id),
   designSuiteExportPackage: (root, id, versionId) =>
     ipcRenderer.invoke(IpcRequest.DesignSuiteExport, root, id, versionId),
-  designSuiteSaveFormState: (root, id, state) =>
-    ipcRenderer.invoke(IpcRequest.DesignSuiteSaveFormState, root, id, state),
-  designSuiteReadFormState: (root, id) => ipcRenderer.invoke(IpcRequest.DesignSuiteReadFormState, root, id),
+  designSuiteSaveFormState: (root, id, state, slot) =>
+    ipcRenderer.invoke(IpcRequest.DesignSuiteSaveFormState, root, id, state, slot),
+  designSuiteReadFormState: (root, id, slot) => ipcRenderer.invoke(IpcRequest.DesignSuiteReadFormState, root, id, slot),
   designSystemCatalog: () => ipcRenderer.invoke(IpcRequest.DesignSystemCatalog),
   prototypeSpecSlides: (root, suiteId, versionId, appearance) =>
     ipcRenderer.invoke(IpcRequest.PrototypeSpecSlides, root, suiteId, versionId, appearance),

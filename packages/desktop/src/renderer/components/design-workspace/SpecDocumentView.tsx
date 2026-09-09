@@ -31,8 +31,20 @@ export function parseSpecDocument(markdown: string): ParsedDoc {
   const meta: Array<[string, string]> = [];
   let current: ParsedSection | null = null;
   let seenHeading = false;
+  // WP3.6 围栏透明:代码块里的 `##`/表格行不参与分节与 meta 采集(与主进程
+  // slides 的围栏不透明分页同口径,spec-slides.test.ts:69 pin 过该行为)。
+  let inFence = false;
 
   for (const line of lines) {
+    if (/^\s*```/.test(line)) {
+      inFence = !inFence;
+      if (current) current.body += `${line}\n`;
+      continue;
+    }
+    if (inFence) {
+      if (current) current.body += `${line}\n`;
+      continue;
+    }
     if (/^#\s+/.test(line) && !title && !seenHeading) {
       title = line.replace(/^#\s+/, "").trim();
       continue;

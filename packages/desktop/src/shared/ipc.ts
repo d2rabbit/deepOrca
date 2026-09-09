@@ -1608,8 +1608,8 @@ export type DesktopApi = {
     id: string,
     versionId?: string
   ): Promise<{ ok: boolean; path?: string; error?: string }>;
-  designSuiteSaveFormState(root: string, id: string, state: Record<string, unknown>): Promise<boolean>;
-  designSuiteReadFormState(root: string, id: string): Promise<Record<string, unknown> | null>;
+  designSuiteSaveFormState(root: string, id: string, state: Record<string, unknown>, slot?: string): Promise<boolean>;
+  designSuiteReadFormState(root: string, id: string, slot?: string): Promise<Record<string, unknown> | null>;
   designSystemCatalog(): Promise<DesignSystemCatalogItem[]>;
 
   /** Render one suite version's spec.md into a slide deck (main-process marp). */

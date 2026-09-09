@@ -237,13 +237,9 @@ test("prototype workspace runs spec, materialize and verify with suite version p
   rtl.fireEvent.click(out.getByText("Confirm and generate prototype"));
   await settle();
   call = stub.calls.find((item) => item.method === "actionRun" && item.args[0] === "prototype.materialize");
-  // 生成即三端(user ask 2026-09-09):desktop 本体 + mobile/tablet 变体。
-  assert.deepEqual(call?.args[1], {
-    root: "/work/current",
-    suiteId: prototype.id,
-    versionId: "latest",
-    devices: ["desktop", "mobile", "tablet"],
-  });
+  // WP0.3 指令遵循:UI 不再硬编码三端——devices 由 action 依据 PRD 目标平台
+  // 声明决定(mobile-only 只生成手机端)。
+  assert.deepEqual(call?.args[1], { root: "/work/current", suiteId: prototype.id, versionId: "latest" });
   rtl.fireEvent.click(out.getByRole("tab", { name: "Acceptance report" }));
   rtl.fireEvent.click(out.getAllByText("Run acceptance walkthrough")[0]);
   await settle();

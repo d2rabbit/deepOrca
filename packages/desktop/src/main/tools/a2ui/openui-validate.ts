@@ -32,6 +32,10 @@ export interface OpenuiVerdict {
   unresolved: string[];
   /** Defined but not reachable from root (wiring — `unattached-component`). */
   orphaned: string[];
+  /** WP2.3 dead-button findings (core's deterministic detector, single source) —
+   *  `Action([])` empty-step buttons and bare-string button actions. Surfaced as
+   *  errors so core's repair loop patches them BEFORE persistence. */
+  deadButtons: string[];
 }
 
 let cachedParser: Parser | null = null;
@@ -48,6 +52,7 @@ function getParser(): Parser {
 // the desktop test pins the same function object instead of a drifting copy.
 // (`openuiIssueCount` is core-side only; nothing on desktop consumes it.)
 export { formatOpenuiFeedback } from "@deeporca/core";
+import { findDeadButtons } from "@deeporca/core";
 
 /** Parse one complete program and flatten the parser's verdict. */
 export function validateOpenuiCode(code: string): OpenuiVerdict {
@@ -61,12 +66,22 @@ export function validateOpenuiCode(code: string): OpenuiVerdict {
   }));
   const unresolved = [...meta.unresolved];
   const orphaned = [...meta.orphaned];
+  // WP2.3: dead-button 静态检测前置进 verdict——渲染器的事后审计只覆盖双引号
+  // 字面量且不在持久化前;这里用 core 的单一来源检测(含单引号与 Action([])),
+  // 计入 valid 让修复环在落盘前修掉。
+  const deadButtons = findDeadButtons(code);
   return {
-    valid: errors.length === 0 && unresolved.length === 0 && orphaned.length === 0 && !meta.incomplete,
+    valid:
+      errors.length === 0 &&
+      unresolved.length === 0 &&
+      orphaned.length === 0 &&
+      !meta.incomplete &&
+      deadButtons.length === 0,
     incomplete: meta.incomplete,
     statementCount: meta.statementCount,
     errors,
     unresolved,
     orphaned,
+    deadButtons,
   };
 }

@@ -84,6 +84,15 @@ control that only LOOKS clickable is a defect:
 - When revising, keep unrelated statements byte-identical — never
   restructure sections that already work.
 
+## PRD page mapping (指令遵循)
+
+When the requirements document's 页面清单 carries 页面ID values, those ids ARE
+the program's `$page` values — use them verbatim for both the ternary
+comparisons and the `@Set($page, …)` navigation targets. Verification compares
+the PRD's page set against the program's page set id-by-id; a PRD page with no
+matching comparison fails acceptance, and so does a navigation target with no
+matching page.
+
 ## Platform contract (平台适配契约)
 
 When the caller specifies a target platform (desktop / mobile / tablet), each

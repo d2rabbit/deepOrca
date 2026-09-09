@@ -59,6 +59,12 @@ type Props = {
   /** Host-owned selection nodePath — lets the panel drop its persistent
    *  outline when the workspace clears the selection externally. */
   selectionNodePath?: string | null;
+  /** WP3.5 表单状态作用域:root+suite id(必填)+ device slot(可选)——
+   *  有 suite 走 per-suite 槽位通道(formState.<device>.json),切设备/切
+   *  suite 互不串值;缺省回落全局 "openui" 键(App 内嵌预览,行为不变)。 */
+  formStateRoot?: string | null;
+  formStateSuiteId?: string | null;
+  formStateDeviceSlot?: string | null;
 };
 
 function prototypeNodePath(element: HTMLElement, root: HTMLElement): string {
@@ -86,6 +92,9 @@ export function PrototypePanel({
   selectionEnabled = false,
   hideComposer = false,
   selectionNodePath,
+  formStateRoot,
+  formStateSuiteId,
+  formStateDeviceSlot,
 }: Props): JSX.Element {
   const { t } = useI18n();
   const [draft, setDraft] = useState("");
@@ -154,12 +163,31 @@ export function PrototypePanel({
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSavedAt = useRef(0);
 
+  // WP3.5:有 suite 时走 per-suite 槽位通道(桌面本体=无槽,变体=formState.<device>.json),
+  // 否则回落全局键。latest refs 让 unmount flush 闭包拿到最新作用域与待存状态
+  // (旧注释声称 flush,实现却丢弃——现在真 flush)。
+  const pendingStateRef = useRef<Record<string, unknown> | null>(null);
+  const scopeRef = useRef({ root: formStateRoot, suiteId: formStateSuiteId, slot: formStateDeviceSlot });
+  scopeRef.current = { root: formStateRoot, suiteId: formStateSuiteId, slot: formStateDeviceSlot };
+
+  const persist = useCallback((state: Record<string, unknown>): void => {
+    const { root, suiteId, slot } = scopeRef.current;
+    if (root && suiteId) {
+      void api.designSuiteSaveFormState(root, suiteId, state, slot ?? undefined).catch(() => {});
+      return;
+    }
+    void api.designSaveFormState("openui", state).catch(() => {});
+  }, []);
+
   useEffect(() => {
     if (mode !== "openui") return;
     let cancelled = false;
     setHydratedFormState(undefined);
-    api
-      .designReadFormState("openui")
+    const hydrate =
+      formStateRoot && formStateSuiteId
+        ? api.designSuiteReadFormState(formStateRoot, formStateSuiteId, formStateDeviceSlot ?? undefined)
+        : api.designReadFormState("openui");
+    hydrate
       .then((state) => {
         if (!cancelled && state && Object.keys(state).length > 0) setHydratedFormState(state);
       })
@@ -167,31 +195,38 @@ export function PrototypePanel({
     return () => {
       cancelled = true;
     };
-  }, [mode, liveOpenuiCode]);
+  }, [mode, liveOpenuiCode, formStateRoot, formStateSuiteId, formStateDeviceSlot]);
 
-  const handleStateUpdate = useCallback((state: Record<string, unknown>) => {
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-    const elapsed = Date.now() - lastSavedAt.current;
-    const flush = () => {
-      lastSavedAt.current = Date.now();
-      saveTimer.current = null;
-      void api.designSaveFormState("openui", state).catch(() => {});
-    };
-    saveTimer.current = setTimeout(
-      flush,
-      elapsed >= FORM_STATE_SAVE_INTERVAL_MS ? 0 : FORM_STATE_SAVE_INTERVAL_MS - elapsed
-    );
-  }, []);
+  const handleStateUpdate = useCallback(
+    (state: Record<string, unknown>) => {
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+      pendingStateRef.current = state;
+      const elapsed = Date.now() - lastSavedAt.current;
+      const flush = () => {
+        lastSavedAt.current = Date.now();
+        saveTimer.current = null;
+        persist(state);
+      };
+      saveTimer.current = setTimeout(
+        flush,
+        elapsed >= FORM_STATE_SAVE_INTERVAL_MS ? 0 : FORM_STATE_SAVE_INTERVAL_MS - elapsed
+      );
+    },
+    [persist]
+  );
 
-  // Flush any pending form-state save when unmounting / switching modes.
+  // Flush any pending form-state save when unmounting / switching modes —
+  // the throttled tail (≤2s of input) must not be dropped.
   useEffect(() => {
     return () => {
       if (saveTimer.current) {
         clearTimeout(saveTimer.current);
         saveTimer.current = null;
+        const pending = pendingStateRef.current;
+        if (pending) persist(pending);
       }
     };
-  }, []);
+  }, [persist]);
 
   // ── Correction loop (plan Batch 8, M5) ─────────────────────────────────
   // Feed structured render errors back to the agent once per prototype

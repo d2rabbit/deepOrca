@@ -1661,6 +1661,7 @@ export const en = {
   "prototypeWorkspace.checkResolved": "Observation marked resolved",
   "prototypeWorkspace.variantMissing":
     "No platform variant generated yet — showing the desktop version. Regenerate the prototype (all platforms) to get platform-adaptive layouts",
+  "prototypeWorkspace.slidesFailed": "Slide render failed, reverted to the document view: {error}",
   "prototypeWorkspace.checkStatus.failed": "Fail",
   "prototypeWorkspace.checkStatus.healed": "Healed",
   "prototypeWorkspace.reportChecks": "Checks",

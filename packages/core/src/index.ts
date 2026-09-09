@@ -307,6 +307,7 @@ export {
   type KbServerBuilder,
   type KbServerLike,
 } from "./mcp/kb-seam";
+export { findDeadButtons } from "./actions/prototype";
 export {
   kbOverview,
   listWikiPages,

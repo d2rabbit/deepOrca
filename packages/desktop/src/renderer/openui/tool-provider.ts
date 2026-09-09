@@ -62,5 +62,29 @@ export function createDesignerToolProvider(): Record<string, ToolFn> {
       if (!query) return { error: "query required" };
       return api.memorySearch(query, 5);
     },
+
+    /**
+     * WP2.6 / 引擎补丁 A-1(design.md §4.4):计时源——原型里的真实倒计时。
+     * 用法:`remaining = Query("design.clock", {startAt: $startAt, total: 1500}, {remaining: 1500}, 1)`
+     * 工具持有起始时间戳,每次刷新按墙钟计算剩余秒,绑定表达式渲染;
+     * Query 第 4 参 1 = 每秒重取。无 lang-core 新原语,零上游依赖。
+     */
+    "design.clock": async (args) => {
+      const startAt = typeof args.startAt === "number" ? args.startAt : null;
+      const total = typeof args.total === "number" ? args.total : null;
+      if (startAt === null || total === null) return { error: "startAt (epoch ms) and total (seconds) required" };
+      const elapsedSec = Math.max(0, Math.floor((Date.now() - startAt) / 1000));
+      return {
+        elapsed: elapsedSec,
+        remaining: Math.max(0, total - elapsedSec),
+        total,
+        finished: elapsedSec >= total,
+        // MM:SS 便捷字段,绑定表达式直接渲染。
+        clock: (() => {
+          const rem = Math.max(0, total - elapsedSec);
+          return `${Math.floor(rem / 60)}:${String(rem % 60).padStart(2, "0")}`;
+        })(),
+      };
+    },
   };
 }

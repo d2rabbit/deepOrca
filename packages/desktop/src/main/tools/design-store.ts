@@ -645,6 +645,10 @@ function syncSuiteProjections(dir: string, kind: DesignSuiteKind, content: Desig
     writeProjectionFile(dir, "requirement.md", prototype.requirement);
     writeProjectionFile(dir, "spec.md", prototype.spec);
     writeProjectionFile(dir, "prototype.openui.txt", prototype.openui);
+    // WP4.1:平台变体投影——desktop 即本体文件,变体单独成文件,任何按文件
+    // 消费的下游(简报/外部工具)都能拿到每端程序。
+    writeProjectionFile(dir, "prototype.openui.mobile.txt", prototype.openuiVariants?.mobile);
+    writeProjectionFile(dir, "prototype.openui.tablet.txt", prototype.openuiVariants?.tablet);
     writeProjectionFile(dir, "prototype.dd", undefined);
     writeJsonProjection(dir, "tokens.json", undefined);
     writeJsonProjection(dir, "components.json", undefined);
@@ -981,13 +985,20 @@ export function deleteDesignSuite(root: string, id: string): boolean {
   }
 }
 
-export function saveFormState(root: string, id: string, state: unknown): boolean {
+export function saveFormState(root: string, id: string, state: unknown, slot?: string): boolean {
   try {
     // containment check (security scan): same id guard as the other artifact
     // paths before the join; unsafe ids cannot become directory names.
     const dir = resolveArtifactDir(root, id);
+    // WP3.5 slot: per-device form state ("formState.mobile.json") — the slot
+    // is validated to [a-z0-9-] so it can never traverse.
+    const safeSlot = slot && /^[a-z0-9-]{1,32}$/.test(slot) ? slot : null;
     if (!dir) return false;
-    fs.writeFileSync(path.join(dir, "formState.json"), JSON.stringify(state ?? {}, null, 2), "utf8");
+    fs.writeFileSync(
+      path.join(dir, safeSlot ? `formState.${safeSlot}.json` : "formState.json"),
+      JSON.stringify(state ?? {}, null, 2),
+      "utf8"
+    );
     return true;
   } catch {
     return false;
@@ -995,11 +1006,16 @@ export function saveFormState(root: string, id: string, state: unknown): boolean
 }
 
 /** Read a persisted form state for hydration; null when none was saved. */
-export function readFormState(root: string, id: string): unknown | null {
+export function readFormState(root: string, id: string, slot?: string): unknown | null {
   const dir = resolveArtifactDir(root, id);
   if (!dir) return null;
   try {
-    return JSON.parse(fs.readFileSync(path.join(dir, "formState.json"), "utf8")) as unknown;
+    return JSON.parse(
+      fs.readFileSync(
+        path.join(dir, slot && /^[a-z0-9-]{1,32}$/.test(slot) ? `formState.${slot}.json` : "formState.json"),
+        "utf8"
+      )
+    ) as unknown;
   } catch {
     return null;
   }

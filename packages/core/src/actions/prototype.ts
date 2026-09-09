@@ -15,6 +15,7 @@ import {
   normalizeOpenuiDevices,
   type OpenuiDevice,
 } from "./openui-contract";
+import { componentJaccard, extractProgramPages, extractTargetPlatforms, parsePageList } from "../common/openui-pages";
 
 const DESIGNS_DIR = ".deeporca/designs";
 const SPEC_FILE = "spec.md";
@@ -272,6 +273,8 @@ export interface OpenuiVerdict {
   errors?: Array<{ code: string; component?: string; path?: string; message?: string }>;
   unresolved?: string[];
   orphaned?: string[];
+  /** WP2.3: dead-button findings from the desktop validator's static audit. */
+  deadButtons?: string[];
 }
 
 /** Ask the desktop side to parse `code` with the official local parser. Null
@@ -295,6 +298,7 @@ export function openuiIssueCount(verdict: OpenuiVerdict): number {
     (verdict.errors?.length ?? 0) +
     (verdict.unresolved?.length ?? 0) +
     (verdict.orphaned?.length ?? 0) +
+    (verdict.deadButtons?.length ?? 0) +
     (verdict.incomplete ? 1 : 0)
   );
 }
@@ -323,6 +327,9 @@ export function formatOpenuiFeedback(verdict: OpenuiVerdict): string {
   if (verdict.incomplete) {
     lines.push("- incomplete: the program looks truncated — return the COMPLETE program, every statement closed.");
   }
+  for (const finding of verdict.deadButtons ?? []) {
+    lines.push(`- dead-button: ${finding}`);
+  }
   return lines.join("\n");
 }
 
@@ -335,7 +342,7 @@ export function formatOpenuiFeedback(verdict: OpenuiVerdict): string {
  * good draft, so the loop can only improve the outcome, never block it (the
  * renderer's correction loop remains the backstop for leftovers).
  */
-async function repairOpenuiProgram(
+export async function repairOpenuiProgram(
   ctx: ActionContext,
   opts: { code: string; contract: string; progressCode: string; basePercent: number }
 ): Promise<string> {
@@ -482,6 +489,13 @@ export const prototypeMaterializeDefinition: ActionDefinition<PrototypeMateriali
       suiteId: { type: "string", description: "Prototype suite id" },
       versionId: { type: "string", description: "Prototype suite version containing the specification" },
       specArtifactId: { type: "string", description: "Legacy specification artifact id" },
+      devices: {
+        type: "array",
+        items: { type: "string", enum: ["desktop", "mobile", "tablet"] },
+        description:
+          "Target platforms. Omit to derive from the PRD's 目标平台 declaration (WP0); " +
+          "legacy PRDs without a declaration default to desktop-only.",
+      },
       note: { type: "string", description: "Optional version note" },
     },
     additionalProperties: false,
@@ -516,13 +530,26 @@ export const prototypeMaterializeRun: ActionRun<PrototypeMaterializeInput, Proto
   }
   if (!spec) return { ok: false, error: "requirements document not found; run prototype.spec first" };
 
-  const devices = normalizeOpenuiDevices(input?.devices);
+  // WP0 指令遵循主线:devices 缺省时由 PRD 的目标平台声明决定生成端——
+  // mobile-only 产品不付 desktop 生成的代价;PRD 未声明(legacy)只出 desktop,
+  // verify 会补「平台未声明」观察项推动补 PRD。显式 devices 仍是最高优先。
+  const declaredPlatforms = extractTargetPlatforms(spec);
+  const devices: OpenuiDevice[] =
+    input?.devices && input.devices.length > 0
+      ? normalizeOpenuiDevices(input.devices)
+      : declaredPlatforms
+        ? normalizeOpenuiDevices(declaredPlatforms)
+        : ["desktop"];
   try {
     // 平台化适配(user ask 2026-09-09):每个设备一次独立生成——各端是导航
     // 模型/列布局/密度结构性不同的程序(设备契约见 openui-contract),不是
     // 同一程序挤宽度。desktop 是本体(openui 字段),mobile/tablet 落
     // openuiVariants,由 render_openui(device) 分流。
     let artifactRef: ArtifactRef | undefined;
+    // WP1.1 head 线程化:每端 render_openui 追加新版本后 head 前移,下一端
+    // 必须以最新 head 为基线——循环里沿用输入 versionId 会在第二端撞
+    // readSuiteBase 的 head-moved 守卫(fix-all 同款坑,修复同款)。
+    let baseVersionId = versionId;
     for (const [index, device] of devices.entries()) {
       // 进度码保持稳定契约:单设备(缺省)与旧版完全一致(一次 generating);
       // 多设备才发每端进度,码不变,renderer i18n 无需新增。
@@ -579,11 +606,14 @@ export const prototypeMaterializeRun: ActionRun<PrototypeMaterializeInput, Proto
         code: verifiedCode,
         device,
         ...(requirement ? { requirement } : {}),
-        ...(suiteId ? { suiteId, versionId } : {}),
+        ...(suiteId ? { suiteId, ...(baseVersionId ? { versionId: baseVersionId } : {}) } : {}),
         ...(input.note?.trim() ? { note: input.note.trim() } : {}),
       });
       if (!saved.ok) return saved;
-      if (saved.artifactRef) artifactRef = saved.artifactRef;
+      if (saved.artifactRef) {
+        artifactRef = saved.artifactRef;
+        baseVersionId = saved.artifactRef.versionId;
+      }
     }
     ctx.emit({
       message: "OpenUI prototype saved with verification pending",
@@ -640,6 +670,26 @@ export const prototypeVerifyDefinition: ActionDefinition<PrototypeVerifyInput> =
   sideEffects: ["write-in-cwd"],
 };
 
+/**
+ * Dead-button findings over an OpenUI program — the deterministic core of
+ * WP2.3 (design.lint reuses this single source). Two shapes:
+ *  - `Action([])` — a wired-but-empty action list; the button does nothing.
+ *  - bare-string second positional arg (`Button("x", "submit:login")`) —
+ *    compiles against the passthrough schema but throws at click time in the
+ *    official library (silent dead button; the renderer audit catches the
+ *    double-quoted literal, this also catches single quotes).
+ */
+export function findDeadButtons(code: string): string[] {
+  const findings: string[] = [];
+  for (const match of code.matchAll(/Action\(\s*\[\s*\]\s*\)/g)) {
+    findings.push(`empty Action([]) — the button does nothing when clicked`);
+  }
+  for (const match of code.matchAll(/\bButton\(\s*"[^"]*"\s*,\s*(?:'[^']*'|"[^"]*@[^"]*")\s*[,)]/g)) {
+    findings.push(`bare-string button action "${match[1]}" — use Action([...]), never a string`);
+  }
+  return findings;
+}
+
 function hasPageList(spec: string): boolean {
   // \b can never match after a CJK alternative (CJK chars are non-word, the
   // boundary needs a following word char) — pin the boundary to the latin
@@ -660,8 +710,30 @@ export const prototypeVerifyRun: ActionRun<PrototypeVerifyInput, PrototypeVerify
   // 确定性四项每次重算;此前版本里的非确定性检查(revise 追加的 pending 观察
   // 项、外部 checks)必须随行——文档化回路是"revise 加观察 → 重新 verify",
   // 整体替换的 save_suite_result 若不携带就会把 pending 项静默清掉。
+  // 机械检查的 id 前缀:每次重算,携带时按前缀淘汰旧实例(否则一次 verify
+  // 累积一批过期检查)。deterministic 四项为固定 id,其余用前缀匹配。
   const deterministicIds = new Set(["spec-non-empty", "page-list-present", "openui-non-empty", "openui-root"]);
-  const carried = (content.verification?.checks ?? []).filter((check) => !deterministicIds.has(check.id));
+  const deterministicPrefixes = [
+    "variant-mobile-",
+    "variant-tablet-",
+    "platform-",
+    "nav-",
+    "page-",
+    "coverage-",
+    "dead-button-",
+    // 带设备后缀的变体版
+    "nav-mobile-",
+    "nav-tablet-",
+    "page-mobile-",
+    "page-tablet-",
+    "coverage-mobile-",
+    "coverage-tablet-",
+    "dead-button-mobile-",
+    "dead-button-tablet-",
+  ];
+  const isMechanical = (id: string): boolean =>
+    deterministicIds.has(id) || deterministicPrefixes.some((prefix) => id.startsWith(prefix));
+  const carried = (content.verification?.checks ?? []).filter((check) => !isMechanical(check.id));
   const checks: PrototypeVerificationCheck[] = [
     ...carried,
     { id: "spec-non-empty", label: "Specification is non-empty", status: spec ? "passed" : "failed" },
@@ -677,22 +749,148 @@ export const prototypeVerifyRun: ActionRun<PrototypeVerifyInput, PrototypeVerify
       status: /(?:^|\n)\s*root\s*=/.test(openui) ? "passed" : "failed",
     },
   ];
-  // 平台变体检查(user ask 2026-09-09):每个已生成的变体必须声明 root 且
-  // 不是本体的复制品——三端同构正是要杜绝的"挤宽度"形态。
+  // ── WP0.4 平台一致性:PRD 声明端 vs 实际生成端 ──
+  // 声明端(目标平台行)决定"应该有哪些端";生成端 = 本体(desktop)+ 变体槽。
+  // 缺端 failed(声明了 mobile 却没生成)、多端 warning(生成了未声明端)、
+  // 未声明(legacy PRD)观察项推动补 PRD——指令遵循的验收闭环。
   const variants = content.openuiVariants ?? {};
+  const generatedDevices = new Set<string>(openui ? ["desktop"] : []);
   for (const device of ["mobile", "tablet"] as const) {
-    const variant = variants[device]?.trim() ?? "";
-    if (!variant) continue;
+    if (variants[device]?.trim()) generatedDevices.add(device);
+  }
+  const declared = extractTargetPlatforms(spec);
+  if (!declared) {
     checks.push({
-      id: `variant-${device}-root`,
-      label: `${device} platform variant declares its own root`,
-      status: /(?:^|\n)\s*root\s*=/.test(variant) ? "passed" : "failed",
+      id: "platform-undeclared",
+      label: "PRD declares target platforms (目标平台)",
+      status: "pending",
+      observation: "PRD 未声明目标平台——重新生成需求文档时补充「目标平台」行,materialize 将按声明决定生成端。",
     });
-    checks.push({
-      id: `variant-${device}-distinct`,
-      label: `${device} platform variant is a structurally distinct program`,
-      status: variant === openui ? "failed" : "passed",
-    });
+  } else {
+    for (const device of declared) {
+      if (!generatedDevices.has(device)) {
+        checks.push({
+          id: `platform-${device}-missing`,
+          label: `PRD-declared platform "${device}" was generated`,
+          status: "failed",
+          observation: `PRD 声明 ${device} 端但该端程序缺失——重新 materialize(或补 devices)后重验。`,
+        });
+      }
+    }
+    for (const device of generatedDevices) {
+      if (!declared.includes(device as (typeof declared)[number])) {
+        checks.push({
+          id: `platform-${device}-extra`,
+          label: `Generated platform "${device}" is PRD-declared`,
+          status: "pending",
+          observation: `生成了 PRD 未声明的 ${device} 端——确认是否为有意补充,否则从 PRD 或原型中移除。`,
+        });
+      }
+    }
+  }
+
+  // ── WP2.2 指令遵循:对每个已生成端跑 导航闭包/死页面/页面覆盖 + 死按钮 ──
+  const pageList = parsePageList(spec);
+  const programs: Array<{ device: string; code: string }> = [
+    ...(openui ? [{ device: "desktop", code: openui }] : []),
+    ...(["mobile", "tablet"] as const)
+      .map((device) => ({ device, code: variants[device]?.trim() ?? "" }))
+      .filter((entry) => entry.code),
+  ];
+  for (const { device, code } of programs) {
+    const suffix = device === "desktop" ? "" : `-${device}`;
+    // 平台变体结构检查:root 必须有;distinct 用组件指纹(WP4.2)——换名副本
+    // 组件构成不变(Jaccard≥阈值 → 同构 failed),真平台壳(底部 tab vs 侧栏、
+    // 卡片流 vs 表格)构成实质不同 → 低分通过。
+    if (device !== "desktop") {
+      checks.push({
+        id: `variant${suffix}-root`,
+        label: `${device} platform variant declares its own root`,
+        status: /(?:^|\n)\s*root\s*=/.test(code) ? "passed" : "failed",
+      });
+      const similarity = componentJaccard(openui, code);
+      checks.push({
+        id: `variant${suffix}-distinct`,
+        label: `${device} platform variant is a structurally distinct program`,
+        status: similarity >= 0.92 ? "failed" : "passed",
+        ...(similarity >= 0.92
+          ? {
+              observation: `组件构成与桌面端几乎一致(Jaccard ${similarity.toFixed(2)})——疑似同一程序换名/微调,重生成该端以获得平台化结构(导航壳与布局语法应不同)。`,
+            }
+          : {}),
+      });
+    }
+    // 导航闭包:@Set 目标必须是已比较页面(否则点了没视图可切)。
+    const pages = extractProgramPages(code);
+    const known = new Set([...pages.comparisons, ...(pages.initial ? [pages.initial] : [])]);
+    for (const target of pages.navTargets) {
+      if (!known.has(target)) {
+        checks.push({
+          id: `nav${suffix}-${target}-dangling`,
+          label: `Navigation target "${target}" has a matching $page view`,
+          status: "failed",
+          observation: `@Set($page, "${target}") 指向未声明/未比较的页面——拼写错误或缺失视图分支。`,
+        });
+      }
+    }
+    // 死页面:被比较但无人导航到、也不是初始页( Axure 页面树的孤儿页检查)。
+    for (const page of known) {
+      if (page !== pages.initial && !pages.navTargets.has(page)) {
+        checks.push({
+          id: `page${suffix}-${page}-orphan`,
+          label: `Page "${page}" is reachable via navigation`,
+          status: "failed",
+          observation: `页面 "${page}" 有视图分支但没有任何 @Set 导航到它(也非初始页)——补入口或删除分支。`,
+        });
+      }
+    }
+    // 页面覆盖:有 ID 列逐页比对(PRD 页缺实现 failed/程序多页 warning);
+    // 旧 PRD 无 ID 列降级为数量比对(不误杀,只观察)。
+    if (pageList) {
+      if (pageList.hasIds) {
+        const ids = new Set(pageList.pages.map((page) => page.id));
+        for (const page of pageList.pages) {
+          if (!known.has(page.id!)) {
+            checks.push({
+              id: `coverage${suffix}-${page.id}-missing`,
+              label: `PRD page "${page.name}" (${page.id}) is implemented`,
+              status: "failed",
+              observation: `页面清单中的「${page.name}」未出现在 $page 页面集——原型未覆盖 PRD。`,
+            });
+          }
+        }
+        for (const page of known) {
+          if (!ids.has(page)) {
+            checks.push({
+              id: `coverage${suffix}-${page}-extra`,
+              label: `Program page "${page}" exists in the PRD page list`,
+              status: "pending",
+              observation: `程序页面 "${page}" 不在页面清单中——确认是否为有意补充(如详情子页)。`,
+            });
+          }
+        }
+      } else {
+        const prdCount = pageList.pages.length;
+        const programCount = known.size;
+        if (prdCount !== programCount) {
+          checks.push({
+            id: `coverage${suffix}-count`,
+            label: "Program page count matches the PRD page list",
+            status: "pending",
+            observation: `PRD 列出 ${prdCount} 页,程序 ${programCount} 页(旧格式 PRD 无页面 ID 列,仅数量比对)——重新生成需求文档可启用逐页比对。`,
+          });
+        }
+      }
+    }
+    // 死按钮(WP2.3 的 core 确定性面;渲染前修复环另有 validate verdict)。
+    for (const [index, finding] of findDeadButtons(code).entries()) {
+      checks.push({
+        id: `dead-button${suffix}-${index + 1}`,
+        label: `No dead buttons${suffix ? ` (${device})` : ""}`,
+        status: "failed",
+        observation: finding,
+      });
+    }
   }
   for (const [index, check] of (input.checks ?? []).entries()) {
     const resolved: PrototypeVerificationCheck = {
@@ -703,9 +901,7 @@ export const prototypeVerifyRun: ActionRun<PrototypeVerifyInput, PrototypeVerify
     };
     // 按 id 消项:传入的 check 若命中已随行的观察项,则覆写其状态(这是
     // "revise 加观察 → 处理 → verify 消项"回路的结算端),否则作为新外部项追加。
-    const carriedIndex = checks.findIndex(
-      (existing) => existing.id === resolved.id && !deterministicIds.has(existing.id)
-    );
+    const carriedIndex = checks.findIndex((existing) => existing.id === resolved.id && !isMechanical(existing.id));
     if (carriedIndex !== -1) checks[carriedIndex] = resolved;
     else checks.push(resolved);
   }
@@ -756,6 +952,12 @@ export const prototypeReviseDefinition: ActionDefinition<PrototypeReviseInput> =
       part: { type: "string", enum: ["spec", "openui", "verification"] },
       target: { type: "string" },
       instruction: { type: "string" },
+      device: {
+        type: "string",
+        enum: ["desktop", "mobile", "tablet"],
+        description:
+          "Platform variant to revise (openui part): desktop updates the base program; mobile/tablet update their variant.",
+      },
       note: { type: "string" },
     },
     required: ["suiteId", "versionId", "part", "target", "instruction"],
@@ -804,15 +1006,23 @@ export const prototypeReviseRun: ActionRun<PrototypeReviseInput, PrototypeSpecOu
   }
 
   if (!ctx.runSubagent) return { ok: false, error: "runSubagent not available" };
-  const current = input.part === "spec" ? content.spec : content.openui;
-  if (!current?.trim()) return { ok: false, error: `${input.part} content is empty in the selected version` };
-  const skill = input.part === "spec" ? "spec-writer" : "pm-designer-openui";
   // openui 修订的设备定向:mobile/tablet 修订走对应变体,且修订提示带该端
   // 平台契约——在手机版上"加一列"的语义与桌面版完全不同。
   const device: OpenuiDevice | undefined =
     input.part === "openui" && input.device && ["mobile", "tablet"].includes(input.device)
       ? (input.device as OpenuiDevice)
       : undefined;
+  // WP1.2 设备基线:device 定向修订喂子代理的必须是该端变体——此前恒取
+  // content.openui(桌面本体),「桌面程序+手机契约」的杂交产物会写进变体槽
+  // 覆盖真正的手机版。desktop/未指定才回落本体。
+  const current =
+    input.part === "spec"
+      ? content.spec
+      : device
+        ? (content.openuiVariants?.[device] ?? content.openui)
+        : content.openui;
+  if (!current?.trim()) return { ok: false, error: `${input.part} content is empty in the selected version` };
+  const skill = input.part === "spec" ? "spec-writer" : "pm-designer-openui";
   const generated = await ctx.runSubagent({
     skill,
     prompt:

@@ -80,7 +80,10 @@ export function buildDdpPackage(
   artifact: { id: string; title: string },
   openuiSource: string,
   exportedAt: string,
-  verification?: PackageVerification
+  verification?: PackageVerification,
+  /** WP4.1:平台变体(mobile/tablet)随包导出——三端生成是一等能力,交付物
+   *  不该只有桌面端。每端附源码 + 可播放 standalone HTML。 */
+  variants?: { mobile?: string; tablet?: string }
 ): Buffer {
   // "Present and non-empty": a verification object without any check carries
   // no acceptance evidence — skip both the entry and the manifest flag.
@@ -96,16 +99,58 @@ export function buildDdpPackage(
     exportedAt,
     generator: GENERATOR,
     ...(includeVerification ? { verification: true } : {}),
+    ...(variants?.mobile || variants?.tablet ? { platformVariants: true } : {}),
   };
   const entries: PackageEntry[] = [
     { name: "manifest.json", data: Buffer.from(JSON.stringify(manifest, null, 2), "utf8") },
     { name: "source.openui.txt", data: Buffer.from(openuiSource, "utf8") },
     { name: "index.html", data: Buffer.from(buildDdpViewerHtml(artifact.title, openuiSource), "utf8") },
   ];
+  for (const device of ["mobile", "tablet"] as const) {
+    const source = variants?.[device]?.trim();
+    if (!source) continue;
+    entries.push({ name: `source.openui.${device}.txt`, data: Buffer.from(source, "utf8") });
+    entries.push({
+      name: `standalone.${device}.html`,
+      data: Buffer.from(buildStandaloneOpenuiHtml(`${artifact.title} · ${device}`, source), "utf8"),
+    });
+  }
   if (includeVerification) {
     entries.push({ name: "verification.md", data: Buffer.from(renderVerificationMarkdown(verification!), "utf8") });
   }
   return zipEntries(entries);
+}
+
+/**
+ * WP4.3 standalone playable HTML — OpenUI's official browser-bundle pattern
+ * (iframe-free single file): load the CDN bundle, mount the renderer on the
+ * program embedded as a JSON script tag. Opens by double-click, no host, no
+ * build step; interactions ($page navigation, $state bindings) run in-page.
+ */
+export function buildStandaloneOpenuiHtml(title: string, openuiSource: string): string {
+  const escaped = openuiSource.replace(/<\/script>/gi, "<\\/script>");
+  return [
+    "<!doctype html>",
+    '<html lang="zh">',
+    "<head>",
+    '<meta charset="utf-8">',
+    `<title>${title}</title>`,
+    '<script src="https://unpkg.com/@openuidev/browser@0.2.12/dist/index.global.js"></script>',
+    "<style>body{margin:0;font-family:system-ui,sans-serif}#app{padding:16px}</style>",
+    "</head>",
+    "<body>",
+    '<div id="app"></div>',
+    `<script id="openui-source" type="application/json">${escaped}</script>`,
+    "<script>",
+    "const source = JSON.parse(document.getElementById('openui-source').textContent);",
+    "const root = document.getElementById('app');",
+    // The bundle exposes { render, openuiLibrary, … } on window.OpenUI; render
+    // mounts the official renderer with the official component library.
+    "window.OpenUI.render({ target: root, code: source, library: window.OpenUI.openuiLibrary });",
+    "</script>",
+    "</body>",
+    "</html>",
+  ].join("\n");
 }
 
 /** Build the .ddu package (UI-Design / design pipeline) with a standalone render. */

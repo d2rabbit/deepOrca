@@ -32,7 +32,10 @@ import {
   looksLikeOpenuiProgram,
   readArtifactFile,
   readSuiteVersion,
+  findDeadButtons,
+  repairOpenuiProgram,
 } from "./prototype";
+import { extractProgramPages } from "../common/openui-pages";
 import type { ArtifactRef, UiSuiteContent } from "./prototype";
 
 export interface DesignMaterializeInput {
@@ -188,9 +191,17 @@ export const designMaterializeRun: ActionRun<DesignMaterializeInput, DesignMater
         error: "deep-design returned an empty or truncated OpenUI program (no root/component statements) — regenerate",
       };
     }
+    // WP2.5:design 线与 prototype 线同标准——持久化前过官方解析器修复环
+    // (此前 prototype 线修、design 线直接落盘未验证程序)。
+    const verifiedContent = await repairOpenuiProgram(ctx, {
+      code: content,
+      contract: OPENUI_CREATE_CONTRACT,
+      progressCode: "design.materialize.repairing",
+      basePercent: 70,
+    });
     if (ctx.signal.aborted) return { ok: false, error: "cancelled" };
     const saved = await executeA2ui(ctx, "render_openui", {
-      code: content,
+      code: verifiedContent,
       requirement: effectiveRequirement,
       designSystemId,
       ...(sourcePrototype ? { sourcePrototype } : {}),
@@ -302,42 +313,35 @@ const HEX_COLOR = /(?<![\w/.#-])#[0-9a-fA-F]{3}(?:[0-9a-fA-F]|[0-9a-fA-F]{3}|[0-
 
 function lintOpenuiDocument(code: string): StoredLintFinding[] {
   const findings: StoredLintFinding[] = [];
-  const push = (ruleId: string, severity: StoredLintFinding["severity"], message: string, line: string) => {
-    // The leading \s keeps attribute values out of the id slot: without it,
-    // `aria-valid="true"` captures "true" via its "valid=" substring.
-    const semantic = line.match(/\s(?:data-sem|data-semantic-id|id)="([^"]+)"/);
+  const push = (ruleId: string, severity: StoredLintFinding["severity"], message: string, nodePath?: string) => {
     findings.push({
       id: `${ruleId}-${findings.length + 1}`,
       preset: "openui-static",
       ruleId,
       severity,
-      nodePath: semantic ? semantic[1] : "document",
+      nodePath: nodePath ?? "document",
       message,
     });
   };
-  code.split("\n").forEach((line, index) => {
-    if (STYLE_CONTEXT.test(line) && HEX_COLOR.test(line)) {
-      push(
-        "hardcoded-color",
-        "warning",
-        `Line ${index + 1}: hardcoded color literal; reference design tokens instead.`,
-        line
-      );
-    }
-    const sizeMatch = line.match(/font-size:\s*(\d+(?:\.\d+)?)px/);
-    if (sizeMatch && Number(sizeMatch[1]) < 12) {
-      push(
-        "tiny-font",
-        "warning",
-        `Line ${index + 1}: font-size ${sizeMatch[1]}px is below the 12px accessibility floor.`,
-        line
-      );
-    }
+  // WP2.4:tiny-font/hardcoded-color 是 CSS 形状正则,在 OpenUI Lang DSL 上
+  // 永不命中(死规则);替换为 DSL 有意义的确定性检查(单一来源:prototype.ts
+  // 的 findDeadButtons + openui-pages 的程序页面提取),保留 emoji-glyph。
+  const lines = code.split("\n");
+  lines.forEach((line, index) => {
     const emoji = line.match(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u);
     if (emoji) {
-      push("emoji-glyph", "info", `Line ${index + 1}: emoji glyph "${emoji[0]}" in UI copy; prefer icon assets.`, line);
+      push("emoji-glyph", "info", `Line ${index + 1}: emoji glyph "${emoji[0]}" in UI copy; prefer icon assets.`);
     }
   });
+  for (const finding of findDeadButtons(code)) {
+    push("dead-button", "warning", finding);
+  }
+  const pages = extractProgramPages(code);
+  for (const target of pages.navTargets) {
+    if (!pages.comparisons.has(target) && target !== pages.initial) {
+      push("dangling-nav", "warning", `@Set($page, "${target}") targets a page with no view branch — dead navigation.`);
+    }
+  }
   return findings;
 }
 
@@ -579,11 +583,18 @@ export const designReviseRun: ActionRun<DesignReviseInput, SuiteActionOutput> = 
         error: "deep-design returned empty or structurally invalid content (truncated output?) — regenerate",
       };
     }
+    // WP2.5:修订线同标准——持久化前过修复环。
+    const verifiedRevised = await repairOpenuiProgram(ctx, {
+      code: revised,
+      contract: `${OPENUI_PRESERVE_CONTRACT} ${OPENUI_CREATE_CONTRACT}`,
+      progressCode: "design.revise.repairing",
+      basePercent: 70,
+    });
     if (ctx.signal.aborted) return { ok: false, error: "cancelled" };
     const saved = await executeA2ui(ctx, "update_openui", {
       suiteId,
       versionId,
-      code: revised,
+      code: verifiedRevised,
       ...(content.designSystemId ? { designSystemId: content.designSystemId } : {}),
       ...(content.sourcePrototype ? { sourcePrototype: content.sourcePrototype } : {}),
       note: input.note?.trim() || `design revision: ${target}`,

@@ -212,13 +212,22 @@ export function PrototypeWorkspace({
   const specTodos = useMemo(() => {
     if (!content.spec) return [] as string[];
     const lines = content.spec.split("\n");
-    const start = lines.findIndex((line) => line.includes("待确认"));
+    // WP3.1:只认「待确认」标题行(## 待确认/##7. 待确认),不从正文/表格里的
+    // 早现字样起算——否则验收标准的 - [ ] 全被误吞,生成按钮被锁死;采集也在
+    // 下一个节标题处终止,并剥掉 [ ] 复选框前缀。
+    const start = lines.findIndex((line) => /^#{1,6}\s*(?:\d+[.)、]?\s*)?待确认\s*$/.test(line.trim()));
     if (start === -1) return [];
-    return lines
-      .slice(start + 1)
-      .filter((line) => /^\s*[-*]\s+/.test(line))
-      .map((line) => line.replace(/^\s*[-*]\s+/, "").trim())
-      .filter(Boolean);
+    const todos: string[] = [];
+    for (const line of lines.slice(start + 1)) {
+      if (/^#{1,6}\s/.test(line)) break; // 待确认节结束
+      const item = line
+        .trim()
+        .replace(/^[-*]\s+/, "")
+        .replace(/^\[[ xX]\]\s*/, "")
+        .trim();
+      if (item) todos.push(item);
+    }
+    return todos;
   }, [content.spec]);
   const pendingSpecTodos = useMemo(
     () => specTodos.filter((item) => !confirmedSpecItems.has(item)),
@@ -245,12 +254,18 @@ export function PrototypeWorkspace({
           slidesPagesRef.current = data.pages;
           setSlides(data);
         } else {
-          setError(res.error ?? "slide render failed");
+          // WP3.4:幻灯片失败是局部降级——toast + 回退文档视图,不写 workspace
+          // 级 error(frame 在 error 非空时整页错误化,会连文档视图一起撕掉)。
+          pushDesignToast("error", t("prototypeWorkspace.slidesFailed", { error: res.error ?? "" }));
           setSpecView("doc");
         }
       })
       .catch((cause: unknown) => {
-        if (alive) setError(cause instanceof Error ? cause.message : String(cause));
+        if (alive)
+          pushDesignToast(
+            "error",
+            t("prototypeWorkspace.slidesFailed", { error: cause instanceof Error ? cause.message : String(cause) })
+          );
       })
       .finally(() => {
         if (alive) setSlidesBusy(false);
@@ -450,6 +465,9 @@ export function PrototypeWorkspace({
   const activeDeviceCode =
     device === "desktop" ? (content.openui ?? null) : (variants[device] ?? content.openui ?? null);
   const deviceHasVariant = device === "desktop" ? Boolean(content.openui) : Boolean(variants[device]);
+  // WP3.2 仅变体套件可达:「有没有任何一端的程序」才是画布/验收/播放的门——
+  // 只判 content.openui 会让「仅有 mobile 变体」的版本整画布判空,变体永不可见。
+  const anyPrototypeCode = Boolean(content.openui || variants.mobile || variants.tablet);
 
   // 播放模式:Esc 退出(对齐 easy-prototype 演示模式),版本内容失去原型时
   // 自动退出,避免停在空播放器里。
@@ -462,8 +480,8 @@ export function PrototypeWorkspace({
     return () => window.removeEventListener("keydown", onKey);
   }, [playing]);
   useEffect(() => {
-    if (playing && !content.openui) setPlaying(false);
-  }, [playing, content.openui]);
+    if (playing && !anyPrototypeCode) setPlaying(false);
+  }, [playing, anyPrototypeCode]);
 
   const selectArtifactRef = useCallback(
     async (ref: { suiteId: string; versionId: string }) => {
@@ -514,12 +532,11 @@ export function PrototypeWorkspace({
 
   const materialize = () => {
     if (!suite || !selectedVersion) return;
-    // 平台化适配(user ask 2026-09-09):生成即三端——desktop 本体 + mobile/
-    // tablet 结构化变体,每端一次独立生成,导航模型各不相同。
+    // WP0 指令遵循:不传 devices——action 依据 PRD 的目标平台声明决定生成端
+    // (mobile-only 只生成手机端;声明多端才三端全生;legacy PRD → desktop+观察项)。
     void runAction("prototype.materialize", {
       suiteId: suite.id,
       versionId: selectedVersion.versionId,
-      devices: ["desktop", "mobile", "tablet"],
     });
   };
 
@@ -590,7 +607,14 @@ export function PrototypeWorkspace({
       const version = await suiteApi.designSuiteReadVersion(root, ref.suiteId, ref.versionId);
       const next = version && isPrototypeContent(version.content) ? version.content : null;
       if (!next) return ref.versionId;
-      const after = part === "spec" ? (next.spec ?? null) : part === "openui" ? (next.openui ?? null) : null;
+      const after =
+        part === "spec"
+          ? (next.spec ?? null)
+          : part === "openui"
+            ? device === "desktop"
+              ? next.openui
+              : (next.openuiVariants?.[device] ?? next.openui ?? null)
+            : null;
       if (!after) return ref.versionId;
       const { added, removed } = diffLines(before, after);
       if (added.length || removed.length) setDiff(summarizeDiff({ added, removed }));
@@ -905,7 +929,7 @@ export function PrototypeWorkspace({
                 >
                   <IconPalette /> {t("prototypeWorkspace.materialize")}
                 </button>
-                <button type="button" disabled={!content.openui || busy !== null || readOnly} onClick={verify}>
+                <button type="button" disabled={!anyPrototypeCode || busy !== null || readOnly} onClick={verify}>
                   <IconCheck /> {t("prototypeWorkspace.verify")}
                 </button>
                 <button
@@ -917,7 +941,7 @@ export function PrototypeWorkspace({
                 </button>
                 <button
                   type="button"
-                  disabled={!content.openui || busy !== null}
+                  disabled={!anyPrototypeCode || busy !== null}
                   title={t("prototypeWorkspace.playModeHint")}
                   onClick={() => {
                     // 进入播放前清掉元素选中:outline 会冻在旧坐标上,退出后
@@ -942,7 +966,7 @@ export function PrototypeWorkspace({
             )}
             {!playing && progress ? <div className="ui-design-gen-progress">{progress}</div> : null}
             <div className="ui-design-canvas-area">
-              {content.openui ? (
+              {anyPrototypeCode ? (
                 <div className={`ui-design-device ui-design-device-${device}`}>
                   <div className="ui-design-device-chrome" aria-hidden="true">
                     <i />
@@ -958,7 +982,16 @@ export function PrototypeWorkspace({
                     openuiCode={activeDeviceCode ?? ""}
                     mode="openui"
                     authoringLibrary={suite?.authoringLibrary}
-                    onIterate={(instruction) => revise(instruction)}
+                    formStateRoot={root}
+                    formStateSuiteId={suite?.id ?? null}
+                    formStateDeviceSlot={device === "desktop" ? null : device}
+                    onIterate={(instruction) => {
+                      // WP3.3 播放冻结画布动作:ToAssistant/纠正环类回传在播放中
+                      // 不派发修订(否则演示时点任何默认按钮就悄悄生成新版本);
+                      // 画布内本地 @Set 导航由渲染器自治,不经此通道。
+                      if (playing) return;
+                      revise(instruction);
+                    }}
                     onSelectionChange={handlePrototypeSelection}
                     selectionEnabled={!readOnly && !playing}
                     selectionNodePath={selection?.nodePath ?? null}
@@ -1014,7 +1047,7 @@ export function PrototypeWorkspace({
                 <button
                   type="button"
                   className="ui-review-run-btn primary"
-                  disabled={!content.openui || busy !== null || readOnly}
+                  disabled={!anyPrototypeCode || busy !== null || readOnly}
                   onClick={verify}
                 >
                   <IconRefresh /> {t("prototypeWorkspace.runWalkthrough")}
@@ -1137,12 +1170,12 @@ export function PrototypeWorkspace({
                 <button
                   type="button"
                   className="primary"
-                  disabled={!content.openui || busy !== null || readOnly}
+                  disabled={!anyPrototypeCode || busy !== null || readOnly}
                   onClick={verify}
                 >
                   <IconRefresh /> {t("prototypeWorkspace.runWalkthrough")}
                 </button>
-                {!content.openui ? <small>{t("prototypeWorkspace.reportNeedsPrototype")}</small> : null}
+                {!anyPrototypeCode ? <small>{t("prototypeWorkspace.reportNeedsPrototype")}</small> : null}
               </div>
             )}
             {onQuoteToChat && content.verification ? (

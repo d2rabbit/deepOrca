@@ -11,6 +11,9 @@ const PROGRESS_KEYS: Record<string, MessageKey> = {
   "prototype.spec.saved": "prototypeWorkspace.progressSpecSaved",
   "prototype.materialize.repairing": "prototypeWorkspace.progressRepair",
   "prototype.revise.repairing": "prototypeWorkspace.progressRepair",
+  // WP2.5:design 线也过修复环,同款进度文案。
+  "design.materialize.repairing": "prototypeWorkspace.progressRepair",
+  "design.revise.repairing": "prototypeWorkspace.progressRepair",
   "prototype.materialize.generating": "prototypeWorkspace.progressMaterialize",
   "prototype.materialize.saved": "prototypeWorkspace.progressMaterializeSaved",
   "prototype.arch.generating": "prototypeWorkspace.progressArch",

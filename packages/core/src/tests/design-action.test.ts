@@ -148,6 +148,33 @@ test("prototype.materialize reads an immutable suite version and resets verifica
 
 test("prototype.verify runs deterministic structure checks and persists verification", async () => {
   const mcpCalls: McpCall[] = [];
+  // 规范 PRD(WP0):目标平台行 + 页面 ID 列——verify 现在做平台一致性与逐页
+  // 覆盖,无平台声明的 legacy PRD 会得到 platform-undeclared 观察项(pending)。
+  const spec = [
+    "# Tasks",
+    "",
+    "| 目标平台 | web |",
+    "",
+    "## Page list",
+    "",
+    "| Page | Page ID |",
+    "| --- | --- |",
+    "| Board | board |",
+  ].join("\n");
+  const openui =
+    '$page = "board"\nroot = $page == "board" ? boardView : null\nboardView = Column([board])\nnavBtn = Button("Board", Action([@Set($page, "board")]))';
+  const result = await prototypeVerifyRun(
+    { suiteId: PROTOTYPE_REF.suiteId, versionId: PROTOTYPE_REF.versionId },
+    makeCtx({ prototype: { spec, openui }, mcpCalls })
+  );
+  assert.equal(result.ok, true);
+  assert.equal(result.verification?.status, "passed");
+  const save = mcpCalls.find((call) => call.name.endsWith("save_suite_result"));
+  assert.equal((save?.args.verification as { status: string }).status, "passed");
+});
+
+test("prototype.verify: legacy PRD without 目标平台 yields a pending observation, not a failure", async () => {
+  const mcpCalls: McpCall[] = [];
   const result = await prototypeVerifyRun(
     { suiteId: PROTOTYPE_REF.suiteId, versionId: PROTOTYPE_REF.versionId },
     makeCtx({
@@ -156,9 +183,101 @@ test("prototype.verify runs deterministic structure checks and persists verifica
     })
   );
   assert.equal(result.ok, true);
-  assert.equal(result.verification?.status, "passed");
-  const save = mcpCalls.find((call) => call.name.endsWith("save_suite_result"));
-  assert.equal((save?.args.verification as { status: string }).status, "passed");
+  // platform-undeclared 是观察项 → 整体 pending(推动补 PRD),不是 failed。
+  assert.equal(result.verification?.status, "pending");
+  assert.ok(
+    result.verification?.checks.some((check) => check.id === "platform-undeclared"),
+    "undeclared platform observation present"
+  );
+});
+
+test("prototype.verify: PRD-declared platform missing from the program fails (WP0.4)", async () => {
+  const mcpCalls: McpCall[] = [];
+  const spec = "| 目标平台 | mobile |\n\n## Page list\n\n| Page | Page ID |\n| --- | --- |\n| Board | board |";
+  const result = await prototypeVerifyRun(
+    { suiteId: PROTOTYPE_REF.suiteId, versionId: PROTOTYPE_REF.versionId },
+    makeCtx({
+      prototype: {
+        spec,
+        // 只有桌面本体,PRD 声明 mobile → platform-mobile-missing failed。
+        openui:
+          '$page = "board"\nroot = $page == "board" ? boardView : null\nboardView = Card([])\nbtn = Button("b", Action([@Set($page, "board")]))',
+      },
+      mcpCalls,
+    })
+  );
+  assert.equal(result.verification?.status, "failed");
+  assert.ok(result.verification?.checks.some((check) => check.id === "platform-mobile-missing"));
+});
+
+test("prototype.verify: dangling nav target / orphan page / missing PRD page fail (WP2.2)", async () => {
+  const mcpCalls: McpCall[] = [];
+  const spec = [
+    "| 目标平台 | web |",
+    "",
+    "## Page list",
+    "",
+    "| Page | Page ID |",
+    "| --- | --- |",
+    "| Home | home |",
+    "| Orders | orders |",
+    "| Settings | settings |",
+  ].join("\n");
+  const openui = [
+    '$page = "home"',
+    // orders 有视图但无人导航且非初始 → orphan;settings 未实现 → coverage failed;
+    // @Set($page, "dashbord") 拼错 → dangling nav。
+    'root = $page == "home" ? homeView : $page == "orders" ? ordersView : null',
+    "homeView = Card([])",
+    "ordersView = Card([])",
+    'btn = Button("typo", Action([@Set($page, "dashbord")]))',
+  ].join("\n");
+  const result = await prototypeVerifyRun(
+    { suiteId: PROTOTYPE_REF.suiteId, versionId: PROTOTYPE_REF.versionId },
+    makeCtx({ prototype: { spec, openui }, mcpCalls })
+  );
+  assert.equal(result.verification?.status, "failed");
+  const ids = result.verification?.checks.filter((c) => c.status === "failed").map((c) => c.id) ?? [];
+  assert.ok(ids.includes("nav-dashbord-dangling"), "dangling nav target flagged");
+  assert.ok(ids.includes("page-orders-orphan"), "orphan page flagged");
+  assert.ok(ids.includes("coverage-settings-missing"), "missing PRD page flagged");
+});
+
+test("prototype.verify: dead buttons fail (WP2.3 core)", async () => {
+  const mcpCalls: McpCall[] = [];
+  const spec = "| 目标平台 | web |\n\n## Page list\n\n| Page | Page ID |\n| --- | --- |\n| Home | home |";
+  const openui = [
+    '$page = "home"',
+    'root = $page == "home" ? homeView : null',
+    "homeView = Card([])",
+    'dead1 = Button("Save", Action([]))',
+    'dead2 = Button("Go", "submit:login")',
+  ].join("\n");
+  const result = await prototypeVerifyRun(
+    { suiteId: PROTOTYPE_REF.suiteId, versionId: PROTOTYPE_REF.versionId },
+    makeCtx({ prototype: { spec, openui }, mcpCalls })
+  );
+  assert.equal(result.verification?.status, "failed");
+  assert.ok((result.verification?.checks ?? []).some((check) => check.id.startsWith("dead-button-")));
+});
+
+test("prototype.verify: renamed desktop copy as variant fails distinct (WP4.2)", async () => {
+  const mcpCalls: McpCall[] = [];
+  const spec = "| 目标平台 | 多端(web+mobile) |\n\n## Page list\n\n| Page | Page ID |\n| --- | --- |\n| Home | home |";
+  const openui = [
+    '$page = "home"',
+    'root = $page == "home" ? homeView : null',
+    'homeView = Table([Col("x", [])])',
+    'btn = Button("h", Action([@Set($page, "home")]))',
+  ].join("\n");
+  // 换名副本:组件构成与桌面端一致 → Jaccard ≥ 0.92 → distinct failed。
+  const renamedCopy = openui.replace(/homeView/g, "mobileHome").replace(/btn/g, "mBtn");
+  const result = await prototypeVerifyRun(
+    { suiteId: PROTOTYPE_REF.suiteId, versionId: PROTOTYPE_REF.versionId },
+    makeCtx({ prototype: { spec, openui, openuiVariants: { mobile: renamedCopy } }, mcpCalls })
+  );
+  assert.equal(result.verification?.status, "failed");
+  assert.ok(result.verification?.checks.some((check) => check.id === "variant-mobile-distinct"));
 });
 
 test("design.materialize injects the selected bundled system and source prototype", async () => {
@@ -189,19 +308,28 @@ test("design.materialize injects the selected bundled system and source prototyp
 
 test("design.lint persists static OpenUI findings without runtime claims", async () => {
   const mcpCalls: McpCall[] = [];
+  // WP2.4:tiny-font/hardcoded-color 是 CSS 死规则已移除;lint 现在报告 DSL 上
+  // 真实命中的 dead-button / dangling-nav / emoji-glyph。
   const result = await designLintRun(
     { suiteId: UI_REF.suiteId, versionId: UI_REF.versionId },
     makeCtx({
       ui: {
-        openui:
-          'root = Screen("bad")\nhero = Card(style="background: #1c6fe0", data-sem="hero")\nhint = Text(style="font-size: 10px")',
+        openui: [
+          '$page = "home"',
+          'root = $page == "home" ? homeView : null',
+          "homeView = Card([])",
+          'dead = Button("Save", Action([]))',
+          'nav = Button("Typo", Action([@Set($page, "dashbord")]))',
+          'emoji = TextContent("通知 🔔")',
+        ].join("\n"),
       },
       mcpCalls,
     })
   );
   assert.equal(result.ok, true);
-  assert.ok(result.findings?.some((finding) => finding.ruleId === "hardcoded-color"));
-  assert.ok(result.findings?.some((finding) => finding.ruleId === "tiny-font"));
+  assert.ok(result.findings?.some((finding) => finding.ruleId === "dead-button"));
+  assert.ok(result.findings?.some((finding) => finding.ruleId === "dangling-nav"));
+  assert.ok(result.findings?.some((finding) => finding.ruleId === "emoji-glyph"));
   const save = mcpCalls.find((call) => call.name.endsWith("save_suite_result"));
   assert.ok(Array.isArray((save?.args.quality as { lintFindings: unknown[] }).lintFindings));
 });
@@ -245,10 +373,28 @@ test("page-list detection accepts CJK headings so Chinese specs verify", async (
   assert.equal(hasPageList("## Page list\n- Board"), true);
   assert.equal(hasPageList("## 页面\n- 首页"), false);
 
-  // End-to-end through the check the page-list detection feeds.
+  // End-to-end through the check the page-list detection feeds. CJK 无空格/
+  // 带冒号标题都要过;PRD 带平台声明(web)+页面 ID 列,走完整逐页覆盖链路。
+  const spec = [
+    "# 任务看板",
+    "",
+    "| 目标平台 | web |",
+    "",
+    "##页面清单：",
+    "",
+    "| 页面 | 页面ID |",
+    "| --- | --- |",
+    "| 看板 | board |",
+  ].join("\n");
+  const openui = [
+    '$page = "board"',
+    'root = $page == "board" ? boardView : null',
+    "boardView = Column([board])",
+    'navBtn = Button("看板", Action([@Set($page, "board")]))',
+  ].join("\n");
   const result = await prototypeVerifyRun(
     { suiteId: PROTOTYPE_REF.suiteId, versionId: PROTOTYPE_REF.versionId },
-    makeCtx({ prototype: { spec: "# 任务看板\n\n## 页面清单\n- 看板\n- 详情", openui: "root = Column([board])" } })
+    makeCtx({ prototype: { spec, openui } })
   );
   assert.equal(result.ok, true);
   assert.equal(result.verification?.status, "passed");
@@ -334,32 +480,50 @@ test("design.review rejects empty evidence with a reason and accepts concrete ev
   assert.equal(concrete.review?.status, "passed");
 });
 
-test("design.lint hex + nodePath rules: real colors flagged, issue refs and invalid hex are not", async () => {
+test("design.lint DSL rules: dead buttons and dangling navs flagged, live programs are clean", async () => {
   const mcpCalls: McpCall[] = [];
   const result = await designLintRun(
     { suiteId: UI_REF.suiteId, versionId: UI_REF.versionId },
     makeCtx({
       ui: {
         openui: [
-          'a = Card(style="color:#aabbcc")',
-          'b = Text(text="issue #123 fixed")',
-          'c = Card(style="color: #abcde")',
-          'd = Card(style="color:#112233", aria-valid="true", id="hero")',
+          '$page = "home"',
+          'root = $page == "home" ? homeView : null',
+          "homeView = Card([])",
+          'dead1 = Button("Save", Action([]))',
+          "dead2 = Button(\"Go\", 'submit:login')",
+          'nav = Button("Typo", Action([@Set($page, "dashbord")]))',
         ].join("\n"),
       },
       mcpCalls,
     })
   );
   assert.equal(result.ok, true);
-  const colors = result.findings?.filter((finding) => finding.ruleId === "hardcoded-color") ?? [];
-  assert.equal(colors.length, 2, "only the two style-context hex colors are flagged");
-  assert.match(colors[0]!.message, /Line 1/, "color:#aabbcc flagged");
-  assert.match(colors[1]!.message, /Line 4/, "#112233 in style context flagged");
-  assert.equal(colors[1]!.nodePath, "hero", 'whitespace-anchored id="hero" still resolves');
-  assert.ok(
-    result.findings?.every((finding) => finding.nodePath !== "true"),
-    'aria-valid="true" must never become a nodePath'
+  const dead = result.findings?.filter((finding) => finding.ruleId === "dead-button") ?? [];
+  assert.equal(dead.length, 2, "Action([]) and bare-string actions both flagged");
+  const nav = result.findings?.filter((finding) => finding.ruleId === "dangling-nav") ?? [];
+  assert.equal(nav.length, 1, "navigation to an undeclared page flagged");
+  assert.match(nav[0]!.message, /dashbord/);
+});
+
+test("design.lint: a live program yields zero findings", async () => {
+  const mcpCalls: McpCall[] = [];
+  const result = await designLintRun(
+    { suiteId: UI_REF.suiteId, versionId: UI_REF.versionId },
+    makeCtx({
+      ui: {
+        openui: [
+          '$page = "home"',
+          'root = $page == "home" ? homeView : null',
+          "homeView = Card([])",
+          'nav = Button("Home", Action([@Set($page, "home")]))',
+        ].join("\n"),
+      },
+      mcpCalls,
+    })
   );
+  assert.equal(result.ok, true);
+  assert.equal(result.findings?.length ?? 0, 0);
 });
 
 test("truncated or fence-less OpenUI output fails the action instead of persisting garbage", async () => {
