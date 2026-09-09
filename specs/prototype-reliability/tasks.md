@@ -25,6 +25,8 @@
   - 验收：lintOpenuiDocument 首批单测（当前为零）
 - [ ] 2.5 design.materialize/revise 跑修复环（导出 repairOpenuiProgram 复用）
   - 验收：design-action 测试断言持久化前经过 validate
+- [ ] 2.6 引擎补丁 A-1：`design.clock` 工具（startTimestamp/total → remaining）+ `Query(..., 1)` 每秒刷新——番茄钟倒计时真机可跑（design.md §4.4）
+  - 验收：交互测试中倒计时绑定每秒更新；SKILL.md 质量契约补「计时类需求用 clock 工具」条目
 
 ## WP3 预览一致性
 
@@ -44,6 +46,13 @@
   - 验收：dd-package 测试断言导出物含三端程序
 - [ ] 4.2 变体 distinct 升级为语句名集合 Jaccard 阈值
   - 验收：重命名变量的同构副本被判 failed；真实差异通过
+- [ ] 4.3 引擎补丁 A-2：`.ddp` 每端附 standalone.html（官方 browser bundle + iframe srcdoc + postMessage），原型脱离宿主可播放（design.md §4.4）
+  - 验收：导出的 html 双击打开可交互（$page 导航可用）
+
+## P2 跟进（引擎补丁 A-3/A-4，design.md §4.4）
+
+- [ ] A-3 原型专用组件目录（Timer 环/进度环/空态卡）挂自有 library 桥，library.prompt() 自动生成提示词
+- [ ] A-4 母版纪律机械化（shell 具名语句引用检查；改壳传播长期靠 A-3 组件化）
 
 ## 收尾
 
