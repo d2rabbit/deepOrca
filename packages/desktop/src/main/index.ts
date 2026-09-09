@@ -2469,6 +2469,11 @@ function registerEditorIpc({ handle, handlePrivileged }: IpcHelpers): void {
     "rpm",
     "vbs",
     "vbe",
+    // .js defaults to Windows Script Host and .hta to mshta — both execute on
+    // open, same family as the WSH entries above (.js is by far the most
+    // common of them in a code workspace).
+    "js",
+    "hta",
     "wsf",
     "wsh",
     "jse",

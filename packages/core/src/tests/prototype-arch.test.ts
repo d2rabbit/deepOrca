@@ -198,6 +198,35 @@ test("prototype.arch: bare markdown truncated mid-mermaid is refused (旧 extrac
   assert.equal(mcpCalls.filter((c) => c.name.endsWith("save_suite_arch")).length, 0);
 });
 
+test("prototype.arch: wrapped output truncated after an inner close is refused (奇偶守卫与裸闭合判定并用)", async () => {
+  const mcpCalls: McpCall[] = [];
+  // Outer opener + ONE complete inner pair = 3 line-anchored fences with the
+  // last fence a bare closer. The bare-closer check alone salvages the prefix
+  // (heading + complete diagram → passes looksLikeArchDoc); the parity guard
+  // is what refuses this window. Both checks must stay combined.
+  const truncated =
+    "```markdown\n" +
+    [
+      "# 番茄钟 技术架构文档",
+      "",
+      "## 2. 系统架构",
+      "",
+      "```mermaid",
+      "graph TB",
+      "  ui[界面]",
+      "```",
+      "",
+      "## 3. 数据模型",
+    ].join("\n");
+  const res = await prototypeArchRun(
+    { suiteId: REF.suiteId, versionId: REF.versionId },
+    makeCtx({ ...PASSED, generated: truncated, mcpCalls })
+  );
+  assert.equal(res.ok, false);
+  assert.match(res.error ?? "", /diagram-less/);
+  assert.equal(mcpCalls.filter((c) => c.name.endsWith("save_suite_arch")).length, 0);
+});
+
 test("prototype.arch: an inline ``` mention after the wrapper closer must not pollute the body", async () => {
   const mcpCalls: McpCall[] = [];
   const res = await prototypeArchRun(

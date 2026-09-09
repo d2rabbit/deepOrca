@@ -137,10 +137,11 @@ export function looksLikeSpecDocument(markdown: string): boolean {
  *                                         markdown document, else defer,
  *   bare markdown starting with "#"     → the whole trimmed content is the doc,
  *   anything else                       → the single-fence extraction result.
- * A stream cut off mid-fence always leaves its opener unclosed, so the last
- * line-anchored fence is an opener (```lang), not a bare closing ``` — that
- * shape is refused. Fence-count parity cannot do this: a wrap truncated
- * inside an inner fence is ALSO even (1 + 2k + 1).
+ * A truncated stream always fails ONE of two combined guards: fence-count
+ * parity (a cut mid-document leaves an unmatched opener — odd count; a wrap
+ * cut inside an inner fence is even, which is why parity alone cannot do
+ * this) and the bare-closer check (the LAST line-anchored fence must be a
+ * bare closing ``` — a cut mid-fence leaves an opener, not a closer).
  */
 function extractMarkdownDocument(result: unknown): string | null {
   const direct = extractGeneratedBody(result);
@@ -150,6 +151,8 @@ function extractMarkdownDocument(result: unknown): string | null {
   const trimmed = raw.trim();
   const fences = [...trimmed.matchAll(/^[ \t]*```.*$/gm)];
   if (fences.length === 0) return direct;
+  // Combined truncation guards — each catches the window the other misses.
+  if (fences.length % 2 !== 0) return null;
   if (!/^[ \t]*```[ \t]*$/.test(fences[fences.length - 1][0])) return null;
   const firstIndex = fences[0].index ?? 0;
   const lastIndex = fences[fences.length - 1].index ?? 0;
@@ -169,8 +172,8 @@ function extractMarkdownDocument(result: unknown): string | null {
     return direct;
   }
   // Bare markdown (no wrapper): the whole trimmed content is the document —
-  // its fences are inner ones and the bare-closer check above already
-  // guarantees none of them is an unclosed opener.
+  // its fences are inner ones, and the combined parity + bare-closer guards
+  // above have established that every opener is closed.
   return trimmed;
 }
 
