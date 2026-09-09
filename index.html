@@ -27,27 +27,22 @@
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-  <!-- ambient background -->
-  <div class="ambient" aria-hidden="true">
-    <span class="blob b1"></span>
-    <span class="blob b2"></span>
-    <span class="blob b3"></span>
-  </div>
 
   <!-- ============ Nav ============ -->
   <header class="nav" id="nav">
     <div class="nav-inner">
       <a class="brand" href="#top">
-        <img src="assets/orca-icon.svg" alt="DeepOrca logo" width="26" height="26">
+        <img src="assets/orca-icon.svg" alt="DeepOrca logo" width="24" height="24">
         <span class="brand-name">DeepOrca</span>
-        <span class="brand-tag">Studio</span>
+        <span class="brand-tag">STUDIO</span>
       </a>
       <nav class="nav-links" aria-label="页面导航">
-        <a href="#pillars">能力</a>
-        <a href="#modules">核心模块</a>
-        <a href="#extend">扩展生态</a>
-        <a href="#preview">界面预览</a>
-        <a href="#domnet">域网链</a>
+        <a href="#pillars"><span class="n">01</span>能力</a>
+        <a href="#modules"><span class="n">02</span>模块</a>
+        <a href="#extend"><span class="n">03</span>扩展</a>
+        <a href="#preview"><span class="n">04</span>预览</a>
+        <a href="#coordchain"><span class="n">05</span>协作链</a>
+        <a href="#oss"><span class="n">06</span>致谢</a>
       </nav>
       <div class="nav-actions">
         <button class="icon-btn" id="theme-toggle" aria-label="切换明暗主题">
@@ -64,106 +59,150 @@
   <main>
   <!-- ============ Hero ============ -->
   <section class="hero" id="top">
-    <div class="container">
-      <img class="hero-mark reveal" src="assets/orca-icon.svg" alt="" width="72" height="72">
-      <p class="hero-badge reveal"><span class="dot"></span>DeepOrca Studio · AI 驱动的创作工作台</p>
-      <h1 class="hero-title reveal">原型 · 设计 · 编码<br><span class="grad">一站式落地</span></h1>
-      <p class="hero-desc reveal">DeepOrca 是一个 AI 驱动的创作 Studio。<strong>原型设计</strong>、<strong>UI 设计稿</strong>、<strong>智能编码</strong>三大能力独立可用、按需组合 —— 从一句想法到可用成果，一站落地。</p>
-      <div class="hero-ctas reveal">
-        <span class="coming-pill" role="status" title="桌面客户端即将推出">
-          <span class="pulse" aria-hidden="true"></span>
-          下载 Studio · Coming&nbsp;Soon
-        </span>
-        <a class="btn btn-ghost" href="https://github.com/d2rabbit/deepOrca" target="_blank" rel="noopener">
-          GitHub
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-        </a>
+    <div class="container hero-grid">
+      <div class="hero-copy">
+        <p class="hero-eyebrow reveal"><span class="tick" aria-hidden="true"></span>AI-DRIVEN CREATION STUDIO // DEEPORCA</p>
+        <h1 class="hero-title reveal">
+          <span class="ht-line">原型<em>·</em>设计<em>·</em>编码</span>
+          <span class="ht-line ht-accent">一站式<mark>落地</mark></span>
+        </h1>
+        <p class="hero-desc reveal">DeepOrca 是一个 AI 驱动的创作 Studio。<strong>原型设计</strong>、<strong>UI 设计稿</strong>、<strong>智能编码</strong>三大能力独立可用、按需组合 —— 从一句想法到可用成果，一站落地。</p>
+        <div class="hero-ctas reveal">
+          <span class="coming-pill" role="status" title="桌面客户端即将推出">
+            <span class="pulse" aria-hidden="true"></span>
+            下载 Studio · COMING&nbsp;SOON
+          </span>
+          <a class="btn btn-ghost" href="https://github.com/d2rabbit/deepOrca" target="_blank" rel="noopener">
+            GITHUB
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+          </a>
+        </div>
       </div>
+      <aside class="spec-card reveal" aria-label="DeepOrca 规格速览">
+        <p class="spec-head"><span>SPEC // ORCA-01</span><span aria-hidden="true">▦</span></p>
+        <div class="spec-mark">
+          <img src="assets/orca-icon.svg" alt="" width="88" height="88">
+          <p class="spec-name">DEEPORCA<br><span>STUDIO BUILD 2026</span></p>
+        </div>
+        <dl class="spec-rows">
+          <div><dt>TYPE</dt><dd>CREATION STUDIO</dd></div>
+          <div><dt>ENGINE</dt><dd>AI AGENT × 3</dd></div>
+          <div><dt>RUNTIME</dt><dd>LOCAL-FIRST</dd></div>
+          <div><dt>PIPELINES</dt><dd>PROTOTYPE / DESIGN / CODE</dd></div>
+          <div><dt>LICENSE</dt><dd>MIT · OPEN SOURCE</dd></div>
+          <div><dt>STATUS</dt><dd class="spec-live"><span class="live-dot" aria-hidden="true"></span>IN BUILD</dd></div>
+        </dl>
+        <span class="cross c-tl" aria-hidden="true">+</span>
+        <span class="cross c-tr" aria-hidden="true">+</span>
+        <span class="cross c-bl" aria-hidden="true">+</span>
+        <span class="cross c-br" aria-hidden="true">+</span>
+      </aside>
     </div>
   </section>
 
-  <!-- ============ Pillars ============ -->
+  <!-- ============ Ticker ============ -->
+  <div class="ticker" aria-hidden="true">
+    <div class="ticker-track">
+      <span>原型 PROTOTYPE</span><span>·</span><span>设计 DESIGN</span><span>·</span><span>编码 CODE</span><span>·</span><span>扩展 EXTEND</span><span>·</span><span>协作链 COORD&nbsp;CHAIN</span><span>·</span><span>本地优先 LOCAL-FIRST</span><span>·</span><span>开源 OPEN SOURCE</span><span>·</span>
+      <span>原型 PROTOTYPE</span><span>·</span><span>设计 DESIGN</span><span>·</span><span>编码 CODE</span><span>·</span><span>扩展 EXTEND</span><span>·</span><span>协作链 COORD&nbsp;CHAIN</span><span>·</span><span>本地优先 LOCAL-FIRST</span><span>·</span><span>开源 OPEN SOURCE</span><span>·</span>
+    </div>
+  </div>
+
+  <!-- ============ 01 Pillars ============ -->
   <section id="pillars">
     <div class="container">
-      <p class="sec-tag reveal">核心能力</p>
-      <h2 class="sec-title reveal">独立可用 · 按需组合</h2>
-      <p class="sec-sub reveal">从一句话需求到可交互原型、可交付设计稿、可运行代码 —— 每条管线都由同一个智能体引擎驱动。</p>
-      <div class="card-grid three">
-        <article class="card reveal">
+      <header class="sec-head reveal">
+        <p class="sec-no">NO.01</p>
+        <div class="sec-titles">
+          <p class="sec-tag">核心能力 / CAPABILITIES</p>
+          <h2 class="sec-title">独立可用 · 按需组合</h2>
+          <p class="sec-sub">从一句话需求到可交互原型、可交付设计稿、可运行代码 —— 每条管线都由同一个智能体引擎驱动。</p>
+        </div>
+      </header>
+      <div class="pillar-grid">
+        <article class="pillar reveal">
+          <p class="pillar-no">P-01</p>
           <div class="card-ico">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="13" rx="2.5"/><path d="M3.5 9h17"/><path d="M7.5 13.5h5"/><path d="M7.5 16h9"/></svg>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="13" rx="0"/><path d="M3.5 9h17"/><path d="M7.5 13.5h5"/><path d="M7.5 16h9"/></svg>
           </div>
           <h3>原型设计</h3>
-          <p class="card-en">Prototyping</p>
+          <p class="card-en">PROTOTYPING</p>
           <p>用自然语言描述需求，生成可交互原型：表单、看板、多页面导航，双向交互验证用户流程。</p>
-          <p class="card-prompt">“帮我搭一个看板管理原型”</p>
+          <p class="card-prompt">&gt; “帮我搭一个看板管理原型”_</p>
         </article>
-        <article class="card reveal">
+        <article class="pillar reveal">
+          <p class="pillar-no">P-02</p>
           <div class="card-ico">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4l11-11a2.2 2.2 0 0 0-4-4L4 16v4z"/><path d="m13.5 6.5 4 4"/></svg>
           </div>
           <h3>UI 设计稿</h3>
-          <p class="card-en">Design</p>
+          <p class="card-en">DESIGN</p>
           <p>生成自包含设计稿，多种设计系统与 UI 风格随心切换，可脱离宿主独立交付。</p>
-          <p class="card-prompt">“出一个玻璃拟态的落地页设计稿”</p>
+          <p class="card-prompt">&gt; “出一个玻璃拟态的落地页设计稿”_</p>
         </article>
-        <article class="card reveal">
+        <article class="pillar reveal">
+          <p class="pillar-no">P-03</p>
           <div class="card-ico">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m8 7-5 5 5 5"/><path d="m16 7 5 5-5 5"/></svg>
           </div>
           <h3>智能编码</h3>
-          <p class="card-en">Coding</p>
+          <p class="card-en">CODING</p>
           <p>会话式编码：内置丰富工具、开放扩展生态，专业编辑器与版本管理深度集成。</p>
-          <p class="card-prompt">“把这个模块重构成依赖注入”</p>
+          <p class="card-prompt">&gt; “把这个模块重构成依赖注入”_</p>
         </article>
       </div>
     </div>
   </section>
 
-  <!-- ============ Modules ============ -->
+  <!-- ============ 02 Modules ============ -->
   <section id="modules">
     <div class="container">
-      <p class="sec-tag reveal">核心模块</p>
-      <h2 class="sec-title reveal">完整的创作工作台</h2>
-      <p class="sec-sub reveal">从会话、编辑到索引、审查、记忆，一应俱全。</p>
-      <div class="card-grid four">
-        <article class="card mini reveal">
-          <div class="card-ico sm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5v7a2.5 2.5 0 0 1-2.5 2.5H9l-5 4V6.5z"/></svg></div>
+      <header class="sec-head reveal">
+        <p class="sec-no">NO.02</p>
+        <div class="sec-titles">
+          <p class="sec-tag">核心模块 / MODULES</p>
+          <h2 class="sec-title">完整的创作工作台</h2>
+          <p class="sec-sub">从会话、编辑到索引、审查、记忆，一应俱全。</p>
+        </div>
+      </header>
+      <div class="spec-grid reveal">
+        <article class="spec-cell">
+          <p class="cell-no">M-01</p>
           <h4>AI 会话工作台</h4>
           <p>流式会话循环、工具调用与上下文压缩，跨会话持久化与恢复。</p>
         </article>
-        <article class="card mini reveal">
-          <div class="card-ico sm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h16"/><path d="M6.5 15.5 7 12l9.5-9.5a2.1 2.1 0 0 1 3 3L10 15l-3.5.5z"/></svg></div>
+        <article class="spec-cell">
+          <p class="cell-no">M-02</p>
           <h4>专业编辑器</h4>
           <p>流畅的编辑体验，内联差异对比，AI 变更一键接受或拒绝。</p>
         </article>
-        <article class="card mini reveal">
-          <div class="card-ico sm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="6" r="2.2"/><circle cx="6" cy="18" r="2.2"/><circle cx="18" cy="8" r="2.2"/><path d="M6 8.2v7.6"/><path d="M18 10.2c0 4.2-4.5 5-8.5 5.6"/></svg></div>
+        <article class="spec-cell">
+          <p class="cell-no">M-03</p>
           <h4>Git 源码管理</h4>
           <p>内置源码管理面板，变更审阅、提交、分支一目了然。</p>
         </article>
-        <article class="card mini reveal">
-          <div class="card-ico sm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 9 5-9 5-9-5 9-5z"/><path d="m3 13 9 5 9-5"/></svg></div>
+        <article class="spec-cell">
+          <p class="cell-no">M-04</p>
           <h4>项目索引与 Wiki</h4>
           <p>符号、文档、架构三个视角，一键读懂整个项目。</p>
         </article>
-        <article class="card mini reveal">
-          <div class="card-ico sm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 6c-2-1.5-4.5-2-8-2v14c3.5 0 6 .5 8 2 2-1.5 4.5-2 8-2V4c-3.5 0-6 .5-8 2z"/><path d="M12 6v14"/></svg></div>
+        <article class="spec-cell">
+          <p class="cell-no">M-05</p>
           <h4>仓库知识库</h4>
           <p>任意 GitHub 仓库都能变成可问答的知识库，本地检索，快速又私密。</p>
         </article>
-        <article class="card mini reveal">
-          <div class="card-ico sm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="6" rx="7" ry="2.8"/><path d="M5 6v12c0 1.5 3.1 2.8 7 2.8s7-1.3 7-2.8V6"/><path d="M5 12c0 1.5 3.1 2.8 7 2.8s7-1.3 7-2.8"/></svg></div>
+        <article class="spec-cell">
+          <p class="cell-no">M-06</p>
           <h4>本地智能层</h4>
           <p>本地向量嵌入与长期记忆，越用越懂你的项目，数据不出本机。</p>
         </article>
-        <article class="card mini reveal">
-          <div class="card-ico sm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17"/><path d="M12 3.5c-2.5 2.3-4 5.1-4 8.5s1.5 6.2 4 8.5c2.5-2.3 4-5.1 4-8.5s-1.5-6.2-4-8.5z"/></svg></div>
+        <article class="spec-cell">
+          <p class="cell-no">M-07</p>
           <h4>多语言界面</h4>
           <p>简/繁中文、English、日本語、한국어、香港繁体 —— 六种界面语言。</p>
         </article>
-        <article class="card mini reveal">
-          <div class="card-ico sm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5c0 4.4-3 8.4-7 10-4-1.6-7-5.6-7-10V6l7-3z"/><path d="m9.3 12 2 2 3.4-3.6"/></svg></div>
+        <article class="spec-cell">
+          <p class="cell-no">M-08</p>
           <h4>权限与安全</h4>
           <p>细粒度权限管控，敏感操作逐一确认，计划模式先规划后执行。</p>
         </article>
@@ -171,44 +210,49 @@
     </div>
   </section>
 
-  <!-- ============ Extend ============ -->
+  <!-- ============ 03 Extend ============ -->
   <section id="extend">
     <div class="container">
-      <p class="sec-tag reveal">扩展生态</p>
-      <h2 class="sec-title reveal">随时给虎鲸换上新装备</h2>
-      <p class="sec-sub reveal">技能、开放协议、自动化 —— 三层扩展体系，能力边界由你决定。</p>
+      <header class="sec-head reveal">
+        <p class="sec-no">NO.03</p>
+        <div class="sec-titles">
+          <p class="sec-tag">扩展生态 / EXTENSIONS</p>
+          <h2 class="sec-title">随时给虎鲸换上新装备</h2>
+          <p class="sec-sub">技能、开放协议、自动化 —— 三层扩展体系，能力边界由你决定。</p>
+        </div>
+      </header>
 
-      <div class="banner card reveal">
-        <div class="banner-body">
-          <h3>Actions：能力一次定义，多处调用</h3>
+      <div class="flow-banner reveal">
+        <div class="flow-copy">
+          <h3><span class="flow-mark" aria-hidden="true">§</span>Actions：能力一次定义，多处调用</h3>
           <p>一次定义的能力，在 AI 会话、桌面界面和自动化工作流中都能直接调用 —— 内置代码审查、知识索引、系统诊断，开箱即用。</p>
-          <div class="flow">
-            <span class="chip">一次定义</span>
-            <span class="flow-arrow" aria-hidden="true">→</span>
-            <span class="chip">AI 会话</span>
-            <span class="flow-arrow" aria-hidden="true">→</span>
-            <span class="chip">桌面界面</span>
-            <span class="flow-arrow" aria-hidden="true">→</span>
-            <span class="chip">自动化工作流</span>
-          </div>
+        </div>
+        <div class="flow" role="list">
+          <span class="chip" role="listitem">一次定义</span>
+          <span class="flow-arrow" aria-hidden="true">→</span>
+          <span class="chip" role="listitem">AI 会话</span>
+          <span class="flow-arrow" aria-hidden="true">→</span>
+          <span class="chip" role="listitem">桌面界面</span>
+          <span class="flow-arrow" aria-hidden="true">→</span>
+          <span class="chip" role="listitem">自动化工作流</span>
         </div>
       </div>
 
-      <div class="card-grid three">
-        <article class="card mini reveal">
-          <div class="card-ico sm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg></div>
+      <div class="pillar-grid three">
+        <article class="pillar slim reveal">
+          <p class="pillar-no">E-01</p>
           <h4>技能扩展</h4>
           <p>一项技能即是一种新能力，安装后 AI 会在合适的场景自动调用，越用越聪明。</p>
           <p class="card-note">百余项内置技能，持续生长</p>
         </article>
-        <article class="card mini reveal">
-          <div class="card-ico sm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 7V3"/><path d="M15 7V3"/><path d="M7 7h10v4a5 5 0 0 1-10 0V7z"/><path d="M12 16v5"/></svg></div>
+        <article class="pillar slim reveal">
+          <p class="pillar-no">E-02</p>
           <h4>开放协议互联</h4>
           <p>基于开放标准协议，接入任意兼容的工具、服务与数据源。</p>
           <p class="card-note">常用服务内置就绪</p>
         </article>
-        <article class="card mini reveal">
-          <div class="card-ico sm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3z"/><path d="M12 12 4 7.5"/><path d="M12 12l8-4.5"/><path d="M12 12v9"/></svg></div>
+        <article class="pillar slim reveal">
+          <p class="pillar-no">E-03</p>
           <h4>内置插件</h4>
           <p>代码索引、安全扫描、浏览器自动化等能力全部内置，开箱即用。</p>
           <p class="card-note">安装即用，无需配置环境</p>
@@ -217,96 +261,144 @@
     </div>
   </section>
 
-  <!-- ============ Preview placeholders ============ -->
+  <!-- ============ 04 Preview ============ -->
   <section id="preview">
     <div class="container">
-      <p class="sec-tag reveal">界面预览</p>
-      <h2 class="sec-title reveal">工作区 · 会话 · 实时预览</h2>
-      <p class="sec-sub reveal">截图即将呈现 —— 先看看窗框，画面随后就到。</p>
-      <div class="shots">
-        <figure class="shot-frame reveal">
-          <figcaption class="shot-bar">
-            <span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span>
-            <span class="shot-title">欢迎与工作台</span>
-          </figcaption>
-          <div class="shot-canvas">
-            <span class="shot-ghost">截图占位 · 即将呈现</span>
-          </div>
+      <header class="sec-head reveal">
+        <p class="sec-no">NO.04</p>
+        <div class="sec-titles">
+          <p class="sec-tag">界面预览 / SCREENS</p>
+          <h2 class="sec-title">工作区 · 会话 · 实时预览</h2>
+          <p class="sec-sub">实机截图 —— 看看这只虎鲸真实的工作的样子。</p>
+        </div>
+      </header>
+
+      <div class="shot-feature">
+        <figure class="shot reveal">
+          <span class="shot-tag">FIG.01</span>
+          <img src="assets/shot-welcome.png" alt="DeepOrca 欢迎页与工作台界面截图" loading="lazy">
+          <figcaption>欢迎页 · 快速开始</figcaption>
         </figure>
-        <figure class="shot-frame reveal">
-          <figcaption class="shot-bar">
-            <span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span>
-            <span class="shot-title">会话与编辑</span>
-          </figcaption>
-          <div class="shot-canvas">
-            <span class="shot-ghost">截图占位 · 即将呈现</span>
-          </div>
+        <figure class="shot reveal">
+          <span class="shot-tag">FIG.02</span>
+          <img src="assets/shot-chat.png" alt="AI 会话与权限授权界面截图" loading="lazy">
+          <figcaption>AI 会话 · 权限授权</figcaption>
         </figure>
-        <figure class="shot-frame reveal">
-          <figcaption class="shot-bar">
-            <span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span>
-            <span class="shot-title">原型实时预览</span>
-          </figcaption>
-          <div class="shot-canvas">
-            <span class="shot-ghost">截图占位 · 即将呈现</span>
-          </div>
+        <figure class="shot reveal">
+          <span class="shot-tag">FIG.03</span>
+          <img src="assets/shot-preview.png" alt="原型实时预览界面截图" loading="lazy">
+          <figcaption>实时预览 · 原型即所得</figcaption>
+        </figure>
+      </div>
+
+      <div class="shot-grid">
+        <figure class="shot sm reveal">
+          <span class="shot-tag">FIG.04</span>
+          <img src="assets/shot-plan.png" alt="计划模式界面截图" loading="lazy">
+          <figcaption>计划模式 · 先规划再实现</figcaption>
+        </figure>
+        <figure class="shot sm reveal">
+          <span class="shot-tag">FIG.05</span>
+          <img src="assets/shot-code.png" alt="编辑器与 Agent 变更界面截图" loading="lazy">
+          <figcaption>编辑器 · Agent 变更</figcaption>
+        </figure>
+        <figure class="shot sm reveal">
+          <span class="shot-tag">FIG.06</span>
+          <img src="assets/shot-diff.png" alt="差异对比与变更审阅界面截图" loading="lazy">
+          <figcaption>差异对比 · 变更审阅</figcaption>
+        </figure>
+        <figure class="shot sm reveal">
+          <span class="shot-tag">FIG.07</span>
+          <img src="assets/shot-review.png" alt="代码评审界面截图" loading="lazy">
+          <figcaption>代码评审 · 风险分级</figcaption>
+        </figure>
+        <figure class="shot sm reveal">
+          <span class="shot-tag">FIG.08</span>
+          <img src="assets/shot-question.png" alt="交互提问界面截图" loading="lazy">
+          <figcaption>交互提问 · 结构化输入</figcaption>
+        </figure>
+        <figure class="shot sm reveal">
+          <span class="shot-tag">FIG.09</span>
+          <img src="assets/shot-palette.png" alt="命令面板界面截图" loading="lazy">
+          <figcaption>命令面板</figcaption>
+        </figure>
+        <figure class="shot sm reveal">
+          <span class="shot-tag">FIG.10</span>
+          <img src="assets/shot-extensions.png" alt="扩展中心界面截图" loading="lazy">
+          <figcaption>扩展中心 · Skills / MCP</figcaption>
+        </figure>
+        <figure class="shot sm reveal">
+          <span class="shot-tag">FIG.11</span>
+          <img src="assets/shot-settings.png" alt="设置界面截图" loading="lazy">
+          <figcaption>设置 · 模型与主题</figcaption>
         </figure>
       </div>
     </div>
   </section>
 
-  <!-- ============ 域网链 ============ -->
-  <section id="domnet">
+  <!-- ============ 05 协作链 ============ -->
+  <section id="coordchain">
     <div class="container">
-      <div class="domnet-panel reveal">
-        <div class="domnet-net" aria-hidden="true">
-          <span class="node n1"></span><span class="node n2"></span><span class="node n3"></span>
-          <span class="link l1"></span><span class="link l2"></span><span class="link l3"></span>
+      <div class="coord-panel reveal">
+        <div class="coord-head">
+          <div class="coord-headings">
+            <p class="sec-no">NO.05</p>
+            <p class="sec-tag">即将到来 · COMING SOON</p>
+            <h2 class="coord-title">协作<span class="coord-sep">/</span>链</h2>
+            <p class="coord-sub">让智能体走出单机 —— <strong>无云、无账号</strong>，在同一局域网内组成一条去中心化的协作链：项目记录共享、任务跨设备接续，全程签名可审计。</p>
+          </div>
+          <span class="stamp" aria-hidden="true">COORD<br>CHAIN</span>
         </div>
-        <p class="sec-tag center">即将到来 · Coming Soon</p>
-        <h2 class="domnet-title"><span>域</span><span class="sep">·</span><span>网</span><span class="sep">·</span><span>链</span></h2>
-        <p class="domnet-sub">让智能体走出单机 —— <strong>无云、无账号</strong>，在同一局域网内组成一条去中心化的协作链：项目记录共享、任务跨设备接续，全程签名可审计。</p>
-        <div class="domnet-cards">
-          <article class="domnet-card">
+        <div class="coord-cards">
+          <article class="coord-card">
+            <p class="pillar-no">C-01</p>
             <h4>主题自动组链</h4>
             <p>同一局域网内，工作区主题相同的实例自动加入同一条链；主题不同则互相不可见。开共享即入链，无需账号服务器。</p>
           </article>
-          <article class="domnet-card">
+          <article class="coord-card">
+            <p class="pillar-no">C-02</p>
             <h4>项目记录共享</h4>
             <p>需求文档、设计稿、架构图、任务记录、会话轨迹 —— 共享的不是单篇文档，而是整份项目记忆。</p>
           </article>
-          <article class="domnet-card">
+          <article class="coord-card">
+            <p class="pillar-no">C-03</p>
             <h4>跨设备接续开发</h4>
             <p>同事基于链上任务记录一键接续，自动拉取关联资产并注入上下文 —— 形成跨设备的任务谱系。</p>
           </article>
-          <article class="domnet-card">
+          <article class="coord-card">
+            <p class="pillar-no">C-04</p>
             <h4>防篡改 · 可审计</h4>
             <p>每条记录设备签名、每区块多方联签；链浏览器本地全量审计。默认关闭，共享边界由你掌控。</p>
           </article>
         </div>
-        <figure class="domnet-frame reveal">
-          <figcaption class="shot-bar">
-            <span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span>
-            <span class="shot-title">域网链 · 工作链概念设计稿（交互式）</span>
+        <figure class="coord-frame reveal">
+          <figcaption class="frame-bar">
+            <span class="frame-title">协作链 · 概念设计稿 v6（交互式 · 即点即玩）</span>
+            <span class="frame-meta">assets/coord-chain-concept.html</span>
           </figcaption>
-          <div class="domnet-stage">
-            <iframe src="assets/coord-chain-concept.html" loading="lazy" title="域网链工作链概念设计稿 · 可交互预览"></iframe>
+          <div class="frame-stage">
+            <iframe src="assets/coord-chain-concept.html" loading="lazy" title="协作链概念设计稿 · 可交互预览"></iframe>
           </div>
         </figure>
-        <p class="domnet-note">上图为可交互的概念设计稿 —— 即点即玩；最终界面以实现为准。</p>
+        <p class="coord-note">上图为可交互的概念设计稿 —— 即点即玩；最终界面以实现为准。</p>
       </div>
     </div>
   </section>
 
-  <!-- ============ Open source credits ============ -->
+  <!-- ============ 06 Open source credits ============ -->
   <section id="oss">
     <div class="container">
-      <p class="sec-tag reveal">开源致谢 · Open Source</p>
-      <h2 class="sec-title reveal">站在巨人的肩膀上</h2>
-      <p class="sec-sub reveal">DeepOrca 由众多优秀的开源项目托举。以下名单与仓库内 <em>NOTICE</em> 保持同步 —— 感谢每一个慷慨分享的项目与作者。</p>
+      <header class="sec-head reveal">
+        <p class="sec-no">NO.06</p>
+        <div class="sec-titles">
+          <p class="sec-tag">开源致谢 / OPEN SOURCE</p>
+          <h2 class="sec-title">站在巨人的肩膀上</h2>
+          <p class="sec-sub">DeepOrca 由众多优秀的开源项目托举。以下名单与仓库内 <em>NOTICE</em> 保持同步 —— 感谢每一个慷慨分享的项目与作者。</p>
+        </div>
+      </header>
 
-      <h3 class="oss-group reveal">上游基石</h3>
-      <div class="oss-grid wide">
+      <h3 class="oss-group reveal"><span>上游基石 / UPSTREAM</span></h3>
+      <div class="oss-wide">
         <a class="oss-card reveal" href="https://github.com/lessweb/deepcode-cli" target="_blank" rel="noopener">
           <span class="oss-head"><span class="oss-name">Deep Code</span><span class="oss-lic">MIT</span></span>
           <span class="oss-desc">DeepOrca 的上游起点 —— 引擎核心部分的来源</span>
@@ -317,44 +409,44 @@
         </a>
       </div>
 
-      <h3 class="oss-group reveal">内置能力组件</h3>
-      <div class="oss-grid">
-        <a class="oss-chip reveal" href="https://github.com/colbymchenry/codegraph" target="_blank" rel="noopener"><span class="oss-name">CodeGraph</span><span class="oss-lic">MIT</span><span class="oss-role">代码知识图谱</span></a>
-        <a class="oss-chip reveal" href="https://github.com/langchain-ai/openwiki" target="_blank" rel="noopener"><span class="oss-name">OpenWiki</span><span class="oss-lic">MIT</span><span class="oss-role">项目 Wiki</span></a>
-        <a class="oss-chip reveal" href="https://github.com/oraios/serena" target="_blank" rel="noopener"><span class="oss-name">Serena</span><span class="oss-lic">MIT</span><span class="oss-role">语义级代码检索</span></a>
-        <a class="oss-chip reveal" href="https://github.com/tirth8205/code-review-graph" target="_blank" rel="noopener"><span class="oss-name">Code Review Graph</span><span class="oss-lic">MIT</span><span class="oss-role">代码评审图谱</span></a>
-        <a class="oss-chip reveal" href="https://github.com/tt-a1i/archify" target="_blank" rel="noopener"><span class="oss-name">Archify</span><span class="oss-lic">MIT</span><span class="oss-role">架构图渲染</span></a>
-        <a class="oss-chip reveal" href="https://github.com/NVIDIA/SkillSpector" target="_blank" rel="noopener"><span class="oss-name">SkillSpector</span><span class="oss-lic">Apache-2.0</span><span class="oss-role">技能检测</span></a>
-        <a class="oss-chip reveal" href="https://github.com/Tencent/BrowserSkill" target="_blank" rel="noopener"><span class="oss-name">BrowserSkill</span><span class="oss-lic">Apache-2.0</span><span class="oss-role">浏览器自动化</span></a>
-        <a class="oss-chip reveal" href="https://github.com/nyblnet/bento" target="_blank" rel="noopener"><span class="oss-name">Bento</span><span class="oss-lic">MIT</span><span class="oss-role">自包含 HTML 运行时</span></a>
-        <a class="oss-chip reveal" href="https://huggingface.co/ibm-granite/granite-embedding-97m-multilingual-r2" target="_blank" rel="noopener"><span class="oss-name">IBM Granite Embedding</span><span class="oss-lic">Apache-2.0</span><span class="oss-role">本地语义嵌入模型</span></a>
-        <a class="oss-chip reveal" href="https://dembrandt.com" target="_blank" rel="noopener"><span class="oss-name">dembrandt</span><span class="oss-lic">MIT</span><span class="oss-role">设计令牌提取</span></a>
+      <h3 class="oss-group reveal"><span>内置能力组件 / CAPABILITY</span></h3>
+      <div class="oss-table reveal">
+        <a class="oss-chip reveal" href="https://github.com/colbymchenry/codegraph" target="_blank" rel="noopener"><span class="oss-name">CodeGraph</span><span class="oss-role">代码知识图谱</span><span class="oss-lic">MIT</span></a>
+        <a class="oss-chip reveal" href="https://github.com/langchain-ai/openwiki" target="_blank" rel="noopener"><span class="oss-name">OpenWiki</span><span class="oss-role">项目 Wiki</span><span class="oss-lic">MIT</span></a>
+        <a class="oss-chip reveal" href="https://github.com/oraios/serena" target="_blank" rel="noopener"><span class="oss-name">Serena</span><span class="oss-role">语义级代码检索</span><span class="oss-lic">MIT</span></a>
+        <a class="oss-chip reveal" href="https://github.com/tirth8205/code-review-graph" target="_blank" rel="noopener"><span class="oss-name">Code Review Graph</span><span class="oss-role">代码评审图谱</span><span class="oss-lic">MIT</span></a>
+        <a class="oss-chip reveal" href="https://github.com/tt-a1i/archify" target="_blank" rel="noopener"><span class="oss-name">Archify</span><span class="oss-role">架构图渲染</span><span class="oss-lic">MIT</span></a>
+        <a class="oss-chip reveal" href="https://github.com/NVIDIA/SkillSpector" target="_blank" rel="noopener"><span class="oss-name">SkillSpector</span><span class="oss-role">技能检测</span><span class="oss-lic">Apache-2.0</span></a>
+        <a class="oss-chip reveal" href="https://github.com/Tencent/BrowserSkill" target="_blank" rel="noopener"><span class="oss-name">BrowserSkill</span><span class="oss-role">浏览器自动化</span><span class="oss-lic">Apache-2.0</span></a>
+        <a class="oss-chip reveal" href="https://github.com/nyblnet/bento" target="_blank" rel="noopener"><span class="oss-name">Bento</span><span class="oss-role">自包含 HTML 运行时</span><span class="oss-lic">MIT</span></a>
+        <a class="oss-chip reveal" href="https://huggingface.co/ibm-granite/granite-embedding-97m-multilingual-r2" target="_blank" rel="noopener"><span class="oss-name">IBM Granite Embedding</span><span class="oss-role">本地语义嵌入模型</span><span class="oss-lic">Apache-2.0</span></a>
+        <a class="oss-chip reveal" href="https://dembrandt.com" target="_blank" rel="noopener"><span class="oss-name">dembrandt</span><span class="oss-role">设计令牌提取</span><span class="oss-lic">MIT</span></a>
       </div>
 
-      <h3 class="oss-group reveal">界面与渲染</h3>
-      <div class="oss-grid">
-        <a class="oss-chip reveal" href="https://github.com/thesysdev/openui" target="_blank" rel="noopener"><span class="oss-name">OpenUI Lang</span><span class="oss-lic">Apache-2.0</span><span class="oss-role">生成式 UI 语言（原型渲染）</span></a>
-        <a class="oss-chip reveal" href="https://a2ui.org" target="_blank" rel="noopener"><span class="oss-name">A2UI</span><span class="oss-lic">Apache-2.0</span><span class="oss-role">Agent 驱动 UI 流式协议</span></a>
-        <a class="oss-chip reveal" href="https://github.com/xushanpei/open-file-viewer" target="_blank" rel="noopener"><span class="oss-name">Open File Viewer</span><span class="oss-lic">MIT</span><span class="oss-role">多格式文件预览</span></a>
-        <a class="oss-chip reveal" href="https://marp.app" target="_blank" rel="noopener"><span class="oss-name">Marp</span><span class="oss-lic">MIT</span><span class="oss-role">Markdown 幻灯片</span></a>
-        <a class="oss-chip reveal" href="https://www.npmjs.com/package/streamdown" target="_blank" rel="noopener"><span class="oss-name">Streamdown</span><span class="oss-lic">MIT</span><span class="oss-role">流式 Markdown 渲染</span></a>
-        <a class="oss-chip reveal" href="https://mermaid.js.org" target="_blank" rel="noopener"><span class="oss-name">Mermaid</span><span class="oss-lic">MIT</span><span class="oss-role">图表与示意图</span></a>
-        <a class="oss-chip reveal" href="https://codemirror.net" target="_blank" rel="noopener"><span class="oss-name">CodeMirror 6</span><span class="oss-lic">MIT</span><span class="oss-role">代码编辑器内核</span></a>
-        <a class="oss-chip reveal" href="https://highlightjs.org" target="_blank" rel="noopener"><span class="oss-name">highlight.js</span><span class="oss-lic">BSD-3-Clause</span><span class="oss-role">代码高亮</span></a>
-        <a class="oss-chip reveal" href="https://mozilla.github.io/pdf.js/" target="_blank" rel="noopener"><span class="oss-name">PDF.js</span><span class="oss-lic">Apache-2.0</span><span class="oss-role">PDF 预览</span></a>
-        <a class="oss-chip reveal" href="https://www.npmjs.com/package/@alibaba-group/open-code-review" target="_blank" rel="noopener"><span class="oss-name">Open Code Review</span><span class="oss-lic">Apache-2.0</span><span class="oss-role">代码审查（阿里巴巴）</span></a>
+      <h3 class="oss-group reveal"><span>界面与渲染 / UI &amp; RENDER</span></h3>
+      <div class="oss-table reveal">
+        <a class="oss-chip reveal" href="https://github.com/thesysdev/openui" target="_blank" rel="noopener"><span class="oss-name">OpenUI Lang</span><span class="oss-role">生成式 UI 语言（原型渲染）</span><span class="oss-lic">Apache-2.0</span></a>
+        <a class="oss-chip reveal" href="https://a2ui.org" target="_blank" rel="noopener"><span class="oss-name">A2UI</span><span class="oss-role">Agent 驱动 UI 流式协议</span><span class="oss-lic">Apache-2.0</span></a>
+        <a class="oss-chip reveal" href="https://github.com/xushanpei/open-file-viewer" target="_blank" rel="noopener"><span class="oss-name">Open File Viewer</span><span class="oss-role">多格式文件预览</span><span class="oss-lic">MIT</span></a>
+        <a class="oss-chip reveal" href="https://marp.app" target="_blank" rel="noopener"><span class="oss-name">Marp</span><span class="oss-role">Markdown 幻灯片</span><span class="oss-lic">MIT</span></a>
+        <a class="oss-chip reveal" href="https://www.npmjs.com/package/streamdown" target="_blank" rel="noopener"><span class="oss-name">Streamdown</span><span class="oss-role">流式 Markdown 渲染</span><span class="oss-lic">MIT</span></a>
+        <a class="oss-chip reveal" href="https://mermaid.js.org" target="_blank" rel="noopener"><span class="oss-name">Mermaid</span><span class="oss-role">图表与示意图</span><span class="oss-lic">MIT</span></a>
+        <a class="oss-chip reveal" href="https://codemirror.net" target="_blank" rel="noopener"><span class="oss-name">CodeMirror 6</span><span class="oss-role">代码编辑器内核</span><span class="oss-lic">MIT</span></a>
+        <a class="oss-chip reveal" href="https://highlightjs.org" target="_blank" rel="noopener"><span class="oss-name">highlight.js</span><span class="oss-role">代码高亮</span><span class="oss-lic">BSD-3-Clause</span></a>
+        <a class="oss-chip reveal" href="https://mozilla.github.io/pdf.js/" target="_blank" rel="noopener"><span class="oss-name">PDF.js</span><span class="oss-role">PDF 预览</span><span class="oss-lic">Apache-2.0</span></a>
+        <a class="oss-chip reveal" href="https://www.npmjs.com/package/@alibaba-group/open-code-review" target="_blank" rel="noopener"><span class="oss-name">Open Code Review</span><span class="oss-role">代码审查（阿里巴巴）</span><span class="oss-lic">Apache-2.0</span></a>
       </div>
 
-      <h3 class="oss-group reveal">本地智能引擎</h3>
-      <div class="oss-grid">
-        <a class="oss-chip reveal" href="https://www.npmjs.com/package/@tlibnx/tokenizer-deepseek_v4" target="_blank" rel="noopener"><span class="oss-name">DeepSeek V4 Tokenizer</span><span class="oss-lic">Apache-2.0</span><span class="oss-role">精确本地 Token 计数</span></a>
-        <a class="oss-chip reveal" href="https://www.npmjs.com/package/@tencentdb-agent-memory/tcvdb-text" target="_blank" rel="noopener"><span class="oss-name">tcvdb-text</span><span class="oss-lic">MIT</span><span class="oss-role">本地混合检索（BM25）</span></a>
-        <a class="oss-chip reveal" href="https://github.com/asg017/sqlite-vec" target="_blank" rel="noopener"><span class="oss-name">sqlite-vec</span><span class="oss-lic">MIT / Apache-2.0</span><span class="oss-role">本地向量检索</span></a>
-        <a class="oss-chip reveal" href="https://www.npmjs.com/package/@node-rs/jieba" target="_blank" rel="noopener"><span class="oss-name">jieba（node-rs）</span><span class="oss-lic">MIT</span><span class="oss-role">中文分词</span></a>
+      <h3 class="oss-group reveal"><span>本地智能引擎 / LOCAL INTELLIGENCE</span></h3>
+      <div class="oss-table reveal">
+        <a class="oss-chip reveal" href="https://www.npmjs.com/package/@tlibnx/tokenizer-deepseek_v4" target="_blank" rel="noopener"><span class="oss-name">DeepSeek V4 Tokenizer</span><span class="oss-role">精确本地 Token 计数</span><span class="oss-lic">Apache-2.0</span></a>
+        <a class="oss-chip reveal" href="https://www.npmjs.com/package/@tencentdb-agent-memory/tcvdb-text" target="_blank" rel="noopener"><span class="oss-name">tcvdb-text</span><span class="oss-role">本地混合检索（BM25）</span><span class="oss-lic">MIT</span></a>
+        <a class="oss-chip reveal" href="https://github.com/asg017/sqlite-vec" target="_blank" rel="noopener"><span class="oss-name">sqlite-vec</span><span class="oss-role">本地向量检索</span><span class="oss-lic">MIT / Apache-2.0</span></a>
+        <a class="oss-chip reveal" href="https://www.npmjs.com/package/@node-rs/jieba" target="_blank" rel="noopener"><span class="oss-name">jieba（node-rs）</span><span class="oss-role">中文分词</span><span class="oss-lic">MIT</span></a>
       </div>
 
-      <h3 class="oss-group reveal">方法论致谢 <span class="oss-note">只借鉴思路，未使用代码</span></h3>
-      <div class="oss-pills">
+      <h3 class="oss-group reveal"><span>方法论致谢 / METHODOLOGY</span><em class="oss-note">只借鉴思路，未使用代码</em></h3>
+      <div class="oss-pills reveal">
         <a class="oss-pill reveal" href="https://github.com/oh-my-mermaid/oh-my-mermaid" target="_blank" rel="noopener">oh-my-mermaid</a>
         <a class="oss-pill reveal" href="https://github.com/cathrynlavery/diagram-design" target="_blank" rel="noopener">diagram-design</a>
         <a class="oss-pill reveal" href="https://github.com/Cocoon-AI/architecture-diagram-generator" target="_blank" rel="noopener">architecture-diagram-generator</a>
@@ -370,18 +462,18 @@
 
   <!-- ============ Finale ============ -->
   <section class="finale">
-    <div class="container">
-      <img src="assets/orca-icon.svg" alt="" width="56" height="56" aria-hidden="true">
-      <h2>开启你的<span class="grad">创作之旅</span></h2>
-      <p>原型、设计、编码 —— 让 AI 虎鲸成为你的创作伙伴。</p>
-      <div class="hero-ctas center">
+    <div class="container finale-inner">
+      <p class="finale-eyebrow reveal">READY TO BUILD?</p>
+      <h2 class="finale-title reveal">开启你的<br><mark>创作之旅</mark></h2>
+      <p class="finale-desc reveal">原型、设计、编码 —— 让 AI 虎鲸成为你的创作伙伴。</p>
+      <div class="hero-ctas reveal">
         <span class="coming-pill" role="status" title="桌面客户端即将推出">
           <span class="pulse" aria-hidden="true"></span>
-          下载 Studio · Coming&nbsp;Soon
+          下载 Studio · COMING&nbsp;SOON
         </span>
         <a class="btn btn-ghost" href="https://github.com/d2rabbit/deepOrca" target="_blank" rel="noopener">
-          Star on GitHub
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+          STAR ON GITHUB
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
         </a>
       </div>
     </div>
@@ -392,7 +484,7 @@
   <footer class="footer">
     <div class="container footer-inner">
       <a class="brand" href="#top">
-        <img src="assets/orca-icon.svg" alt="" width="22" height="22">
+        <img src="assets/orca-icon.svg" alt="" width="20" height="20">
         <span class="brand-name">DeepOrca</span>
       </a>
       <nav class="footer-links" aria-label="页脚链接">
