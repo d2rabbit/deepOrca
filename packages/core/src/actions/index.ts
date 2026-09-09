@@ -173,6 +173,8 @@ export {
   prototypeArchDefinition,
   prototypeArchRun,
   looksLikeArchDoc,
+  openuiIssueCount,
+  formatOpenuiFeedback,
 } from "./prototype";
 export type {
   PrototypeSpecInput,
@@ -187,6 +189,7 @@ export type {
   ArtifactRef,
   PrototypeSuiteContent,
   UiSuiteContent,
+  OpenuiVerdict,
 } from "./prototype";
 export {
   taskCreateDefinition,

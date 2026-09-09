@@ -28,9 +28,11 @@ export interface TraceStep {
   argFull?: string;
   ok?: boolean;
   fail?: boolean;
-  /** Terminal-state marker (user ask 2026-09-08): a trace that has landed in
-   *  the task tree is never "in progress" — a tool call with no recorded
-   *  result when the log ends was interrupted/abandoned mid-flight. */
+  /** Terminal-state marker (user ask 2026-09-08): a landed trace is never
+   *  "in progress". A call is marked interrupted when its tool result never
+   *  arrived — swept either at a turn boundary (a newer user 指令 closed the
+   *  turn while the call was still open) or at log end (the terminal sweep,
+   *  which is skipped for a session still in flight — normalizeSessionTrace). */
   interrupted?: boolean;
   ms?: string;
   mcp?: string;

@@ -43,6 +43,12 @@ function getParser(): Parser {
   return cachedParser;
 }
 
+// The patch-instruction wording is OWNED by core's repair loop (it is literally
+// what gets fed to the subagent), so it lives there and is re-exported here —
+// the desktop test pins the same function object instead of a drifting copy.
+// (`openuiIssueCount` is core-side only; nothing on desktop consumes it.)
+export { formatOpenuiFeedback } from "@deeporca/core";
+
 /** Parse one complete program and flatten the parser's verdict. */
 export function validateOpenuiCode(code: string): OpenuiVerdict {
   const result: ParseResult = getParser().parse(code);
@@ -63,35 +69,4 @@ export function validateOpenuiCode(code: string): OpenuiVerdict {
     unresolved,
     orphaned,
   };
-}
-
-/** Issue count across every finding category — drives loop budgets. */
-export function openuiIssueCount(verdict: OpenuiVerdict): number {
-  return verdict.errors.length + verdict.unresolved.length + verdict.orphaned.length + (verdict.incomplete ? 1 : 0);
-}
-
-/** Human-readable patch instructions, one line per finding — the feedback
- *  half of the correction loop (lang-core documents its errors as "designed
- *  for an automated correction loop: send these to the LLM"). */
-export function formatOpenuiFeedback(verdict: OpenuiVerdict): string {
-  const lines: string[] = [];
-  for (const error of verdict.errors) {
-    const where = error.component ? `component '${error.component}'` : "program";
-    const at = error.path ? ` at ${error.path}` : "";
-    lines.push(`- ${error.code}${at} (${where}): ${error.message || "invalid usage"}`);
-  }
-  for (const name of verdict.unresolved) {
-    lines.push(
-      `- unresolved-reference: '${name}' is used but never defined — define it before root, or remove the usage.`
-    );
-  }
-  for (const name of verdict.orphaned) {
-    lines.push(
-      `- unattached-definition: '${name}' is defined but never reachable from root — mount it in the rendered tree, or remove it.`
-    );
-  }
-  if (verdict.incomplete) {
-    lines.push("- incomplete: the program looks truncated — return the COMPLETE program, every statement closed.");
-  }
-  return lines.join("\n");
 }

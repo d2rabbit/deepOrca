@@ -940,7 +940,8 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
     {
       description:
         "Persist a structured requirements document (需求文档) as a spec artifact. " +
-        "Called by the spec-writer skill (prototype module step 1); prototype.materialize " +
+        "Called by the prototype.spec action, which validates the spec-writer output and " +
+        "persists it here (prototype module step 1); prototype.materialize " +
         "(step 2) designs the prototype against this document.",
       inputSchema: {
         document: z

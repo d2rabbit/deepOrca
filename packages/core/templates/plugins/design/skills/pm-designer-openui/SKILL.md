@@ -34,6 +34,12 @@ your prototype in the right-side panel.
    previous code and modify only the parts that need changing — but always
    send the whole program, never just the changed statements.
 
+**Pipeline mode**: when this skill runs inside a prototype action
+(materialize / revise / their repair rounds), the caller prompt overrides
+steps 3–5 — it asks for the complete program as TEXT in one code fence and
+forbids tool calls. Follow the prompt in that case; the action itself
+persists the program.
+
 ## OpenUI Lang syntax
 
 Each line is an assignment: `identifier = ComponentName(arg1, arg2, ...)`

@@ -447,9 +447,10 @@ export type TaskTraceStep = {
   argFull?: string;
   ok?: boolean;
   fail?: boolean;
-  /** Terminal marker: no tool result was recorded before the log ended — a
-   *  landed trace marks this call interrupted, unless the producing session
-   *  was still in flight (opts.inFlight skips the terminal sweep). */
+  /** Terminal marker: the call's tool result never arrived. Swept either at a
+   *  turn boundary, or at log end — the log-end sweep is skipped while the
+   *  producing session was still in flight (opts.inFlight), the boundary
+   *  sweep is not (a closed turn can never receive results anymore). */
   interrupted?: boolean;
   ms?: string;
   mcp?: string;

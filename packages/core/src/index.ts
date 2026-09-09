@@ -447,6 +447,8 @@ export {
   OPENUI_CREATE_CONTRACT,
   OPENUI_PRESERVE_CONTRACT,
   looksLikeArchDoc,
+  openuiIssueCount,
+  formatOpenuiFeedback,
   configureArchifyPaths,
   getArchifyPaths,
   configureArchRenderer,
@@ -496,6 +498,7 @@ export type {
   CrgRiskNode,
   CrgRiskEdge,
   CrgCommunity,
+  OpenuiVerdict,
 } from "./actions";
 
 export type {

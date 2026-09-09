@@ -249,9 +249,10 @@ export async function readSuiteVersion(
 }
 
 /** Structured verdict from the desktop-side local validator (mcp validate_openui).
- *  Shape mirrors a2ui/openui-validate.ts — structural here so core stays
- *  dependency-free (the tool is desktop-owned). */
-interface OpenuiVerdict {
+ *  THE single source for this shape: the repair loop consumes it here, and the
+ *  desktop validator's stricter (all-required) verdict is assignable to it.
+ *  Fields are optional because core parses the MCP JSON as untrusted input. */
+export interface OpenuiVerdict {
   valid: boolean;
   incomplete?: boolean;
   statementCount?: number;
@@ -275,7 +276,8 @@ async function readOpenuiVerdict(ctx: ActionContext, code: string): Promise<Open
   }
 }
 
-function openuiIssueCount(verdict: OpenuiVerdict): number {
+/** Issue count across every finding category — drives the repair budget. */
+export function openuiIssueCount(verdict: OpenuiVerdict): number {
   return (
     (verdict.errors?.length ?? 0) +
     (verdict.unresolved?.length ?? 0) +
@@ -285,8 +287,10 @@ function openuiIssueCount(verdict: OpenuiVerdict): number {
 }
 
 /** Structured findings → one patch instruction per line (lang-core documents
- *  its error taxonomy as "designed for an automated correction loop"). */
-function formatOpenuiFeedback(verdict: OpenuiVerdict): string {
+ *  its error taxonomy as "designed for an automated correction loop").
+ *  Exported so the desktop validator surfaces the EXACT wording the repair
+ *  loop feeds the model — no second copy to drift. */
+export function formatOpenuiFeedback(verdict: OpenuiVerdict): string {
   const lines: string[] = [];
   for (const e of verdict.errors ?? []) {
     const where = e.component ? `component '${e.component}'` : "program";
