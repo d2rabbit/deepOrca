@@ -19,6 +19,9 @@ type Props<T extends string> = {
   versionCap?: string;
   /** Scope hint under the tabs (mockup: 版本 / 基底 / 主题 联动摘要). */
   hint?: string;
+  /** specs/prd-theme-layer：版本历史上方的轻量需求主题条（只读，由调用方
+   *  决定渲染什么；不传则不渲染——旧布局零回归）。 */
+  railHeader?: ReactNode;
   loading?: boolean;
   empty?: boolean;
   error?: string | null;
@@ -61,6 +64,7 @@ export function DesignWorkspaceFrame<T extends string>({
   versionDetail,
   versionCap,
   hint,
+  railHeader,
   loading = false,
   empty = false,
   error,
@@ -110,6 +114,7 @@ export function DesignWorkspaceFrame<T extends string>({
 
       <div className="ui-design-workspace-body">
         <aside className="ui-design-version-rail" aria-label={t("designWorkspace.versionHistory")}>
+          {railHeader}
           <div className="ui-design-version-cap">{versionCap ?? t("designWorkspace.versionHistory")}</div>
           {versions.length === 0 ? (
             <div className="ui-design-version-empty">{t("designWorkspace.noVersions")}</div>

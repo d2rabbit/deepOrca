@@ -9,8 +9,9 @@ import { DesignWorkspaceFrame, versionLabel } from "./DesignWorkspaceFrame";
 import { FloatingDesignAgent } from "./FloatingDesignAgent";
 import { isTerminalProgress, progressLabel } from "./progress-label";
 import { SelectionPopover, type WorkspaceSelection } from "./SelectionPopover";
+import { ThemeStrip } from "./ThemeStrip";
 import { diffLines, summarizeDiff } from "./diff";
-import type { DesignSuite, DesignSuiteVersion, PrototypeSuiteContent } from "./types";
+import type { DesignSuite, DesignSuiteSummary, DesignSuiteVersion, DesignTheme, PrototypeSuiteContent } from "./types";
 import { isPrototypeContent } from "./types";
 import { StreamdownView } from "../StreamdownView";
 import { SpecDocumentView } from "./SpecDocumentView";
@@ -98,6 +99,13 @@ export function PrototypeWorkspace({
   const [slidesBusy, setSlidesBusy] = useState(false);
   const [slidesPage, setSlidesPage] = useState(1);
   const slidesFrameRef = useRef<HTMLIFrameElement | null>(null);
+  // specs/prd-theme-layer：需求主题（railHeader 主题条 + 生成器设计上下文）。
+  const [themes, setThemes] = useState<DesignTheme[]>([]);
+  const [summaries, setSummaries] = useState<DesignSuiteSummary[]>([]);
+  const [specThemeId, setSpecThemeId] = useState("");
+  const [specStage, setSpecStage] = useState("");
+  const [specInherits, setSpecInherits] = useState("");
+  const [specRefs, setSpecRefs] = useState<string[]>([]);
 
   const loadSeq = useRef(0);
   /** Suite currently viewed — re-targets clear the per-suite surfaces (M5). */
@@ -118,6 +126,7 @@ export function PrototypeWorkspace({
       try {
         const summaries = await suiteApi.designSuiteList(root, "prototype");
         if (seq !== loadSeq.current) return;
+        setSummaries(summaries);
         const targetId = suiteId && summaries.some((item) => item.id === suiteId) ? suiteId : summaries[0]?.id;
         if (!targetId) {
           setSuite(null);
@@ -165,12 +174,41 @@ export function PrototypeWorkspace({
     void load();
   }, [load]);
 
+  // 需求主题列表（specs/prd-theme-layer）：加载失败不阻塞工作区（条/选择器
+  // 降级为空）；change:"theme" 事件驱动增量刷新。
+  useEffect(() => {
+    let disposed = false;
+    suiteApi
+      .designThemeList(root)
+      .then((list) => {
+        if (!disposed) setThemes(list);
+      })
+      .catch(() => {
+        // 主题加载失败降级为空列表。
+      });
+    return () => {
+      disposed = true;
+    };
+  }, [root]);
+
   useEffect(() => {
     // 订阅路径永远是后台刷新:不闪屏、不丢挂载态。
     return subscribeToSuiteChanges((event) => {
-      if (event.root === root && (!suiteId || event.suiteId === suiteId)) void load({ background: true });
+      if (event.root !== root) return;
+      if (event.change === "theme") {
+        void suiteApi
+          .designThemeList(root)
+          .then((list) => setThemes(list))
+          .catch(() => {
+            // 下一次事件重试。
+          });
+      }
+      if (!suiteId || event.suiteId === suiteId) void load({ background: true });
     });
   }, [load, root, suiteId]);
+
+  /** 关系 chips 的目标套件标题映射（缺失降级显示 suiteId）。 */
+  const suiteTitles = useMemo(() => Object.fromEntries(summaries.map((item) => [item.id, item.title])), [summaries]);
 
   const selectVersion = useCallback(
     async (versionId: string) => {
@@ -530,7 +568,15 @@ export function PrototypeWorkspace({
   const runSpec = () => {
     const text = requirement.trim();
     if (!text) return;
-    void runAction("prototype.spec", { requirement: text, ...(suite ? { suiteId: suite.id } : {}) });
+    void runAction("prototype.spec", {
+      requirement: text,
+      ...(suite ? { suiteId: suite.id } : {}),
+      // 设计上下文（specs/prd-theme-layer）：主题/阶段/继承/交叉参考。
+      ...(specThemeId ? { themeId: specThemeId } : {}),
+      ...(specStage.trim() ? { stage: specStage.trim() } : {}),
+      ...(specInherits ? { inheritsFrom: { suiteId: specInherits } } : {}),
+      ...(specRefs.length > 0 ? { references: specRefs.map((id) => ({ suiteId: id })) } : {}),
+    });
   };
 
   const materialize = () => {
@@ -681,6 +727,7 @@ export function PrototypeWorkspace({
       latestVersionId={suite?.currentVersionId}
       onVersionChange={(versionId) => void selectVersion(versionId)}
       versionCap={t("prototypeWorkspace.versionCapProto")}
+      railHeader={<ThemeStrip suite={suite} themes={themes} suiteTitles={suiteTitles} />}
       hint={
         selectedVersion
           ? t("prototypeWorkspace.scopeHint", {
@@ -771,6 +818,78 @@ export function PrototypeWorkspace({
                 placeholder={t("prototypeWorkspace.requirementPrompt")}
                 onChange={(event) => setRequirement(event.target.value)}
               />
+              {/* 设计上下文（specs/prd-theme-layer）：主题/阶段/继承/交叉参考
+                  ——随 prototype.spec 落套件 meta 并注入生成提示词。 */}
+              <details className="ui-design-theme-context">
+                <summary>{t("designTheme.contextTitle")}</summary>
+                <div className="ui-design-theme-context-grid">
+                  <label>
+                    <span>{t("designTheme.themeLabel")}</span>
+                    <select
+                      value={specThemeId}
+                      disabled={busy !== null || readOnly}
+                      onChange={(event) => setSpecThemeId(event.target.value)}
+                    >
+                      <option value="">{t("designTheme.themeNone")}</option>
+                      {themes.map((theme) => (
+                        <option key={theme.id} value={theme.id}>
+                          {theme.title}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    <span>{t("designTheme.stageLabel")}</span>
+                    <input
+                      value={specStage}
+                      disabled={busy !== null || readOnly}
+                      placeholder={t("designTheme.stagePlaceholder")}
+                      onChange={(event) => setSpecStage(event.target.value)}
+                    />
+                  </label>
+                  <label>
+                    <span>{t("designTheme.inheritsFrom")}</span>
+                    <select
+                      value={specInherits}
+                      disabled={busy !== null || readOnly}
+                      onChange={(event) => setSpecInherits(event.target.value)}
+                    >
+                      <option value="">{t("designTheme.relationNone")}</option>
+                      {summaries
+                        .filter((item) => item.id !== suite?.id)
+                        .map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {item.title}
+                          </option>
+                        ))}
+                    </select>
+                  </label>
+                </div>
+                <div className="ui-design-theme-refs">
+                  <span>{t("designTheme.references")}</span>
+                  <div className="ui-design-theme-ref-list">
+                    {summaries
+                      .filter((item) => item.id !== suite?.id && item.id !== specInherits)
+                      .map((item) => (
+                        <label key={item.id} className={specRefs.includes(item.id) ? "on" : ""}>
+                          <input
+                            type="checkbox"
+                            checked={specRefs.includes(item.id)}
+                            disabled={busy !== null || readOnly}
+                            onChange={() =>
+                              setSpecRefs((current) =>
+                                current.includes(item.id)
+                                  ? current.filter((id) => id !== item.id)
+                                  : [...current, item.id]
+                              )
+                            }
+                          />
+                          {item.title}
+                        </label>
+                      ))}
+                  </div>
+                </div>
+              </details>
               <footer>
                 <span className="hint">{t("prototypeWorkspace.specHint")}</span>
                 <button type="button" disabled={!requirement.trim() || busy !== null || readOnly} onClick={runSpec}>

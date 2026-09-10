@@ -8,11 +8,19 @@ import { subscribeToSuiteChanges, suiteApi } from "./api";
 import { DesignWorkspaceFrame, versionLabel } from "./DesignWorkspaceFrame";
 import { FloatingDesignAgent } from "./FloatingDesignAgent";
 import { LeaferPreview } from "./LeaferPreview";
+import { ThemeStrip } from "./ThemeStrip";
 import { paletteFor } from "./palettes";
 import { isTerminalProgress, progressLabel } from "./progress-label";
 import { SelectionPopover, type WorkspaceSelection } from "./SelectionPopover";
 import { diffLines, summarizeDiff } from "./diff";
-import type { DesignSuite, DesignSuiteVersion, DesignSystemCatalogItem, UiSuiteContent } from "./types";
+import type {
+  DesignSuite,
+  DesignSuiteSummary,
+  DesignSuiteVersion,
+  DesignSystemCatalogItem,
+  DesignTheme,
+  UiSuiteContent,
+} from "./types";
 import { isPrototypeContent, isUiContent } from "./types";
 
 type DesignTab = "pages" | "tokens" | "quality";
@@ -98,6 +106,9 @@ export function DesignWorkspace({
   // per Locate click; LeaferPreview selects/flashes the addressed scene node
   // (the canvas has no DOM [data-sem] surface to query).
   const [locateSignal, setLocateSignal] = useState<{ path: string; seq: number } | null>(null);
+  // specs/prd-theme-layer：需求主题（railHeader 主题条）+ 关系目标标题映射。
+  const [themes, setThemes] = useState<DesignTheme[]>([]);
+  const [summaries, setSummaries] = useState<DesignSuiteSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [drift, setDrift] = useState<{ detected: boolean; score: number | null } | null>(null);
   const [diff, setDiff] = useState<{ added: number; removed: number; lines: string[] } | null>(null);
@@ -144,6 +155,8 @@ export function DesignWorkspace({
           suiteApi.designSystemCatalog(),
         ]);
         if (seq !== loadSeq.current) return;
+        // specs/prd-theme-layer：关系 chips 的目标套件标题映射（两 kind 全量）。
+        setSummaries([...uiSummaries, ...prototypeSummaries]);
         const prototypeSuites = await Promise.all(
           prototypeSummaries.map((summary) => suiteApi.designSuiteRead(root, summary.id))
         );
@@ -217,11 +230,39 @@ export function DesignWorkspace({
     void load();
   }, [load]);
 
+  // 需求主题列表（specs/prd-theme-layer）：加载失败降级为空；theme 事件增量刷新。
+  useEffect(() => {
+    let disposed = false;
+    suiteApi
+      .designThemeList(root)
+      .then((list) => {
+        if (!disposed) setThemes(list);
+      })
+      .catch(() => {
+        // 主题加载失败降级为空列表。
+      });
+    return () => {
+      disposed = true;
+    };
+  }, [root]);
+
   useEffect(() => {
     return subscribeToSuiteChanges((event) => {
-      if (event.root === root) void load({ background: true });
+      if (event.root !== root) return;
+      if (event.change === "theme") {
+        void suiteApi
+          .designThemeList(root)
+          .then((list) => setThemes(list))
+          .catch(() => {
+            // 下一次事件重试。
+          });
+      }
+      void load({ background: true });
     });
   }, [load, root]);
+
+  /** 主题条/关系 chips 的目标套件标题映射（缺失降级显示 suiteId）。 */
+  const suiteTitles = useMemo(() => Object.fromEntries(summaries.map((item) => [item.id, item.title])), [summaries]);
 
   const selectVersion = useCallback(
     async (versionId: string) => {
@@ -569,6 +610,7 @@ export function DesignWorkspace({
       latestVersionId={suite?.currentVersionId}
       onVersionChange={(versionId) => void selectVersion(versionId)}
       versionCap={t("designWorkspace.versionCapDesign")}
+      railHeader={<ThemeStrip suite={suite} themes={themes} suiteTitles={suiteTitles} />}
       hint={
         selectedVersion
           ? t("designWorkspace.scopeHint", {

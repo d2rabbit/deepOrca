@@ -705,3 +705,93 @@ test("hash deep link opens the most-recent workspace root with the tab segment a
     window.history.replaceState(null, "", window.location.pathname + window.location.search);
   }
 });
+
+// ── PRD 主题层（specs/prd-theme-layer）───────────────────────────────────────
+
+test("directory groups suites by requirement theme and shows relations", async () => {
+  const prototypeSuite = suite("prototype", [version("proto-v1", { spec: "# Scope", openui: "root = Text('v1')" })]);
+  const uiSuite = suite("ui", [version("ui-v1", { openui: 'root = Screen("UI v1")', designSystemId: "dark-tech" })]);
+  const theme = {
+    id: "theme-login",
+    title: "登录",
+    createdAt: "2026-09-10T00:00:00.000Z",
+    updatedAt: "2026-09-10T00:00:00.000Z",
+  };
+  const themedSummary = {
+    ...summary(uiSuite),
+    themeId: theme.id,
+    stage: "阶段1",
+    inherits: { suiteId: prototypeSuite.id },
+  };
+  overrides.listWorkspaceSessions = async () => ({ workspaces: [{ root: "/work/current", label: "current" }] });
+  overrides.designSuiteList = async (_root: string, kind?: string) =>
+    kind === "ui" ? [themedSummary] : [summary(prototypeSuite)];
+  overrides.designSuiteRead = async (_root: string, id: string) => (id === uiSuite.id ? uiSuite : prototypeSuite);
+  overrides.designThemeList = async () => [theme];
+  const out = renderWithI18n(
+    ReactPkg.createElement(DesignPanel, { activeRoot: "/work/current", onOpenWorkspace: () => {} })
+  );
+  await settle();
+  // 主题分组出现：主题标题 + 阶段徽标 + 继承关系 chip（目标套件标题解析）。
+  const grouped = out.container.querySelector(".ui-design-directory-theme");
+  assert.ok(grouped, "theme group section must render when themes exist");
+  assert.ok((out.container.textContent ?? "").includes("登录"), "theme title rendered");
+  assert.ok((out.container.textContent ?? "").includes("阶段1"), "stage badge rendered");
+  const inheritsChip = out.container.querySelector(".ui-design-directory-relations .ui-design-theme-relation.inherits");
+  assert.ok(inheritsChip, "inherits chip rendered on the themed card");
+  assert.ok(
+    (inheritsChip?.textContent ?? "").includes("Orders prototype"),
+    "inherits chip resolves the target suite title"
+  );
+  // 未分组区仍在（当前无未分组套件 → 空文案）。
+  assert.ok(out.container.querySelector(".ui-design-directory-theme.ungrouped"));
+  delete overrides.listWorkspaceSessions;
+  delete overrides.designSuiteList;
+  delete overrides.designSuiteRead;
+  delete overrides.designThemeList;
+});
+
+test("directory keeps the flat list when the workspace has no themes (zero regression)", async () => {
+  const uiSuite = suite("ui", [version("ui-v1", { openui: 'root = Screen("UI v1")' })]);
+  overrides.listWorkspaceSessions = async () => ({ workspaces: [{ root: "/work/current", label: "current" }] });
+  overrides.designSuiteList = async () => [summary(uiSuite)];
+  overrides.designSuiteRead = async () => uiSuite;
+  const out = renderWithI18n(
+    ReactPkg.createElement(DesignPanel, { activeRoot: "/work/current", onOpenWorkspace: () => {} })
+  );
+  await settle();
+  assert.equal(out.container.querySelector(".ui-design-directory-theme"), null, "no theme groups without themes");
+  assert.ok(out.container.querySelector(".ui-design-directory-items .ui-design-directory-suite"), "flat list intact");
+  assert.ok(out.container.querySelector(".ui-design-directory-theme-new"), "new-theme entry point available");
+  delete overrides.listWorkspaceSessions;
+  delete overrides.designSuiteList;
+  delete overrides.designSuiteRead;
+});
+
+test("ThemeStrip hides without theme meta and renders theme/stage/relation chips with one", async () => {
+  const { ThemeStrip } = await import("../renderer/components/design-workspace/ThemeStrip");
+  const themes = [
+    { id: "t1", title: "登录", createdAt: "2026-09-10T00:00:00.000Z", updatedAt: "2026-09-10T00:00:00.000Z" },
+  ];
+  const plain = suite("ui", [version("ui-v1", { openui: "root = Screen()" })]) as DesignSuite;
+  const themed = {
+    ...plain,
+    themeId: "t1",
+    stage: "阶段1",
+    inherits: { suiteId: "proto-suite" },
+    references: [{ suiteId: "proto-suite", versionId: "v9" }],
+  } as DesignSuite;
+  const hidden = renderWithI18n(
+    ReactPkg.createElement(ThemeStrip, { suite: plain, themes, suiteTitles: { "proto-suite": "人员管理" } } as never)
+  );
+  assert.equal(hidden.container.querySelector(".ui-design-theme-strip"), null, "un-themed suite hides the strip");
+
+  const shown = renderWithI18n(
+    ReactPkg.createElement(ThemeStrip, { suite: themed, themes, suiteTitles: { "proto-suite": "人员管理" } } as never)
+  );
+  const strip = shown.container.querySelector(".ui-design-theme-strip");
+  assert.ok(strip, "themed suite renders the strip");
+  assert.ok((strip?.textContent ?? "").includes("登录"), "theme chip shows the theme title");
+  assert.ok((strip?.textContent ?? "").includes("阶段1"), "stage chip rendered");
+  assert.ok((strip?.textContent ?? "").includes("人员管理"), "relation chips resolve titles");
+});

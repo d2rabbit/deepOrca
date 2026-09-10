@@ -2073,3 +2073,279 @@
     animation: none;
   }
 }
+
+/* ── PRD 主题层（specs/prd-theme-layer）────────────────────────────────────── */
+
+/* 工作台版本历史上方的轻量需求主题条（只读）。 */
+.ui-design-theme-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--ui-border-soft);
+  font-size: 11px;
+}
+
+.ui-design-theme-chip {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--ui-accent-soft, rgba(99, 102, 241, 0.16));
+  color: var(--ui-accent, #6366f1);
+  font-weight: 600;
+}
+
+.ui-design-theme-stage {
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--ui-border-soft);
+  color: var(--ui-text-muted);
+}
+
+.ui-design-theme-relation {
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px dashed var(--ui-border-soft);
+  color: var(--ui-text-muted);
+}
+
+.ui-design-theme-relation.inherits {
+  border-color: var(--ui-accent, #6366f1);
+  color: var(--ui-accent, #6366f1);
+}
+
+.ui-design-theme-relation.cross {
+  border-style: dotted;
+}
+
+/* 目录的主题分组（specs/prd-theme-layer WP4）。 */
+.ui-design-directory-themes {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 6px 9px;
+}
+
+.ui-design-directory-theme {
+  border: 1px solid var(--ui-border-soft);
+  border-radius: 8px;
+  padding: 6px 8px;
+}
+
+.ui-design-directory-theme.ungrouped {
+  border-style: dashed;
+  opacity: 0.85;
+}
+
+.ui-design-directory-theme-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 22px;
+  font-size: 12px;
+}
+
+.ui-design-directory-theme-head small {
+  color: var(--ui-text-faint);
+}
+
+.ui-design-directory-theme-head button {
+  flex: none;
+  padding: 0 4px;
+  border: none;
+  background: none;
+  color: var(--ui-text-faint);
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.ui-design-directory-theme-head button:hover {
+  color: var(--ui-text);
+}
+
+.ui-design-directory-theme-head button.danger {
+  color: var(--ui-danger, #e5484d);
+}
+
+.ui-design-directory-dot.theme {
+  background: var(--ui-accent, #6366f1);
+}
+
+.ui-design-directory-theme-rename {
+  display: flex;
+  gap: 4px;
+  flex: 1;
+}
+
+.ui-design-directory-theme-rename input {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+}
+
+.ui-design-directory-theme-new {
+  width: calc(100% - 18px);
+  margin: 4px 9px 8px;
+  padding: 5px 0;
+  border: 1px dashed var(--ui-border-soft);
+  border-radius: 8px;
+  background: none;
+  color: var(--ui-text-faint);
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.ui-design-directory-theme-new:hover {
+  color: var(--ui-text);
+  border-color: var(--ui-text-faint);
+}
+
+.ui-design-directory-theme-create {
+  display: flex;
+  gap: 4px;
+  margin: 4px 9px 8px;
+}
+
+.ui-design-directory-theme-create input {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+}
+
+/* 套件卡上的继承/交叉关系 chips + 指派菜单。 */
+.ui-design-directory-relations {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 2px 0 2px 8px;
+}
+
+.ui-design-directory-relations .ui-design-theme-relation {
+  font-size: 10px;
+  padding: 1px 6px;
+}
+
+.ui-design-directory-assign {
+  flex: none;
+  padding: 0 4px;
+  border: none;
+  background: none;
+  color: var(--ui-text-faint);
+  cursor: pointer;
+}
+
+.ui-design-directory-assign:hover {
+  color: var(--ui-text);
+}
+
+.ui-design-directory-assign-form {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 4px 0;
+  padding: 6px 8px;
+  border: 1px dashed var(--ui-border-soft);
+  border-radius: 8px;
+  font-size: 11px;
+}
+
+.ui-design-directory-assign-form label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ui-design-directory-assign-form label span {
+  flex: none;
+  width: 64px;
+  color: var(--ui-text-faint);
+}
+
+.ui-design-directory-assign-form label select,
+.ui-design-directory-assign-form label input {
+  flex: 1;
+  min-width: 0;
+}
+
+.ui-design-directory-assign-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+/* 生成器"设计上下文"折叠区（主题/阶段/继承/交叉参考）。 */
+.ui-design-theme-context {
+  margin: 8px 0 0;
+  border: 1px dashed var(--ui-border-soft);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 12px;
+}
+
+.ui-design-theme-context summary {
+  cursor: pointer;
+  color: var(--ui-text-faint);
+  user-select: none;
+}
+
+.ui-design-theme-context-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.ui-design-theme-context-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ui-design-theme-context-grid label span {
+  color: var(--ui-text-faint);
+  font-size: 11px;
+}
+
+.ui-design-theme-refs {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.ui-design-theme-refs > span {
+  color: var(--ui-text-faint);
+  font-size: 11px;
+}
+
+.ui-design-theme-ref-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ui-design-theme-ref-list label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border: 1px solid var(--ui-border-soft);
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.ui-design-theme-ref-list label.on {
+  border-color: var(--ui-accent, #6366f1);
+  color: var(--ui-accent, #6366f1);
+}
+
+.ui-design-directory-stage {
+  flex: none;
+  padding: 0 6px;
+  border: 1px solid var(--ui-border-soft);
+  border-radius: 999px;
+  color: var(--ui-text-muted);
+  font-size: 10px;
+  font-style: normal;
+}
