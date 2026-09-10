@@ -516,10 +516,14 @@ function DirectorySegments({ suite, kind }: { suite: DesignSuite | null; kind: D
       ? Object.keys(suite.currentContent.tokens as Record<string, unknown>).length
       : 0;
     const review = suite.currentContent.quality?.review;
+    // specs/leafer-ui-engine EARS 17 字段级双栈路由：视觉稿 = leafer（新栈）
+    // 或 openui（旧栈只读）任一存在即已生成——只查 openui 曾把 leafer 套件
+    // 整面误报"未生成"（p-core 真机走查发现）。
+    const hasVisual = Boolean(suite.currentContent.leafer || suite.currentContent.openui);
     rows.push({
       label: t("designWorkspace.setOpenui"),
-      value: suite.currentContent.openui ? versionTag : t("designWorkspace.dirNotGenerated"),
-      miss: !suite.currentContent.openui,
+      value: hasVisual ? versionTag : t("designWorkspace.dirNotGenerated"),
+      miss: !hasVisual,
     });
     rows.push({
       label: t("designWorkspace.setTokens"),

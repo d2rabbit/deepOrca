@@ -939,3 +939,33 @@ test("cross-review: theme CRUD failures surface an error instead of a silent no-
   delete overrides.designThemeList;
   delete overrides.designThemeCreate;
 });
+
+test("directory UI segments route by leafer content (EARS 17) — a leafer suite is NOT reported as ungenerated", async () => {
+  const leaferDoc = JSON.stringify({
+    tag: "Leafer",
+    width: 1440,
+    height: 1024,
+    fill: "#ffffff",
+    children: [{ tag: "Rect", x: 24, y: 24, width: 200, height: 64, fill: "#4F46E5" }],
+  });
+  const uiSuite = suite("ui", [version("ui-v1", { leafer: leaferDoc, designSystemId: "dark-tech" })]);
+  overrides.listWorkspaceSessions = async () => ({ workspaces: [{ root: "/work/current", label: "current" }] });
+  overrides.designSuiteList = async () => [summary(uiSuite)];
+  overrides.designSuiteRead = async () => uiSuite;
+  overrides.designThemeList = async () => [];
+  const out = renderWithI18n(
+    ReactPkg.createElement(DesignPanel, { activeRoot: "/work/current", onOpenWorkspace: () => {} })
+  );
+  await settle();
+  const segs = [...out.container.querySelectorAll(".ui-design-directory-seg .ui-design-directory-item")].map((n) =>
+    (n.textContent || "").trim()
+  );
+  // p-core 回归：视觉稿段必须显示 v1（已生成），不得再报 Not generated。
+  const visual = segs.find((s) => s.includes("Visual"));
+  assert.ok(visual && visual.includes("v1"), `visual segment shows generated: ${visual}`);
+  assert.ok(!visual?.includes("Not generated"), "leafer suite must not be misreported as ungenerated");
+  delete overrides.listWorkspaceSessions;
+  delete overrides.designSuiteList;
+  delete overrides.designSuiteRead;
+  delete overrides.designThemeList;
+});
