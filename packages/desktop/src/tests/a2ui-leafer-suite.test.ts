@@ -131,6 +131,20 @@ test("render_leafer validates the document at the write boundary", async () => {
       });
       assert.equal(result.isError, true, `invalid document must be rejected: ${bad}`);
     }
+    // Same payload budget as save_suite_result: one runaway scene blob must
+    // not bloat the suite store.
+    const oversized = JSON.stringify({
+      tag: "Leafer",
+      width: 100,
+      height: 100,
+      children: [{ tag: "Text", x: 0, y: 0, text: "x".repeat(513 * 1024) }],
+    });
+    const clamped = await client.callTool({
+      name: "render_leafer",
+      arguments: { leafer: oversized, designSystemId: "dark-tech" },
+    });
+    assert.equal(clamped.isError, true, "oversized scene document must be clamped at the boundary");
+    assert.match(textOf(clamped), /too large/);
   } finally {
     await client.close();
   }

@@ -39,13 +39,16 @@ export function isPrototypeContent(content: DesignSuiteContent): content is Prot
 }
 
 export function isUiContent(content: DesignSuiteContent): content is UiSuiteContent {
-  // leafer versions may exist before any quality/tokens land (EARS 17:
-  // field-level routing — a bare {leafer} payload is still a UI suite).
+  // The UI workspace only ever mounts kind="ui" suites, so a bare `openui`
+  // field here IS the legacy artifact (EARS 15: 仅 openui 的历史版本必须
+  // 可达) — do not gate it out into the empty state. `leafer` versions may
+  // likewise exist before any quality/tokens land (EARS 17).
   return (
     "quality" in content ||
     "sourcePrototype" in content ||
     "designSystemId" in content ||
     "tokens" in content ||
-    "leafer" in content
+    "leafer" in content ||
+    "openui" in content
   );
 }

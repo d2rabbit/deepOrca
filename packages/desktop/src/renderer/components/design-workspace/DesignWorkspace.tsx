@@ -365,12 +365,18 @@ export function DesignWorkspace({
     return null;
   };
 
-  /** Leafer canvas edit → version snapshot (WP1.4): the debounced commit from
-   *  LeaferPreview appends a new head version; the canvas then follows the
-   *  new head (the suite-change background refresh would keep the old
-   *  selection, instantly re-reading the canvas as read-only). */
+  /**
+   * Leafer canvas edit → version snapshot (WP1.4): the debounced commit from
+   * LeaferPreview appends a new head version; the canvas then follows the
+   * new head (the suite-change background refresh would keep the old
+   * selection, instantly re-reading the canvas as read-only). Returns the
+   * promise so LeaferPreview can hold back the NEXT commit until this append
+   * settles — continued editing must never fire a second concurrent append
+   * (the store refuses it as head-moved). Busy-gated for the same reason:
+   * an action revision moving the head mid-append would fork the intent.
+   */
   const commitLeafer = async (leaferJson: string): Promise<void> => {
-    if (!suite || !selectedVersion || readOnly) return;
+    if (!suite || !selectedVersion || readOnly || busy !== null) return;
     try {
       const result = await suiteApi.designSuiteAppendLeafer(root, suite.id, selectedVersion.versionId, leaferJson);
       if (!result.ok) {
@@ -693,11 +699,7 @@ export function DesignWorkspace({
             <div className="ui-design-canvas-area">
               {content.leafer ? (
                 <div className="ui-design-canvas-stage" style={themeVars}>
-                  <LeaferPreview
-                    leaferJson={content.leafer}
-                    editable={!readOnly}
-                    onCommit={(json) => void commitLeafer(json)}
-                  />
+                  <LeaferPreview leaferJson={content.leafer} editable={!readOnly} onCommit={commitLeafer} />
                 </div>
               ) : content.openui ? (
                 <div className="ui-design-canvas-stage" ref={stageRef} style={themeVars}>

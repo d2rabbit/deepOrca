@@ -1211,6 +1211,10 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
       } catch (error) {
         return suiteError(`leafer: invalid scene document (${error instanceof Error ? error.message : String(error)})`);
       }
+      // Same model-supplied-payload budget as save_suite_result — one runaway
+      // scene blob must not bloat the suite store.
+      const payloadReason = suitePayloadError(leafer);
+      if (payloadReason) return suiteError(`leafer: ${payloadReason}`);
       if (!usesSuitePersistence(args)) {
         return suiteError("render_leafer persists suite versions — pass designSystemId or suiteId/versionId lineage");
       }

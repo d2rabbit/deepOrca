@@ -595,6 +595,55 @@ test("design toolbar shows the version badge with a localized status", async () 
   assert.match(badge.textContent ?? "", /v2 · Ready/, "head (newest) labeled v2 — not the oldest");
 });
 
+test("leafer versions route to the leafer canvas, not the legacy OpenUI stage", async () => {
+  const prototype = suite("prototype", [version("proto-v1", { spec: "# Scope", openui: "root = Text('v1')" })]);
+  const leaferDoc = JSON.stringify({
+    tag: "Leafer",
+    width: 1440,
+    height: 1024,
+    fill: "#ffffff",
+    children: [{ tag: "Rect", x: 24, y: 24, width: 200, height: 64, fill: "#4F46E5" }],
+  });
+  const ui = suite("ui", [
+    version("ui-v1", {
+      leafer: leaferDoc,
+      designSystemId: "dark-tech",
+      quality: { lintFindings: [], runtimeChecks: [] },
+    }),
+  ]);
+  overrides.designSuiteList = async (_root: string, kind?: string) =>
+    kind === "prototype" ? [summary(prototype)] : [summary(ui)];
+  overrides.designSuiteRead = async (_root: string, id: string) => (id === prototype.id ? prototype : ui);
+  overrides.designSuiteAppendLeafer = async () => ({ ok: true });
+  const out = renderWithI18n(ReactPkg.createElement(DesignWorkspace, { root: "/work/current", suiteId: ui.id }));
+  await settle();
+  // The leafer ROUTE must be taken: either the canvas stage mounts (real
+  // engine) or the engine failed under jsdom into its LOCAL error branch —
+  // both prove the field-level routing picked the leafer branch (EARS 17).
+  const routed =
+    out.container.querySelector(".ui-design-leafer-stage") !== null ||
+    (out.container.textContent ?? "").includes("canvas engine failed");
+  assert.ok(routed, "leafer version must render through the leafer canvas branch");
+  assert.equal(
+    out.container.querySelector(".ui-design-legacy-chip"),
+    null,
+    "leafer version must not wear the legacy badge"
+  );
+});
+
+test("legacy openui-only versions keep the read-only OpenUI stage with the legacy badge", async () => {
+  const prototype = suite("prototype", [version("proto-v1", { spec: "# Scope", openui: "root = Text('v1')" })]);
+  const ui = suite("ui", [version("ui-v1", { openui: 'root = Screen("UI v1")' })]);
+  overrides.designSuiteList = async (_root: string, kind?: string) =>
+    kind === "prototype" ? [summary(prototype)] : [summary(ui)];
+  overrides.designSuiteRead = async (_root: string, id: string) => (id === prototype.id ? prototype : ui);
+  const out = renderWithI18n(ReactPkg.createElement(DesignWorkspace, { root: "/work/current", suiteId: ui.id }));
+  await settle();
+  const chip = out.container.querySelector(".ui-design-legacy-chip");
+  assert.ok(chip, "openui-only version must show the legacy view-only badge (EARS 15)");
+  assert.match(chip.textContent ?? "", /Legacy OpenUI canvas/);
+});
+
 test("progress-label maps every core emit code both ways and handles format/terminal", async () => {
   const { PROGRESS_KEYS, progressLabel, isTerminalProgress } =
     await import("../renderer/components/design-workspace/progress-label");

@@ -26,11 +26,19 @@ type LeaferPreviewProps = {
   leaferJson: string;
   /** Head version in a writable workspace — enables the editor plugin. */
   editable: boolean;
-  /** Debounced commit after user edits (serialized toJSON output). */
-  onCommit?: (leaferJson: string) => void;
+  /**
+   * Debounced commit after user edits (serialized toJSON output). May return
+   * a promise — the NEXT commit is held back until it settles, so a slow
+   * version append can never race a second append from continued editing
+   * (the store would refuse it with head-moved).
+   */
+  onCommit?: (leaferJson: string) => void | Promise<void>;
 };
 
 const COMMIT_DEBOUNCE_MS = 2000;
+/** Trailing commit right after an in-flight one settles (edits made while
+ *  the previous append was running must not wait another full debounce). */
+const COMMIT_TRAILING_MS = 200;
 
 export function LeaferPreview({ leaferJson, editable, onCommit }: LeaferPreviewProps): JSX.Element {
   const { t } = useI18n();
@@ -42,6 +50,10 @@ export function LeaferPreview({ leaferJson, editable, onCommit }: LeaferPreviewP
   const importingRef = useRef(false);
   const commitTimerRef = useRef<number | null>(null);
   const lastCommittedRef = useRef<string | null>(null);
+  // Commit serialization: at most ONE in-flight onCommit; edits arriving
+  // meanwhile set pendingRef and fire a trailing commit afterwards.
+  const committingRef = useRef(false);
+  const pendingRef = useRef(false);
   // The commit callback lives in a ref so a parent re-render (suite/version
   // state updates) never tears down the canvas — the lifecycle depends only
   // on `editable`.
@@ -82,25 +94,42 @@ export function LeaferPreview({ leaferJson, editable, onCommit }: LeaferPreviewP
         return;
       }
       leaferRef.current = instance;
+      const fireCommit = (): void => {
+        commitTimerRef.current = null;
+        // One commit in flight: hold this edit as pending — it re-fires right
+        // after the append settles (as a fresh serialization of the CURRENT
+        // tree, so it always carries the latest state).
+        if (committingRef.current) {
+          pendingRef.current = true;
+          return;
+        }
+        const active = leaferRef.current;
+        const commit = onCommitRef.current;
+        if (!active || !commit) return;
+        let next: string | null = null;
+        try {
+          next = JSON.stringify(active.toJSON());
+        } catch {
+          // A failed serialization must never crash the canvas; the next
+          // edit re-schedules a fresh commit.
+        }
+        if (!next || next === lastCommittedRef.current) return;
+        lastCommittedRef.current = next;
+        committingRef.current = true;
+        void Promise.resolve(commit(next))
+          .catch(() => {})
+          .then(() => {
+            committingRef.current = false;
+            if (pendingRef.current && leaferRef.current) {
+              pendingRef.current = false;
+              commitTimerRef.current = window.setTimeout(fireCommit, COMMIT_TRAILING_MS);
+            }
+          });
+      };
       const onChanged = (): void => {
         if (importingRef.current) return;
         if (commitTimerRef.current !== null) window.clearTimeout(commitTimerRef.current);
-        commitTimerRef.current = window.setTimeout(() => {
-          commitTimerRef.current = null;
-          const active = leaferRef.current;
-          const commit = onCommitRef.current;
-          if (!active || !commit) return;
-          try {
-            const next = JSON.stringify(active.toJSON());
-            if (next && next !== lastCommittedRef.current) {
-              lastCommittedRef.current = next;
-              commit(next);
-            }
-          } catch {
-            // A failed serialization must never crash the canvas; the next
-            // edit re-schedules a fresh commit.
-          }
-        }, COMMIT_DEBOUNCE_MS);
+        commitTimerRef.current = window.setTimeout(fireCommit, COMMIT_DEBOUNCE_MS);
       };
       listener = onChanged;
       changedEventName = engine.PropertyEvent.CHANGE;
