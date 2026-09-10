@@ -218,9 +218,14 @@ test("materialize keeps the legacy artifact prompt byte-structure (suite-less pa
     prompt.startsWith("Create the complete OpenUI Lang prototype for the requirements document below. "),
     "legacy head preserved byte-for-byte"
   );
-  assert.ok(prompt.includes("Cover its page list and flows strictly without inventing scope. "));
+  // 遵守契约（2026-09-11 强化）替换了旧的 "Cover its page list" 行——legacy
+  // 路径同样要求逐页/P0/三态点名。
+  assert.ok(prompt.includes("PRD compliance is non-negotiable"));
+  assert.ok(prompt.includes("EVERY page in the 页面清单"));
   assert.ok(prompt.endsWith(`Return only the OpenUI Lang program in one code fence.\n\n${SPEC}`));
-  assert.ok(!prompt.includes("pd-design"), "no prompt-doc markers on the legacy path");
+  // legacy 路径不注入 pd-design 主驱动区块（遵守契约文本提到 页面清单/pd-design
+  // 字样属正常——没有文档区块才是 legacy 语义）。
+  assert.ok(!prompt.includes("## pd-design"), "no pd-design document block on the legacy path");
 });
 
 test("design.materialize runs the ui-design stage and passes uiDesign through render_leafer", async () => {

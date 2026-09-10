@@ -921,9 +921,14 @@ export const prototypeMaterializeRun: ActionRun<PrototypeMaterializeInput, Proto
           OPENUI_CREATE_CONTRACT +
           " " +
           OPENUI_QUALITY_CONTRACT +
-          (pdDesign
-            ? " Cover every page in the pd-design 页面结构 strictly without inventing scope. "
-            : " Cover its page list and flows strictly without inventing scope. ") +
+          // PRD 遵守契约（p-core 真机走查：遵守声明太抽象，模型会"意思一下"）——
+          // 逐页、逐优先级、逐三态点名，生成后 verify 也按页面ID逐页比对。
+          " PRD compliance is non-negotiable: (1) EVERY page in the 页面清单/pd-design " +
+          "页面结构 gets its own view and its page id appears as a $page value, reachable " +
+          "in one click; (2) EVERY P0 功能需求 row is visibly implemented — its 交互要点 " +
+          "states (empty/loading/error-and-retry) each render a distinct branch; (3) the " +
+          "逐页交互明细 lines are implemented literally as written; (4) do not invent " +
+          "pages, fields, or flows beyond the document. " +
           "Do not call tools. " +
           "Return only the OpenUI Lang program in one code fence." +
           pdSection,
