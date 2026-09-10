@@ -80,7 +80,29 @@ async function makeCtx(): Promise<ActionContext> {
       if (opts.prompt?.includes("pd-design prompt document")) {
         return {
           sessionId: "sub",
-          content: "```markdown\n# 轻订单 原型提示\n\n## 页面结构\n- 订单页\n\n## 交互叙事\n- 下单→列表\n```",
+          content: [
+            "```markdown",
+            "# 轻订单 原型提示",
+            "",
+            "## 页面结构",
+            "- 订单页：订单列表与详情",
+            "",
+            "## 交互叙事",
+            "- 下单→列表刷新",
+            "",
+            "## 信息架构",
+            "- 单页订单管理",
+            "",
+            "## 视觉基调",
+            "- 企业工具风格",
+            "",
+            "## 平台策略",
+            "- desktop-app",
+            "",
+            "## 继承要点",
+            "- 沿用轻订单模块的角色定义与权限模型，保持术语一致性",
+            "```",
+          ].join("\n"),
         };
       }
       // 从提示词里的平台契约识别设备,返回该端的结构化程序。

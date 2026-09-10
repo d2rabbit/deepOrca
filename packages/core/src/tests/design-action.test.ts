@@ -791,7 +791,15 @@ test("progress emits carry stable machine codes for the renderer i18n seam", asy
     { suiteId: PROTOTYPE_REF.suiteId, versionId: PROTOTYPE_REF.versionId },
     makeCtx({
       prototype: { requirement: "Task board", spec: "# Tasks\n\n## Page list\n- Board" },
-      generated: "```markdown\n# Task board 原型提示\n\n## 页面结构\n- Board\n\n## 交互叙事\n- 提交\n```",
+      generated:
+        "```markdown\n# Task board 原型提示\n\n" +
+        "## 页面结构\n- 看板主页面：任务卡片列与筛选器\n" +
+        "## 交互叙事\n- 拖拽卡片更新状态，失败回弹\n" +
+        "## 信息架构\n- 看板列表两级结构\n" +
+        "## 视觉基调\n- 企业内部工具风格\n" +
+        "## 平台策略\n- desktop-app\n" +
+        "## 继承要点\n- 沿用既有角色与术语\n" +
+        "```",
       emits: pdEmits,
     })
   );

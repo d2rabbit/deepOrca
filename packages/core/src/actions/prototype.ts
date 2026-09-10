@@ -16,6 +16,7 @@ import {
   type OpenuiDevice,
 } from "./openui-contract";
 import { componentJaccard, extractProgramPages, extractTargetPlatforms, parsePageList } from "../common/openui-pages";
+import { pageCoverageFindings, pdSectionsAudit, runDesignStage } from "./design-gates";
 
 const DESIGNS_DIR = ".deeporca/designs";
 const SPEC_FILE = "spec.md";
@@ -128,6 +129,8 @@ function readArtifactFile(projectRoot: string, id: string, file: string): string
 }
 
 function subagentContent(result: unknown): string | null {
+  // 纯字符串输入（generatePdDesignDocument 内部流转）也合法。
+  if (typeof result === "string") return result.trim() || null;
   if (!isRecord(result) || typeof result.content !== "string") return null;
   return result.content.trim() || null;
 }
@@ -697,11 +700,10 @@ async function generatePdDesignDocument(
   references: DesignThemeRef[] | undefined
 ): Promise<{ ok: true; document: string } | { ok: false; error: string }> {
   if (!ctx.runSubagent) return { ok: false, error: "runSubagent not available" };
+  const runSub = ctx.runSubagent;
   const referenceBlock = await collectSpecReferenceBlock(ctx, inheritsFrom, references);
-  const generated = await ctx.runSubagent({
-    skill: "deep-design",
-    prompt:
-      // 契约内嵌（既有约定：提示词只指到契约、不复述技能文档——防两份清单漂移）。
+  const buildPrompt = (findings?: string[]): string => {
+    const base =
       "Analyze the requirements document below and distill it into a pd-design prompt document. " +
       "It drives a prototype generator afterwards — every section must be a directive, not prose. " +
       PD_DESIGN_CONTRACT +
@@ -709,21 +711,37 @@ async function generatePdDesignDocument(
       "Return only the complete markdown document in one markdown code fence.\n\n" +
       "## 需求文档（契约源）\n" +
       spec +
-      (referenceBlock ? `\n${referenceBlock}` : ""),
-    silent: true,
-  });
-  const document = extractMarkdownDocument(generated);
+      (referenceBlock ? "\n" + referenceBlock : "");
+    if (findings && findings.length > 0) {
+      return base + "\n\n## 深度审计 findings（逐条修复，不得删节）\n" + findings.map((f) => "- " + f).join("\n");
+    }
+    return base;
+  };
+  // 稳定性强化：pdSectionsAudit 六节逐节审计 + findings 修复一轮。
+  const run = async (prompt: string): Promise<string> => {
+    const res = await runSub({ skill: "deep-design", prompt, silent: true });
+    return typeof res === "object" && res !== null && "content" in res
+      ? String((res as { content: unknown }).content)
+      : "";
+  };
+  let document = extractMarkdownDocument(await run(buildPrompt(undefined)));
   if (!document || !document.match(/^#\s+/m)) {
     return { ok: false, error: "deep-design returned an empty or title-less pd-design document — regenerate" };
   }
-  const sectionCount = (document.match(/^##\s+/gm) ?? []).length;
-  if (sectionCount < 2) {
-    return {
-      ok: false,
-      error:
-        `pd-design document is missing structured sections (${sectionCount}/2 minimum: ` +
-        "页面结构/交互叙事/信息架构/视觉基调/平台策略/继承要点) — regenerate",
-    };
+  let auditFindings = pdSectionsAudit(document);
+  if (auditFindings.length > 0) {
+    ctx.emit({ message: "Repairing pd-design sections", percent: 40, data: { code: "prototype.pddesign.repairing" } });
+    const repairedPrompt = buildPrompt(auditFindings);
+    const repairedRaw = await run(repairedPrompt);
+    const repairedDoc = extractMarkdownDocument(repairedRaw);
+    if (!repairedDoc || !repairedDoc.match(/^#\s+/m)) {
+      return { ok: false, error: "pd-design repair round returned an unusable document — regenerate" };
+    }
+    document = repairedDoc;
+    auditFindings = pdSectionsAudit(document);
+    if (auditFindings.length > 0) {
+      return { ok: false, error: "pd-design depth gate still failing after repair: " + auditFindings.join("; ") };
+    }
   }
   return { ok: true, document };
 }
@@ -1098,12 +1116,25 @@ export const prototypeMaterializeRun: ActionRun<PrototypeMaterializeInput, Proto
             "(no root/component statements) — regenerate",
         };
       }
+      // specs/prompt-doc-chain 稳定性强化：页面覆盖门——PRD 页面清单的每个
+      // 页面 ID 必须以 $page 比较/跳转出现在程序中。缺失 = 修复契约注入
+      // （只对 desktop 主体验证一次，多端走 verify 兜底）。
+      let coverageNote = "";
+      if (device === "desktop" || renderDevices.length === 1) {
+        const missing = pageCoverageFindings(spec, code);
+        if (missing.length > 0) {
+          coverageNote = ` Missing pages (must add as $page values with views): ${missing.join(", ")}.`;
+        }
+      }
       // Local validation loop: official parser verdict → patch prompt → retry,
       // BEFORE persistence (user ask 2026-09-09). Fail-open when the desktop
       // side has no validator. 修复环契约带设备契约:重生成时不得退回桌面壳。
+      const coverageContract = coverageNote
+        ? `${OPENUI_CREATE_CONTRACT} ${OPENUI_DEVICE_CONTRACTS[device]}${coverageNote}`
+        : `${OPENUI_CREATE_CONTRACT} ${OPENUI_DEVICE_CONTRACTS[device]}`;
       const verifiedCode = await repairOpenuiProgram(ctx, {
         code,
-        contract: `${OPENUI_CREATE_CONTRACT} ${OPENUI_DEVICE_CONTRACTS[device]}`,
+        contract: coverageContract,
         progressCode: "prototype.materialize.repairing",
         basePercent: renderDevices.length > 1 ? 15 + Math.round(((index + 0.5) / renderDevices.length) * 70) : 55,
       });

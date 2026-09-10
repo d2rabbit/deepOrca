@@ -19,6 +19,7 @@ const PROGRESS_KEYS: Record<string, MessageKey> = {
   // specs/prompt-doc-chain：提示词文档两级 stage。
   "prototype.pddesign.generating": "prototypeWorkspace.progressPdDesign",
   "prototype.pddesign.saved": "prototypeWorkspace.progressPdDesignSaved",
+  "prototype.pddesign.repairing": "prototypeWorkspace.progressRepair",
   "design.uidesign.generating": "designWorkspace.progressUiDesign",
   "design.uidesign.saved": "designWorkspace.progressUiDesignSaved",
   "prototype.materialize.generating": "prototypeWorkspace.progressMaterialize",
