@@ -135,6 +135,19 @@ export type {
   DesignDriftOutput,
 } from "./design";
 export { OPENUI_CREATE_CONTRACT, OPENUI_PRESERVE_CONTRACT } from "./openui-contract";
+export {
+  LEAFER_CREATE_CONTRACT,
+  LEAFER_PRESERVE_CONTRACT,
+  LEAFER_PRIMITIVES,
+  LEAFER_CANVAS_PRESETS,
+  looksLikeLeaferDocument,
+  parseLeaferDocument,
+  validateLeaferDocument,
+  formatLeaferFeedback,
+} from "./leafer-contract";
+export type { LeaferVerdict, LeaferIssue, LeaferCanvasSize, LeaferPrimitive } from "./leafer-contract";
+export { repairLeaferProgram } from "./leafer-repair";
+export { lintLeaferDocument } from "./leafer-lint";
 export { designAuditDefinition, designAuditRun, lintDesignDocument } from "./design-audit";
 export type {
   DesignAuditInput,

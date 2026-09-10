@@ -408,6 +408,13 @@ test("prototype.verify: renamed desktop copy as variant fails distinct (WP4.2)",
 test("design.materialize injects the selected bundled system and source prototype", async () => {
   const mcpCalls: McpCall[] = [];
   const subagentCalls: SubagentCall[] = [];
+  const leaferDoc = JSON.stringify({
+    tag: "Leafer",
+    width: 1440,
+    height: 1024,
+    fill: "#ffffff",
+    children: [{ tag: "Frame", x: 0, y: 0, width: 1440, height: 1024, fill: "#111318", children: [] }],
+  });
   const result = await designMaterializeRun(
     {
       prototypeSuiteId: PROTOTYPE_REF.suiteId,
@@ -416,14 +423,14 @@ test("design.materialize injects the selected bundled system and source prototyp
     },
     makeCtx({
       prototype: { requirement: "Task board", openui: "root = Column([board])" },
-      generated: "```openui\nroot = Screen()\nboard = Card([])\n```",
+      generated: `\`\`\`json\n${leaferDoc}\n\`\`\``,
       mcpCalls,
       subagentCalls,
     })
   );
   assert.equal(result.ok, true);
   assert.match(subagentCalls[0].prompt ?? "", /Design System: Terminal Mono/);
-  const save = mcpCalls.find((call) => call.name.endsWith("render_openui"));
+  const save = mcpCalls.find((call) => call.name.endsWith("render_leafer"));
   assert.deepEqual(save?.args.sourcePrototype, {
     suiteId: PROTOTYPE_REF.suiteId,
     versionId: PROTOTYPE_REF.versionId,
@@ -564,11 +571,18 @@ test("design.materialize: the suite's stored requirement reaches the prompt with
     prototypeVersionId: PROTOTYPE_REF.versionId,
     designSystemId: "terminal-mono",
   };
+  const leaferDoc = JSON.stringify({
+    tag: "Leafer",
+    width: 1440,
+    height: 1024,
+    fill: "#ffffff",
+    children: [],
+  });
   const result = await designMaterializeRun(
     input,
     makeCtx({
       prototype: { requirement: "需要一个月度经营看板", openui: "root = Column([board])" },
-      generated: "```openui\nroot = Screen()\nboard = Card([])\n```",
+      generated: `\`\`\`json\n${leaferDoc}\n\`\`\``,
       mcpCalls,
       subagentCalls,
     })
@@ -578,7 +592,7 @@ test("design.materialize: the suite's stored requirement reaches the prompt with
     subagentCalls[0].prompt?.includes("需要一个月度经营看板"),
     "the requirement from the suite must reach the subagent prompt"
   );
-  const save = mcpCalls.find((call) => call.name.endsWith("render_openui"));
+  const save = mcpCalls.find((call) => call.name.endsWith("render_leafer"));
   assert.equal(save?.args.requirement, "需要一个月度经营看板");
   assert.equal(input.requirement, undefined, "the caller's input object must not be mutated");
 });
@@ -717,6 +731,13 @@ test("progress emits carry stable machine codes for the renderer i18n seam", asy
   assert.deepEqual(codesOf(materializeEmits), ["prototype.materialize.generating", "prototype.materialize.saved"]);
 
   const designEmits: ActionProgress[] = [];
+  const designLeaferDoc = JSON.stringify({
+    tag: "Leafer",
+    width: 1440,
+    height: 1024,
+    fill: "#ffffff",
+    children: [],
+  });
   const design = await designMaterializeRun(
     {
       prototypeSuiteId: PROTOTYPE_REF.suiteId,
@@ -725,7 +746,7 @@ test("progress emits carry stable machine codes for the renderer i18n seam", asy
     },
     makeCtx({
       prototype: { requirement: "Task board", openui: "root = Column([board])" },
-      generated: "```openui\nroot = Screen()\nboard = Card([])\n```",
+      generated: `\`\`\`json\n${designLeaferDoc}\n\`\`\``,
       emits: designEmits,
     })
   );

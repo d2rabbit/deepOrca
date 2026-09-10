@@ -266,18 +266,25 @@ render_design / file-write workflow above does NOT apply — the host persists
 everything. The pipeline prompt dictates which of three sub-contracts to
 fulfill; return ONLY the fenced content it asks for:
 
-1. **design.materialize → OpenUI Lang program.** Return one complete `openui`
-   code fence: a single interactive application (`root = Stack(...)`, `$page`
-   navigation, `Action([@Set(...)])`), respecting the given bundled design
-   system verbatim. Do NOT emit .dd HTML.
+1. **design.materialize → Leafer scene JSON.** Return one complete `json`
+   code fence: the scene-tree document `{"tag": "Leafer", "width": …,
+   "height": …, "fill": …, "children": [...]}` following the LEAFER scene
+   contract embedded in the prompt — allowed primitive tags ONLY (Rect,
+   Ellipse, Text, Image, Path, Line, Group, Box, Frame), absolute x/y plus
+   width/height inside the root canvas, `flow`/`gap`/`padding` auto layout on
+   Group/Box/Frame, colors/typography only from the given bundled design
+   system, real copy in every Text node. Strictly valid JSON — no comments,
+   no trailing commas. Do NOT emit .dd HTML or OpenUI Lang.
 2. **design.review → one review JSON object.** Return one `json` fence:
    `{"status": "passed"|"failed", "composite": <0..1>, "evidence": {...}}`
    where evidence carries concrete quoted selectors/tokens/observations.
    Text-only review — never claim browser or runtime checks.
-3. **design.revise (tokens/components) → one JSON object.** Return the
-   complete revised `tokens` or `components` JSON in one `json` fence,
-   preserving unrelated values. For `part: "design"` return the complete
-   revised OpenUI Lang program (one `openui` fence), preserving the `$page`
-   structure and `Action` wiring.
+3. **design.revise → format follows the version's field.** For
+   `tokens`/`components` return the complete revised JSON object in one `json`
+   fence, preserving unrelated values. For `part: "design"` the prompt's
+   PRESERVE/CREATE contracts dictate the format: Leafer suites revise to a
+   complete Leafer scene-tree JSON document (one `json` fence, same rules as
+   materialize); legacy OpenUI suites revise to the complete OpenUI Lang
+   program (one `openui` fence, preserving `$page` and `Action` wiring).
 
 In all three cases: no tool calls, no file writes, nothing outside the fence.

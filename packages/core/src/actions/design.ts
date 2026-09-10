@@ -3,7 +3,10 @@
  * real-machine feedback: one auto-routed "一句话→原型" flow was wrong for
  * both disciplines). UI/UX design takes a requirement (a single sentence is
  * fine) and/or an existing PROTOTYPE artifact as the interaction basis, and
- * produces an OpenUI Lang program via the deep-design skill / render_openui.
+ * produces a Leafer JSON scene tree via the deep-design skill
+ * (specs/leafer-ui-engine — the generation stack switched from OpenUI Lang;
+ * the prototype module keeps OpenUI Lang, guard-tested split). Legacy suites
+ * carrying only `content.openui` keep revising through update_openui below.
  * Prototype generation now lives in the prototype.* module
  * (spec → prototype, see actions/prototype.ts).
  *
@@ -23,6 +26,9 @@ import * as path from "node:path";
 import { randomUUID } from "node:crypto";
 import type { ActionContext, ActionDefinition, ActionRun } from "./types";
 import { OPENUI_CREATE_CONTRACT, OPENUI_PRESERVE_CONTRACT } from "./openui-contract";
+import { LEAFER_CREATE_CONTRACT, LEAFER_PRESERVE_CONTRACT, looksLikeLeaferDocument } from "./leafer-contract";
+import { repairLeaferProgram } from "./leafer-repair";
+import { lintLeaferDocument } from "./leafer-lint";
 import { validateDembrandtTargetUrl } from "../common/dembrandt";
 import { runDembrandtProcess } from "../common/dembrandt-runner";
 import { getExtensionRoot } from "../prompt";
@@ -87,7 +93,7 @@ export const designMaterializeDefinition: ActionDefinition<DesignMaterializeInpu
   id: "design.materialize",
   description:
     "UI-design module entry: materialize a requirement (one sentence is fine) and/or an existing prototype " +
-    "into an OpenUI Lang UI suite version via the deep-design skill. When a prototype artifact is given, the " +
+    "into a Leafer scene-tree JSON suite version via the deep-design skill. When a prototype artifact is given, the " +
     "design covers its pages and flows. Prototype generation is a separate module (prototype.spec → " +
     "prototype.materialize).",
   category: "design",
@@ -167,41 +173,50 @@ export const designMaterializeRun: ActionRun<DesignMaterializeInput, DesignMater
   // reaches BOTH the generation prompt and the persisted version (previously
   // the prompt still saw the stale pre-read snapshot).
   const effectiveRequirement = requirement ?? suiteRequirement;
+  // specs/leafer-ui-engine WP0.3: the UI-Design stack produces a Leafer JSON
+  // scene tree (prototype module stays on OpenUI Lang — guard-tested split).
   const promptParts = [
     effectiveRequirement
-      ? `Create a complete OpenUI Lang program for this requirement: ${effectiveRequirement}`
-      : "Create a complete OpenUI Lang program elevating the selected prototype.",
-    OPENUI_CREATE_CONTRACT,
+      ? `Create a complete Leafer scene-tree JSON document for this requirement: ${effectiveRequirement}`
+      : "Create a complete Leafer scene-tree JSON document elevating the selected prototype.",
+    LEAFER_CREATE_CONTRACT,
     `Use this bundled design system exactly. Its complete source is included below:\n\n${designSystem}`,
   ];
   if (prototypeContent) {
     promptParts.push(
-      "Cover every page and flow in this OpenUI prototype, preserving its $page navigation and Action([@Set...]) wiring:\n\n" +
+      "Cover every page and flow in this OpenUI prototype as separate canvas frames (one Frame per page, " +
+        "labeled with a Text node), preserving its information architecture and Action wiring as visual " +
+        "annotations:\n\n" +
         prototypeContent
     );
   }
-  promptParts.push("Do not call tools. Return only the complete OpenUI Lang program in one openui code fence.");
+  promptParts.push(
+    "Do not call tools. Return only the complete Leafer scene-tree JSON document in one json code fence."
+  );
 
   try {
     const generated = await ctx.runSubagent({ skill: "deep-design", prompt: promptParts.join("\n\n"), silent: true });
     const content = extractGeneratedBody(generated);
-    if (!content || !looksLikeOpenuiProgram(content)) {
+    if (!content || !looksLikeLeaferDocument(content)) {
       return {
         ok: false,
-        error: "deep-design returned an empty or truncated OpenUI program (no root/component statements) — regenerate",
+        error: "deep-design returned an empty or invalid Leafer JSON document (no root/children) — regenerate",
       };
     }
-    // WP2.5:design 线与 prototype 线同标准——持久化前过官方解析器修复环
-    // (此前 prototype 线修、design 线直接落盘未验证程序)。
-    const verifiedContent = await repairOpenuiProgram(ctx, {
-      code: content,
-      contract: OPENUI_CREATE_CONTRACT,
+    // EARS 2/3: fail-closed repair loop — persistence only happens with a
+    // structurally valid document (the OpenUI loop fails open because the
+    // desktop validator/renderer remains the backstop; leafer has no such
+    // second line, and the verdict source is deterministic).
+    const repaired = await repairLeaferProgram(ctx, {
+      text: content,
+      contract: LEAFER_CREATE_CONTRACT,
       progressCode: "design.materialize.repairing",
       basePercent: 70,
     });
+    if (!repaired.ok) return { ok: false, error: repaired.error };
     if (ctx.signal.aborted) return { ok: false, error: "cancelled" };
-    const saved = await executeA2ui(ctx, "render_openui", {
-      code: verifiedContent,
+    const saved = await executeA2ui(ctx, "render_leafer", {
+      leafer: repaired.value,
       requirement: effectiveRequirement,
       designSystemId,
       ...(sourcePrototype ? { sourcePrototype } : {}),
@@ -375,15 +390,19 @@ export const designLintRun: ActionRun<SuiteActionInput, DesignLintOutput> = asyn
   if (!read.ok) return read;
   if (read.value.artifactRef.kind !== "ui") return { ok: false, error: "suite is not a UI suite" };
   const content = uiContent(read.value.content);
-  const openui = content?.openui?.trim();
-  if (!content || !openui) return { ok: false, error: "selected UI suite version has no OpenUI design" };
-  const findings = lintOpenuiDocument(openui);
+  if (!content) return { ok: false, error: "invalid UI suite content" };
+  // specs/leafer-ui-engine WP2.2: field-level dual-stack routing (EARS 9/17) —
+  // a leafer version lints the scene JSON, a legacy OpenUI version the program.
+  const leafer = content.leafer?.trim();
+  const openui = content.openui?.trim();
+  if (!leafer && !openui) return { ok: false, error: "selected UI suite version has no design" };
+  const findings = leafer ? lintLeaferDocument(leafer, content.tokens) : lintOpenuiDocument(openui!);
   const quality = { ...currentQuality(content), lintFindings: findings };
   const saved = await executeA2ui(ctx, "save_suite_result", {
     suiteId,
     versionId,
     quality,
-    note: input.note?.trim() || "deterministic OpenUI static lint",
+    note: input.note?.trim() || (leafer ? "deterministic Leafer static lint" : "deterministic OpenUI static lint"),
   });
   return saved.ok
     ? { ok: true, artifactRef: saved.artifactRef, findings, refreshStore: !saved.artifactRef }
@@ -473,16 +492,24 @@ export const designReviewRun: ActionRun<DesignReviewInput, DesignReviewOutput> =
   if (!read.ok) return read;
   if (read.value.artifactRef.kind !== "ui") return { ok: false, error: "suite is not a UI suite" };
   const content = uiContent(read.value.content);
-  if (!content?.openui?.trim()) return { ok: false, error: "selected UI suite version has no OpenUI design" };
+  if (!content) return { ok: false, error: "invalid UI suite content" };
+  // Field-level dual-stack input (EARS 11/17): the review reads whichever
+  // artifact the version carries; the schema/validation side is unchanged.
+  const designField = content.leafer?.trim()
+    ? { kind: "Leafer scene-tree JSON", text: content.leafer }
+    : content.openui?.trim()
+      ? { kind: "OpenUI design", text: content.openui }
+      : null;
+  if (!designField) return { ok: false, error: "selected UI suite version has no design" };
   const quality = currentQuality(content);
   const reviewed = await ctx.runSubagent({
     skill: "deep-design",
     prompt:
-      "Review the OpenUI design and existing deterministic quality below. This is one text-only review round; do not " +
+      `Review the ${designField.kind} and existing deterministic quality below. This is one text-only review round; do not ` +
       "claim browser or runtime checks. Return only JSON with status ('passed' or 'failed'), composite (0..1), and " +
       "evidence (an object containing concrete quoted selectors/tokens/sections and observations)." +
       (input.focus?.trim() ? ` Focus: ${input.focus.trim()}.` : "") +
-      `\n\nDESIGN:\n${content.openui}\n\nQUALITY:\n${JSON.stringify(quality)}`,
+      `\n\nDESIGN:\n${designField.text}\n\nQUALITY:\n${JSON.stringify(quality)}`,
     silent: true,
   });
   const text = extractGeneratedBody(reviewed);
@@ -567,7 +594,46 @@ export const designReviseRun: ActionRun<DesignReviseInput, SuiteActionOutput> = 
   }
   if (!ctx.runSubagent) return { ok: false, error: "runSubagent not available" };
   if (input.part === "design") {
-    if (!content.openui?.trim()) return { ok: false, error: "selected UI suite version has no OpenUI design" };
+    // specs/leafer-ui-engine WP0.4: leafer suites revise on the leafer baseline
+    // (field-level routing, EARS 17); legacy OpenUI suites keep the update_openui
+    // path below — one suite version never mixes both fields.
+    if (content.leafer?.trim()) {
+      const generated = await ctx.runSubagent({
+        skill: "deep-design",
+        prompt:
+          `Revise only this Leafer scene-tree target: ${target}. Instruction: ${instruction}. Preserve unrelated content. ` +
+          `${LEAFER_PRESERVE_CONTRACT} ${LEAFER_CREATE_CONTRACT} ` +
+          `Return only the complete revised Leafer scene-tree JSON document in one json code fence. Do not call tools.\n\n${content.leafer}`,
+        silent: true,
+      });
+      const revised = extractGeneratedBody(generated);
+      if (!revised || !looksLikeLeaferDocument(revised)) {
+        return {
+          ok: false,
+          error: "deep-design returned empty or invalid Leafer JSON content (truncated output?) — regenerate",
+        };
+      }
+      const repaired = await repairLeaferProgram(ctx, {
+        text: revised,
+        contract: `${LEAFER_PRESERVE_CONTRACT} ${LEAFER_CREATE_CONTRACT}`,
+        progressCode: "design.revise.repairing",
+        basePercent: 70,
+      });
+      if (!repaired.ok) return { ok: false, error: repaired.error };
+      if (ctx.signal.aborted) return { ok: false, error: "cancelled" };
+      const saved = await executeA2ui(ctx, "render_leafer", {
+        leafer: repaired.value,
+        suiteId,
+        versionId,
+        ...(content.designSystemId ? { designSystemId: content.designSystemId } : {}),
+        ...(content.sourcePrototype ? { sourcePrototype: content.sourcePrototype } : {}),
+        note: input.note?.trim() || `design revision: ${target}`,
+      });
+      return saved.ok
+        ? { ok: true, artifactRef: saved.artifactRef, refreshStore: !saved.artifactRef }
+        : { ok: false, error: saved.error };
+    }
+    if (!content.openui?.trim()) return { ok: false, error: "selected UI suite version has no design" };
     const generated = await ctx.runSubagent({
       skill: "deep-design",
       prompt:

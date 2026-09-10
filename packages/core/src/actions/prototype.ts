@@ -65,6 +65,10 @@ export interface PrototypeSuiteContent {
 export interface UiSuiteContent {
   requirement?: string;
   openui?: string;
+  /** specs/leafer-ui-engine: UI-Design 新栈产物（Leafer JSON 场景树字符串）。
+   *  字段级双栈路由（EARS 17）：有 leafer → Leafer 栈；仅 openui → 旧栈只读。
+   *  同一 suite 版本不混写两种字段（guard 测试锁定）。 */
+  leafer?: string;
   tokens?: unknown;
   components?: unknown;
   quality?: Record<string, unknown>;
