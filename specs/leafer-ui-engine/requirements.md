@@ -13,7 +13,7 @@ UI-Design 子域（`design.materialize → lint/review/revise → 导出`）的�
 - 作为用户，生成后我可以**在画布上直接微调**（拖拽/缩放/删除/编组），改动落为新版本快照，不必重新生成；
 - 作为用户，我在切换历史版本时画布渲染对应版本，可回退可比对；
 - 作为评审者，`design.lint / design.review / design.revise` 对 Leafer 产物以与 OpenUI 时代**同标准**工作（确定性规则 + 单轮 review + 修复环）；
-- 作为交付方，我导出的 `.ddu` 双击 `index.html` 即可看到渲染结果（不再是"需要回 DeepOrca 才能看"的源码 stub），另可导出 PNG / SVG / PDF；
+- 作为交付方，我导出的 `.ddu` 双击 `index.html` 即可在**可交互画布**上查看设计稿（平移/缩放/选中微调，不再是"需要回 DeepOrca 才能看"的源码 stub）；
 - 作为持有旧产物的用户，历史 OpenUI 版本的 UI-Design 套件仍可打开查看，不被新引擎判死。
 
 ## 验收标准（EARS）
@@ -40,8 +40,8 @@ UI-Design 子域（`design.materialize → lint/review/revise → 导出`）的�
 
 ### WP3 — 导出
 
-12. When 导出 `.ddu`（pipeline openui/ui-design 新栈）, the system shall 附**可脱离宿主打开**的 `index.html`（leafer web 运行时 + design JSON 内嵌，双击即渲染；运行时文件取自 npm 包 dist 产物，构建期拷贝）。
-13. When 用户在 UI-Design 工作台触发图片导出, the system shall 提供 PNG（1x/高清）下载，SVG/PDF 提供同通道能力（Leafer 原生 export）。
+12. When 导出 `.ddu`（pipeline openui/ui-design 新栈）, the system shall 附**可脱离宿主打开**的 `index.html`（leafer web 运行时 + design JSON 内嵌，双击即得可交互画布：平移/缩放/选中微调；运行时文件取自 npm 包 dist 产物，构建期拷贝）。
+13. When 导出 `.ddu`, the system shall **不提供** PNG/SVG/PDF 图片导出（user 2026-09-10 裁决：只关注可交互 `.ddu`；预研勘误：上游 v2.2.10 的 `toSVG` 声明未实装、PDF 走 `image/pdf` 伪 mime 会静默回退 PNG——见 research 文档预研勘误节）。
 14. When 导出包构建, the system shall 保持 manifest schema 兼容（format ddu / kind ui-design / pipeline 标注 leafer 栈），旧 `buildDduOpenuiPackage` 通道对存量产物继续可用。
 
 ### WP4 — 兼容与边界
@@ -54,5 +54,6 @@ UI-Design 子域（`design.materialize → lint/review/revise → 导出`）的�
 
 - Stitch 借鉴项：自动补缺失屏、设计能力 MCP 化、Agent Manager 式并排对比（P2 独立评估）；
 - 服务端离屏渲染（`@leafer-ui/node`）、富文本就地编辑（付费插件）、Canvas 文本编辑器首版启用；
+- **图片导出（PNG/SVG/PDF，user 2026-09-10 裁决移出首版，阻塞于上游 toSVG 未实装；P2 重估）**；
 - HTML-in-Canvas（维持 P3 观察项）、CanvasUI、原型模块任何改动；
 - design.extract / design.drift（dembrandt 链路）改动。

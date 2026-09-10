@@ -34,10 +34,10 @@
 
 ## WP3 导出（desktop main/renderer）
 
-- [ ] 3.1 `buildDduLeaferPackage`：manifest（pipeline `leafer`）+ `design.leafer.json` + 真实可播放 index.html（npm dist 运行时 + JSON 内嵌）+ `design-ipc` 导出路由
-  - 验收：dd-package 测试断言三件套与 JSON 转义嵌入；导出 html 双击可渲染；EARS 12/14
-- [ ] 3.2 图片导出：PNG 1x/高清（Leafer `export`），SVG/PDF 同通道暴露，走既有保存对话框
-  - 验收：renderer 测试导出调用与文件落盘；EARS 13
+- [ ] 3.1 `buildDduLeaferPackage`：manifest（pipeline `leafer`）+ `design.leafer.json` + 可交互 index.html（npm dist 运行时 + JSON 内嵌，双击得可交互画布）+ `design-ipc` 导出路由 + build.mjs 运行时拷贝
+  - 验收：dd-package 测试断言四件套与 JSON 转义嵌入；导出 html 双击可交互；EARS 12/14
+- [x] 3.2 ~~图片导出~~ **移出首版**（user 2026-09-10 裁决：只关注可交互 `.ddu`；上游 toSVG 未实装/PDF 伪 mime，EARS 13 = shall-not）
+  - 验收：P2 重估前不实现；EARS 13
 
 ## WP4 兼容、边界与收尾
 
@@ -45,13 +45,14 @@
   - 验收：guard 测试入 CI（对齐三层定位边界批纪律）；EARS 16
 - [ ] 4.2 旧产物兼容回归（仅 `content.openui` 套件全链路只读可达）
 - [ ] 4.3 全量验证：`npm run check` + core/desktop 测试全绿
-- [ ] 4.4 端到端走查：一句话生成 → 画布微调 → 版本轨 → lint/review → `.ddu` 双击可看 → PNG 导出
+- [ ] 4.4 端到端走查：一句话生成 → 画布微调 → 版本轨 → lint/review → `.ddu` 双击可交互（平移/缩放/选中微调）
 - [ ] 4.5 按 WP 分批提交（4 个：WP0 / WP1 / WP2+WP3 / WP4）
 
 ## P2 跟进（不在本 spec 实施范围）
 
 - [ ] Stitch 借鉴：自动补缺失屏（`@Set($page,…)` 目标缺失 → 可选 agent 补屏，failed 兜底）
 - [ ] 设计/原型能力暴露为 MCP 工具（供外部编码 agent 消费）
-- [ ] `@leafer-ui/node` 服务端离屏渲染（批量截图/无头校验）
-- [ ] 文本就地编辑启用评估（等上游 text-editor 稳定）/ 富文本渲染（leafer-x-richText）
+- [ ] `@leafer-ui/node` 服务端离屏渲染（批量截图/无头校验；注意：子包 npm 只发 TS 源码、需 `useCanvas('napi', canvas)` 显式挂后端）
+- [ ] 图片导出重估（PNG 可行已实测；SVG 阻塞于上游 `toSVG` 未实装、PDF 阻塞于伪 mime——跟踪上游实装进度）/ 富文本渲染（leafer-x-richText）
+- [ ] 文本就地编辑启用评估（等上游 text-editor 稳定）
 - [ ] Agent Manager 式多方向并排对比（复用变体机制）

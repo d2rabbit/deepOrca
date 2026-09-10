@@ -55,8 +55,8 @@ LeaferJS（v2.2.x，MIT，70KB 零依赖）正面覆盖全部缺口：场景树�
 
 | #   | 改动                                                                                                                                                                                                                                                                                                                             | 落点                                                  |
 | --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
-| 3.1 | **`buildDduLeaferPackage`**：manifest（format ddu / kind ui-design / pipeline `leafer`）+ `design.leafer.json` + `index.html`（**真实可播放**：leafer web 运行时 + JSON 内嵌 `<script type="application/json">`，双击渲染）；运行时文件构建期从 npm dist 拷贝（非源码 vendor）；`design-ipc` 导出路由按 content 字段选择 builder | `dd-package.ts` + `design-ipc.ts:160-180`             |
-| 3.2 | **图片导出**：工作台导出按钮 → renderer 侧 Leafer `export('png')`（1x/高清 @2x）落盘/保存对话框；SVG/PDF 同通道暴露                                                                                                                                                                                                              | `DesignWorkspace.tsx` + IPC（复用既有保存对话框通道） |
+| 3.1 | **`buildDduLeaferPackage`**：manifest（format ddu / kind ui-design / pipeline `leafer`）+ `design.leafer.json` + `index.html`（**真实可交互**：leafer web 运行时 + JSON 内嵌 `<script type="application/json">`，双击得可交互画布——平移/缩放/选中微调）；运行时文件构建期从 npm dist 拷贝（非源码 vendor）；`design-ipc` 导出路由按 content 字段选择 builder | `dd-package.ts` + `design-ipc.ts:160-180`             |
+| 3.2 | ~~图片导出~~ **移出首版**（user 2026-09-10 裁决：只关注可交互 `.ddu`；预研勘误：v2.2.10 `toSVG` 声明未实装、PDF 走 `image/pdf` 伪 mime 静默回退 PNG——EARS 13 改为 shall-not，P2 重估）                                                                                                                                              | —                                                     |
 
 ### WP4 兼容与收尾
 
@@ -71,8 +71,8 @@ LeaferJS（v2.2.x，MIT，70KB 零依赖）正面覆盖全部缺口：场景树�
 | Canvas 文本编辑已知短板（issue #885 类）     | 首版**不启用**就地文本编辑（编辑=变换/删除/属性面板）；富文本渲染用免费 `leafer-x-richText`，编辑器付费插件不引入 |
 | 双栈并存复杂度                               | 字段级路由单一规则（EARS 17）+ guard 测试；suite 级禁混写；旧栈只读不再演进                                       |
 | 渲染主题不一致                               | LeaferPreview 接 `--ui-*` 变量（背景/选中色），暗色主题显式适配                                                   |
-| `.ddu` 运行时体积                            | 只拷 leafer-editor web 精简 dist（按官方 install 指南的组合），不打包全家桶                                       |
+| `.ddu` 运行时体积                            | leafer-editor web 精简 dist 实测 **307KB**（min 未 gzip；70KB 官网口径是 leafer-ui 核心不含编辑器），单文件按需拷贝 |
 
 ## 5. 明确不做
 
-- PM-Design 原型模块与 A2UI 交互层任何改动；Stitch 借鉴项（独立评估）；`@leafer-ui/node` 服务端渲染；富文本/文本就地编辑；HTML-in-Canvas；CanvasUI；design.extract/drift 改动。
+- PM-Design 原型模块与 A2UI 交互层任何改动；Stitch 借鉴项（独立评估）；`@leafer-ui/node` 服务端渲染；富文本/文本就地编辑；**图片导出 PNG/SVG/PDF（P2 重估）**；HTML-in-Canvas；CanvasUI；design.extract/drift 改动。

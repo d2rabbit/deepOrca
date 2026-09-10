@@ -40,7 +40,7 @@
 | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 🔴 维护者单点          | 独立开发者（Chao Wan，5 年开源、公开谈过负债 80 万），试行 4 天工作周、优先金牌赞助商；虽有 8 个微信交流群、数十万开发者、企业采用（工业监控、AI 无限画布产品），但**引入方式按 npm lib 精确版本 pin**（user 拍板：不做源码 vendor，见 §1.3）                        |
 | 🟠 Canvas 文本编辑短板 | `@leafer-in/text-editor` 相对较新：缩放下光标错位/大黑块（issue #885）；Konva/Fabric 用 DOM overlay 规避，Leafer 选择更深耦合——正常路径更顺、冲突更难隔离。**富文本编辑须付费插件**（leafer-htmltext-edit）；免费 `leafer-x-richText` 是 canvas 渲染富文本（非编辑） |
-| 🟠 引擎级 bug 偶发     | 已修 destroy→布局死循环（#865 类）；editable/locked 可被编程式 API 绕过；对比 Figma 级竞品仍缺路径文本、操作方向 API                                                                                                                                                 |
+| 🟠 引擎级 bug 偶发     | ~~已修 destroy→布局死循环（#865 类）~~ **勘误（预研实测 2026-09-10）**：issue #865 = "LeafLayout 有小概率会对已销毁元素执行布局"（崩溃类偶发 bug），状态仍 **Open**、并非"已修死循环"；editable/locked 可被编程式 API 绕过；对比 Figma 级竞品仍缺路径文本、操作方向 API |
 | 🟡 LLM 生成生态未成熟  | 官方 AI 支持目前是"知识库/MCP/Skills/代码生成"方向，**尚未提供"LLM→Leafer JSON"的契约/修复环级保障**——这正是 DeepOrca 要自建的部分（把 OpenUI 的 contract+repair 工程搬到 Leafer，见 §四）                                                                           |
 
 ### 1.3 版本与包选型（npm lib 直接引入，不做源码 vendor · user 2026-09-10 拍板）
@@ -68,6 +68,25 @@
 | 交付物           | ✅ 导出 PNG/SVG/PDF；`.ddu` 可从 viewer stub 升级为 **vendor 官方 web.min.js + JSON 数据的真实可播放 HTML**（unpkg 有 dist/web.min.js，离线 vendor 可行） |
 | 跨端一致性       | ✅ 服务端（node）可离屏渲染——生成校验、批量截图、无头评审（captureReviewShots 类）零浏览器依赖                                                            |
 | 维护/供应链      | 🟠 单点维护者 → vendor 锁定 + 版本 pin（仓库纪律已有先例）                                                                                                |
+
+---
+
+## 〇½、预研勘误（2026-09-10 本地实测 + npm/GitHub 核查，实施前必读）
+
+在 `leafer-editor@2.2.10` 精确 pin 安装包上做的源码级核查 + Node(napi) 真渲染冒烟，对本调研与 spec 的修正：
+
+| 主张                     | 实测结论                                                                                                                                                                                                                                                                             |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 导出 PNG                 | ✅ 成立：`leafer.export('png')` 出真图；`{pixelRatio: 2}` 高清导出成立（4 倍像素）                                                                                                                                                                                                    |
+| 导出 SVG                 | ❌ **不成立（v2.2.10）**：`IExportFileType` 含 `'svg'`，导出插件调用 `leaf.toSVG()`，但 `toSVG` 在 `@leafer/display` 只是 "UI rewrite" 接口声明，**全部编译产物（web/node）均无实现**，运行时必 TypeError；npm 无 `@leafer-in/svg` 插件。声明未实装                                      |
+| 导出 PDF                 | ❌ **不成立**：`'pdf'` 落入光栅分支后 `mimeType('pdf') = 'image/pdf'`——浏览器 `canvas.toDataURL('image/pdf')` **静默回退 PNG**（产出假 .pdf）；Node napi 后端直接报错。仅未捆绑的 skia-canvas 后端理论上可出真 PDF                                                                      |
+| `@leafer-ui/node` 开箱即用 | ⚠️ 修正：不自带 canvas 后端，须 `useCanvas('napi', @napi-rs/canvas)` 显式挂载；`@leafer/node-core` 等子包 npm **只发 TS 源码**（main 指向 src/index.ts）。P2 评估服务端渲染时按此算成本                                                                                              |
+| JSON 往返                | ✅ 比预期更强：`set({tag,width,height,fill,children})` 一次成型；`toJSON()` → 重放 → 重渲染 **字节级一致**（0 字节差）；`toJSON()` 从 `__input` 序列化保留人类可读输入                                                                                                                |
+| 体积口径                 | ⚠️ 修正：70KB = leafer-ui **核心**；`leafer-editor` 全量 `dist/web.min.js` 实测 **307KB**（min 未 gzip）。`.ddu`/renderer 体积预算按 307KB 计                                                                                                                                        |
+| issue #865               | 措辞勘误："LeafLayout 小概率对已销毁元素执行布局"（崩溃类偶发），仍 Open；非"已修布局死循环"                                                                                                                                                                                          |
+| 供应链                   | ✅ 成立：`leafer-editor@2.2.10` 全部 16 个依赖为 `@leafer*` 第一方同版本精确锁定，零第三方传递依赖；`@leafer-in/flow` 确不在默认清单内（按需加装）；issue #885 属实（缩放下文本编辑错位，Open）                                                                                          |
+
+**user 裁决（2026-09-10）**：图片导出（PNG/SVG/PDF）不关注——`.ddu` 只做**可交互画布导出**（leafer 运行时 + JSON 内嵌，双击即得平移/缩放/选中微调的画布）；EARS 13 已改为 shall-not，PNG 以外的图片导出列入 P2 重估（阻塞于上游 toSVG 实装）。
 
 ---
 
