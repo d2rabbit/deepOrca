@@ -107,6 +107,7 @@ function createHarness(): Harness {
       calls.deleteSuite += 1;
       return true;
     },
+    appendSuiteVersion: () => null,
     saveFormState: () => true,
     readFormState: () => ({ field: "value" }),
     onArtifactChange: (listener) => {

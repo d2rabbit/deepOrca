@@ -1631,6 +1631,10 @@ export const en = {
   "designWorkspace.scopeHint": "Version {version} · Basis {basis} · Theme {theme}",
   "designWorkspace.versionCapDesign": "Versions · one version = one set (visual + design system + quality)",
   "designWorkspace.setOpenui": "Visual",
+  "designWorkspace.setLeafer": "Canvas",
+  "designWorkspace.legacyOpenui": "Legacy OpenUI canvas · view only, revise via composer",
+  "designWorkspace.leaferCanvasError":
+    "The canvas engine failed to initialize in this window. Regenerate the design or restart the app.",
   "designWorkspace.setTokens": "Design system",
   "designWorkspace.setQuality": "Quality",
   "designWorkspace.tokensGroup.color": "Color",

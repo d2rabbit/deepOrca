@@ -1172,6 +1172,73 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
     }
   );
 
+  // Tool: render_leafer — persist a Leafer JSON scene tree as a UI-Design
+  // suite version (specs/leafer-ui-engine). The leafer counterpart of
+  // render_openui's suite path: called ONLY by the design.* actions after the
+  // core-side structural gate (LEAFER contract + repairLeaferProgram); the
+  // boundary still re-parses cheaply. Suite persistence only — a UI suite
+  // version stores the document in content.leafer and never mixes it with
+  // content.openui (field-level single-stack invariant, guard-tested).
+  registerTool(
+    "render_leafer",
+    {
+      description:
+        "Persist a Leafer scene-tree JSON document as a UI-Design suite version (pipeline leafer). " +
+        'The document is the complete `{tag: "Leafer", width, height, fill, children}` scene tree produced ' +
+        "by the deep-design skill and validated by the design action. Suite persistence only — " +
+        "pass designSystemId (new suite) or suiteId+versionId (append); content.leafer never mixes with content.openui.",
+      inputSchema: {
+        leafer: z.string().describe("Complete Leafer scene-tree JSON document (a single JSON object)"),
+        requirement: z
+          .string()
+          .optional()
+          .describe("The user's original requirement text (persisted as requirement.md; pass when known)."),
+        ...suiteLineageSchema,
+      },
+    },
+    async (args) => {
+      const leafer = stringArg(args, "leafer");
+      if (!leafer) return suiteError("leafer JSON is required");
+      // Boundary re-validation: the core repair gate already ran, but this tool
+      // is model-reachable directly, so the cheap root-shape parse must hold at
+      // the write boundary too.
+      try {
+        const parsed: unknown = JSON.parse(leafer);
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("not an object");
+        const root = parsed as { tag?: unknown; children?: unknown };
+        if (root.tag !== "Leafer") throw new Error('root.tag must be "Leafer"');
+        if (!Array.isArray(root.children)) throw new Error("root.children must be an array");
+      } catch (error) {
+        return suiteError(`leafer: invalid scene document (${error instanceof Error ? error.message : String(error)})`);
+      }
+      if (!usesSuitePersistence(args)) {
+        return suiteError("render_leafer persists suite versions — pass designSystemId or suiteId/versionId lineage");
+      }
+      const requirement =
+        typeof args.requirement === "string" && args.requirement.trim() ? args.requirement : undefined;
+      const sourcePrototype = sourcePrototypeArg(args);
+      const designSystemId = stringArg(args, "designSystemId");
+      const persisted = persistSuiteContent(
+        projectRoot,
+        args,
+        "ui",
+        deriveTitle(requirement ?? "UI Design"),
+        (base) => ({
+          ...((base ?? {}) as UiSuiteContent),
+          ...(requirement ? { requirement } : {}),
+          leafer,
+          openui: undefined,
+          ...(sourcePrototype ? { sourcePrototype } : {}),
+          ...(designSystemId ? { designSystemId } : {}),
+          quality: { lintFindings: [], runtimeChecks: [] },
+        }),
+        "ready"
+      );
+      if ("error" in persisted) return suiteError(persisted.error);
+      return artifactResult(persisted.ref, `Leafer design saved (${leafer.length} chars).`, { leafer });
+    }
+  );
+
   // Tool: update_openui — replace an existing OpenUI Lang prototype with updated code
   registerTool(
     "update_openui",

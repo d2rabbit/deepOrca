@@ -185,6 +185,7 @@ export const IpcRequest = {
   DesignSuiteReadVersion: "design:suiteReadVersion",
   DesignSuiteDelete: "design:suiteDelete",
   DesignSuiteExport: "design:suiteExport",
+  DesignSuiteAppendLeafer: "design:suiteAppendLeafer",
   DesignSuiteSaveFormState: "design:suiteSaveFormState",
   DesignSuiteReadFormState: "design:suiteReadFormState",
   DesignSystemCatalog: "design:systemCatalog",
@@ -1015,6 +1016,10 @@ export type PrototypeSuiteContent = {
 export type UiSuiteContent = {
   requirement?: string;
   openui?: string;
+  /** specs/leafer-ui-engine: UI-Design 新栈产物（Leafer JSON 场景树字符串）。
+   *  字段级双栈路由（EARS 17）：有 leafer → Leafer 栈；仅 openui → 旧栈只读；
+   *  同一 suite 版本不混写两种字段（guard 测试锁定）。 */
+  leafer?: string;
   tokens?: unknown;
   components?: unknown;
   quality?: DesignQualityResult;
@@ -1610,6 +1615,16 @@ export type DesktopApi = {
   ): Promise<{ ok: boolean; path?: string; error?: string }>;
   designSuiteSaveFormState(root: string, id: string, state: Record<string, unknown>, slot?: string): Promise<boolean>;
   designSuiteReadFormState(root: string, id: string, slot?: string): Promise<Record<string, unknown> | null>;
+  /** Leafer canvas edit → new suite version (specs/leafer-ui-engine WP1.4).
+   *  Main re-reads the head version, replaces ONLY the leafer field and
+   *  appends — the renderer never authors suite content wholesale. */
+  designSuiteAppendLeafer(
+    root: string,
+    id: string,
+    versionId: string,
+    leaferJson: string,
+    note?: string
+  ): Promise<{ ok: boolean; ref?: DesignArtifactRef; error?: string }>;
   designSystemCatalog(): Promise<DesignSystemCatalogItem[]>;
 
   /** Render one suite version's spec.md into a slide deck (main-process marp). */

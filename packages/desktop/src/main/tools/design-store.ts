@@ -115,6 +115,10 @@ export interface PrototypeSuiteContent {
 export interface UiSuiteContent {
   requirement?: string;
   openui?: string;
+  /** specs/leafer-ui-engine: UI-Design 新栈产物（Leafer JSON 场景树字符串）。
+   *  字段级双栈路由：有 leafer → Leafer 栈；仅 openui → 旧栈只读；同一
+   *  suite 版本不混写两种字段。与 core 的 UiSuiteContent 镜像（已知）。 */
+  leafer?: string;
   tokens?: unknown;
   components?: unknown;
   quality?: DesignQualityResult;
@@ -650,6 +654,7 @@ function syncSuiteProjections(dir: string, kind: DesignSuiteKind, content: Desig
     writeProjectionFile(dir, "prototype.openui.mobile.txt", prototype.openuiVariants?.mobile);
     writeProjectionFile(dir, "prototype.openui.tablet.txt", prototype.openuiVariants?.tablet);
     writeProjectionFile(dir, "prototype.dd", undefined);
+    writeJsonProjection(dir, "design.leafer.json", undefined);
     writeJsonProjection(dir, "tokens.json", undefined);
     writeJsonProjection(dir, "components.json", undefined);
     writeJsonProjection(dir, "quality.json", undefined);
@@ -660,6 +665,15 @@ function syncSuiteProjections(dir: string, kind: DesignSuiteKind, content: Desig
   writeProjectionFile(dir, "requirement.md", ui.requirement);
   writeProjectionFile(dir, "prototype.dd", undefined);
   writeProjectionFile(dir, "spec.md", undefined);
+  // Leafer 栈投影(specs/leafer-ui-engine WP1):content.leafer 是 JSON 字符串,
+  // 解析后美化落盘;损坏内容按缺失处理(投影是只读衍生物,不阻塞持久化)。
+  let leaferProjection: unknown;
+  try {
+    leaferProjection = ui.leafer === undefined ? undefined : JSON.parse(ui.leafer);
+  } catch {
+    leaferProjection = undefined;
+  }
+  writeJsonProjection(dir, "design.leafer.json", leaferProjection);
   writeProjectionFile(dir, "prototype.openui.txt", ui.openui);
   writeJsonProjection(dir, "tokens.json", ui.tokens);
   writeJsonProjection(dir, "components.json", ui.components);

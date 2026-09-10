@@ -1348,6 +1348,36 @@
   transition: background 0.3s var(--ui-ease);
 }
 
+/* Leafer canvas stage (specs/leafer-ui-engine WP1)：引擎自持 canvas，容器
+   只负责占位与边框；leafer 画布随内容尺寸渲染（wheel 缩放由编辑器接管）。 */
+.ui-design-leafer-stage {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 320px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--ui-border-soft);
+  border-radius: 12px;
+  background: var(--ui-surface);
+}
+
+/* Legacy OpenUI 只读徽标（EARS 15）：旧栈套件仍可查看/对话修订，但无画布编辑。 */
+.ui-design-legacy-chip {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  z-index: 3;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--ui-border);
+  background: color-mix(in srgb, var(--ui-surface) 85%, transparent);
+  color: var(--ui-text-muted, inherit);
+  font-size: 11px;
+  pointer-events: none;
+}
+
 .ui-design-flash {
   outline: 2px solid var(--ui-accent);
   outline-offset: 2px;

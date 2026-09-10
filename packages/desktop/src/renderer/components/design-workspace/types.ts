@@ -39,5 +39,13 @@ export function isPrototypeContent(content: DesignSuiteContent): content is Prot
 }
 
 export function isUiContent(content: DesignSuiteContent): content is UiSuiteContent {
-  return "quality" in content || "sourcePrototype" in content || "designSystemId" in content || "tokens" in content;
+  // leafer versions may exist before any quality/tokens land (EARS 17:
+  // field-level routing — a bare {leafer} payload is still a UI suite).
+  return (
+    "quality" in content ||
+    "sourcePrototype" in content ||
+    "designSystemId" in content ||
+    "tokens" in content ||
+    "leafer" in content
+  );
 }

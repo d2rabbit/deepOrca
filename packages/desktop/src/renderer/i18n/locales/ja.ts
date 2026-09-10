@@ -1632,6 +1632,10 @@ export const ja: Record<MessageKey, string> = {
   "designWorkspace.scopeHint": "バージョン {version} · ベース {basis} · テーマ {theme}",
   "designWorkspace.versionCapDesign": "バージョン · 1バージョン = 1セット（ビジュアル + デザインシステム + 品質）",
   "designWorkspace.setOpenui": "ビジュアル",
+  "designWorkspace.setLeafer": "キャンバス",
+  "designWorkspace.legacyOpenui": "旧 OpenUI キャンバス · 閲覧専用（編集はチャットから）",
+  "designWorkspace.leaferCanvasError":
+    "キャンバスエンジンの初期化に失敗しました。デザインを再生成するかアプリを再起動してください。",
   "designWorkspace.setTokens": "デザインシステム",
   "designWorkspace.setQuality": "品質",
   "designWorkspace.tokensGroup.color": "カラー",

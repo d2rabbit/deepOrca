@@ -7,6 +7,7 @@ import { PrototypePanel, type PrototypeSelection } from "../PrototypePanel";
 import { subscribeToSuiteChanges, suiteApi } from "./api";
 import { DesignWorkspaceFrame, versionLabel } from "./DesignWorkspaceFrame";
 import { FloatingDesignAgent } from "./FloatingDesignAgent";
+import { LeaferPreview } from "./LeaferPreview";
 import { paletteFor } from "./palettes";
 import { isTerminalProgress, progressLabel } from "./progress-label";
 import { SelectionPopover, type WorkspaceSelection } from "./SelectionPopover";
@@ -356,12 +357,34 @@ export function DesignWorkspace({
   };
 
   const priorText = (source: UiSuiteContent, part: string): string | null => {
-    if (part === "design") return source.openui ?? null;
+    if (part === "design") return source.leafer ?? source.openui ?? null;
     if (part === "tokens" || part === "components") {
       const value = part === "tokens" ? source.tokens : source.components;
       return value ? JSON.stringify(value, null, 2) : null;
     }
     return null;
+  };
+
+  /** Leafer canvas edit → version snapshot (WP1.4): the debounced commit from
+   *  LeaferPreview appends a new head version; the canvas then follows the
+   *  new head (the suite-change background refresh would keep the old
+   *  selection, instantly re-reading the canvas as read-only). */
+  const commitLeafer = async (leaferJson: string): Promise<void> => {
+    if (!suite || !selectedVersion || readOnly) return;
+    try {
+      const result = await suiteApi.designSuiteAppendLeafer(root, suite.id, selectedVersion.versionId, leaferJson);
+      if (!result.ok) {
+        setError(result.error ?? "canvas save failed");
+        return;
+      }
+      const nextSuite = await suiteApi.designSuiteRead(root, suite.id);
+      if (nextSuite) {
+        setSuite(nextSuite);
+        setSelectedVersion(nextSuite.currentVersion);
+      }
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    }
   };
 
   const revise = async (instruction: string, target?: string): Promise<boolean> => {
@@ -538,7 +561,11 @@ export function DesignWorkspace({
         return (
           <>
             <span className="ui-design-version-set">
-              <i className={version.content.openui ? undefined : "miss"}>{t("designWorkspace.setOpenui")}</i>
+              {version.content.leafer ? (
+                <i>{t("designWorkspace.setLeafer")}</i>
+              ) : (
+                <i className={version.content.openui ? undefined : "miss"}>{t("designWorkspace.setOpenui")}</i>
+              )}
               <i className={recordEntries(version.content.tokens).length ? undefined : "miss"}>
                 {t("designWorkspace.setTokens")}
               </i>
@@ -642,7 +669,7 @@ export function DesignWorkspace({
               </button>
               <button
                 type="button"
-                disabled={!content.openui || busy !== null || readOnly}
+                disabled={(!content.openui && !content.leafer) || busy !== null || readOnly}
                 onClick={() => void runQuality()}
               >
                 <IconCheck /> {t("designWorkspace.runQuality")}
@@ -664,8 +691,17 @@ export function DesignWorkspace({
             </div>
             {progress ? <div className="ui-design-gen-progress">{progress}</div> : null}
             <div className="ui-design-canvas-area">
-              {content.openui ? (
+              {content.leafer ? (
+                <div className="ui-design-canvas-stage" style={themeVars}>
+                  <LeaferPreview
+                    leaferJson={content.leafer}
+                    editable={!readOnly}
+                    onCommit={(json) => void commitLeafer(json)}
+                  />
+                </div>
+              ) : content.openui ? (
                 <div className="ui-design-canvas-stage" ref={stageRef} style={themeVars}>
+                  <span className="ui-design-legacy-chip">{t("designWorkspace.legacyOpenui")}</span>
                   <PrototypePanel
                     a2uiJson=""
                     openuiCode={content.openui}
@@ -822,7 +858,7 @@ export function DesignWorkspace({
                 <button
                   type="button"
                   className="ui-review-run-btn"
-                  disabled={!content.openui || busy !== null || readOnly}
+                  disabled={(!content.openui && !content.leafer) || busy !== null || readOnly}
                   onClick={() => void runQuality()}
                 >
                   <IconRefresh /> {t("designWorkspace.runQuality")}

@@ -21,6 +21,9 @@
  */
 
 import { deflateRawSync } from "node:zlib";
+import { readFileSync } from "node:fs";
+import { basename, dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 /** Files that make up a package, in zip order. */
 export interface PackageEntry {
@@ -36,7 +39,9 @@ export interface DdPackageManifest {
   kind: "pm-design" | "ui-design";
   title: string;
   artifactId: string;
-  pipeline: "openui" | "design";
+  /** Generation stack: openui = PM-Design / legacy UI-Design, leafer =
+   *  specs/leafer-ui-engine's UI-Design stack, design = legacy .dd. */
+  pipeline: "openui" | "design" | "leafer";
   exportedAt: string;
   generator: string;
   /** .ddp only (additive, spec appendix C④): true when a `verification.md`
@@ -211,6 +216,159 @@ export function buildDduOpenuiPackage(
     { name: "manifest.json", data: Buffer.from(JSON.stringify(manifest, null, 2), "utf8") },
     { name: "source.openui.txt", data: Buffer.from(openuiSource, "utf8") },
     { name: "index.html", data: Buffer.from(buildDduOpenuiViewerHtml(artifact.title, openuiSource), "utf8") },
+  ];
+  if (hasTokens) {
+    entries.push({ name: "tokens.json", data: Buffer.from(JSON.stringify(tokens, null, 2), "utf8") });
+  }
+  if (componentList) {
+    entries.push({ name: "components.json", data: Buffer.from(JSON.stringify(componentList, null, 2), "utf8") });
+  }
+  return zipEntries(entries);
+}
+
+// ── .ddu leafer pipeline (specs/leafer-ui-engine WP3) ────────────────────────
+
+/** Name of the leafer runtime entry inside a leafer .ddu package. */
+export const LEAFER_RUNTIME_FILE = "leafer.web.min.js";
+
+/** The leafer-editor web runtime bytes carried inside the package. */
+export interface LeaferRuntime {
+  fileName: string;
+  data: Buffer;
+}
+
+/**
+ * Locate the leafer-editor web runtime (dist/web.min.js). Resolution order:
+ * 1. the build-time copy next to the main bundle (`dist/leafer-web.min.js`,
+ *    written by build.mjs — the production truth, stable across asar layout),
+ * 2. the build-time copy one level up (running from src/ in tests),
+ * 3. the installed dependency via require.resolve (unbuilt checkout).
+ * Null when none exists — the export surface then fails with an explicit
+ * "rebuild the desktop bundle" error instead of shipping a dead package.
+ */
+export function resolveLeaferRuntimeSource(): LeaferRuntime | null {
+  const here = dirname(fileURLToPath(import.meta.url));
+  // Bundled: here = <desktop>/dist → package root one level up.
+  // Tests/tsx: here = <desktop>/src/main/tools → package root three up.
+  const fromSrc = resolve(here, "..", "..", "..");
+  const packageRoot = basename(here) === "dist" ? resolve(here, "..") : fromSrc;
+  const candidates = [
+    join(here, LEAFER_RUNTIME_FILE),
+    join(fromSrc, "dist", LEAFER_RUNTIME_FILE),
+    join(packageRoot, "node_modules", "leafer-editor", "dist", "web.min.js"),
+    // Workspace-hoisted install (the common layout): <repo>/node_modules.
+    join(packageRoot, "..", "..", "node_modules", "leafer-editor", "dist", "web.min.js"),
+  ];
+  for (const candidate of candidates) {
+    try {
+      const data = readFileSync(candidate);
+      if (data.length > 0) return { fileName: "leafer.web.min.js", data };
+    } catch {
+      // Try the next candidate.
+    }
+  }
+  return null;
+}
+
+/** Escape a JSON document for inline <script type="application/json">
+ *  embedding: `<` becomes \u003c so `</script>` can never terminate the
+ *  block, plus the line-separator characters JSON allows raw. */
+function embedJson(json: string): string {
+  return json
+    .replace(/</g, "\\u003c")
+    .replace(/\u2028/g, "\\u2028")
+    .replace(/\u2029/g, "\\u2029");
+}
+
+/** The interactive .ddu viewer: leafer runtime + embedded design JSON —
+ *  double-click renders an editable canvas (pan/zoom/select/adjust), fully
+ *  offline via the relative runtime script. */
+export function buildDduLeaferViewerHtml(title: string, leaferJson: string, runtimeFileName: string): string {
+  const safeTitle = title.replace(/[&<>"']/g, (char) => `&#${char.charCodeAt(0)};`);
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>${safeTitle} — DeepOrca UI Design</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #17181c; }
+  #stage { position: fixed; inset: 0; }
+  #err {
+    display: none; position: fixed; inset: 24px; margin: auto; width: fit-content; height: fit-content;
+    max-width: 70ch; padding: 14px 18px; border-radius: 10px; background: #2a2c33; color: #f2f3f5;
+    font: 13px/1.6 ui-monospace, monospace; white-space: pre-wrap;
+  }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<pre id="err"></pre>
+<script type="application/json" id="ddu-design">${embedJson(leaferJson)}</script>
+<script src="./${runtimeFileName}"></script>
+<script>
+(function () {
+  var stage = document.getElementById("stage");
+  var err = document.getElementById("err");
+  function fail(message) {
+    err.style.display = "block";
+    err.textContent = "Failed to render the design: " + message;
+  }
+  try {
+    var data = JSON.parse(document.getElementById("ddu-design").textContent);
+    if (typeof Leafer !== "function") throw new Error("leafer runtime missing (" + ${JSON.stringify(runtimeFileName)} + ")");
+    var leafer = new Leafer({ view: stage, fill: "#17181c" });
+    leafer.set(data);
+    if (typeof Editor === "function") leafer.add(new Editor());
+  } catch (error) {
+    fail(error && error.message ? error.message : String(error));
+  }
+})();
+</script>
+</body>
+</html>
+`;
+}
+
+/** Build the .ddu package for the leafer UI-Design stack: manifest +
+ *  design.leafer.json + the interactive index.html + the leafer web runtime.
+ *  Non-empty token/component extras ride along like the openui pipeline. */
+export function buildDduLeaferPackage(
+  artifact: { id: string; title: string },
+  leaferJson: string,
+  exportedAt: string,
+  runtime: LeaferRuntime,
+  extras?: DduExtras
+): Buffer {
+  // Normalize the stored document (pretty-printed entry) — a parse failure
+  // here means corrupted suite content and must fail the export loudly.
+  const normalized = JSON.stringify(JSON.parse(leaferJson), null, 2);
+  const tokens = extras?.tokens;
+  const components = extras?.components;
+  const hasTokens = isNonEmptyRecord(tokens);
+  const componentList = Array.isArray(components) && components.length > 0 ? components : null;
+  const extraNames: string[] = [];
+  if (hasTokens) extraNames.push("tokens.json");
+  if (componentList) extraNames.push("components.json");
+  const manifest: DdPackageManifest = {
+    format: "ddu",
+    formatVersion: 1,
+    kind: "ui-design",
+    title: artifact.title,
+    artifactId: artifact.id,
+    pipeline: "leafer",
+    exportedAt,
+    generator: GENERATOR,
+    ...(extraNames.length > 0 ? { entries: extraNames } : {}),
+  };
+  const entries: PackageEntry[] = [
+    { name: "manifest.json", data: Buffer.from(JSON.stringify(manifest, null, 2), "utf8") },
+    { name: "design.leafer.json", data: Buffer.from(normalized, "utf8") },
+    {
+      name: "index.html",
+      data: Buffer.from(buildDduLeaferViewerHtml(artifact.title, leaferJson, runtime.fileName), "utf8"),
+    },
+    { name: runtime.fileName, data: runtime.data },
   ];
   if (hasTokens) {
     entries.push({ name: "tokens.json", data: Buffer.from(JSON.stringify(tokens, null, 2), "utf8") });

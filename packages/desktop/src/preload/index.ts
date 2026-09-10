@@ -184,6 +184,8 @@ const api: DesktopApi = {
   designSuiteSaveFormState: (root, id, state, slot) =>
     ipcRenderer.invoke(IpcRequest.DesignSuiteSaveFormState, root, id, state, slot),
   designSuiteReadFormState: (root, id, slot) => ipcRenderer.invoke(IpcRequest.DesignSuiteReadFormState, root, id, slot),
+  designSuiteAppendLeafer: (root, id, versionId, leaferJson, note) =>
+    ipcRenderer.invoke(IpcRequest.DesignSuiteAppendLeafer, root, id, versionId, leaferJson, note),
   designSystemCatalog: () => ipcRenderer.invoke(IpcRequest.DesignSystemCatalog),
   prototypeSpecSlides: (root, suiteId, versionId, appearance) =>
     ipcRenderer.invoke(IpcRequest.PrototypeSpecSlides, root, suiteId, versionId, appearance),

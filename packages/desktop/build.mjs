@@ -393,6 +393,21 @@ async function copyStaticAssets() {
   } catch (err) {
     console.warn(`[desktop] @openuidev/react-ui stylesheets missing — OpenUI canvas renders unstyled (${err.message})`);
   }
+  // leafer-editor web runtime (specs/leafer-ui-engine WP3): the interactive
+  // .ddu export embeds this file (design-ipc reads it back from dist/ at
+  // export time). Copied from the installed dependency — same hoisting
+  // caveat as @a2ui; missing runtime only disables the .ddu export.
+  try {
+    const leaferCandidates = [
+      resolve(__dirname, "../../node_modules/leafer-editor/dist/web.min.js"),
+      resolve(__dirname, "node_modules/leafer-editor/dist/web.min.js"),
+    ];
+    const leaferSrc = leaferCandidates.find((c) => existsSync(c));
+    if (!leaferSrc) throw new Error(`not found in ${leaferCandidates.join(" | ")}`);
+    await cp(leaferSrc, resolve(outdir, "leafer-web.min.js"));
+  } catch (err) {
+    console.warn(`[desktop] leafer runtime missing — interactive .ddu export disabled (${err.message})`);
+  }
   await cp(resolve(__dirname, "src/renderer/styles.css"), resolve(outdir, "renderer/styles.css"));
   // Brand icon (orca): main process rasterizes dist/orca-icon.svg; renderer uses it as favicon.
   const orcaSvg = resolve(__dirname, "src/assets/orca-icon.svg");

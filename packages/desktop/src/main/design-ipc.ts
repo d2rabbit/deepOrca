@@ -15,7 +15,9 @@ import type {
   DesignPipeline,
   DesignSuite,
   DesignSuiteChangeEvent,
+  DesignSuiteContent,
   DesignSuiteKind,
+  DesignSuiteStatus,
   DesignSuiteSummary,
   DesignSuiteVersion,
   DesignSystemCatalogItem,
@@ -24,11 +26,14 @@ import type {
 } from "../shared/ipc.js";
 import {
   buildDdpPackage,
+  buildDduLeaferPackage,
   buildDduOpenuiPackage,
   buildDduPackage,
+  resolveLeaferRuntimeSource,
   type PackageVerification,
 } from "./tools/dd-package.js";
 import {
+  appendDesignSuiteVersion,
   deleteDesignArtifact,
   deleteDesignSuite,
   designSuiteDir,
@@ -64,6 +69,11 @@ export interface DesignStoreOps {
   readSuite(root: string, id: string): DesignSuite | null;
   readSuiteVersion(root: string, id: string, versionId: string): DesignSuiteVersion | null;
   deleteSuite(root: string, id: string): boolean;
+  /** Append a version built from a full suite content (canvas-edit seam). */
+  appendSuiteVersion(
+    root: string,
+    input: { suiteId: string; content: DesignSuiteContent; note?: string; status?: DesignSuiteStatus }
+  ): DesignSuite | null;
   saveFormState(root: string, id: string, state: unknown, slot?: string): boolean;
   readFormState(root: string, id: string, slot?: string): unknown | null;
   onArtifactChange(cb: (root: string) => void): () => void;
@@ -89,6 +99,7 @@ const defaultStore: DesignStoreOps = {
   readSuite: readDesignSuite,
   readSuiteVersion: readDesignSuiteVersion,
   deleteSuite: deleteDesignSuite,
+  appendSuiteVersion: appendDesignSuiteVersion,
   saveFormState,
   readFormState,
   onArtifactChange: onDesignStoreChange,
@@ -151,11 +162,12 @@ export interface SuiteExportExtras {
 }
 
 /** Export targets are per-module deliverables: prototype → .ddp, UI design → .ddu.
- *  Suite UI content is OpenUI Lang (the generation stack); .dd remains only on
- *  legacy artifacts, which keep the standalone compiled .ddu render. */
+ *  UI suite versions route by their content field (specs/leafer-ui-engine EARS 17):
+ *  `leafer` exports the interactive leafer package, legacy `openui` the source
+ *  package; .dd remains only on legacy artifacts (standalone compiled render). */
 function buildPackage(
   artifact: { id: string; title: string },
-  format: "ddp" | "ddu-dd" | "ddu-openui",
+  format: "ddp" | "ddu-dd" | "ddu-openui" | "ddu-leafer",
   content: string,
   extras?: SuiteExportExtras
 ): { data: Buffer; options: DesignPackageSaveOptions } {
@@ -171,7 +183,17 @@ function buildPackage(
             compileDdToHtml(parseDdFile(content), readTailwindScript() ?? undefined),
             exportedAt
           )
-        : buildDduOpenuiPackage(artifact, content, exportedAt, extras);
+        : format === "ddu-leafer"
+          ? (() => {
+              const runtime = resolveLeaferRuntimeSource();
+              if (!runtime) {
+                throw new Error(
+                  "leafer runtime file not found — run `npm run desktop:build` so dist/leafer-web.min.js exists"
+                );
+              }
+              return buildDduLeaferPackage(artifact, content, exportedAt, runtime, extras);
+            })()
+          : buildDduOpenuiPackage(artifact, content, exportedAt, extras);
   const ext = isDesign ? "ddu" : "ddp";
   const label = isDesign ? "UI-Design" : "PM-Design";
   return {
@@ -185,15 +207,21 @@ function buildPackage(
 }
 
 /** Suite → export projection. Formats are per-module deliverables:
- *  prototype suites export .ddp, UI-design suites export .ddu — both carry
- *  the OpenUI Lang source produced by the generation stack. */
+ *  prototype suites export .ddp; UI-design suites export .ddu — the leafer
+ *  interactive package for leafer versions, the OpenUI source package for
+ *  legacy versions (field-level routing, EARS 17). */
 function suiteProjection(
   kind: DesignSuiteKind,
   content: PrototypeSuiteContent | UiSuiteContent
-): { format: "ddp" | "ddu-openui"; content: string } | null {
-  const openui = kind === "prototype" ? (content as PrototypeSuiteContent).openui : (content as UiSuiteContent).openui;
-  if (typeof openui !== "string") return null;
-  return { format: kind === "prototype" ? "ddp" : "ddu-openui", content: openui };
+): { format: "ddp" | "ddu-openui" | "ddu-leafer"; content: string } | null {
+  if (kind === "prototype") {
+    const openui = (content as PrototypeSuiteContent).openui;
+    return typeof openui === "string" ? { format: "ddp", content: openui } : null;
+  }
+  const ui = content as UiSuiteContent;
+  if (typeof ui.leafer === "string" && ui.leafer.trim()) return { format: "ddu-leafer", content: ui.leafer };
+  if (typeof ui.openui === "string" && ui.openui.trim()) return { format: "ddu-openui", content: ui.openui };
+  return null;
 }
 
 function registerChangeEvents(store: DesignStoreOps, emit: DesignIpcDeps["emit"]): void {
@@ -281,6 +309,51 @@ export function registerDesignIpc(helpers: DesignIpcHelpers, deps: DesignIpcDeps
     const resolved = pinned(root);
     return resolved ? store.deleteSuite(resolved, id) : false;
   });
+  /** Leafer canvas edit → new suite version (specs/leafer-ui-engine WP1.4).
+   *  Main builds the next content from the head version itself — the renderer
+   *  only supplies the serialized scene JSON — and head-moved is refused so a
+   *  stale canvas can never silently fork the suite history. */
+  const SUITE_LEAFER_MAX_CHARS = 512 * 1024;
+  handlePrivileged(
+    IpcRequest.DesignSuiteAppendLeafer,
+    (root: string, id: string, versionId: string, leaferJson: string, note?: string) => {
+      const resolved = pinned(root);
+      if (!resolved) return { ok: false as const, error: "unregistered workspace" };
+      if (typeof leaferJson !== "string" || !leaferJson.trim())
+        return { ok: false as const, error: "leafer JSON is required" };
+      if (leaferJson.length > SUITE_LEAFER_MAX_CHARS) {
+        return { ok: false as const, error: `leafer JSON is too large (limit ${SUITE_LEAFER_MAX_CHARS} characters)` };
+      }
+      try {
+        const parsed: unknown = JSON.parse(leaferJson);
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("not an object");
+      } catch {
+        return { ok: false as const, error: "leafer JSON is not a valid JSON document" };
+      }
+      const suite = store.readSuite(resolved, id);
+      if (!suite || suite.kind !== "ui") return { ok: false as const, error: "design suite not found" };
+      if (suite.currentVersionId !== versionId) {
+        return {
+          ok: false as const,
+          error: "suite head has moved: reload the latest version before saving canvas edits",
+        };
+      }
+      const version = store.readSuiteVersion(resolved, id, versionId);
+      if (!version) return { ok: false as const, error: "design suite version not found" };
+      const base = version.content as UiSuiteContent;
+      const content: UiSuiteContent = { ...base, leafer: leaferJson, openui: undefined };
+      const updated = store.appendSuiteVersion(resolved, {
+        suiteId: id,
+        content,
+        ...(note?.trim() ? { note: note.trim() } : {}),
+      });
+      if (!updated) return { ok: false as const, error: "could not append the canvas version" };
+      return {
+        ok: true as const,
+        ref: { suiteId: updated.id, versionId: updated.currentVersionId, kind: "ui" as const },
+      };
+    }
+  );
   handlePrivileged(IpcRequest.DesignSuiteExport, async (root: string, id: string, versionId?: string) => {
     const resolved = pinned(root);
     if (!resolved) return { ok: false, error: "unregistered workspace" };

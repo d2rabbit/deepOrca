@@ -68,6 +68,7 @@ function boot(root: string, suite: DesignSuite | null) {
         readSuite: (_r: string, id: string) => (suite && suite.id === id ? suite : null),
         readSuiteVersion: (_r: string, id: string, versionId?: string) => readVersion(id, versionId),
         deleteSuite: () => false,
+        appendSuiteVersion: () => null,
         saveFormState: () => false,
         readFormState: () => null,
         onArtifactChange: () => () => {},
