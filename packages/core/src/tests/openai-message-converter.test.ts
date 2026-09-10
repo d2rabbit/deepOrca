@@ -76,9 +76,11 @@ function converter(opts?: { renderInitPrompt?: () => string; buildTurnTail?: (mo
 
 test("OpenAIMessageConverter preserves image content for multimodal models", () => {
   const c = converter();
+  // V4.1 后图片只在 user 消息合法（system 图片是文档化 400）——多模态
+  // 保留语义改在 user 角色上锁定。
   const messages: SessionMessage[] = [
     msg({
-      role: "system",
+      role: "user",
       content: "Loaded pixel.png",
       contentParams: [{ type: "image_url", image_url: { url: "data:image/png;base64,abc" } }],
     }),
@@ -87,7 +89,7 @@ test("OpenAIMessageConverter preserves image content for multimodal models", () 
   const result = c.buildMessages(messages, false, "gpt-4o") as Array<{ role: string; content: unknown }>;
 
   assert.equal(result.length, 1);
-  assert.equal(result[0]?.role, "system");
+  assert.equal(result[0]?.role, "user");
   assert.deepEqual(result[0]?.content, [
     { type: "text", text: "Loaded pixel.png" },
     { type: "image_url", image_url: { url: "data:image/png;base64,abc" } },
@@ -98,7 +100,7 @@ test("OpenAIMessageConverter filters image content for non-multimodal models", (
   const c = converter();
   const messages: SessionMessage[] = [
     msg({
-      role: "system",
+      role: "user",
       content: "Loaded pixel.png",
       contentParams: [{ type: "image_url", image_url: { url: "data:image/png;base64,abc" } }],
     }),
@@ -110,15 +112,38 @@ test("OpenAIMessageConverter filters image content for non-multimodal models", (
   assert.deepEqual(result[0]?.content, [{ type: "text", text: "Loaded pixel.png" }]);
 });
 
-test("OpenAIMessageConverter injects reasoning_content in thinking mode", () => {
+test("OpenAIMessageConverter injects reasoning_content in thinking mode (family-dependent shape)", () => {
   const c = converter();
   const messages: SessionMessage[] = [msg({ role: "assistant", content: "Final answer", messageParams: null })];
 
+  // unknown family → legacy empty-field shape（键必须在、内容为空）。
   const thinking = c.buildMessages(messages, true, "test-model") as Array<{ reasoning_content?: string }>;
   const nonThinking = c.buildMessages(messages, false, "test-model") as Array<{ reasoning_content?: string }>;
-
   assert.equal(thinking[0]?.reasoning_content, "");
   assert.equal(Object.prototype.hasOwnProperty.call(nonThinking[0] ?? {}, "reasoning_content"), false);
+});
+
+test("OpenAIMessageConverter replays the FULL stored reasoning_content for the deepseek family (V4.1 contract)", () => {
+  // V4.1 thinking guide: tool-carrying requests MUST replay the complete
+  // reasoning_content on every replayed assistant message — empty/missing
+  // is a documented 400. The engine's main loop always sends tools.
+  const c = converter();
+  const messages: SessionMessage[] = [
+    msg({
+      role: "assistant",
+      content: "answer",
+      messageParams: { reasoning_content: "deep thought" },
+    }),
+  ];
+  const deepseek = c.buildMessages(messages, true, "deepseek-flash") as Array<{ reasoning_content?: string }>;
+  assert.equal(deepseek[0]?.reasoning_content, "deep thought", "stored reasoning replays verbatim");
+  // 无存储 reasoning 的历史消息（如非思考轮）：键省略（回传必须"完整"，无内容即无键）。
+  const bare = c.buildMessages(
+    [msg({ role: "assistant", content: "plain", messageParams: null })],
+    true,
+    "deepseek-flash"
+  ) as Array<Record<string, unknown>>;
+  assert.equal(Object.prototype.hasOwnProperty.call(bare[0] ?? {}, "reasoning_content"), false);
 });
 
 test("OpenAIMessageConverter omits the reasoning field entirely for the stepfun family", () => {
@@ -134,7 +159,7 @@ test("OpenAIMessageConverter omits the reasoning field entirely for the stepfun 
   assert.equal(Object.prototype.hasOwnProperty.call(replayed[0] ?? {}, "reasoning"), false);
 });
 
-test("OpenAIMessageConverter never replays stored reasoning_content back to the API", () => {
+test("OpenAIMessageConverter keeps the empty-field shape for unknown families on replay", () => {
   const c = converter();
   const messages: SessionMessage[] = [
     msg({
@@ -147,8 +172,9 @@ test("OpenAIMessageConverter never replays stored reasoning_content back to the 
   const thinking = c.buildMessages(messages, true, "test-model") as Array<{ reasoning_content?: string }>;
   const nonThinking = c.buildMessages(messages, false, "test-model") as Array<{ reasoning_content?: string }>;
 
-  // DeepSeek's contract: the field must exist on replayed assistant messages
-  // in thinking mode but its historical content must never be sent back.
+  // unknown-family contract (legacy empty-field): the key exists on replayed
+  // assistant messages in thinking mode; historical content stays unsent.
+  // (deepseek replays the full content — see the V4.1 contract test above.)
   assert.equal(thinking[0]?.reasoning_content, "");
   assert.equal(Object.prototype.hasOwnProperty.call(nonThinking[0] ?? {}, "reasoning_content"), false);
 });
@@ -596,4 +622,27 @@ test("buildTurnTail omitted → no tail injected (backwards compatible)", () => 
   const c = converter();
   const result = c.buildMessages([userMsg("u1", "hello")], false, "deepseek-chat");
   assert.equal(result.at(-1)?.content, "hello");
+});
+
+test("OpenAIMessageConverter filters images from system messages (V4.1 vision contract)", () => {
+  const c = converter();
+  const image = { type: "image_url", image_url: { url: "data:image/png;base64,xx" } };
+  const userMsg = msg({ role: "user", content: "look", contentParams: image });
+  const systemMsg = msg({ role: "system", content: "ctx", contentParams: image });
+  const out = c.buildMessages([systemMsg, userMsg], false, "deepseek-flash") as Array<{
+    role: string;
+    content: string | Array<{ type: string }>;
+  }>;
+  const systemContent = out[0]?.content;
+  assert.equal(
+    Array.isArray(systemContent) && systemContent.some((p) => p.type === "image_url"),
+    false,
+    "system-message images are dropped (documented 400)"
+  );
+  const userContent = out[1]?.content;
+  assert.equal(
+    Array.isArray(userContent) && userContent.some((p) => p.type === "image_url"),
+    true,
+    "user-message images pass on a multimodal model"
+  );
 });

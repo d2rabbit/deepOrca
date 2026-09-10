@@ -152,20 +152,25 @@ export class OpenAIMessageConverter {
       (base as { tool_call_id?: string }).tool_call_id = messageParams.tool_call_id;
     }
     if (thinkingEnabled && message.role === "assistant") {
-      // Thinking-mode providers require every replayed assistant message to
-      // carry the reasoning field, but per DeepSeek's API contract the content
-      // itself must not be sent back. Always replaying it empty keeps the
-      // request valid, avoids re-uploading megabytes of historical reasoning
-      // as prompt tokens each iteration, and keeps the replayed prefix
-      // byte-stable for the server-side context cache. Families whose contract
-      // differs select "omit" (no field) or "content" (replay stored reasoning)
-      // via the registry's reasoningReplay.
+      // Replay mode is a per-family contract (registry reasoningReplay):
+      //  - "content" (deepseek, V4.1): tool-carrying requests MUST replay the
+      //    full stored reasoning_content — empty/missing is a documented 400.
+      //    Tool-less requests ignore the field, so replaying it is harmless.
+      //  - "omit" (stepfun): the family documents no replay requirement and an
+      //    empty reasoning_content would be a foreign field — send neither key.
+      //  - "empty-field": families that require the KEY but not the content
+      //    (legacy V3 shape; kept for unknown-family compatibility).
       const spec = resolveModelSpec({ model });
       if (spec.reasoningReplay === "empty-field") {
         (base as unknown as Record<string, unknown>)[spec.reasoningField] = "";
       } else if (spec.reasoningReplay === "content") {
+        // "完整回传"的边界：无存储 reasoning 的历史消息（非思考轮/中断前）
+        // 不带键——回传空串同样属于"未正确回传"。有则逐字回放（持久化后
+        // 字节稳定，服务端上下文缓存前缀不受影响）。
         const stored = typeof messageParams?.reasoning_content === "string" ? messageParams.reasoning_content : "";
-        (base as unknown as Record<string, unknown>)[spec.reasoningField] = stored;
+        if (stored) {
+          (base as unknown as Record<string, unknown>)[spec.reasoningField] = stored;
+        }
       }
     }
 
@@ -176,9 +181,13 @@ export class OpenAIMessageConverter {
       }
       const params = Array.isArray(message.contentParams) ? message.contentParams : [message.contentParams];
       const registration = this.options.resolveModelRegistration?.(model);
+      // V4.1 vision contract: images are legal ONLY in user messages — a
+      // system-message image is a documented 400, so filter it there (text
+      // parts pass through unchanged on both roles).
+      const imageLegalHere = message.role === "user" && supportsMultimodal(model, registration);
       for (const param of params) {
         const part = param as ChatCompletionContentPart;
-        if (part && (part.type !== "image_url" || supportsMultimodal(model, registration))) {
+        if (part && (part.type !== "image_url" || imageLegalHere)) {
           contentParts.push(part);
         }
       }

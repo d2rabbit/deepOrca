@@ -68,11 +68,15 @@ test("SessionManager preserves structured system content when building OpenAI me
     onAssistantMessage: () => {},
   });
 
+  // V4.1 vision contract: images are legal only in USER messages — a
+  // system-message image is a documented 400, so the converter filters it
+  // (text parts still pass through on both roles). The preservation
+  // guarantee is therefore locked on the user role.
   const messages: SessionMessage[] = [
     {
-      id: "system-image",
+      id: "user-image",
       sessionId: "session-1",
-      role: "system",
+      role: "user",
       content: "The read tool has loaded `pixel.png`.",
       contentParams: [
         {
@@ -94,14 +98,14 @@ test("SessionManager preserves structured system content when building OpenAI me
   }>;
 
   assert.equal(openAIMessages.length, 1);
-  assert.equal(openAIMessages[0]?.role, "system");
-  assert.deepEqual(openAIMessages[0]?.content, [
-    { type: "text", text: "The read tool has loaded `pixel.png`." },
-    {
-      type: "image_url",
-      image_url: { url: "data:image/png;base64,abc123" },
-    },
-  ]);
+  assert.equal(openAIMessages[0]?.role, "user");
+  const content = openAIMessages[0]?.content as Array<{ type: string; text?: string }>;
+  // 运行时上下文（时间戳/模型名）作为尾随 text 部件追加——不碰图片部件。
+  assert.ok(content[0]?.text?.includes("pixel.png"), "text part preserved");
+  assert.ok(
+    content.some((part) => part.type === "image_url"),
+    "image part preserved on a multimodal-capable user message"
+  );
 });
 
 test("SessionManager appends failed background log tail as XML", () => {
