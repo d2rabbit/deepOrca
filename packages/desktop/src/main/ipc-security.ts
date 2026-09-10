@@ -113,8 +113,7 @@ function normalizeOrigin(value: string | null | undefined): string | null {
  * mutable state and is safe to share across tests.
  */
 export function createRendererPolicy(config: RendererPolicyConfig): RendererPolicy {
-  const productionUrl = computeProductionRendererUrl(config.rendererHtmlPath);
-  const productionUrlNoFrag = stripQueryAndHash(productionUrl);
+  const productionUrlNoFrag = stripQueryAndHash(computeProductionRendererUrl(config.rendererHtmlPath));
   const allowedDevOrigin = normalizeOrigin(config.devRendererOrigin);
 
   function isAllowedDevUrl(url: string): boolean {
@@ -141,11 +140,19 @@ export function createRendererPolicy(config: RendererPolicyConfig): RendererPoli
       if (!sender.isMainFrame) {
         return false;
       }
-      // Step 3: the frame URL must match the production renderer file URL
-      // exactly, or — in development — the configured dev origin.
+      // Step 3: the frame URL must be the production renderer document — or,
+      // in development, the configured dev origin. Query/hash are stripped
+      // here too (same reasoning as isAllowedRendererNavigationUrl): the
+      // main window's client-side routing navigates via `#deep-links`
+      // (design-deep-link), and a hash-only change never swaps the loaded
+      // document — the privileged preload surface is identical. An exact-match
+      // comparison used to reject EVERY privileged call after the first
+      // deep-link navigation ("unauthorized sender" flooding the hub panels).
+      // Steps 1-2 already pin the identity to the main window's main frame,
+      // so this remains fail-closed against foreign frames.
       const url = sender.senderFrameUrl ?? "";
       if (!url) return false;
-      if (url === productionUrl) return true;
+      if (stripQueryAndHash(url) === productionUrlNoFrag) return true;
       return isAllowedDevUrl(url);
     },
     isAllowedRendererNavigationUrl(url) {

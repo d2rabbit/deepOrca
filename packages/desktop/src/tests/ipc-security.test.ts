@@ -139,10 +139,16 @@ test("https dev origin cannot be impersonated by a same-host http URL", () => {
 });
 
 test("production file URL with a trailing query hash still matches (URL equality)", () => {
-  // pathToFileURL does not append fragments; a renderer file URL with a hash
-  // is a different URL and must be rejected to avoid hash-spoofing.
+  // 2026-09-11 修正：hash/query 后缀是主窗口深链路由的正常形态
+  // （design-deep-link），且 hash 从不改变加载的文档——身份由第 1/2 步
+  // （webContents id + 主帧）钉死，hash 无 spoof 面。旧"拒绝 #evil"的
+  // 精确匹配让首个深链后全部特权 IPC 被拒（Hub 目录整面 unauthorized
+  // sender），已按同文档后缀放行、异文档仍拒的契约重写。
   const { policy } = makePolicy();
-  assert.equal(policy.isMainRenderer(sender({ senderFrameUrl: `${PROD_URL}#evil` })), false);
+  assert.equal(policy.isMainRenderer(sender({ senderFrameUrl: `${PROD_URL}#evil` })), true);
+  // 同 id 同主帧但异文档路径——仍拒绝。
+  const foreign = pathToFileURL("D:\\others\\evil.html").href;
+  assert.equal(policy.isMainRenderer(sender({ senderFrameUrl: foreign })), false);
 });
 
 test("production file URL is computed via pathToFileURL (encoded paths round-trip)", () => {
@@ -208,4 +214,20 @@ test("navigation: javascript: and data: are rejected", () => {
 test("navigation: empty URL is rejected", () => {
   const { policy } = makePolicy();
   assert.equal(policy.isAllowedRendererNavigationUrl(""), false);
+});
+
+test("isMainRenderer accepts hash deep-link navigation URLs (regression: hub panels flooded with unauthorized-sender)", () => {
+  // 深链（#prototype/proto 等）只改 hash 不换文档——精确匹配曾让首个深链后
+  // 主窗口全部特权 IPC 被拒（左侧 Hub 目录整面报 unauthorized sender）。
+  const { policy } = makePolicy();
+  for (const suffix of ["#", "#prototype/proto", "#design/pages", "?view=prototype&token=x"]) {
+    assert.equal(
+      policy.isMainRenderer({ senderId: 1, senderFrameUrl: `${PROD_URL}${suffix}`, isMainFrame: true }),
+      true,
+      `main-frame main-window sender with "${suffix}" must be trusted`
+    );
+  }
+  // 外来文档仍拒绝（同 id 同主帧但路径不同）。
+  const foreign = pathToFileURL("D:\\others\\stray.html").href + "#prototype/proto";
+  assert.equal(policy.isMainRenderer({ senderId: 1, senderFrameUrl: foreign, isMainFrame: true }), false);
 });
