@@ -74,6 +74,20 @@ test("fence before the first heading does not leak rows into meta", () => {
   assert.equal(parsed.meta.length, 0, "fenced table row is not a meta pair");
 });
 
+test("title INSIDE a leading fence is intentionally not a title (行为钉住,交叉审查遗留②)", () => {
+  // 语义决策:围栏内的 `# 标题` 是代码示例,不是文档标题——title 回退
+  // "需求文档";首个节之前的围栏内容无处可归(尚无节体),整体丢弃。
+  // CommonMark 合法但契约外(标题必在首行),钉住该行为防回归漂移。
+  const doc = ["```md", "# fenced example", "```", "", "## 1. 背景"].join("\n");
+  const parsed = parseSpecDocument(doc);
+  assert.equal(parsed.title, "", "fenced heading is not the document title");
+  assert.deepEqual(
+    parsed.sections.map((s) => s.title),
+    ["1. 背景"]
+  );
+  assert.ok(!parsed.sections[0]?.body.includes("# fenced example"), "pre-section fence dropped");
+});
+
 test("plain prose without ## falls back to zero sections (whole-doc rendering)", () => {
   const parsed = parseSpecDocument("# 只有标题\n\n纯正文没有小节");
   assert.equal(parsed.sections.length, 0);

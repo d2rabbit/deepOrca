@@ -252,13 +252,22 @@ test("prototype.verify: dead buttons fail (WP2.3 core)", async () => {
     "homeView = Card([])",
     'dead1 = Button("Save", Action([]))',
     'dead2 = Button("Go", "submit:login")',
+    // 骨架化反例(遗留修复):文案/注释里的同形文本不得误报。
+    'hint = TextContent("提示:不要写 Action([]) 占位")',
+    "note = Text('see // Button(x, act) docs')",
   ].join("\n");
   const result = await prototypeVerifyRun(
     { suiteId: PROTOTYPE_REF.suiteId, versionId: PROTOTYPE_REF.versionId },
     makeCtx({ prototype: { spec, openui }, mcpCalls })
   );
   assert.equal(result.verification?.status, "failed");
-  assert.ok((result.verification?.checks ?? []).some((check) => check.id.startsWith("auto:dead-button-")));
+  const deadButtons = result.verification?.checks.filter((check) => check.id.startsWith("auto:dead-button-")) ?? [];
+  // 恰好两个真死按钮;字符串字面量里的 Action([])/bare-string 骨架化后不再计数。
+  assert.equal(
+    deadButtons.length,
+    2,
+    `expected exactly the two real dead buttons, got ${JSON.stringify(deadButtons.map((c) => c.observation))}`
+  );
 });
 
 test("prototype.verify: mobile-only PRD with variant-only program passes (交叉审查: 桌面本位检查不得判死)", async () => {

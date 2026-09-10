@@ -990,9 +990,10 @@ export function saveFormState(root: string, id: string, state: unknown, slot?: s
     // containment check (security scan): same id guard as the other artifact
     // paths before the join; unsafe ids cannot become directory names.
     const dir = resolveArtifactDir(root, id);
-    // WP3.5 slot: per-device form state ("formState.mobile.json") — the slot
-    // is validated to [a-z0-9-] so it can never traverse.
-    const safeSlot = slot && /^[a-z0-9-]{1,32}$/.test(slot) ? slot : null;
+    // WP3.5 slot: per-device form state ("formState.mobile.json")。非法 slot
+    // 直接拒绝(交叉审查:静默降级写共享槽会污染 desktop 表单状态)。
+    if (slot && !/^[a-z0-9-]{1,32}$/.test(slot)) return false;
+    const safeSlot = slot ?? null;
     if (!dir) return false;
     fs.writeFileSync(
       path.join(dir, safeSlot ? `formState.${safeSlot}.json` : "formState.json"),

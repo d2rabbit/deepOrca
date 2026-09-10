@@ -683,13 +683,17 @@ export const prototypeVerifyDefinition: ActionDefinition<PrototypeVerifyInput> =
  */
 export function findDeadButtons(code: string): string[] {
   const findings: string[] = [];
-  for (const match of code.matchAll(/Action\(\s*\[\s*\]\s*\)/g)) {
+  // 骨架化(交叉审查遗留修复):把所有字符串字面量的「内容」清空后再检测——
+  // `Text("不要写 Action([]) 占位")` 或注释性文本里的同形片段不再误报;结构
+  // (引号本身)保留,Button("x", "act") 的第二参字符串形态仍可检出。
+  const skeleton = code.replace(/"([^"\\]|\\.)*"/g, '""').replace(/'([^'\\]|\\.)*'/g, "''");
+  if (/Action\(\s*\[\s*\]\s*\)/.test(skeleton)) {
     findings.push(`empty Action([]) — the button does nothing when clicked`);
   }
-  for (const match of code.matchAll(/\bButton\(\s*"[^"]*"\s*,\s*('[^']*'|"[^"]*")\s*[,)]/g)) {
+  if (/\bButton\(\s*"[^"]*"\s*,\s*('[^']*'|"[^"]*")\s*[,)]/.test(skeleton)) {
     // 第二位置参数只能是 Action 表达式;任何字符串(含误传的 variant 值)都是
     // 参数错位/死按钮——官方库把字符串 action 在点击时静默抛错。
-    findings.push(`bare-string button action ${match[1]} — the second argument must be Action([...]), never a string`);
+    findings.push(`bare-string button action — the second argument must be Action([...]), never a string`);
   }
   return findings;
 }

@@ -68,6 +68,7 @@
 ## 多重交叉审查(2026-09-10,4 路并行:core 正则推演/desktop 工具实证/renderer 闭包推演/EARS 逐条对照)
 
 已修复的审查发现:
+
 - 🔴 standalone 导出双死路径:@openuidev/browser CDN 包不存在(npm 404 实证)→ 诚实降级为
   零依赖源码交付页;Lang 源码未 JSON.stringify 嵌入 JSON script → 已修(转义断言入测试)
 - 🔴 variant-only 套件被桌面本位检查永久判死(mobile-only PRD 招牌场景)→
@@ -83,10 +84,21 @@
 - 🟡 非法 formState slot 静默写共享槽 → 拒绝;validate_openui description 补 deadButtons;
   版本轨徽章按任一端判定
 
-已知残留(记录不修):Action([]) 检测对注释/字符串字面量中的同形文本误报(静态
-正则无词法感知,fail-open 修复环兜底);SpecDocumentView 标题前围栏吞标题
-(CommonMark 边缘,契约内不触发);EARS 8/14-18 的 renderer 级测试与三端
-真实集成测试仍缺(tasks 声称的验收未全落地,后续补)。
+已知残留(2026-09-10 第二轮·已全部解决):
+
+- ✅ Action([])/bare-string 字符串字面量误报 → 骨架化检测(字面量内容清空后
+  匹配),`Text("不要写 Action([])")` 类文案不再计数;误报反例入测试
+- ✅ SpecDocumentView 标题前围栏 → 语义钉住(围栏内 # 不是标题、首节前围栏
+  丢弃——契约外行为入测试防漂移)
+- ✅ EARS 6 三端真实集成测试 → prototype-materialize-e2e:core action 直连
+  真实 a2ui server + design-store,三端全部落盘 + PRD 平台推导端到端
+- ✅ EARS 14/15/16/17/18 renderer/store 级测试 → prototype-review-followups:
+  specTodos 节边界(含反例)/variant-only 可达/slides 失败局部化(toast 订阅
+  通道)/播放 onIterate 冻结(React fiber 取最新闭包,退出后恢复派发)/
+  表单槽位隔离与非法 slot 拒绝(save 侧拒绝逻辑同步补回)
+- 仍记录不修(语义正确/代价失衡):iOS/Android 括注→按未声明处理(pending
+  观察推动补 PRD,比误映射 mobile 安全);~~~ 围栏/四反引号嵌套(markdown-it
+  与行扫描的固有口径差,契约内不触发)
 
 ## 收尾
 
