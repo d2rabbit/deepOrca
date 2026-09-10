@@ -1,7 +1,8 @@
 /**
  * Interactive .ddu leafer export (specs/leafer-ui-engine WP3 / EARS 12+14):
  * manifest pipeline "leafer", design.leafer.json entry, the leafer web
- * runtime, and an index.html that renders an editable canvas offline.
+ * runtime + flow layout plugin, and an index.html that renders an editable,
+ * flow-aware canvas offline.
  */
 
 import { test } from "node:test";
@@ -14,8 +15,10 @@ import * as path from "node:path";
 import {
   buildDduLeaferPackage,
   buildDduLeaferViewerHtml,
+  LEAFER_FLOW_RUNTIME_FILE,
   LEAFER_RUNTIME_FILE,
-  resolveLeaferRuntimeSource,
+  resolveLeaferRuntimeBundle,
+  type LeaferRuntime,
 } from "../main/tools/dd-package";
 
 const DESIGN = JSON.stringify({
@@ -26,7 +29,12 @@ const DESIGN = JSON.stringify({
   children: [{ tag: "Rect", x: 24, y: 24, width: 200, height: 64, fill: "#4F46E5", cornerRadius: 12 }],
 });
 
-const FAKE_RUNTIME = { fileName: LEAFER_RUNTIME_FILE, data: Buffer.from("/* leafer runtime stub */") };
+const FAKE_EDITOR: LeaferRuntime = { fileName: LEAFER_RUNTIME_FILE, data: Buffer.from("/* leafer runtime stub */") };
+const FAKE_FLOW: LeaferRuntime = {
+  fileName: LEAFER_FLOW_RUNTIME_FILE,
+  data: Buffer.from("/* leafer flow plugin stub */"),
+};
+const FAKE_BUNDLE = { editor: FAKE_EDITOR, flow: FAKE_FLOW };
 
 function extract(buffer: Buffer): { names: string[]; read: (name: string) => string } {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ddu-leafer-"));
@@ -49,13 +57,13 @@ function extract(buffer: Buffer): { names: string[]; read: (name: string) => str
   };
 }
 
-test("leafer .ddu carries manifest + design json + interactive html + runtime", () => {
+test("leafer .ddu carries manifest + design json + interactive html + runtime + flow plugin", () => {
   const pkg = extract(
-    buildDduLeaferPackage({ id: "s1", title: "运营看板视觉稿" }, DESIGN, new Date().toISOString(), FAKE_RUNTIME)
+    buildDduLeaferPackage({ id: "s1", title: "运营看板视觉稿" }, DESIGN, new Date().toISOString(), FAKE_BUNDLE)
   );
   assert.deepEqual(
     pkg.names.filter((name) => name !== "tokens.json" && name !== "components.json").sort(),
-    [LEAFER_RUNTIME_FILE, "design.leafer.json", "index.html", "manifest.json"].sort()
+    [LEAFER_RUNTIME_FILE, LEAFER_FLOW_RUNTIME_FILE, "design.leafer.json", "index.html", "manifest.json"].sort()
   );
   const manifest = JSON.parse(pkg.read("manifest.json")) as { pipeline?: string; kind?: string; format?: string };
   assert.equal(manifest.pipeline, "leafer");
@@ -64,10 +72,22 @@ test("leafer .ddu carries manifest + design json + interactive html + runtime", 
   assert.deepEqual(JSON.parse(pkg.read("design.leafer.json")), JSON.parse(DESIGN));
   const html = pkg.read("index.html");
   assert.match(html, new RegExp(`src="./${LEAFER_RUNTIME_FILE}"`), "runtime referenced relative — offline");
+  assert.match(
+    html,
+    new RegExp(`src="./${LEAFER_FLOW_RUNTIME_FILE}"`),
+    "flow plugin referenced relative — flow/gap/padding must be live in the export"
+  );
+  // Script order is load-bearing: the flow global build wires into the
+  // editor runtime's LeaferUI namespace, so it must load right after it.
+  assert.ok(
+    html.indexOf(`./${LEAFER_RUNTIME_FILE}`) < html.indexOf(`./${LEAFER_FLOW_RUNTIME_FILE}`),
+    "the flow plugin script must come after the editor runtime script"
+  );
   assert.match(html, /type="application\/json" id="ddu-design"/);
   assert.match(html, /new Leafer\(/);
   assert.match(html, /new Editor\(\)/, "the exported canvas must be interactive (editor attached)");
-  assert.equal(pkg.read(LEAFER_RUNTIME_FILE), FAKE_RUNTIME.data.toString(), "runtime bytes ride verbatim");
+  assert.equal(pkg.read(LEAFER_RUNTIME_FILE), FAKE_EDITOR.data.toString(), "runtime bytes ride verbatim");
+  assert.equal(pkg.read(LEAFER_FLOW_RUNTIME_FILE), FAKE_FLOW.data.toString(), "flow plugin bytes ride verbatim");
 });
 
 test("leafer viewer html escapes script-breaking payloads in the JSON embed", () => {
@@ -77,16 +97,18 @@ test("leafer viewer html escapes script-breaking payloads in the JSON embed", ()
     height: 100,
     children: [{ tag: "Text", x: 0, y: 0, text: "</script><b>pwn</b>" }],
   });
-  const html = buildDduLeaferViewerHtml("t", hostile, LEAFER_RUNTIME_FILE);
+  const html = buildDduLeaferViewerHtml("t", hostile, LEAFER_RUNTIME_FILE, LEAFER_FLOW_RUNTIME_FILE);
   assert.ok(!html.includes("</script><b>"), "script-closing payload must be escaped");
   // The data survives verbatim after JSON unescaping (\u003c === <); only `<`
   // needs escaping — the html parser scans for the literal `</script` closer.
   assert.ok(html.includes("\\u003c/script>"), "payload present but escaped inside the JSON string");
 });
 
-test("leafer runtime resolves from the installed dependency (unbuilt checkout)", () => {
-  const runtime = resolveLeaferRuntimeSource();
-  assert.ok(runtime, "runtime must resolve via node_modules fallback in the test environment");
-  assert.equal(runtime.fileName, LEAFER_RUNTIME_FILE);
-  assert.ok(runtime.data.length > 1024, "real runtime bytes, not an empty stub");
+test("leafer runtime bundle resolves from the installed dependencies (unbuilt checkout)", () => {
+  const bundle = resolveLeaferRuntimeBundle();
+  assert.ok(bundle, "both runtimes must resolve via node_modules fallback in the test environment");
+  assert.equal(bundle.editor.fileName, LEAFER_RUNTIME_FILE);
+  assert.equal(bundle.flow.fileName, LEAFER_FLOW_RUNTIME_FILE);
+  assert.ok(bundle.editor.data.length > 1024, "real editor runtime bytes, not an empty stub");
+  assert.ok(bundle.flow.data.length > 512, "real flow plugin bytes, not an empty stub");
 });

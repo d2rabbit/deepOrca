@@ -393,18 +393,28 @@ async function copyStaticAssets() {
   } catch (err) {
     console.warn(`[desktop] @openuidev/react-ui stylesheets missing — OpenUI canvas renders unstyled (${err.message})`);
   }
-  // leafer-editor web runtime (specs/leafer-ui-engine WP3): the interactive
-  // .ddu export embeds this file (design-ipc reads it back from dist/ at
-  // export time). Copied from the installed dependency — same hoisting
-  // caveat as @a2ui; missing runtime only disables the .ddu export.
+  // leafer-editor web runtime + @leafer-in/flow plugin (specs/leafer-ui-engine
+  // WP3): the interactive .ddu export embeds both (design-ipc reads them back
+  // from dist/ at export time; the flow build wires into the editor runtime's
+  // global LeaferUI namespace and MUST load right after it). Copy targets
+  // match dd-package's resolver constants exactly — dot spellings, not
+  // hyphens. Copied from the installed dependency — same hoisting caveat as
+  // @a2ui; a missing runtime disables the .ddu export.
   try {
     const leaferCandidates = [
       resolve(__dirname, "../../node_modules/leafer-editor/dist/web.min.js"),
       resolve(__dirname, "node_modules/leafer-editor/dist/web.min.js"),
     ];
+    const flowCandidates = [
+      resolve(__dirname, "../../node_modules/@leafer-in/flow/dist/flow.min.js"),
+      resolve(__dirname, "node_modules/@leafer-in/flow/dist/flow.min.js"),
+    ];
     const leaferSrc = leaferCandidates.find((c) => existsSync(c));
-    if (!leaferSrc) throw new Error(`not found in ${leaferCandidates.join(" | ")}`);
-    await cp(leaferSrc, resolve(outdir, "leafer-web.min.js"));
+    if (!leaferSrc) throw new Error(`editor runtime not found in ${leaferCandidates.join(" | ")}`);
+    await cp(leaferSrc, resolve(outdir, "leafer.web.min.js"));
+    const flowSrc = flowCandidates.find((c) => existsSync(c));
+    if (!flowSrc) throw new Error(`flow plugin not found in ${flowCandidates.join(" | ")}`);
+    await cp(flowSrc, resolve(outdir, "leafer-flow.web.min.js"));
   } catch (err) {
     console.warn(`[desktop] leafer runtime missing — interactive .ddu export disabled (${err.message})`);
   }

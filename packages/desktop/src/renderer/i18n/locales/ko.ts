@@ -1626,6 +1626,7 @@ export const ko: Record<MessageKey, string> = {
   "designWorkspace.setLeafer": "캔버스",
   "designWorkspace.legacyOpenui": "레거시 OpenUI 캔버스 · 보기 전용, 수정은 대화로",
   "designWorkspace.leaferCanvasError": "캔버스 엔진 초기화에 실패했습니다. 디자인을 다시 생성하거나 앱을 재시작하세요.",
+  "designWorkspace.leaferCanvasSaveFailed": "캔버스 저장에 실패했습니다. 잠시 후 다시 시도해 주세요.",
   "designWorkspace.setTokens": "디자인 시스템",
   "designWorkspace.setQuality": "품질",
   "designWorkspace.tokensGroup.color": "색상",

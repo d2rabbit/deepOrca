@@ -1592,6 +1592,7 @@ export const zhHK: Record<MessageKey, string> = {
   "designWorkspace.setLeafer": "畫布",
   "designWorkspace.legacyOpenui": "舊版 OpenUI 畫布 · 僅檢視，可透過對話修訂",
   "designWorkspace.leaferCanvasError": "畫布引擎在目前視窗初始化失敗，請重新生成設計稿或重啟應用。",
+  "designWorkspace.leaferCanvasSaveFailed": "畫布儲存失敗，請稍後重試。",
   "designWorkspace.setTokens": "設計系統",
   "designWorkspace.setQuality": "品質",
   "designWorkspace.tokensGroup.color": "顏色",

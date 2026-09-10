@@ -192,3 +192,67 @@ test("render_leafer validates the document at the write boundary", async () => {
     await client.close();
   }
 });
+
+test("render_openui on a leafer-headed ui suite takes over the stack (clears leafer)", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "a2ui-leafer-openui-"));
+  roots.push(root);
+  const client = await clientFor(root);
+  try {
+    const created = await client.callTool({
+      name: "render_leafer",
+      arguments: { leafer: DESIGN, requirement: "Dashboard", designSystemId: "dark-tech" },
+    });
+    const ref = refOf(created);
+    const result = await client.callTool({
+      name: "render_openui",
+      arguments: {
+        code: 'root = Stack([TextContent("概览", "large-heavy")])',
+        suiteId: ref.suiteId,
+        versionId: ref.versionId,
+      },
+    });
+    assert.ok(!result.isError, textOf(result));
+    const suite = readDesignSuite(root, ref.suiteId);
+    const content = suite?.currentVersion.content as UiSuiteContent;
+    assert.equal(typeof content.openui, "string", "the openui program persisted");
+    assert.equal(
+      content.leafer,
+      undefined,
+      "an openui write takes over the version's stack — the stale leafer document must not survive (single-stack invariant, both directions)"
+    );
+  } finally {
+    await client.close();
+  }
+});
+
+test("update_openui on a leafer-headed ui suite clears the leafer field too", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "a2ui-leafer-update-"));
+  roots.push(root);
+  const client = await clientFor(root);
+  try {
+    const created = await client.callTool({
+      name: "render_leafer",
+      arguments: { leafer: DESIGN, requirement: "Dashboard", designSystemId: "dark-tech" },
+    });
+    const ref = refOf(created);
+    const result = await client.callTool({
+      name: "update_openui",
+      arguments: {
+        code: 'root = Stack([TextContent("修订后", "large-heavy")])',
+        suiteId: ref.suiteId,
+        versionId: ref.versionId,
+      },
+    });
+    assert.ok(!result.isError, textOf(result));
+    const suite = readDesignSuite(root, ref.suiteId);
+    const content = suite?.currentVersion.content as UiSuiteContent;
+    assert.equal(typeof content.openui, "string", "the updated openui program persisted");
+    assert.equal(
+      content.leafer,
+      undefined,
+      "update_openui is the legacy revision channel — it must clear the leafer field like render_openui"
+    );
+  } finally {
+    await client.close();
+  }
+});

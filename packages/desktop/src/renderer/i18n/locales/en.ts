@@ -1635,6 +1635,7 @@ export const en = {
   "designWorkspace.legacyOpenui": "Legacy OpenUI canvas · view only, revise via composer",
   "designWorkspace.leaferCanvasError":
     "The canvas engine failed to initialize in this window. Regenerate the design or restart the app.",
+  "designWorkspace.leaferCanvasSaveFailed": "Canvas save failed. Try again in a moment.",
   "designWorkspace.setTokens": "Design system",
   "designWorkspace.setQuality": "Quality",
   "designWorkspace.tokensGroup.color": "Color",

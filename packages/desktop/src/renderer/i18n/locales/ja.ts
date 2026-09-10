@@ -1636,6 +1636,7 @@ export const ja: Record<MessageKey, string> = {
   "designWorkspace.legacyOpenui": "旧 OpenUI キャンバス · 閲覧専用（編集はチャットから）",
   "designWorkspace.leaferCanvasError":
     "キャンバスエンジンの初期化に失敗しました。デザインを再生成するかアプリを再起動してください。",
+  "designWorkspace.leaferCanvasSaveFailed": "キャンバスの保存に失敗しました。しばらくしてからもう一度お試しください。",
   "designWorkspace.setTokens": "デザインシステム",
   "designWorkspace.setQuality": "品質",
   "designWorkspace.tokensGroup.color": "カラー",

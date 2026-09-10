@@ -15,6 +15,7 @@ import {
   repairLeaferProgram,
   selfCheckLeaferDocument,
   describeLeaferDocument,
+  leaferNodeStableNameAt,
   lintLeaferDocument,
 } from "../actions";
 import { NULL_SPAWNER } from "../actions/types";
@@ -33,6 +34,16 @@ const VALID_DOC = JSON.stringify({
 });
 
 const UI_REF = { suiteId: "ui-suite", versionId: "ui-v1", kind: "ui" as const };
+
+/** A document whose first child carries a stable name — the lint path →
+ *  stable-name resolution cases build on it. */
+const NAMED_DOC = JSON.stringify({
+  tag: "Leafer",
+  width: 1440,
+  height: 1024,
+  fill: "#ffffff",
+  children: [{ tag: "Rect", name: "hero", x: 24, y: 24, width: 200, height: 64, fill: "#4F46E5" }],
+});
 
 type McpCall = { name: string; args: Record<string, unknown> };
 
@@ -336,6 +347,41 @@ test("design.revise(part=design) revises the leafer baseline with PRESERVE contr
   assert.ok(
     !mcpCalls.some((call) => call.name.endsWith("update_openui")),
     "leafer revise must not touch the legacy channel"
+  );
+});
+
+test("design.revise(part=design) cites the stable name a lint nodePath addresses", async () => {
+  const subagentCalls: RunSubagentOptions[] = [];
+  const result = await designReviseRun(
+    {
+      suiteId: UI_REF.suiteId,
+      versionId: UI_REF.versionId,
+      part: "design",
+      target: "document.children[0]",
+      instruction: "make the hero larger",
+    },
+    makeCtx({
+      ui: { leafer: NAMED_DOC, designSystemId: "dark-tech" },
+      generatedQueue: [LEAFER_SUBAGENT],
+      subagentCalls,
+    })
+  );
+  assert.equal(result.ok, true);
+  // The quality tab fixes findings by lint nodePath, but the outline (and the
+  // create contract) address elements by stable name — the instruction must
+  // cite both, or the model is told to match a vocabulary it was never given.
+  assert.match(subagentCalls[0].prompt, /target: document\.children\[0\] \("hero"\)/);
+});
+
+test("leaferNodeStableNameAt resolves lint paths and rejects foreign shapes", () => {
+  assert.equal(leaferNodeStableNameAt(NAMED_DOC, "document.children[0]"), "hero");
+  assert.equal(leaferNodeStableNameAt(VALID_DOC, "document.children[0]"), null, "unnamed nodes resolve to null");
+  assert.equal(leaferNodeStableNameAt(NAMED_DOC, "hero"), null, "non-lint paths resolve to null");
+  assert.equal(leaferNodeStableNameAt(NAMED_DOC, "document.children[5]"), null, "out-of-range indices resolve to null");
+  assert.equal(
+    leaferNodeStableNameAt("not json", "document.children[0]"),
+    null,
+    "unparsable documents resolve to null"
   );
 });
 

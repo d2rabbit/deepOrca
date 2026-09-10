@@ -70,12 +70,6 @@ function verticalSlot(y: number, height: number, canvasHeight: number): string {
   return "middle";
 }
 
-function layoutPhrase(node: DescribeNode): string {
-  if (node.flow === "x") return `row layout (flow:x${isNum(node.gap) ? `, gap ${node.gap}` : ""})`;
-  if (node.flow === "y") return `column layout (flow:y${isNum(node.gap) ? `, gap ${node.gap}` : ""})`;
-  return "absolute positioning";
-}
-
 function stylePhrase(node: DescribeNode): string {
   const parts: string[] = [];
   if (isStr(node.fill)) parts.push(`fill ${node.fill}`);
@@ -139,4 +133,36 @@ export function describeLeaferDocument(leaferJson: string): DescribeResult {
 
   children.forEach((child, index) => walk(child, `c${index}`, 1, ""));
   return { outline: lines.join("\n"), nodeCount };
+}
+
+/** Resolve the stable `name` of the node a deterministic lint `nodePath`
+ *  addresses (`document.children[2]`), so revise instructions can cite the
+ *  same stable names the semantic outline advertises instead of raw JSON
+ *  indices. Null when the path is not a lint path, the document cannot be
+ *  parsed, or the node carries no usable name. */
+export function leaferNodeStableNameAt(leaferJson: string, nodePath: string): string | null {
+  if (!nodePath.startsWith("document")) return null;
+  const rest = nodePath.slice("document".length);
+  const indices: number[] = [];
+  let consumed = 0;
+  for (const match of rest.matchAll(/\.children\[(\d+)\]/g)) {
+    if (match.index !== consumed) return null;
+    consumed = match.index + match[0].length;
+    indices.push(Number(match[1]));
+  }
+  if (consumed !== rest.length || indices.length === 0) return null;
+  let node: unknown;
+  try {
+    node = JSON.parse(leaferJson);
+  } catch {
+    return null;
+  }
+  for (const index of indices) {
+    if (!node || typeof node !== "object") return null;
+    const children = (node as { children?: unknown }).children;
+    if (!Array.isArray(children) || index < 0 || index >= children.length) return null;
+    node = children[index];
+  }
+  const name = (node as { name?: unknown }).name;
+  return typeof name === "string" && name.trim() ? name : null;
 }

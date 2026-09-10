@@ -14,6 +14,7 @@ import type {
   DesignSuiteKind,
   DesignSuiteSummary,
   DesignSuiteVersion,
+  UiSuiteContent,
 } from "../shared/ipc.js";
 
 const ROOT_A = "/registered/a";
@@ -74,7 +75,9 @@ type Harness = {
   fireSuiteChange(event: DesignSuiteChangeEvent): void;
 };
 
-function createHarness(): Harness {
+function createHarness(
+  storeOverrides: Partial<Pick<DesignStoreOps, "readSuite" | "readSuiteVersion" | "appendSuiteVersion">> = {}
+): Harness {
   const handlers = new Map<string, Handler>();
   const privileged = new Set<string>();
   const emitted: Array<{ channel: string; payload: unknown }> = [];
@@ -97,17 +100,19 @@ function createHarness(): Harness {
     deleteArtifact: () => true,
     listSuites: (root, kind?: DesignSuiteKind) =>
       root === ROOT_A && (kind === undefined || kind === SUITE.kind) ? [SUMMARY] : [],
-    readSuite: (root, id) => (root === ROOT_A && id === SUITE.id ? SUITE : null),
-    readSuiteVersion: (root, id, versionId) => {
-      if (root !== ROOT_A || id !== SUITE.id) return null;
-      if (versionId === VERSION.versionId) return VERSION;
-      return versionId === HISTORICAL_VERSION.versionId ? HISTORICAL_VERSION : null;
-    },
+    readSuite: storeOverrides.readSuite ?? ((root, id) => (root === ROOT_A && id === SUITE.id ? SUITE : null)),
+    readSuiteVersion:
+      storeOverrides.readSuiteVersion ??
+      ((root, id, versionId) => {
+        if (root !== ROOT_A || id !== SUITE.id) return null;
+        if (versionId === VERSION.versionId) return VERSION;
+        return versionId === HISTORICAL_VERSION.versionId ? HISTORICAL_VERSION : null;
+      }),
     deleteSuite: () => {
       calls.deleteSuite += 1;
       return true;
     },
-    appendSuiteVersion: () => null,
+    appendSuiteVersion: storeOverrides.appendSuiteVersion ?? (() => null),
     saveFormState: () => true,
     readFormState: () => ({ field: "value" }),
     onArtifactChange: (listener) => {
@@ -163,6 +168,7 @@ describe("design suite IPC root pinning", () => {
       IpcRequest.DesignDelete,
       IpcRequest.DesignExportPackage,
       IpcRequest.DesignSaveFormState,
+      IpcRequest.DesignSuiteAppendLeafer,
       IpcRequest.DesignSuiteDelete,
       IpcRequest.DesignSuiteExport,
       IpcRequest.DesignSuiteSaveFormState,
@@ -221,4 +227,156 @@ test("design system catalog is sourced from exactly the nine bundled template id
     "terminal-mono",
     "warm-handcrafted",
   ]);
+});
+
+// ── Leafer canvas append (DesignSuiteAppendLeafer, WP1.4) ────────────────────
+
+const OLD_LEAFER = JSON.stringify({
+  tag: "Leafer",
+  width: 1440,
+  height: 1024,
+  fill: "#ffffff",
+  children: [{ tag: "Rect", x: 24, y: 24, width: 200, height: 64, fill: "#4F46E5" }],
+});
+const EDITED_LEAFER = JSON.stringify({
+  tag: "Leafer",
+  width: 1440,
+  height: 1024,
+  fill: "#ffffff",
+  children: [{ tag: "Rect", x: 2000, y: 2000, width: 100, height: 50, fill: "#ff0000" }],
+});
+const UI_TOKENS = { color: { accent: { $value: "#4F46E5" } } };
+const UI_VERSION: DesignSuiteVersion = {
+  versionId: "ui-v1",
+  savedAt: "2026-09-10T00:00:00.000Z",
+  status: "ready",
+  content: {
+    leafer: OLD_LEAFER,
+    designSystemId: "dark-tech",
+    tokens: UI_TOKENS,
+    quality: {
+      lintFindings: [
+        {
+          id: "stale-1",
+          preset: "leafer-static",
+          ruleId: "out-of-bounds",
+          severity: "error",
+          nodePath: "document.children[9]",
+          message: "stale finding describing the PREVIOUS tree",
+        },
+      ],
+      runtimeChecks: [{ id: "check-1", label: "legacy check", status: "passed" }],
+      review: { status: "passed", composite: 88, rounds: 2, evidence: { notes: "reviewed" } },
+    },
+  },
+};
+const UI_SUITE: DesignSuite = {
+  schemaVersion: 2,
+  id: "suite-ui",
+  title: "UI Suite",
+  kind: "ui",
+  status: "ready",
+  createdAt: "2026-09-10T00:00:00.000Z",
+  updatedAt: "2026-09-10T00:00:00.000Z",
+  currentVersionId: UI_VERSION.versionId,
+  versions: [UI_VERSION],
+  currentVersion: UI_VERSION,
+  currentContent: UI_VERSION.content,
+};
+
+describe("leafer canvas append (DesignSuiteAppendLeafer)", () => {
+  test("the appended version carries fresh auto-lint findings, preserving review and tokens", () => {
+    let appended: UiSuiteContent | undefined;
+    const harness = createHarness({
+      readSuite: (root, id) => (root === ROOT_A && id === UI_SUITE.id ? UI_SUITE : null),
+      readSuiteVersion: (root, id, versionId) =>
+        root === ROOT_A && id === UI_SUITE.id && versionId === UI_VERSION.versionId ? UI_VERSION : null,
+      appendSuiteVersion: (_root, input) => {
+        appended = input.content as UiSuiteContent;
+        return { ...UI_SUITE, currentVersionId: "ui-v2" };
+      },
+    });
+    const result = invoke<{ ok: boolean; ref?: { suiteId: string; versionId: string; kind: string } }>(
+      harness,
+      IpcRequest.DesignSuiteAppendLeafer,
+      ROOT_A,
+      UI_SUITE.id,
+      UI_VERSION.versionId,
+      EDITED_LEAFER
+    );
+    assert.equal(result.ok, true);
+    assert.equal(result.ref?.versionId, "ui-v2");
+    assert.ok(appended, "the append must reach the store");
+    const content = appended;
+    assert.equal(content.leafer, EDITED_LEAFER, "the edited document is what gets stored");
+    assert.equal(content.openui, undefined, "canvas commits never resurrect the legacy openui field");
+    const findings = content.quality?.lintFindings ?? [];
+    assert.ok(
+      findings.some((finding) => finding.ruleId === "out-of-bounds"),
+      "the zero-LLM auto-lint must describe the STORED tree (the edit introduces an out-of-bounds rect)"
+    );
+    assert.ok(
+      !findings.some((finding) => finding.message.includes("PREVIOUS tree")),
+      "the previous version's stale lint findings must not ride along"
+    );
+    assert.equal(content.quality?.review?.composite, 88, "review state stays untouched (design.review owns it)");
+    assert.deepEqual(content.quality?.runtimeChecks, []);
+    assert.deepEqual(content.tokens, UI_TOKENS, "tokens ride along so unlisted-color arms like design.lint");
+  });
+
+  test("a canvas commit against a moved head is refused", () => {
+    const harness = createHarness({
+      readSuite: (root, id) =>
+        root === ROOT_A && id === UI_SUITE.id ? { ...UI_SUITE, currentVersionId: "ui-v2" } : null,
+      readSuiteVersion: (root, id, versionId) =>
+        root === ROOT_A && id === UI_SUITE.id && versionId === UI_VERSION.versionId ? UI_VERSION : null,
+      appendSuiteVersion: () => {
+        throw new Error("append must never be reached on a moved head");
+      },
+    });
+    const result = invoke<{ ok: boolean; error?: string }>(
+      harness,
+      IpcRequest.DesignSuiteAppendLeafer,
+      ROOT_A,
+      UI_SUITE.id,
+      UI_VERSION.versionId,
+      EDITED_LEAFER
+    );
+    assert.equal(result.ok, false);
+    assert.match(result.error ?? "", /head has moved/);
+  });
+
+  test("unregistered workspace root degrades to a refusal", () => {
+    const harness = createHarness();
+    const result = invoke<{ ok: boolean; error?: string }>(
+      harness,
+      IpcRequest.DesignSuiteAppendLeafer,
+      ROOT_B,
+      UI_SUITE.id,
+      UI_VERSION.versionId,
+      EDITED_LEAFER
+    );
+    assert.equal(result.ok, false);
+    assert.equal(result.error, "unregistered workspace");
+  });
+
+  test("oversized canvas payloads are clamped at the boundary", () => {
+    const harness = createHarness();
+    const oversized = JSON.stringify({
+      tag: "Leafer",
+      width: 100,
+      height: 100,
+      children: [{ tag: "Text", x: 0, y: 0, text: "x".repeat(513 * 1024) }],
+    });
+    const result = invoke<{ ok: boolean; error?: string }>(
+      harness,
+      IpcRequest.DesignSuiteAppendLeafer,
+      ROOT_A,
+      UI_SUITE.id,
+      UI_VERSION.versionId,
+      oversized
+    );
+    assert.equal(result.ok, false);
+    assert.match(result.error ?? "", /too large/);
+  });
 });

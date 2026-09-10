@@ -1590,6 +1590,7 @@ export const zh: Record<MessageKey, string> = {
   "designWorkspace.setLeafer": "画布",
   "designWorkspace.legacyOpenui": "旧版 OpenUI 画布 · 仅查看，可通过对话修订",
   "designWorkspace.leaferCanvasError": "画布引擎在当前窗口初始化失败，请重新生成设计稿或重启应用。",
+  "designWorkspace.leaferCanvasSaveFailed": "画布保存失败，请稍后重试。",
   "designWorkspace.setTokens": "设计系统",
   "designWorkspace.setQuality": "质量",
   "designWorkspace.tokensGroup.color": "颜色",

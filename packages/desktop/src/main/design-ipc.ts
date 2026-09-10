@@ -3,7 +3,7 @@ import { writeFile } from "node:fs/promises";
 import { dirname, extname, join, parse } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { getExtensionRoot } from "@deeporca/core";
+import { getExtensionRoot, lintLeaferDocument } from "@deeporca/core";
 
 import { compileDdToHtml } from "../renderer/dd/compiler.js";
 import { parseDdFile } from "../renderer/dd/parser.js";
@@ -29,7 +29,7 @@ import {
   buildDduLeaferPackage,
   buildDduOpenuiPackage,
   buildDduPackage,
-  resolveLeaferRuntimeSource,
+  resolveLeaferRuntimeBundle,
   type PackageVerification,
 } from "./tools/dd-package.js";
 import {
@@ -185,13 +185,14 @@ function buildPackage(
           )
         : format === "ddu-leafer"
           ? (() => {
-              const runtime = resolveLeaferRuntimeSource();
-              if (!runtime) {
+              const runtimes = resolveLeaferRuntimeBundle();
+              if (!runtimes) {
                 throw new Error(
-                  "leafer runtime file not found — run `npm run desktop:build` so dist/leafer-web.min.js exists"
+                  "leafer runtime files not found — run `npm run desktop:build` so dist/leafer.web.min.js " +
+                    "and dist/leafer-flow.web.min.js exist"
                 );
               }
-              return buildDduLeaferPackage(artifact, content, exportedAt, runtime, extras);
+              return buildDduLeaferPackage(artifact, content, exportedAt, runtimes, extras);
             })()
           : buildDduOpenuiPackage(artifact, content, exportedAt, extras);
   const ext = isDesign ? "ddu" : "ddp";
@@ -341,7 +342,17 @@ export function registerDesignIpc(helpers: DesignIpcHelpers, deps: DesignIpcDeps
       const version = store.readSuiteVersion(resolved, id, versionId);
       if (!version) return { ok: false as const, error: "design suite version not found" };
       const base = version.content as UiSuiteContent;
-      const content: UiSuiteContent = { ...base, leafer: leaferJson, openui: undefined };
+      // Zero-LLM auto-lint (WP5) — same contract as render_leafer: a landed
+      // canvas version's lintFindings describe the tree being STORED, never
+      // the previous one. Review state stays untouched (design.review owns
+      // it); tokens ride along so unlisted-color arms exactly like design.lint.
+      const lintFindings = lintLeaferDocument(leaferJson, base.tokens);
+      const content: UiSuiteContent = {
+        ...base,
+        leafer: leaferJson,
+        openui: undefined,
+        quality: { ...base.quality, lintFindings, runtimeChecks: [] },
+      };
       const updated = store.appendSuiteVersion(resolved, {
         suiteId: id,
         content,

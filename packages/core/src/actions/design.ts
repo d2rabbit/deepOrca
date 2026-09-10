@@ -27,7 +27,7 @@ import { randomUUID } from "node:crypto";
 import type { ActionContext, ActionDefinition, ActionRun } from "./types";
 import { OPENUI_CREATE_CONTRACT, OPENUI_PRESERVE_CONTRACT } from "./openui-contract";
 import { LEAFER_CREATE_CONTRACT, LEAFER_PRESERVE_CONTRACT, looksLikeLeaferDocument } from "./leafer-contract";
-import { canonicalLeaferJson, describeLeaferDocument } from "./leafer-describe";
+import { canonicalLeaferJson, describeLeaferDocument, leaferNodeStableNameAt } from "./leafer-describe";
 import { repairLeaferProgram } from "./leafer-repair";
 import { lintLeaferDocument } from "./leafer-lint";
 import { validateDembrandtTargetUrl } from "../common/dembrandt";
@@ -606,10 +606,16 @@ export const designReviseRun: ActionRun<DesignReviseInput, SuiteActionOutput> = 
       // the same input, so like-for-like instructions cannot jitter.
       const baseline = canonicalLeaferJson(content.leafer) ?? content.leafer;
       const { outline } = describeLeaferDocument(baseline);
+      // The deterministic lint addresses nodes by JSON path, but the outline
+      // (and the create contract) address them by stable name — resolve the
+      // path to its name so the instruction cites the vocabulary the prompt
+      // itself advertises (bare path for unnamed nodes; still a pure function
+      // of the stored document, so the prompt cannot jitter).
+      const targetName = leaferNodeStableNameAt(baseline, target);
       const generated = await ctx.runSubagent({
         skill: "deep-design",
         prompt:
-          `Revise only this Leafer scene-tree target: ${target}. ` +
+          `Revise only this Leafer scene-tree target: ${target}${targetName ? ` ("${targetName}")` : ""}. ` +
           `Instruction (verbatim): "${instruction}". Preserve unrelated content. ` +
           `${LEAFER_PRESERVE_CONTRACT} ${LEAFER_CREATE_CONTRACT} ` +
           `Current design outline (semantic map — address elements by their stable names):\n${outline}\n\n` +

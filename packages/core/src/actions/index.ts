@@ -148,7 +148,7 @@ export {
 export type { LeaferVerdict, LeaferIssue, LeaferCanvasSize, LeaferPrimitive } from "./leafer-contract";
 export { repairLeaferProgram, selfCheckLeaferDocument, canonicalLeaferText } from "./leafer-repair";
 export { lintLeaferDocument } from "./leafer-lint";
-export { describeLeaferDocument, canonicalLeaferJson } from "./leafer-describe";
+export { describeLeaferDocument, canonicalLeaferJson, leaferNodeStableNameAt } from "./leafer-describe";
 export type { DescribeResult } from "./leafer-describe";
 export { designAuditDefinition, designAuditRun, lintDesignDocument } from "./design-audit";
 export type {

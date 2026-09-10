@@ -1126,6 +1126,10 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
                   ...((base ?? {}) as UiSuiteContent),
                   ...(requirement ? { requirement } : {}),
                   openui: code,
+                  // Single-stack invariant, reverse direction: an openui write
+                  // takes over the version's stack — the stale leafer document
+                  // must never survive alongside it (guard-tested both ways).
+                  leafer: undefined,
                   ...(sourcePrototype ? { sourcePrototype } : {}),
                   ...(designSystemId ? { designSystemId } : {}),
                   quality: { lintFindings: [], runtimeChecks: [] },
@@ -1216,9 +1220,19 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
       // the write boundary too.
       try {
         if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("not an object");
-        const root = parsed as { tag?: unknown; children?: unknown };
+        const root = parsed as { tag?: unknown; children?: unknown; width?: unknown; height?: unknown };
         if (root.tag !== "Leafer") throw new Error('root.tag must be "Leafer"');
         if (!Array.isArray(root.children)) throw new Error("root.children must be an array");
+        // Root canvas size is contract-mandatory (LEAFER_CREATE_CONTRACT) and
+        // the deterministic lint judges out-of-bounds against it — a size-less
+        // document must not persist and then silently lint against the
+        // desktop preset (fail-closed at this model-reachable boundary too).
+        for (const side of ["width", "height"] as const) {
+          const value = root[side];
+          if (typeof value !== "number" || !Number.isFinite(value) || value < 1 || value > 8192) {
+            throw new Error(`root.${side} must be a finite number in 1..8192`);
+          }
+        }
       } catch (error) {
         return suiteError(`leafer: invalid scene document (${error instanceof Error ? error.message : String(error)})`);
       }
@@ -1235,23 +1249,31 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
       const designSystemId = stringArg(args, "designSystemId");
       // Self-check at persist (WP5): the deterministic lint runs here for FREE
       // (no LLM) so quality.lintFindings is populated the moment a version
-      // lands — the workspace quality tab is never empty-stale. Review state
-      // stays untouched (design.review owns it).
-      const lintFindings = lintLeaferDocument(leafer);
+      // lands — the workspace quality tab is never empty-stale. Quality is
+      // rebuilt wholesale (the update_openui content-rewrite convention):
+      // review state deliberately does NOT ride onto new content — the
+      // reviewed version keeps its own quality, and carrying a "passed"
+      // review would mislabel never-reviewed content as verified. Tokens ride
+      // along from the base version so the unlisted-color rule arms at save
+      // exactly like the design.lint action.
+      let lintFindings: ReturnType<typeof lintLeaferDocument> = [];
       const persisted = persistSuiteContent(
         projectRoot,
         args,
         "ui",
         deriveTitle(requirement ?? "UI Design"),
-        (base) => ({
-          ...((base ?? {}) as UiSuiteContent),
-          ...(requirement ? { requirement } : {}),
-          leafer,
-          openui: undefined,
-          ...(sourcePrototype ? { sourcePrototype } : {}),
-          ...(designSystemId ? { designSystemId } : {}),
-          quality: { lintFindings, runtimeChecks: [] },
-        }),
+        (base) => {
+          lintFindings = lintLeaferDocument(leafer, (base as UiSuiteContent | null)?.tokens);
+          return {
+            ...((base ?? {}) as UiSuiteContent),
+            ...(requirement ? { requirement } : {}),
+            leafer,
+            openui: undefined,
+            ...(sourcePrototype ? { sourcePrototype } : {}),
+            ...(designSystemId ? { designSystemId } : {}),
+            quality: { lintFindings, runtimeChecks: [] },
+          };
+        },
         "ready"
       );
       if ("error" in persisted) return suiteError(persisted.error);
@@ -1306,6 +1328,10 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
               ? {
                   ...((base ?? {}) as UiSuiteContent),
                   openui: code,
+                  // Single-stack invariant, reverse direction (same as
+                  // render_openui): the stale leafer document must not
+                  // survive alongside the new openui program.
+                  leafer: undefined,
                   ...(sourcePrototype ? { sourcePrototype } : {}),
                   ...(designSystemId ? { designSystemId } : {}),
                   quality: { lintFindings: [], runtimeChecks: [] },

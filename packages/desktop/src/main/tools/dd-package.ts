@@ -228,46 +228,85 @@ export function buildDduOpenuiPackage(
 
 // ── .ddu leafer pipeline (specs/leafer-ui-engine WP3) ────────────────────────
 
-/** Name of the leafer runtime entry inside a leafer .ddu package. */
+/** Name of the leafer-editor runtime entry inside a leafer .ddu package.
+ *  build.mjs copies the build-time artifact under exactly this name so the
+ *  resolver's first candidates hit (constant, copy target and JSDoc must
+ *  agree — they historically drifted between dot/hyphen spellings). */
 export const LEAFER_RUNTIME_FILE = "leafer.web.min.js";
+/** Flow layout plugin build — loaded right AFTER the main runtime inside the
+ *  .ddu viewer: its global build wires into the `LeaferUI` namespace the main
+ *  runtime declares, registering flow/gap/padding layout support. */
+export const LEAFER_FLOW_RUNTIME_FILE = "leafer-flow.web.min.js";
 
-/** The leafer-editor web runtime bytes carried inside the package. */
+/** The leafer web runtime bytes carried inside the package. */
 export interface LeaferRuntime {
   fileName: string;
   data: Buffer;
 }
 
-/**
- * Locate the leafer-editor web runtime (dist/web.min.js). Resolution order:
- * 1. the build-time copy next to the main bundle (`dist/leafer-web.min.js`,
- *    written by build.mjs — the production truth, stable across asar layout),
- * 2. the build-time copy one level up (running from src/ in tests),
- * 3. the installed dependency via require.resolve (unbuilt checkout).
- * Null when none exists — the export surface then fails with an explicit
- * "rebuild the desktop bundle" error instead of shipping a dead package.
- */
-export function resolveLeaferRuntimeSource(): LeaferRuntime | null {
+/** Both web builds the interactive .ddu needs: the editor runtime and the
+ *  flow layout plugin (LEAFER_CREATE_CONTRACT composes with flow/gap/padding
+ *  — an editor-only package renders flow-composed scenes collapsed). */
+export interface LeaferRuntimeBundle {
+  editor: LeaferRuntime;
+  flow: LeaferRuntime;
+}
+
+/** Candidate roots shared by both runtime resolutions, in order: 1. the
+ *  build-time copy next to the main bundle (`dist/<name>`, written by
+ *  build.mjs — the production truth, stable across asar layout), 2. the
+ *  build-time copy one level up (running from src/ in tests), 3./4. the
+ *  installed dependency (package-local, then the workspace-hoisted layout). */
+function runtimeCandidates(fileName: string, packageName: string, distFile: string): string[] {
   const here = dirname(fileURLToPath(import.meta.url));
   // Bundled: here = <desktop>/dist → package root one level up.
   // Tests/tsx: here = <desktop>/src/main/tools → package root three up.
   const fromSrc = resolve(here, "..", "..", "..");
   const packageRoot = basename(here) === "dist" ? resolve(here, "..") : fromSrc;
-  const candidates = [
-    join(here, LEAFER_RUNTIME_FILE),
-    join(fromSrc, "dist", LEAFER_RUNTIME_FILE),
-    join(packageRoot, "node_modules", "leafer-editor", "dist", "web.min.js"),
+  return [
+    join(here, fileName),
+    join(fromSrc, "dist", fileName),
+    join(packageRoot, "node_modules", packageName, "dist", distFile),
     // Workspace-hoisted install (the common layout): <repo>/node_modules.
-    join(packageRoot, "..", "..", "node_modules", "leafer-editor", "dist", "web.min.js"),
+    join(packageRoot, "..", "..", "node_modules", packageName, "dist", distFile),
   ];
+}
+
+function readRuntime(candidates: string[], fileName: string): LeaferRuntime | null {
   for (const candidate of candidates) {
     try {
       const data = readFileSync(candidate);
-      if (data.length > 0) return { fileName: "leafer.web.min.js", data };
+      if (data.length > 0) return { fileName, data };
     } catch {
       // Try the next candidate.
     }
   }
   return null;
+}
+
+/** Locate the leafer-editor web runtime (dist/web.min.js). Null when none
+ *  exists — the export surface then fails with an explicit "rebuild the
+ *  desktop bundle" error instead of shipping a dead package. */
+export function resolveLeaferRuntimeSource(): LeaferRuntime | null {
+  return readRuntime(runtimeCandidates(LEAFER_RUNTIME_FILE, "leafer-editor", "web.min.js"), LEAFER_RUNTIME_FILE);
+}
+
+/** Locate the @leafer-in/flow web build (dist/flow.min.js — the plugin's
+ *  global build that wires into the editor runtime's `LeaferUI`). */
+export function resolveLeaferFlowRuntimeSource(): LeaferRuntime | null {
+  return readRuntime(
+    runtimeCandidates(LEAFER_FLOW_RUNTIME_FILE, "@leafer-in/flow", "flow.min.js"),
+    LEAFER_FLOW_RUNTIME_FILE
+  );
+}
+
+/** Resolve both builds; null when either is missing. The export is
+ *  fail-closed on the pair — a viewer without the flow plugin breaks
+ *  flow-composed scenes, the create contract's core layout mechanism. */
+export function resolveLeaferRuntimeBundle(): LeaferRuntimeBundle | null {
+  const editor = resolveLeaferRuntimeSource();
+  const flow = resolveLeaferFlowRuntimeSource();
+  return editor && flow ? { editor, flow } : null;
 }
 
 /** Escape a JSON document for inline <script type="application/json">
@@ -280,10 +319,17 @@ function embedJson(json: string): string {
     .replace(/\u2029/g, "\\u2029");
 }
 
-/** The interactive .ddu viewer: leafer runtime + embedded design JSON —
- *  double-click renders an editable canvas (pan/zoom/select/adjust), fully
- *  offline via the relative runtime script. */
-export function buildDduLeaferViewerHtml(title: string, leaferJson: string, runtimeFileName: string): string {
+/** The interactive .ddu viewer: leafer runtime + flow plugin + embedded
+ *  design JSON — double-click renders an editable canvas (pan/zoom/select/
+ *  adjust, flow-aware layout), fully offline via the relative runtime
+ *  scripts. The flow build MUST load after the main runtime: it wires into
+ *  the `LeaferUI` global namespace that runtime declares. */
+export function buildDduLeaferViewerHtml(
+  title: string,
+  leaferJson: string,
+  runtimeFileName: string,
+  flowRuntimeFileName: string
+): string {
   const safeTitle = title.replace(/[&<>"']/g, (char) => `&#${char.charCodeAt(0)};`);
   return `<!doctype html>
 <html lang="en">
@@ -306,6 +352,8 @@ export function buildDduLeaferViewerHtml(title: string, leaferJson: string, runt
 <pre id="err"></pre>
 <script type="application/json" id="ddu-design">${embedJson(leaferJson)}</script>
 <script src="./${runtimeFileName}"></script>
+<!-- Flow layout plugin: must load AFTER the main runtime (registers into its LeaferUI namespace). -->
+<script src="./${flowRuntimeFileName}"></script>
 <script>
 (function () {
   var stage = document.getElementById("stage");
@@ -331,13 +379,14 @@ export function buildDduLeaferViewerHtml(title: string, leaferJson: string, runt
 }
 
 /** Build the .ddu package for the leafer UI-Design stack: manifest +
- *  design.leafer.json + the interactive index.html + the leafer web runtime.
- *  Non-empty token/component extras ride along like the openui pipeline. */
+ *  design.leafer.json + the interactive index.html + the leafer web runtime
+ *  and its flow layout plugin. Non-empty token/component extras ride along
+ *  like the openui pipeline. */
 export function buildDduLeaferPackage(
   artifact: { id: string; title: string },
   leaferJson: string,
   exportedAt: string,
-  runtime: LeaferRuntime,
+  runtimes: LeaferRuntimeBundle,
   extras?: DduExtras
 ): Buffer {
   // Normalize the stored document (pretty-printed entry) — a parse failure
@@ -366,9 +415,13 @@ export function buildDduLeaferPackage(
     { name: "design.leafer.json", data: Buffer.from(normalized, "utf8") },
     {
       name: "index.html",
-      data: Buffer.from(buildDduLeaferViewerHtml(artifact.title, leaferJson, runtime.fileName), "utf8"),
+      data: Buffer.from(
+        buildDduLeaferViewerHtml(artifact.title, leaferJson, runtimes.editor.fileName, runtimes.flow.fileName),
+        "utf8"
+      ),
     },
-    { name: runtime.fileName, data: runtime.data },
+    { name: runtimes.editor.fileName, data: runtimes.editor.data },
+    { name: runtimes.flow.fileName, data: runtimes.flow.data },
   ];
   if (hasTokens) {
     entries.push({ name: "tokens.json", data: Buffer.from(JSON.stringify(tokens, null, 2), "utf8") });

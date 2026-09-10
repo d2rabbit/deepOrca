@@ -94,6 +94,10 @@ export function DesignWorkspace({
   const stageRef = useRef<HTMLDivElement | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Quality-tab locate on the leafer stack: { path, seq } — seq increments
+  // per Locate click; LeaferPreview selects/flashes the addressed scene node
+  // (the canvas has no DOM [data-sem] surface to query).
+  const [locateSignal, setLocateSignal] = useState<{ path: string; seq: number } | null>(null);
   const [loading, setLoading] = useState(true);
   const [drift, setDrift] = useState<{ detected: boolean; score: number | null } | null>(null);
   const [diff, setDiff] = useState<{ added: number; removed: number; lines: string[] } | null>(null);
@@ -369,27 +373,34 @@ export function DesignWorkspace({
    * Leafer canvas edit → version snapshot (WP1.4): the debounced commit from
    * LeaferPreview appends a new head version; the canvas then follows the
    * new head (the suite-change background refresh would keep the old
-   * selection, instantly re-reading the canvas as read-only). Returns the
-   * promise so LeaferPreview can hold back the NEXT commit until this append
-   * settles — continued editing must never fire a second concurrent append
-   * (the store refuses it as head-moved). Busy-gated for the same reason:
-   * an action revision moving the head mid-append would fork the intent.
+   * selection, instantly re-reading the canvas as read-only).
+   *
+   * Returns whether the snapshot PERSISTED — `false` (busy gate, head-moved,
+   * IPC failure) makes the canvas commit scheduler retry the same snapshot
+   * instead of silently dropping the edit: a tweak made while a read-only
+   * action runs (lint/review/export never change the tree) lands once the
+   * action settles, and one superseded by a revise is cancelled when the
+   * revise's own tree re-imports. Busy-gated so an action revision moving
+   * the head mid-append can never fork the intent (canvas and action would
+   * otherwise both append onto the same head).
    */
-  const commitLeafer = async (leaferJson: string): Promise<void> => {
-    if (!suite || !selectedVersion || readOnly || busy !== null) return;
+  const commitLeafer = async (leaferJson: string): Promise<boolean> => {
+    if (!suite || !selectedVersion || readOnly || busy !== null) return false;
     try {
       const result = await suiteApi.designSuiteAppendLeafer(root, suite.id, selectedVersion.versionId, leaferJson);
       if (!result.ok) {
-        setError(result.error ?? "canvas save failed");
-        return;
+        setError(result.error ?? t("designWorkspace.leaferCanvasSaveFailed"));
+        return false;
       }
       const nextSuite = await suiteApi.designSuiteRead(root, suite.id);
       if (nextSuite) {
         setSuite(nextSuite);
         setSelectedVersion(nextSuite.currentVersion);
       }
+      return true;
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
+      return false;
     }
   };
 
@@ -425,6 +436,12 @@ export function DesignWorkspace({
   const locateFinding = (nodePath: string) => {
     setSelection(null);
     setTab("pages");
+    // Leafer stack: findings address scene-tree nodes (`document.children[N]`)
+    // — locate flashes them inside the canvas; there is no DOM stage to query.
+    if (content.leafer?.trim()) {
+      setLocateSignal((previous) => ({ path: nodePath, seq: (previous?.seq ?? 0) + 1 }));
+      return;
+    }
     window.requestAnimationFrame(() => {
       const stage = stageRef.current;
       if (!stage) return;
@@ -699,7 +716,12 @@ export function DesignWorkspace({
             <div className="ui-design-canvas-area">
               {content.leafer ? (
                 <div className="ui-design-canvas-stage" style={themeVars}>
-                  <LeaferPreview leaferJson={content.leafer} editable={!readOnly} onCommit={commitLeafer} />
+                  <LeaferPreview
+                    leaferJson={content.leafer}
+                    editable={!readOnly}
+                    onCommit={commitLeafer}
+                    locate={locateSignal}
+                  />
                 </div>
               ) : content.openui ? (
                 <div className="ui-design-canvas-stage" ref={stageRef} style={themeVars}>

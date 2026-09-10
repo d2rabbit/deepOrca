@@ -477,6 +477,7 @@ export {
   LEAFER_PRESERVE_CONTRACT,
   lintLeaferDocument,
   describeLeaferDocument,
+  leaferNodeStableNameAt,
   canonicalLeaferJson,
   selfCheckLeaferDocument,
   canonicalLeaferText,
