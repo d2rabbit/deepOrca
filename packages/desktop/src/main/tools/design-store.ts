@@ -156,6 +156,27 @@ export interface DesignSuiteMeta {
   currentVersionId: string;
   versions: DesignSuiteVersionSummary[];
   authoringLibrary?: DesignAuthoringLibrary;
+  /** specs/prd-theme-layer: PRD 主题归属与关系——套件元数据，不进版本内容
+   *  （调整不追加版本）。主题实体本身存 index.json 的 themes 数组。 */
+  themeId?: string;
+  stage?: string;
+  inherits?: DesignThemeRef;
+  references?: DesignThemeRef[];
+}
+
+/** PRD 主题关系引用：指向另一套件（PRD），versionId 省略 = 跟随其 head。 */
+export interface DesignThemeRef {
+  suiteId: string;
+  versionId?: string;
+}
+
+/** PRD 主题（分组维度，纯展示）——持久化于 index.json 的 themes 数组。 */
+export interface DesignTheme {
+  id: string;
+  title: string;
+  note?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface DesignSuiteSummary {
@@ -171,6 +192,10 @@ export interface DesignSuiteSummary {
   /** True for a virtual view over one unmigrated legacy artifact. */
   partial?: boolean;
   sourcePipeline?: DesignPipeline;
+  themeId?: string;
+  stage?: string;
+  inherits?: DesignThemeRef;
+  references?: DesignThemeRef[];
 }
 
 export interface DesignSuite extends Omit<DesignSuiteMeta, "versions"> {
@@ -190,6 +215,10 @@ export type CreateDesignSuiteInput =
       note?: string;
       status?: DesignSuiteStatus;
       authoringLibrary?: DesignAuthoringLibrary;
+      themeId?: string;
+      stage?: string;
+      inherits?: DesignThemeRef;
+      references?: DesignThemeRef[];
     }
   | {
       title: string;
@@ -198,6 +227,10 @@ export type CreateDesignSuiteInput =
       note?: string;
       status?: DesignSuiteStatus;
       authoringLibrary?: DesignAuthoringLibrary;
+      themeId?: string;
+      stage?: string;
+      inherits?: DesignThemeRef;
+      references?: DesignThemeRef[];
     };
 
 export interface AppendDesignSuiteVersionInput {
@@ -207,10 +240,20 @@ export interface AppendDesignSuiteVersionInput {
   status?: DesignSuiteStatus;
 }
 
+/** specs/prd-theme-layer: 套件的主题归属/阶段/关系指派。undefined = 保持现状，
+ *  null = 清除，数组 = 整体替换。 */
+export interface AssignSuiteThemeInput {
+  themeId?: string | null;
+  stage?: string | null;
+  inherits?: DesignThemeRef | null;
+  references?: DesignThemeRef[] | null;
+}
+
 interface DesignIndex {
   version: 1;
   artifacts: DesignArtifactMeta[];
   suites?: DesignSuiteSummary[];
+  themes?: DesignTheme[];
 }
 
 const INDEX_VERSION = 1;
@@ -233,7 +276,7 @@ export interface DesignSuiteChangeEvent {
   root: string;
   suiteId: string;
   versionId?: string;
-  change: "create" | "update" | "delete";
+  change: "create" | "update" | "delete" | "theme";
 }
 
 type DesignSuiteChangeListener = (event: DesignSuiteChangeEvent) => void;
@@ -611,6 +654,11 @@ function summaryFromMeta(meta: DesignSuiteMeta): DesignSuiteSummary {
     updatedAt: meta.updatedAt,
     currentVersionId: meta.currentVersionId,
     versionCount: meta.versions.length,
+    // 主题字段（specs/prd-theme-layer）：undefined 在 JSON 序列化时自然消隐。
+    ...(meta.themeId !== undefined ? { themeId: meta.themeId } : {}),
+    ...(meta.stage !== undefined ? { stage: meta.stage } : {}),
+    ...(meta.inherits !== undefined ? { inherits: meta.inherits } : {}),
+    ...(meta.references !== undefined ? { references: meta.references } : {}),
   };
 }
 
@@ -788,6 +836,11 @@ export function createDesignSuite(root: string, input: CreateDesignSuiteInput): 
       currentVersionId: version.versionId,
       versions: [versionSummary],
       ...(input.authoringLibrary ? { authoringLibrary: input.authoringLibrary } : {}),
+      // 主题字段（specs/prd-theme-layer）：创建即带主题/关系（agent 建套件路径）。
+      ...(input.themeId !== undefined ? { themeId: input.themeId } : {}),
+      ...(input.stage !== undefined ? { stage: input.stage } : {}),
+      ...(input.inherits !== undefined ? { inherits: input.inherits } : {}),
+      ...(input.references !== undefined ? { references: input.references } : {}),
     };
     persistSuiteVersion(root, meta, version);
     notifySuiteChange({ root, suiteId: id, versionId: version.versionId, change: "create" });
@@ -881,6 +934,11 @@ export function appendDesignSuiteVersion(root: string, input: AppendDesignSuiteV
       // The authoring library is lineage-stable: stamped once at creation and
       // carried forward verbatim on every append.
       ...(suite.authoringLibrary ? { authoringLibrary: suite.authoringLibrary } : {}),
+      // 主题字段与 authoringLibrary 同规：lineage-stable，逐次 append 原样携带。
+      ...(suite.themeId !== undefined ? { themeId: suite.themeId } : {}),
+      ...(suite.stage !== undefined ? { stage: suite.stage } : {}),
+      ...(suite.inherits !== undefined ? { inherits: suite.inherits } : {}),
+      ...(suite.references !== undefined ? { references: suite.references } : {}),
     };
     persistSuiteVersion(root, meta, currentVersion);
     for (const evictedPath of evictedPaths) {
@@ -1050,6 +1108,159 @@ export function deleteDesignArtifact(root: string, id: string): boolean {
       writeIndex(root, { ...index, artifacts: next });
       notifyChange(root);
     }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// ── PRD 主题层（specs/prd-theme-layer）───────────────────────────────────────
+// 主题是 index.json 里的轻量分组实体（无版本、无投影文件）；套件的主题归属/
+// 阶段/关系是套件元数据（meta + 索引 summary），调整永不追加版本。
+
+function themesOf(index: DesignIndex): DesignTheme[] {
+  return index.themes ?? [];
+}
+
+function writeThemes(root: string, index: DesignIndex, themes: DesignTheme[]): void {
+  writeJsonAtomic(path.join(getDesignsDir(root), "index.json"), { ...index, themes });
+}
+
+/** List themes oldest-first（稳定分组序：阶段随时间累积）. */
+export function listDesignThemes(root: string): DesignTheme[] {
+  try {
+    return themesOf(getIndex(root))
+      .slice()
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  } catch {
+    return [];
+  }
+}
+
+export function createDesignTheme(root: string, input: { title: string; note?: string }): DesignTheme | null {
+  const title = input.title?.trim();
+  if (!title) return null;
+  try {
+    const index = getIndex(root);
+    const now = new Date().toISOString();
+    const theme: DesignTheme = {
+      id: randomUUID(),
+      title,
+      ...(input.note !== undefined && input.note.trim() ? { note: input.note.trim() } : {}),
+      createdAt: now,
+      updatedAt: now,
+    };
+    writeThemes(root, index, [...themesOf(index), theme]);
+    notifySuiteChange({ root, suiteId: theme.id, change: "theme" });
+    return theme;
+  } catch {
+    return null;
+  }
+}
+
+/** Update a theme's title/note. `note: null` clears it. */
+export function updateDesignTheme(root: string, id: string, input: { title?: string; note?: string | null }): boolean {
+  if (!isSafeDesignId(id)) return false;
+  try {
+    const index = getIndex(root);
+    const themes = themesOf(index);
+    const targetIndex = themes.findIndex((theme) => theme.id === id);
+    if (targetIndex < 0) return false;
+    const previous = themes[targetIndex];
+    const next: DesignTheme = {
+      ...previous,
+      title: input.title === undefined ? previous.title : input.title.trim() || previous.title,
+      updatedAt: new Date().toISOString(),
+    };
+    if (input.note === null) delete next.note;
+    else if (input.note !== undefined && input.note.trim()) next.note = input.note.trim();
+    const nextThemes = themes.slice();
+    nextThemes[targetIndex] = next;
+    writeThemes(root, index, nextThemes);
+    notifySuiteChange({ root, suiteId: id, change: "theme" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Delete a theme and DETACH its suites（meta + 索引 themeId 置空）——删主题
+ *  永不删 PRD。 */
+export function deleteDesignTheme(root: string, id: string): boolean {
+  if (!isSafeDesignId(id)) return false;
+  try {
+    const index = getIndex(root);
+    const themes = themesOf(index);
+    if (!themes.some((theme) => theme.id === id)) return false;
+    const suites = index.suites ?? [];
+    for (const suite of suites) {
+      if (suite.themeId !== id) continue;
+      const meta = readSuiteMeta(root, suite.id);
+      if (!meta || meta.themeId !== id) continue;
+      const dir = resolveArtifactDir(root, suite.id);
+      const metaPath = dir ? resolveContainedFile(dir, "meta.json") : null;
+      if (!metaPath) continue;
+      const next: DesignSuiteMeta = { ...meta, themeId: undefined };
+      writeJsonAtomic(metaPath, next);
+    }
+    writeJsonAtomic(path.join(getDesignsDir(root), "index.json"), {
+      ...index,
+      suites: suites.map((suite) => (suite.themeId === id ? { ...suite, themeId: undefined } : suite)),
+      themes: themes.filter((theme) => theme.id !== id),
+    });
+    notifySuiteChange({ root, suiteId: id, change: "theme" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Assign theme/stage/relations on a suite's META（永不追加版本）.
+ *  undefined = 保持现状, null = 清除, 数组 = 整体替换。themeId 指向的主题必须
+ *  存在（悬空归属会让目录分组静默丢卡片）；关系引用按宽松校验（UI 从真实
+ *  套件列表选取，关系目标可能迟于被引用方删除而悬空——展示层容错）。 */
+export function assignSuiteTheme(root: string, suiteId: string, input: AssignSuiteThemeInput): boolean {
+  if (!isSafeDesignId(suiteId)) return false;
+  try {
+    const meta = readSuiteMeta(root, suiteId);
+    if (!meta) return false;
+    let themeId = meta.themeId;
+    if (input.themeId !== undefined) {
+      if (input.themeId === null) themeId = undefined;
+      else {
+        if (!themesOf(getIndex(root)).some((theme) => theme.id === input.themeId)) return false;
+        themeId = input.themeId;
+      }
+    }
+    const stage =
+      input.stage === undefined
+        ? meta.stage
+        : input.stage === null || !input.stage.trim()
+          ? undefined
+          : input.stage.trim();
+    const inherits =
+      input.inherits === undefined ? meta.inherits : input.inherits === null ? undefined : { ...input.inherits };
+    const references =
+      input.references === undefined
+        ? meta.references
+        : input.references === null
+          ? undefined
+          : input.references.map((ref) => ({ ...ref }));
+    const next: DesignSuiteMeta = { ...meta };
+    if (themeId === undefined) delete next.themeId;
+    else next.themeId = themeId;
+    if (stage === undefined) delete next.stage;
+    else next.stage = stage;
+    if (inherits === undefined) delete next.inherits;
+    else next.inherits = inherits;
+    if (references === undefined) delete next.references;
+    else next.references = references;
+    const dir = resolveArtifactDir(root, suiteId);
+    const metaPath = dir ? resolveContainedFile(dir, "meta.json") : null;
+    if (!metaPath) return false;
+    writeJsonAtomic(metaPath, next);
+    writeSuiteIndex(root, next);
+    notifySuiteChange({ root, suiteId, change: "theme" });
     return true;
   } catch {
     return false;
