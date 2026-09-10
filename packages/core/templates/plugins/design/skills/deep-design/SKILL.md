@@ -9,6 +9,13 @@ description: >-
   utility classes are available (locally vendored, no CDN needed).
 ---
 
+# Deep Design
+
+> **pd-design / ui-design 文档模式**（specs/prompt-doc-chain）：当提示词要求
+> 产出 pd-design 或 ui-design 提示词文档时，按提示词内嵌的契约节逐节填充——
+> 每节写给下游生成器的指令（非 PRD 复述、非散文）；页面集合严格来自
+> pd-design 的页面结构，不得发明页面。
+
 # DeepDesign — Generate Design-Grade Web Artifacts
 
 Produce a `.dd` (OrcaDesign Document) file — a structured design format with
@@ -268,7 +275,7 @@ fulfill; return ONLY the fenced content it asks for:
 
 1. **design.materialize → Leafer scene JSON.** Return one complete `json`
    code fence: the scene-tree document `{"tag": "Leafer", "width": …,
-   "height": …, "fill": …, "children": [...]}` following the LEAFER scene
+"height": …, "fill": …, "children": [...]}` following the LEAFER scene
    contract embedded in the prompt — allowed primitive tags ONLY (Rect,
    Ellipse, Text, Image, Path, Line, Group, Box, Frame), absolute x/y plus
    width/height inside the root canvas, `flow`/`gap`/`padding` auto layout on
