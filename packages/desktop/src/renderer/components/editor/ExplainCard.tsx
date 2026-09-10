@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 import { useI18n } from "../../i18n";
 import type { PairExplainState } from "../../hooks/use-pair-lane";
 import { fileBaseName } from "../../ui/path-utils";
+import { StreamdownView } from "../StreamdownView";
 
 type Props = {
   explain: PairExplainState;
@@ -15,15 +16,18 @@ type Props = {
  * Floating EXPLAIN card (2026-09-06 user ask): 「解释」 must never rewrite the
  * buffer — the agent's prose answer floats above the canvas instead. Portal
  * to body, fixed at the canvas's top-right (clear of the lane rail); content
- * renders as pre-wrapped text so the agent's line structure survives.
+ * renders through the shared Streamdown pipeline (markdown/HTML sanitize +
+ * shiki code) instead of raw source text.
  */
 export function ExplainCard({ explain, file, onDismiss }: Props): JSX.Element {
   const { t } = useI18n();
   const bodyRef = useRef<HTMLDivElement | null>(null);
 
-  // Keep the latest answer in view while streaming in long prose.
+  // Keep the latest answer in view while streaming in long prose. jsdom has no
+  // Element.scrollTo, so guard on the capability (same as FloatingDesignAgent).
   useEffect(() => {
-    if (explain?.busy) bodyRef.current?.scrollTo({ top: 0 });
+    const body = bodyRef.current;
+    if (explain?.busy && body && typeof body.scrollTo === "function") body.scrollTo({ top: 0 });
   }, [explain?.busy]);
 
   if (!explain) return <></>;
@@ -46,9 +50,9 @@ export function ExplainCard({ explain, file, onDismiss }: Props): JSX.Element {
           </div>
         ) : explain.error ? (
           <div className="ui-error">{explain.error}</div>
-        ) : (
-          <div className="prose">{explain.content}</div>
-        )}
+        ) : explain.content ? (
+          <StreamdownView className="ui-md" markdown={explain.content} />
+        ) : null}
       </div>
       <div className="ui-edexplain-foot">{t("editor.pair.explain.hint")}</div>
     </div>,
