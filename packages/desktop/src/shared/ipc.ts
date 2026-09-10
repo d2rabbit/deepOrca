@@ -187,6 +187,12 @@ export const IpcRequest = {
   DesignSuiteExport: "design:suiteExport",
   DesignSuiteAppendLeafer: "design:suiteAppendLeafer",
   DesignSuiteSaveFormState: "design:suiteSaveFormState",
+  // PRD 主题层（specs/prd-theme-layer）：主题 CRUD + 套件主题指派。
+  DesignThemeList: "design:themeList",
+  DesignThemeCreate: "design:themeCreate",
+  DesignThemeUpdate: "design:themeUpdate",
+  DesignThemeDelete: "design:themeDelete",
+  DesignSuiteAssignTheme: "design:suiteAssignTheme",
   DesignSuiteReadFormState: "design:suiteReadFormState",
   DesignSystemCatalog: "design:systemCatalog",
   /** Spec → Marp slides (specs/artifact-landing 链路 B): in-place preview of
@@ -1077,6 +1083,26 @@ export type DesignSuiteVersion = DesignSuiteVersionSummary & {
   content: DesignSuiteContent;
 };
 
+export type DesignThemeRef = {
+  suiteId: string;
+  versionId?: string;
+};
+
+export type DesignTheme = {
+  id: string;
+  title: string;
+  note?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type DesignSuiteThemeAssign = {
+  themeId?: string | null;
+  stage?: string | null;
+  inherits?: DesignThemeRef | null;
+  references?: DesignThemeRef[] | null;
+};
+
 export type DesignSuiteMeta = {
   schemaVersion: 2;
   id: string;
@@ -1092,6 +1118,12 @@ export type DesignSuiteMeta = {
    *  suites and legacy artifacts, where the renderer falls back to the
    *  component-name heuristic (shared-name-only suites misroute without it). */
   authoringLibrary?: DesignAuthoringLibrary;
+  /** specs/prd-theme-layer: PRD 主题归属与关系——套件元数据，不进版本内容
+   *  （调整不追加版本）。主题实体本身存 index.json 的 themes 数组。 */
+  themeId?: string;
+  stage?: string;
+  inherits?: DesignThemeRef;
+  references?: DesignThemeRef[];
 };
 
 export type DesignAuthoringLibrary = "official" | "legacy";
@@ -1108,6 +1140,10 @@ export type DesignSuiteSummary = {
   versionCount: number;
   partial?: boolean;
   sourcePipeline?: DesignPipeline;
+  themeId?: string;
+  stage?: string;
+  inherits?: DesignThemeRef;
+  references?: DesignThemeRef[];
 };
 
 export type DesignSuite = Omit<DesignSuiteMeta, "versions"> & {
@@ -1122,7 +1158,7 @@ export type DesignSuiteChangeEvent = {
   root: string;
   suiteId: string;
   versionId?: string;
-  change: "create" | "update" | "delete";
+  change: "create" | "update" | "delete" | "theme";
 };
 
 /** IPC payload remains compatible with legacy artifact root-only notifications. */
@@ -1625,6 +1661,24 @@ export type DesktopApi = {
     leaferJson: string,
     note?: string
   ): Promise<{ ok: boolean; ref?: DesignArtifactRef; error?: string }>;
+  /** PRD 主题层（specs/prd-theme-layer）：主题 CRUD + 套件主题指派（元数据，
+   *  不产生新版本）。 */
+  designThemeList(root: string): Promise<DesignTheme[]>;
+  designThemeCreate(
+    root: string,
+    input: { title: string; note?: string }
+  ): Promise<{ ok: boolean; theme?: DesignTheme; error?: string }>;
+  designThemeUpdate(
+    root: string,
+    id: string,
+    input: { title?: string; note?: string | null }
+  ): Promise<{ ok: boolean; error?: string }>;
+  designThemeDelete(root: string, id: string): Promise<{ ok: boolean; error?: string }>;
+  designSuiteAssignTheme(
+    root: string,
+    suiteId: string,
+    input: DesignSuiteThemeAssign
+  ): Promise<{ ok: boolean; error?: string }>;
   designSystemCatalog(): Promise<DesignSystemCatalogItem[]>;
 
   /** Render one suite version's spec.md into a slide deck (main-process marp). */

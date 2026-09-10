@@ -27,14 +27,18 @@ import { lintLeaferDocument, looksLikeArchDoc, OPENUI_PRESERVE_CONTRACT } from "
 import { BASIC_CATALOG_ID, convertLegacyComponents } from "../../../shared/a2ui-legacy";
 import {
   appendDesignSuiteVersion,
+  assignSuiteTheme,
   createDesignSuite,
   deriveTitle,
   isSafeDesignId,
   isSuiteNormalizedArtifact,
+  listDesignThemes,
   readDesignSuite,
   readDesignSuiteKind,
   readDesignSuiteVersion,
   saveDesignArtifact,
+  type AssignSuiteThemeInput,
+  type DesignThemeRef,
 } from "../design-store.js";
 import type {
   DesignArtifactRef,
@@ -473,7 +477,19 @@ function sourcePrototypeArg(args: Record<string, unknown>): { suiteId: string; v
 }
 
 function usesSuitePersistence(args: Record<string, unknown>): boolean {
-  return ["suiteId", "versionId", "note", "sourcePrototype", "designSystemId"].some((key) => args[key] !== undefined);
+  // 主题字段（specs/prd-theme-layer）隐含套件意图：主题/关系只存在于套件
+  // meta，legacy artifact 路径无处安放。
+  return [
+    "suiteId",
+    "versionId",
+    "note",
+    "sourcePrototype",
+    "designSystemId",
+    "themeId",
+    "stage",
+    "inheritsSuiteId",
+    "references",
+  ].some((key) => args[key] !== undefined);
 }
 
 function suiteError(message: string): CallToolResult {
@@ -558,15 +574,61 @@ function readSuiteBase(
  *  instead of a generic "could not append". */
 type SuitePersistOutcome = { ref: DesignArtifactRef } | { error: string };
 
+/** specs/prd-theme-layer: agent 供给的主题字段，盖章到套件 META（永不进版本
+ *  内容）。 */
+interface SuiteThemeMetaInput {
+  themeId?: string;
+  stage?: string;
+  inherits?: DesignThemeRef;
+  references?: DesignThemeRef[];
+}
+
+/** Parse the theme args shared by render_spec / render_leafer. Undefined when
+ *  the call carries none — persist then behaves exactly as before. */
+function themeMetaArgs(args: Record<string, unknown>): SuiteThemeMetaInput | undefined {
+  const themeId = stringArg(args, "themeId");
+  const stage = stringArg(args, "stage");
+  const inheritsSuiteId = stringArg(args, "inheritsSuiteId");
+  const inheritsVersionId = stringArg(args, "inheritsVersionId");
+  let references: DesignThemeRef[] | undefined;
+  if (Array.isArray(args.references)) {
+    references = (args.references as unknown[])
+      .map((item) =>
+        item && typeof item === "object" ? (item as { suiteId?: unknown; versionId?: unknown }) : undefined
+      )
+      .filter((item): item is { suiteId?: unknown; versionId?: unknown } => Boolean(item))
+      .filter((item) => typeof item.suiteId === "string" && item.suiteId.trim() !== "")
+      .map((item) => ({
+        suiteId: String(item.suiteId),
+        ...(typeof item.versionId === "string" && item.versionId.trim() ? { versionId: String(item.versionId) } : {}),
+      }));
+  }
+  if (!themeId && !stage && !inheritsSuiteId && !(references && references.length > 0)) return undefined;
+  return {
+    ...(themeId ? { themeId } : {}),
+    ...(stage ? { stage } : {}),
+    ...(inheritsSuiteId
+      ? { inherits: { suiteId: inheritsSuiteId, ...(inheritsVersionId ? { versionId: inheritsVersionId } : {}) } }
+      : {}),
+    ...(references && references.length > 0 ? { references } : {}),
+  };
+}
+
 function persistSuiteContent(
   root: string | undefined,
   args: Record<string, unknown>,
   kind: DesignSuiteKind,
   title: string,
   build: (base: DesignSuiteContent | undefined) => DesignSuiteContent,
-  status: DesignSuiteStatus
+  status: DesignSuiteStatus,
+  theme?: SuiteThemeMetaInput
 ): SuitePersistOutcome {
   if (!root) return { error: "suite persistence requires a project root" };
+  // 主题字段（specs/prd-theme-layer）：themeId 必须指向已存在主题（悬空归属
+  // 会让目录分组静默丢卡片）——与 assignSuiteTheme 同规，fail-closed。
+  if (theme?.themeId && !listDesignThemes(root).some((candidate) => candidate.id === theme.themeId)) {
+    return { error: `theme "${theme.themeId}" not found` };
+  }
   const suiteId = stringArg(args, "suiteId");
   const versionId = stringArg(args, "versionId");
   if (versionId && !suiteId) return { error: "versionId requires suiteId" };
@@ -585,6 +647,10 @@ function persistSuiteContent(
             ...(note ? { note } : {}),
             status,
             authoringLibrary: "official",
+            ...(theme?.themeId !== undefined ? { themeId: theme.themeId } : {}),
+            ...(theme?.stage !== undefined ? { stage: theme.stage } : {}),
+            ...(theme?.inherits !== undefined ? { inherits: theme.inherits } : {}),
+            ...(theme?.references !== undefined ? { references: theme.references } : {}),
           })
         : createDesignSuite(root, {
             title,
@@ -593,6 +659,10 @@ function persistSuiteContent(
             ...(note ? { note } : {}),
             status,
             authoringLibrary: "official",
+            ...(theme?.themeId !== undefined ? { themeId: theme.themeId } : {}),
+            ...(theme?.stage !== undefined ? { stage: theme.stage } : {}),
+            ...(theme?.inherits !== undefined ? { inherits: theme.inherits } : {}),
+            ...(theme?.references !== undefined ? { references: theme.references } : {}),
           });
     return created
       ? { ref: { suiteId: created.id, versionId: created.currentVersionId, kind } }
@@ -606,9 +676,18 @@ function persistSuiteContent(
     ...(note ? { note } : {}),
     status,
   });
-  return updated
-    ? { ref: { suiteId: updated.id, versionId: updated.currentVersionId, kind } }
-    : { error: "could not append the design suite" };
+  if (!updated) return { error: "could not append the design suite" };
+  // 主题字段（specs/prd-theme-layer）：append 的 meta 由既有值 lineage-stable
+  // 携带；agent 显式给出的字段在此覆盖（元数据更新，不产生新版本）。
+  if (theme) {
+    const patch: AssignSuiteThemeInput = {};
+    if (theme.themeId !== undefined) patch.themeId = theme.themeId;
+    if (theme.stage !== undefined) patch.stage = theme.stage;
+    if (theme.inherits !== undefined) patch.inherits = theme.inherits;
+    if (theme.references !== undefined) patch.references = theme.references;
+    if (Object.keys(patch).length > 0) assignSuiteTheme(root, suiteId, patch);
+  }
+  return { ref: { suiteId: updated.id, versionId: updated.currentVersionId, kind } };
 }
 
 /**
@@ -955,6 +1034,21 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
           .optional()
           .describe("The user's original requirement text (persisted as requirement.md)."),
         ...suiteLineageSchema,
+        // PRD 主题层（specs/prd-theme-layer）：主题/阶段/关系盖章到套件 meta。
+        themeId: z.string().optional().describe("PRD theme id — stamped on the suite meta, never version content"),
+        stage: z.string().optional().describe("Phase label within the theme (display only, e.g. 'Phase 1')"),
+        inheritsSuiteId: z
+          .string()
+          .optional()
+          .describe("Suite id this PRD inherits from (terminology/role/architecture lineage)"),
+        inheritsVersionId: z
+          .string()
+          .optional()
+          .describe("Pinned version of the inherited suite; omit to follow its head"),
+        references: z
+          .array(z.object({ suiteId: z.string(), versionId: z.string().optional() }))
+          .optional()
+          .describe("Cross-referenced PRD suites (consulted as design references)"),
       },
     },
     async (args) => {
@@ -986,7 +1080,9 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
             openuiVariants: undefined,
             verification: { status: "pending", checks: [] },
           }),
-          "draft"
+          "draft",
+          // 主题字段随 PRD 落 meta（specs/prd-theme-layer WP2）。
+          themeMetaArgs(args)
         );
         if ("error" in persisted) return suiteError(persisted.error);
         return artifactResult(
@@ -1198,6 +1294,22 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
           .optional()
           .describe("The user's original requirement text (persisted as requirement.md; pass when known)."),
         ...suiteLineageSchema,
+        // PRD 主题层（specs/prd-theme-layer）：design.materialize 透传基底
+        // 原型的主题/关系，UI 套件自动继承（可后经 IPC 手动改）。
+        themeId: z.string().optional().describe("PRD theme id — stamped on the suite meta, never version content"),
+        stage: z.string().optional().describe("Phase label within the theme (display only)"),
+        inheritsSuiteId: z
+          .string()
+          .optional()
+          .describe("Suite id this design inherits from (auto-carried from the basis prototype)"),
+        inheritsVersionId: z
+          .string()
+          .optional()
+          .describe("Pinned version of the inherited suite; omit to follow its head"),
+        references: z
+          .array(z.object({ suiteId: z.string(), versionId: z.string().optional() }))
+          .optional()
+          .describe("Cross-referenced PRD suites (auto-carried from the basis prototype)"),
       },
     },
     async (args) => {
@@ -1274,7 +1386,9 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
             quality: { lintFindings, runtimeChecks: [] },
           };
         },
-        "ready"
+        "ready",
+        // 主题字段随 UI 设计稿落 meta（specs/prd-theme-layer WP2，自动继承）。
+        themeMetaArgs(args)
       );
       if ("error" in persisted) return suiteError(persisted.error);
       return artifactResult(
@@ -1397,7 +1511,18 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
       const version = versionId ? readDesignSuiteVersion(projectRoot, suiteId, versionId) : suite.currentVersion;
       if (!version) return suiteError(`version "${versionId}" not found in suite "${suiteId}"`);
       const ref: DesignArtifactRef = { suiteId, versionId: version.versionId, kind: suite.kind };
-      const payload = { artifactRef: ref, title: suite.title, status: version.status, content: version.content };
+      const payload = {
+        artifactRef: ref,
+        title: suite.title,
+        status: version.status,
+        content: version.content,
+        // 主题字段（specs/prd-theme-layer）：供 design.materialize 把基底
+        // 原型的主题/关系透传给 UI 套件（自动继承）。
+        ...(suite.themeId !== undefined ? { themeId: suite.themeId } : {}),
+        ...(suite.stage !== undefined ? { stage: suite.stage } : {}),
+        ...(suite.inherits !== undefined ? { inherits: suite.inherits } : {}),
+        ...(suite.references !== undefined ? { references: suite.references } : {}),
+      };
       return {
         content: [{ type: "text", text: JSON.stringify(payload) }],
         structuredContent: payload,

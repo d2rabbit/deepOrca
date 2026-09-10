@@ -186,6 +186,12 @@ const api: DesktopApi = {
   designSuiteReadFormState: (root, id, slot) => ipcRenderer.invoke(IpcRequest.DesignSuiteReadFormState, root, id, slot),
   designSuiteAppendLeafer: (root, id, versionId, leaferJson, note) =>
     ipcRenderer.invoke(IpcRequest.DesignSuiteAppendLeafer, root, id, versionId, leaferJson, note),
+  designThemeList: (root) => ipcRenderer.invoke(IpcRequest.DesignThemeList, root),
+  designThemeCreate: (root, input) => ipcRenderer.invoke(IpcRequest.DesignThemeCreate, root, input),
+  designThemeUpdate: (root, id, input) => ipcRenderer.invoke(IpcRequest.DesignThemeUpdate, root, id, input),
+  designThemeDelete: (root, id) => ipcRenderer.invoke(IpcRequest.DesignThemeDelete, root, id),
+  designSuiteAssignTheme: (root, suiteId, input) =>
+    ipcRenderer.invoke(IpcRequest.DesignSuiteAssignTheme, root, suiteId, input),
   designSystemCatalog: () => ipcRenderer.invoke(IpcRequest.DesignSystemCatalog),
   prototypeSpecSlides: (root, suiteId, versionId, appearance) =>
     ipcRenderer.invoke(IpcRequest.PrototypeSpecSlides, root, suiteId, versionId, appearance),

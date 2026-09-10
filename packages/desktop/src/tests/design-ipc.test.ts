@@ -14,6 +14,7 @@ import type {
   DesignSuiteKind,
   DesignSuiteSummary,
   DesignSuiteVersion,
+  DesignTheme,
   UiSuiteContent,
 } from "../shared/ipc.js";
 
@@ -76,7 +77,19 @@ type Harness = {
 };
 
 function createHarness(
-  storeOverrides: Partial<Pick<DesignStoreOps, "readSuite" | "readSuiteVersion" | "appendSuiteVersion">> = {}
+  storeOverrides: Partial<
+    Pick<
+      DesignStoreOps,
+      | "readSuite"
+      | "readSuiteVersion"
+      | "appendSuiteVersion"
+      | "listThemes"
+      | "createTheme"
+      | "updateTheme"
+      | "deleteTheme"
+      | "assignSuiteTheme"
+    >
+  > = {}
 ): Harness {
   const handlers = new Map<string, Handler>();
   const privileged = new Set<string>();
@@ -115,6 +128,11 @@ function createHarness(
     appendSuiteVersion: storeOverrides.appendSuiteVersion ?? (() => null),
     saveFormState: () => true,
     readFormState: () => ({ field: "value" }),
+    listThemes: storeOverrides.listThemes ?? (() => []),
+    createTheme: storeOverrides.createTheme ?? (() => null),
+    updateTheme: storeOverrides.updateTheme ?? (() => false),
+    deleteTheme: storeOverrides.deleteTheme ?? (() => false),
+    assignSuiteTheme: storeOverrides.assignSuiteTheme ?? (() => false),
     onArtifactChange: (listener) => {
       artifactListener = listener;
       return () => {};
@@ -169,9 +187,13 @@ describe("design suite IPC root pinning", () => {
       IpcRequest.DesignExportPackage,
       IpcRequest.DesignSaveFormState,
       IpcRequest.DesignSuiteAppendLeafer,
+      IpcRequest.DesignSuiteAssignTheme,
       IpcRequest.DesignSuiteDelete,
       IpcRequest.DesignSuiteExport,
       IpcRequest.DesignSuiteSaveFormState,
+      IpcRequest.DesignThemeCreate,
+      IpcRequest.DesignThemeDelete,
+      IpcRequest.DesignThemeUpdate,
     ]) {
       assert.ok(harness.privileged.has(channel), `${channel} must be privileged`);
     }
@@ -211,6 +233,86 @@ describe("design suite IPC root pinning", () => {
     harness.fireSuiteChange(event);
     await Promise.resolve();
     assert.deepEqual(harness.emitted, [{ channel: IpcEvent.DesignChanged, payload: event }]);
+  });
+});
+
+describe("PRD theme channels (specs/prd-theme-layer)", () => {
+  test("theme list degrades empty on an unregistered root", () => {
+    const harness = createHarness({
+      listThemes: (root) =>
+        root === ROOT_A
+          ? [{ id: "t1", title: "人员管理", createdAt: "2026-09-10T00:00:00Z", updatedAt: "2026-09-10T00:00:00Z" }]
+          : [],
+    });
+    assert.equal(invoke<DesignTheme[]>(harness, IpcRequest.DesignThemeList, ROOT_A).length, 1);
+    assert.deepEqual(invoke<DesignTheme[]>(harness, IpcRequest.DesignThemeList, ROOT_B), []);
+  });
+
+  test("theme create/update/delete are privileged, root-pinned and title-guarded", () => {
+    const harness = createHarness({
+      createTheme: (root, input) =>
+        root === ROOT_A && input.title.trim()
+          ? { id: "t1", title: input.title, createdAt: "2026-09-10T00:00:00Z", updatedAt: "2026-09-10T00:00:00Z" }
+          : null,
+      updateTheme: (root) => root === ROOT_A,
+      deleteTheme: (root) => root === ROOT_A,
+    });
+    for (const channel of [IpcRequest.DesignThemeCreate, IpcRequest.DesignThemeUpdate, IpcRequest.DesignThemeDelete]) {
+      assert.ok(harness.privileged.has(channel), `${channel} must be privileged`);
+    }
+    assert.equal(invoke<{ ok: boolean }>(harness, IpcRequest.DesignThemeCreate, ROOT_A, { title: "登录" }).ok, true);
+    assert.equal(invoke<{ ok: boolean }>(harness, IpcRequest.DesignThemeCreate, ROOT_B, { title: "登录" }).ok, false);
+    assert.equal(
+      invoke<{ ok: boolean }>(harness, IpcRequest.DesignThemeCreate, ROOT_A, {}).ok,
+      false,
+      "missing title refused"
+    );
+    assert.deepEqual(invoke<{ ok: boolean }>(harness, IpcRequest.DesignThemeUpdate, ROOT_A, "t1", { title: "x" }), {
+      ok: true,
+    });
+    assert.equal(
+      invoke<{ ok: boolean }>(harness, IpcRequest.DesignThemeUpdate, ROOT_B, "t1", { title: "x" }).ok,
+      false
+    );
+    assert.deepEqual(invoke<{ ok: boolean }>(harness, IpcRequest.DesignThemeDelete, ROOT_A, "t1"), { ok: true });
+    assert.equal(invoke<{ ok: boolean }>(harness, IpcRequest.DesignThemeDelete, ROOT_B, "t1").ok, false);
+  });
+
+  test("suite theme assignment passes a sanitized patch through (clear semantics preserved)", () => {
+    let captured: unknown;
+    const harness = createHarness({
+      assignSuiteTheme: (_root, _suiteId, input) => {
+        captured = input;
+        return true;
+      },
+    });
+    assert.ok(harness.privileged.has(IpcRequest.DesignSuiteAssignTheme));
+    const result = invoke<{ ok: boolean }>(harness, IpcRequest.DesignSuiteAssignTheme, ROOT_A, SUITE.id, {
+      themeId: "t1",
+      stage: "阶段1",
+      inherits: { suiteId: "s2" },
+      references: [{ suiteId: "s3", versionId: "v1" }, "junk"],
+    });
+    assert.equal(result.ok, true);
+    assert.deepEqual(captured, {
+      themeId: "t1",
+      stage: "阶段1",
+      inherits: { suiteId: "s2" },
+      references: [{ suiteId: "s3", versionId: "v1" }],
+    });
+
+    // 清除语义透传（null）；载荷缺失拒绝。
+    invoke<{ ok: boolean }>(harness, IpcRequest.DesignSuiteAssignTheme, ROOT_A, SUITE.id, {
+      themeId: null,
+      stage: null,
+      references: null,
+    });
+    assert.deepEqual(captured, { themeId: null, stage: null, references: null });
+    assert.equal(invoke<{ ok: boolean }>(harness, IpcRequest.DesignSuiteAssignTheme, ROOT_A, SUITE.id).ok, false);
+    assert.equal(
+      invoke<{ ok: boolean }>(harness, IpcRequest.DesignSuiteAssignTheme, ROOT_B, SUITE.id, { themeId: "t1" }).ok,
+      false
+    );
   });
 });
 

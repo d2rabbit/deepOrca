@@ -6,7 +6,12 @@ import * as path from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { buildA2uiServer, persistSurfaces } from "../main/tools/a2ui/a2ui-mcp";
-import { listDesignArtifacts, readDesignSuite, saveDesignArtifact } from "../main/tools/design-store";
+import {
+  createDesignTheme,
+  listDesignArtifacts,
+  readDesignSuite,
+  saveDesignArtifact,
+} from "../main/tools/design-store";
 import type { PrototypeSuiteContent } from "../main/tools/design-store";
 
 const roots: string[] = [];
@@ -493,6 +498,100 @@ test("validate_openui returns a structured local verdict and rejects empty code"
 
     const empty = await client.callTool({ name: "validate_openui", arguments: { code: "   " } });
     assert.equal(empty.isError, true);
+  } finally {
+    await client.close();
+  }
+});
+
+test("render_spec stamps theme meta fields (specs/prd-theme-layer) and read_suite_version echoes them", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "a2ui-suite-theme-"));
+  roots.push(root);
+  // 主题必须真实存在（persistSuiteTheme fail-closed 校验 themeId 归属）。
+  const theme = createDesignTheme(root, { title: "登录" });
+  assert.ok(theme);
+  const client = await clientFor(root);
+  try {
+    const parent = await client.callTool({
+      name: "render_spec",
+      // note 强制套件持久化（主题/关系只存在于套件 meta，legacy artifact 无处安放）。
+      arguments: { document: "# 人员管理\n\n## Page list\n- Staff", requirement: "人员管理", note: "suite mode" },
+    });
+    const parentRef = JSON.parse(text(parent).match(/ArtifactRef:\s*(\{[^\n]+\})/)![1]) as {
+      suiteId: string;
+      versionId: string;
+    };
+    const themed = await client.callTool({
+      name: "render_spec",
+      arguments: {
+        document: "# 登录\n\n## Page list\n- Login",
+        requirement: "登录模块",
+        themeId: theme.id,
+        stage: "阶段1",
+        inheritsSuiteId: parentRef.suiteId,
+        references: [{ suiteId: parentRef.suiteId, versionId: parentRef.versionId }, { suiteId: "gone" }],
+      },
+    });
+    const themedRef = JSON.parse(text(themed).match(/ArtifactRef:\s*(\{[^\n]+\})/)![1]) as {
+      suiteId: string;
+      versionId: string;
+    };
+    const suite = readDesignSuite(root, themedRef.suiteId);
+    assert.equal(suite?.themeId, theme.id, "themeId stamped on suite meta");
+    assert.equal(suite?.stage, "阶段1");
+    assert.deepEqual(suite?.inherits, { suiteId: parentRef.suiteId });
+    assert.deepEqual(suite?.references, [
+      { suiteId: parentRef.suiteId, versionId: parentRef.versionId },
+      { suiteId: "gone" },
+    ]);
+
+    // 主题字段进 read_suite_version 载荷（design.materialize 透传的数据源），
+    // 且版本内容不受影响。
+    const version = (await client.callTool({
+      name: "read_suite_version",
+      arguments: { suiteId: themedRef.suiteId },
+    })) as { structuredContent?: Record<string, unknown> };
+    const payload = version.structuredContent as Record<string, unknown>;
+    assert.equal(payload.themeId, theme.id);
+    assert.equal(payload.stage, "阶段1");
+    assert.deepEqual(payload.references, suite?.references);
+    const content = payload.content as PrototypeSuiteContent;
+    assert.equal(content.spec, "# 登录\n\n## Page list\n- Login");
+  } finally {
+    await client.close();
+  }
+});
+
+test("render_spec append with theme args overwrites the suite's theme meta without a new version", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "a2ui-suite-theme-append-"));
+  roots.push(root);
+  const themeA = createDesignTheme(root, { title: "阶段一主题" });
+  const themeB = createDesignTheme(root, { title: "阶段二主题" });
+  assert.ok(themeA && themeB);
+  const client = await clientFor(root);
+  try {
+    const first = await client.callTool({
+      name: "render_spec",
+      arguments: { document: "# 登录\n\n## Page list\n- Login", themeId: themeA.id, stage: "阶段1" },
+    });
+    const ref = JSON.parse(text(first).match(/ArtifactRef:\s*(\{[^\n]+\})/)![1]) as {
+      suiteId: string;
+      versionId: string;
+    };
+    const second = await client.callTool({
+      name: "render_spec",
+      arguments: {
+        document: "# 登录 v2\n\n## Page list\n- Login\n- MFA",
+        suiteId: ref.suiteId,
+        versionId: ref.versionId,
+        themeId: themeB.id,
+        stage: "阶段2",
+      },
+    });
+    assert.ok(!second.isError, text(second));
+    const suite = readDesignSuite(root, ref.suiteId);
+    assert.equal(suite?.themeId, themeB.id, "append with theme args re-stamps the meta");
+    assert.equal(suite?.stage, "阶段2");
+    assert.equal(suite?.versions.length, 2, "theme re-stamp must not add versions by itself");
   } finally {
     await client.close();
   }

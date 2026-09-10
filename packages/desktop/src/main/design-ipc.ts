@@ -21,6 +21,7 @@ import type {
   DesignSuiteSummary,
   DesignSuiteVersion,
   DesignSystemCatalogItem,
+  DesignThemeRef,
   PrototypeSuiteContent,
   UiSuiteContent,
 } from "../shared/ipc.js";
@@ -34,11 +35,15 @@ import {
 } from "./tools/dd-package.js";
 import {
   appendDesignSuiteVersion,
+  assignSuiteTheme,
+  createDesignTheme,
   deleteDesignArtifact,
   deleteDesignSuite,
+  deleteDesignTheme,
   designSuiteDir,
   listDesignArtifacts,
   listDesignSuites,
+  listDesignThemes,
   onDesignStoreChange,
   onDesignSuiteChange,
   readDesignArtifact,
@@ -46,6 +51,9 @@ import {
   readDesignSuiteVersion,
   readFormState,
   saveFormState,
+  updateDesignTheme,
+  type AssignSuiteThemeInput,
+  type DesignTheme,
 } from "./tools/design-store.js";
 import { buildSlidesHtml, renderSpecSlides, type SpecSlidesAppearance } from "./tools/spec-slides.js";
 import { buildImplementationBrief } from "./tools/prototype-brief.js";
@@ -76,6 +84,12 @@ export interface DesignStoreOps {
   ): DesignSuite | null;
   saveFormState(root: string, id: string, state: unknown, slot?: string): boolean;
   readFormState(root: string, id: string, slot?: string): unknown | null;
+  /** PRD 主题层（specs/prd-theme-layer）：主题 CRUD + 套件主题指派。 */
+  listThemes(root: string): DesignTheme[];
+  createTheme(root: string, input: { title: string; note?: string }): DesignTheme | null;
+  updateTheme(root: string, id: string, input: { title?: string; note?: string | null }): boolean;
+  deleteTheme(root: string, id: string): boolean;
+  assignSuiteTheme(root: string, suiteId: string, input: AssignSuiteThemeInput): boolean;
   onArtifactChange(cb: (root: string) => void): () => void;
   onSuiteChange(cb: (event: DesignSuiteChangeEvent) => void): () => void;
 }
@@ -102,6 +116,11 @@ const defaultStore: DesignStoreOps = {
   appendSuiteVersion: appendDesignSuiteVersion,
   saveFormState,
   readFormState,
+  listThemes: listDesignThemes,
+  createTheme: createDesignTheme,
+  updateTheme: updateDesignTheme,
+  deleteTheme: deleteDesignTheme,
+  assignSuiteTheme,
   onArtifactChange: onDesignStoreChange,
   onSuiteChange: onDesignSuiteChange,
 };
@@ -363,6 +382,78 @@ export function registerDesignIpc(helpers: DesignIpcHelpers, deps: DesignIpcDeps
         ok: true as const,
         ref: { suiteId: updated.id, versionId: updated.currentVersionId, kind: "ui" as const },
       };
+    }
+  );
+  // PRD 主题层（specs/prd-theme-layer）：主题 CRUD + 套件主题指派。全部
+  // root-pinned；写通道走 privileged。主题/关系是套件元数据——不产生新版本。
+  handle(IpcRequest.DesignThemeList, (root: string) => {
+    const resolved = pinned(root);
+    return resolved ? store.listThemes(resolved) : [];
+  });
+  handlePrivileged(IpcRequest.DesignThemeCreate, (root: string, input?: { title?: unknown; note?: unknown }) => {
+    const resolved = pinned(root);
+    if (!resolved) return { ok: false as const, error: "unregistered workspace" };
+    const title = typeof input?.title === "string" ? input.title : "";
+    const theme = store.createTheme(resolved, {
+      title,
+      ...(typeof input?.note === "string" && input.note.trim() ? { note: input.note } : {}),
+    });
+    return theme ? { ok: true as const, theme } : { ok: false as const, error: "theme title is required" };
+  });
+  handlePrivileged(
+    IpcRequest.DesignThemeUpdate,
+    (root: string, id: string, input?: { title?: unknown; note?: unknown }) => {
+      const resolved = pinned(root);
+      if (!resolved) return { ok: false as const, error: "unregistered workspace" };
+      const ok = store.updateTheme(resolved, id, {
+        ...(typeof input?.title === "string" ? { title: input.title } : {}),
+        // note: null = 显式清除；undefined = 不动；字符串 = 替换。
+        ...(input && "note" in input ? { note: input.note === null ? null : String(input.note ?? "") } : {}),
+      });
+      return ok ? { ok: true as const } : { ok: false as const, error: "theme not found" };
+    }
+  );
+  handlePrivileged(IpcRequest.DesignThemeDelete, (root: string, id: string) => {
+    const resolved = pinned(root);
+    if (!resolved) return { ok: false as const, error: "unregistered workspace" };
+    const ok = store.deleteTheme(resolved, id);
+    return ok ? { ok: true as const } : { ok: false as const, error: "theme not found" };
+  });
+  handlePrivileged(
+    IpcRequest.DesignSuiteAssignTheme,
+    (root: string, suiteId: string, input?: Record<string, unknown>) => {
+      const resolved = pinned(root);
+      if (!resolved) return { ok: false as const, error: "unregistered workspace" };
+      if (!input || typeof input !== "object") return { ok: false as const, error: "assignment payload is required" };
+      const asRef = (value: unknown): AssignSuiteThemeInput["inherits"] => {
+        if (value === null) return null;
+        if (value && typeof value === "object" && typeof (value as { suiteId?: unknown }).suiteId === "string") {
+          const ref: DesignThemeRef = { suiteId: String((value as { suiteId: string }).suiteId) };
+          const versionId = (value as { versionId?: unknown }).versionId;
+          if (typeof versionId === "string" && versionId.trim()) ref.versionId = versionId;
+          return ref;
+        }
+        return undefined;
+      };
+      const rawReferences = input.references;
+      const references = Array.isArray(rawReferences)
+        ? rawReferences
+            .map((item) => asRef(item))
+            .filter((item): item is DesignThemeRef => item !== undefined && item !== null)
+        : undefined;
+      const patch: AssignSuiteThemeInput = {};
+      if ("themeId" in input) {
+        patch.themeId = input.themeId === null ? null : typeof input.themeId === "string" ? input.themeId : null;
+      }
+      if ("stage" in input) {
+        patch.stage = input.stage === null ? null : typeof input.stage === "string" ? input.stage : null;
+      }
+      if ("inherits" in input) patch.inherits = asRef(input.inherits) ?? (input.inherits === null ? null : undefined);
+      if ("references" in input) {
+        patch.references = rawReferences === null ? null : (references ?? undefined);
+      }
+      const ok = store.assignSuiteTheme(resolved, suiteId, patch);
+      return ok ? { ok: true as const } : { ok: false as const, error: "suite or theme not found" };
     }
   );
   handlePrivileged(IpcRequest.DesignSuiteExport, async (root: string, id: string, versionId?: string) => {

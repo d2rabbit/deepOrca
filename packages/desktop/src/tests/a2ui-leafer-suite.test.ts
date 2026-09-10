@@ -13,7 +13,7 @@ import * as path from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { buildA2uiServer } from "../main/tools/a2ui/a2ui-mcp";
-import { readDesignSuite } from "../main/tools/design-store";
+import { createDesignTheme, readDesignSuite } from "../main/tools/design-store";
 import type { UiSuiteContent } from "../main/tools/design-store";
 
 const roots: string[] = [];
@@ -252,6 +252,38 @@ test("update_openui on a leafer-headed ui suite clears the leafer field too", as
       undefined,
       "update_openui is the legacy revision channel — it must clear the leafer field like render_openui"
     );
+  } finally {
+    await client.close();
+  }
+});
+
+test("render_leafer inherits theme meta fields from the basis prototype (specs/prd-theme-layer)", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "a2ui-leafer-theme-"));
+  roots.push(root);
+  // 主题必须真实存在（persist fail-closed 校验 themeId 归属）。
+  const theme = createDesignTheme(root, { title: "登录" });
+  assert.ok(theme);
+  const client = await clientFor(root);
+  try {
+    const created = await client.callTool({
+      name: "render_leafer",
+      arguments: {
+        leafer: DESIGN,
+        requirement: "Dashboard",
+        designSystemId: "dark-tech",
+        themeId: theme.id,
+        stage: "阶段1",
+        inheritsSuiteId: "proto-parent",
+        references: [{ suiteId: "proto-parent", versionId: "v9" }],
+      },
+    });
+    assert.ok(!created.isError, textOf(created));
+    const ref = refOf(created);
+    const suite = readDesignSuite(root, ref.suiteId);
+    assert.equal(suite?.themeId, theme.id, "UI suite auto-inherits the basis prototype's theme");
+    assert.equal(suite?.stage, "阶段1");
+    assert.deepEqual(suite?.inherits, { suiteId: "proto-parent" });
+    assert.deepEqual(suite?.references, [{ suiteId: "proto-parent", versionId: "v9" }]);
   } finally {
     await client.close();
   }
