@@ -191,3 +191,38 @@ test("deleting a suite leaves its theme intact", () => {
     "theme survives suite deletion"
   );
 });
+
+test("a corrupt themes entry does not blank the whole theme layer (cross-review fix)", () => {
+  const root = tempRoot();
+  const good = createDesignTheme(root, { title: "完好主题" });
+  assert.ok(good);
+  // 手改 index.json：塞一条缺 createdAt 的坏主题。
+  const indexPath = path.join(root, ".deeporca", "designs", "index.json");
+  const raw = JSON.parse(fs.readFileSync(indexPath, "utf8")) as { themes?: unknown[] };
+  raw.themes = [...(raw.themes ?? []), { id: "broken", title: 123 }];
+  fs.writeFileSync(indexPath, JSON.stringify(raw), "utf8");
+  const listed = listDesignThemes(root);
+  assert.ok(
+    listed.some((theme) => theme.id === good.id),
+    "valid themes survive a corrupt sibling entry"
+  );
+  assert.ok(!listed.some((theme) => theme.id === "broken"), "corrupt entries are filtered out");
+});
+
+test("theme payload clamps: overlong titles/stages/references are bounded (cross-review fix)", () => {
+  const root = tempRoot();
+  const theme = createDesignTheme(root, { title: "T".repeat(5000) });
+  assert.ok(theme);
+  assert.ok((theme?.title.length ?? 0) <= 200, "title clamped to THEME_TITLE_MAX_CHARS");
+  const proto = createDesignSuite(root, {
+    title: "PRD",
+    kind: "prototype",
+    content: { spec: "# P\n\n## Page list\n- A" },
+  });
+  assert.ok(proto);
+  const refs = Array.from({ length: 300 }, (_, i) => ({ suiteId: `s-${i}` }));
+  assert.equal(assignSuiteTheme(root, proto.id, { stage: "S".repeat(500), references: refs }), true);
+  const after = readDesignSuite(root, proto.id);
+  assert.ok((after?.stage?.length ?? 0) <= 64, "stage clamped");
+  assert.equal(after?.references?.length, 100, "references clamped to THEME_REFERENCES_MAX_ENTRIES");
+});

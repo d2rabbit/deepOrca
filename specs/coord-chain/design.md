@@ -13,7 +13,7 @@ DeepOrca 的跨设备协作层：**局域网联盟式许可链 + 内容寻址资
 
 产品隐喻：**「共享文档空间」的放大版**——像腾讯文档/飞书共享文档那样"打开就有、成员可见、随手共享"，但共享的不是单篇文档，而是**整个项目的工作记录**（需求文档/设计稿/架构图 + 任务记录 + 会话轨迹），且接收方是 AI 可直接消费的（接续开发）。与共享文档产品的本质差异：无平台依赖（数据不出局域网）、防篡改可审计（链）、记录含 AI 可执行上下文（任务谱系）。
 
-- **只认工作区主题**（2026-08-27 需求确立）：共享的判定单位是**工作区主题**，不是人工建链起名。同一局域网内，工作区主题相同的工作区自动同链、共享一切链上内容；主题不同则**在发现层即隔离**（互相不可见，连握手都不发生）。链的命名空间 = 主题命名空间。
+- **主题用于发现、空间用于身份**（v7）：工作区主题是跨机器稳定的发现线索，而不是唯一链命名空间。同主题可发现多个独立协作空间；spaceId、创世哈希与签名 charter 决定加入、成员、审计和数据边界。不同主题仍在发现层隔离。
 - **链工作区 = 自研类 Git 版本层**（2026-08-27 需求确立）：共享层不是"一次性传文件"，而是版本化工作区——blob/tree/commit 对象模型跑在内容寻址资产层上，commit 锚定进区块。**仓库已有三处底子**：`GitFileHistory`（`packages/core/src/common/file-history.ts:29`）已自研 manifest→tree→commit 管线；CID/blob 分块层即对象存储等价物；账本哈希链即谱系锚定。第一版**无 merge**（并行提交=谱系分叉保留），见 §8。
 - **无云**：不依赖任何云端账号/服务器；数据不出局域网（relay 期前）。
 - **真链但非炒币链**：哈希链式追加账本、Ed25519 成员签名、轮值提议人 + 联签终局、从创世可重放校验。无 PoW/PoS/代币——威胁模型是"事后可审计"而非匿名对手方 BFT。
@@ -65,7 +65,7 @@ DeepOrca 的跨设备协作层：**局域网联盟式许可链 + 内容寻址资
 
 ## 4. 工作区主题与建链（R3/R4/R24/R25）
 
-**共享只认工作区主题**：链不是人工创建命名的，而是由工作区主题唯一决定。主题是跨机器稳定的规范身份——现有 `projectCode` 由绝对路径派生（`packages/core/src/common/app-dirs.ts:51`，超长时 basename+路径哈希），机器本地、跨机必不相等，**不能**作为主题。
+**历史 v5 主题模型（已由 §17.1 取代）**：本段保留 2026-08-27 的主题解析背景。v7 中主题是跨机器稳定的发现线索；同主题可对应多个独立协作空间，必须以 `spaceId`、创世哈希和签名 charter 确认加入。现有 `projectCode` 由绝对路径派生（`packages/core/src/common/app-dirs.ts:51`，超长时 basename+路径哈希），机器本地、跨机必不相等，**不能**作为主题。
 
 ### 4.1 主题解析（`packages/ledger/src/theme/`，纯函数可单测）
 
@@ -137,7 +137,7 @@ Record 规范形态（JCS 编码后整体 Ed25519 签名）：
 | `share.rule` | nodeId, shared: bool, scope? | 节点级共享开关变更记账（R16/R32；关闭后该节点对成员仅标题可见且锁定） |
 | ~~`editor.snapshot`~~ | — | **废止于 2026-09-08 深化**：编辑器链上条目不是独立记录，而是相关 `ws.commit` 的**文件级投影**（见 §11.4） |
 
-元数据冲突（如同任务并行 `task.done`）不试图强一致：视图按 `(ts, recordId)` 排序取 LWW，全部记录保留可审计。
+元数据冲突（如同任务并行 `task.done`）保留全部记录并显式标记并发；v7 的权威投影按 confirmed 链位置、因果关系与确定性 recordId 排序，设备 `ts` 只供展示，不再承担跨设备 LWW。
 
 ## 6. 区块、封存与分叉（R8/R9）
 
@@ -180,14 +180,14 @@ commit 同时镜像为 `ws.commit` 记录（§5）上链；对象库 + 账本双
 
 ### 8.2 操作语义（类 Git 动词，UI 与 AI 双表面）
 
-- **提交（commit/push）**：变更来源二选一——(a) 用户选定文件/目录；(b) **直接采用会话变更集**（`GitFileHistory.recordCheckpoint` 已产出 `changedFilePaths`/`checkpointHash`，"本次会话改了什么"现成可得）→ 在 parent head 的 tree 基础上叠加变更构造新 tree → commit → blob 分块分发 → `ws.commit` 记录。共享确认预览即变更集 diff（R20）。
+- **提交（commit/push）**：变更来源二选一——(a) 用户选定文件/目录；(b) **直接采用会话变更集**（`GitFileHistory.recordCheckpoint` 已产出 `changedFilePaths`/`checkpointHash`，"本次会话改了什么"现成可得）→ 在 parent head 的 tree 基础上叠加变更构造新 tree → commit → 通过分类/技术 deny 检查后分块分发 → `ws.commit` 记录。变更集 diff 可供检查，但不构成逐次共享确认；预览确认仅保留给会写入本地的 checkout/restore/patch。
 - **拉取与检出（pull/checkout）**：按 commitCid 拉 tree + blobs → 逐块校验 → 物化到本地目录（预览确认后写盘，目标路径必须落在用户选定目录内）；可检出任意历史版本。
 - **历史与 diff（log/diff）**：commit 谱系视图（谁/何时/为什么改）；任意两 commit 的 tree 对比得出文件级 diff（新增/删除/修改 + 逐文件差异），纯 TS 计算，不依赖 git CLI。
 - **任务谱系 × 版本谱系互链**：`task.share` 引用 `ws.commit`（"这个任务产生了这些变更"），commit 的 `taskRef` 反向指回——接续开发时"做过什么"（任务记录）与"改了什么"（版本检出）一起对齐。
 
 ### 8.3 并行版本语义（第一版明确无 merge）
 
-多成员并行提交 = 谱系分叉（同 parent 的多个孩子全部保留，链不可删）；视图默认按 `(ts, commitId)` 取 LWW head，用户可显式切换 head 择线继续。三向合并（共同祖先 diff3）留 OC4 评审——共享主场景是"接力"而非"同文件并发编辑"，merge 优先级低于加密与 ACL。
+多成员并行提交 = 谱系分叉（同 parent 的多个孩子全部保留，链不可删）；v7 的推荐 head 由 confirmed 链位置、因果关系和确定性 commitId 投影，并显式标注并发分叉，用户可择线继续。三向合并（共同祖先 diff3）留 OC4 评审——共享主场景是"接力"而非"同文件并发编辑"，merge 优先级低于加密与 ACL。
 
 ### 8.4 为什么不直接共享 .git 裸仓库（否决记录）
 
@@ -233,13 +233,13 @@ C 机：再接续 …
 
 - **链上/本地以 tag 区分，不做分区分裂**（2026-09-08）：凡本地与链上内容同列的场景（版本 rail、历史区、报告列表），一律单列混排 + ⛓ tag（成员色）区分，**不提供本地/链上过滤 chips、不另立链内容分区**——分裂式交互徒增操作成本。
 - **fork 铁律（R32）**：fork 只在任务树发起；各模块（知识库/原型/UI/编辑器）一律不设 fork 按钮；会话模块的本地 fork 是既有独立能力，纯本地、不产生链记录，与链 fork 并存但互不改写。
-- **链操作日志是唯一审计聚合面**：一切自动记账（fork / task.share / design.version / editor.snapshot / kb.sync / share.rule / 创世）在任务树底部的日志面板全量可审计（R20/R33）——记录不打断操作，审计不必逐模块找。
+- **链操作日志是唯一审计聚合面**：一切自动记账（fork / work.item / task.share / `ws.commit` 编辑器投影 / design.version / kb.sync / share.rule / 创世）在任务树底部的日志面板全量可审计（R20/R33/R46–R53）——记录不打断操作，审计不必逐模块找。
 - **链上轨迹图树（R34）**：对已开共享的链上节点，右侧信息板以图树展示其链上谱系（parentRecordId 链），每节点标注"谁（链上 id）+ 做了什么（记录类型）+ 何时"；未开共享的链上节点对成员仅呈现标题 + 锁定（无信息板、无轨迹）。
 - **与旧模型的差异**：v5 的「逐次显式共享 + 自动共享子开关（默认关）」废除——替换为"工作区开关决定边界 + 节点开关收回例外"；预览确认仅保留给本地物化（接续检出/历史检出，R20 修订）。
 
 ## 11. 链上行为深化（2026-09-08 · 交互定稿后协议设计）
 
-交互面（§10 矩阵）已定稿，本章把每个模块的链行为翻译成**精确协议**：记录何时产生、字段形态、幂等键、接收方如何物化。约定：所有链行为**自动记账**（R33）、无逐动作确认；`ts` 均为作者设备单调时钟（成员间不比较绝对值，只用于同域 LWW）。
+交互面（§10 矩阵）已定稿，本章把每个模块的链行为翻译成**精确协议**：记录何时产生、字段形态、幂等键、接收方如何物化。约定：所有链行为**自动记账**（R33）、无逐动作确认；`ts` 为带签名的展示时间，authorSeq、causalParents 与 confirmed 链位置承担跨设备排序（详见 §17.4）。
 
 ### 11.1 记录生命周期总表
 
@@ -250,7 +250,7 @@ C 机：再接续 …
 | `ws.commit` | 任务终态随行变更 / 检出对齐 / 编辑器物化恢复 | `commitCid`（内容寻址天然幂等） | 对象库落块 → 版本谱系/编辑器投影（§11.4）按需展开 |
 | `design.version` | 原型/UI 版本随任务终态定格 | `(domain, versionId)` | 版本 rail 出现 ⛓ 条目（tag + 成员色）；拉取为显式动作 |
 | `kb.sync` | KB 覆盖/保留/合并终态（§11.5 规则计算完成） | `(baseline, kind)` | 触发本地 KB 同步评估（§11.5） |
-| `share.rule` | 任务树节点级开关变更 | `(nodeId, seq)`（节点内单调） | 视图按最新 share.rule 渲染完整态/标题态（LWW） |
+| `share.rule` | 任务树节点级开关变更 | `(nodeId, seq, author)` | 按 node 内 seq、因果关系和 confirmed 链位置渲染完整态/标题态 |
 | `branch.fork` | 任务树「声明 fork」确认（checkout 即上链） | `branch` 名全局唯一 | 谱系分叉边 + 对方任务树出现 ⑂ 上链标记 |
 | `ws.commit(parents=[head, picked])` | fork 线汇入（cherry-pick 拣选，非三向合并） | `commitCid` | 双亲谱系边（"合入"可审计，内容拣选由拣选者负责） |
 | `note` / `task.claim`* | 报告批注 / 认领（显式但无需确认弹层） | `recordId` | 报告/任务树标注出现 |
@@ -264,7 +264,7 @@ C 机：再接续 …
 任务树是唯一控制点（R32），协议上拆成「占位」与「切换」两个正交动作：
 
 - **占位（stub）**：节点在共享工作区内**恒有链上存在**——共享=开产生完整 `task.share`；共享=关产生 `task.stub`（≤1KB：nodeId/title/ts/author）。这保证成员侧"未共享节点仍能看到标题 + 锁定"是**链数据**而非带外信息；stub 不含任何轨迹/文件/结论字段。
-- **切换（share.rule）**：开关每次变更产生一条 `share.rule{nodeId, shared, seq}`，seq 为节点内单调序号；接收方取 **seq 最大者**为现行态（同 seq 冲突按 (ts, recordId) LWW，全部保留可审计）。
+- **切换（share.rule）**：开关每次变更产生一条 `share.rule{nodeId, shared, seq, causalParents}`，seq 为节点内作者单调序号；接收方先按因果关系与最大 seq，再按 confirmed 链位置和稳定 recordId 处理真正并发，同步保留全部记录可审计，不使用设备时间 LWW。
 - **视图遮蔽**：现行态=关时，接收方任务树/链浏览器将该节点的历史 `task.share` 内容降为标题渲染（记录本身仍在链上——**链不可删**），且 have/want 层**拒供**该节点内容 blob 的后续请求（增量止血）。
 - **边界（必须向用户明示）**：关闭共享**不回收**已散播的历史内容——签名记录与已传 blob 无法从他人账本抹除；隐私边界 = 关闭之后的增量。此语义与 `asset.revoke`（视图过滤，链保留）一致，设置页文案与 R16 对照。
 
@@ -282,9 +282,9 @@ C 机：再接续 …
 
 ### 11.5 KB 同步协议精确化（R35 落地规则）
 
-- **时间线参考系**：知识资产不携带独立版本号，一切比较以**链工作区 commit 谱系**为时间线（ws.commit 的 (ts, commitCid) 全序；本地无链上对齐时以本地 head checkpoint 为等价锚）。
+- **时间线参考系**：知识资产不携带独立版本号，一切比较以**链工作区 commit 谱系**为时间线（confirmed 链位置、因果关系与确定性 commitId 全序；本地无链上对齐时以本地 head checkpoint 为等价锚）。
 - **覆盖采纳判定**：链上 kb 资产到达时比较 baseline——`baseline ≥ 本机知识锚`（即来源基线不早于本机）→ **覆盖采纳**（重写本地该资产文件，kb.sync 记账 adopted）；`baseline < 本机知识锚` → **仅记账不采纳**（keptLocal——旧基线不覆盖新基线，这正是"是否覆盖取决于代码库时间线"的机械判定）。对方缺失的资产类别（wiki/架构图）→ 本地保留，不产生任何动作。
-- **AGENTS.md 始终合并**：单文件合并的最小单元 = `<!-- X:START -->…<!-- X:END -->` 标记块（仓库现存的 OPENWIKI 块即此形态）。链上块按 (ts, recordId) 排序幂等追加（重复内容哈希跳过）；无标记的自由文本段**永不合并**（保留本机版本，kb.sync 记账冲突段清单）。链不可删 → 已合并块不因来源撤回而消失。
+- **AGENTS.md 始终合并**：单文件合并的最小单元 = `<!-- X:START -->…<!-- X:END -->` 标记块（仓库现存的 OPENWIKI 块即此形态）。链上块按 confirmed 链位置、因果关系和稳定 recordId 幂等追加（重复内容哈希跳过）；无标记的自由文本段**永不合并**（保留本机版本，kb.sync 记账冲突段清单）。链不可删 → 已合并块不因来源撤回而消失。
 - **符号关系图 update hook（仅此资产自动重建）**：触发事件 = (a) `branch.fork` 记录到达或本地 fork 执行；(b) 检出/覆盖采纳导致工作区内容变化；(c) 本地文件保存（debounce 30s）。hook = 增量重建符号索引（复用 CodeGraph 管线），不产生独立链记录（kb.sync 的 symbolHook 字段携带最近一次 hook 结果）。
 - **无历史管理的含义**：KB 本地不留版本链、不提供回滚 UI；"历史"仅存在于 kb.sync 记录的审计流（链浏览器可查谁在何时覆盖了什么）。
 
@@ -308,7 +308,7 @@ while 队列非空:
 ### 11.7 时序与一致性总则
 
 - **可见性**：gossip 到达即"未封存可见"（任务树/版本 rail 即时出现 ⛓ 条目），联签终局仅改变审计状态标记——UI 不区分两态，链浏览器区分。
-- **同域并发**：`share.rule` 按 seq；其余元数据域（title/note 等）按 (ts, recordId) LWW；内容域（blob/tree）按内容寻址天然无冲突。
+- **同域并发**：`share.rule` 按 node 内 seq 与 confirmed 链位置处理；其余元数据保留并发、以因果关系和稳定 recordId 呈现，不以设备时间 LWW 覆盖。内容域（blob/tree）按内容寻址天然无冲突。
 - **离线**：待发记录队列持久化于 `.deeporca/coordchain/<chainId>/outbox.jsonl`（进程重启不丢）；重连后按序补发，recordId 幂等去重兜底。
 - **覆盖率即一致性**：不追求全局即时一致——每个成员的视图 = 其已见记录的函数；谱系遍历（§11.6）遇缺失 parent 时显示"⏳ 等待同步"占位（want 该记录，不阻塞其余渲染）。
 
@@ -325,7 +325,7 @@ while 队列非空:
   - 用户级 settings：`coordination: { enabled: false, deviceName: "", autoShareTaskRecords: false, storageQuotaMB: 2048 }`——总闸与设备身份/配额，默认关。
   - 项目级 settings（`.deeporca/settings.json`）：`coordination: { shared: false, themeOverride: "" }`——**每工作区独立开启**；开启即以该工作区主题（§4.1 解析，可覆盖）入链/建链。用户级总闸关闭时项目级无效。
 - **数据落点 = 项目数据根（2026-09-08 修正，R40）**：`.deeporca/` 是工作区的统一数据根（类比 `.git`），本项目全部历史数据与模块行为都在此——既有 stores：`settings.json`（gitignored）、`skills/`、`AGENTS.md`、`sessions/`（会话）、`reviews/`（审查报告）、`deepwiki/`（知识库）、`designs/`（设计稿）、`jobs/`（索引构建）、`prototypes/`（原型产物）、`task-trees/<id>/worktrees/`（任务树工作区沙盒）；coord-chain 加入为 `.deeporca/coordchain/<chainId>/`（ledger/blobs/view/objects，按主题链分目录），与 settings 分离避免膨胀与误同步。**`coordchain/` 整体 gitignore**：链数据走链同步、从创世重放可重建，绝不随代码仓库远端分发；设备密钥例外存用户级 `~/.deeporca/coordchain/device-key.json`。
-- **UI 隐喻 = 共享文档空间（2026-09-08 修订）**：链不是第八个模块，而是织入七个模块的底座层——恒定主题条（主题/链 ID/成员/同步态 + 可开合的**链操作日志**，R33 审计聚合面）+「共享开 · 本工作区」状态 pill（开关本体在会话模块**打开工作区**的流程里，R32）。各模块表面见 §10 矩阵：会话与本地零差异 + 链 id 弹窗（R37）；任务树右侧信息板本地/链上二分 + 节点级共享开关（R34/R16）；原型/UI 版本 rail 自动记账（无发布按钮）；知识库追随代码（无应用按钮）；编辑器本地历史 ∪ 链上来源（无快照上链按钮）；审查保持既有核心设计。全量走现有 ui 原语与双主题；i18n 六套字典（R23）。
+- **UI 隐喻 = 共享文档空间（v7）**：链不是第八个模块，而是织入七个模块的协作事实层。任务树顶部展示空间身份、主题来源、epoch、成员/准入、confirmed/provisional 同步与副本健康；任务树底部是唯一链操作日志。会话负责工作区打开时的空间选择/创建；模块仅呈现来源 tag 与自动记录投影。全量走现有 ui 原语与双主题；i18n 六套字典（R23）。
 
 ## 13. 安全与隐私（R19/R20/R21）
 
@@ -362,3 +362,154 @@ while 队列非空:
 9. **Hypercore/Hyperdrive 后备**：若 OC2 自研 have/want 分发不顺，评估以 Hypercore 承载 blob 层（协议面不变，仅替换 blobs.ts 内部实现）；链工作区的版本化文件系统语义与 Hyperdrive 同构，届时一并评估。
 10. **知识库"覆盖即采纳"的冲突粒度**（2026-09-08 新增，R35）：追随代码时间线在双方基线不相交时无歧义；同一 wiki 页在两侧基于不同基线各自修改时，"覆盖后以覆盖版为准"会丢一侧编辑——是否需要页级 LWW + 被覆盖内容进链上可溯（`kb.sync` 记 adopted/keptLocal 已留字段），OC3 dogfood 验证。
 11. **节点级共享开关的默认面**（2026-09-08 新增，R16/R32）：默认全开 + 逐节点关，与"默认全关 + 逐节点开"相比把注意力成本转给了"想收回隐私的那一次"；且 §11.2 已明确"关闭不回收已散播历史"——若 dogfood 中误共享反馈高频，评估关键文件（如 `.env` 类）在 `share.rule` 之上的强制忽略清单（与开放问题 4 的 `.chainignore` 合流）。
+
+
+## 16. v7 设计优先级与现状
+
+> 本节于 2026-09-10 增补，优先于本文先前将 themeId 视作唯一链命名空间、以跨设备 `ts` LWW 决定权威状态、或把区块联签描述为广义“批准”的表述。当前 `feat/modern-ui-redesign` 分支不包含 `packages/ledger/` 或 `desktop/main/coord-chain/` 运行时代码；`next/coord-chain` 及 `specs/branch-implemented/coord-chain/` 是 pre-v6 OC1–OC2 技术参考，不是本分支的实现状态，更不是 v7 共享、数据根或治理语义的来源。
+
+v7 将 Coord Chain 定义为**局域网内、可审计、去中心化的协作事实层**：代码工作流是首个 adapter，而不是协议的唯一中心。签名记录、CID 资产、链工作区和 TaskTrajectory 均保留；通用 Work Item、证据、决策、审批、分类及数据可用性成为同一事实层的新增一等对象。
+
+## 17. 协作空间身份、治理与确认协议
+
+### 17.1 主题发现与空间身份
+
+`themeId` 仍由 git remote/显式主题名推导，用于 mDNS 发现候选；它**不再承诺一主题恰有一条链**。真实协作边界由如下不可变身份组成：
+
+```ts
+space.charter = {
+  version: 1,
+  spaceId: "space:" + sha256(JCS(genesis)).slice(0, 24),
+  theme: "git:github.com/org/repo",
+  displayName: "支付平台改造 · 产品协作",
+  creator: "did:…",
+  createdAt: "…",
+  admission: "open" | "invite" | "approval",
+  roles: ["member", "steward", "archivist"],
+  confirmation: { quorum: "majority" | "twoThirds" | "all" },
+  governance: { changePolicy: "twoThirds" },
+  protocolVersion: 2,
+};
+```
+
+`chainId` 继续作为账本的可读身份；`spaceId + genesisHash + charter signature` 才是空间身份。并发创世得到同主题的多个独立空间，而不是“其中一个错误链”：发现层展示候选空间，邀请链接采用 `deeporca-space://host:port/<spaceId>?genesis=<hash>&v=2`，用户核对 charter 摘要后加入。空间之间只可通过显式 `space.link`/归档引用关联，绝不隐式合并记录或对象。
+
+### 17.2 成员 epoch 与治理边界
+
+成员表不是即时可变数组。每个已确认的成员/策略变化形成下一个 `membershipEpoch`：
+
+- epoch `n` 的 validator set 由 epoch `n - 1` 最后一个 confirmed block 推导；
+- 加入、离开、驱逐、密钥轮换、角色或 quorum 变化均作为治理提案，并在确认后从 epoch `n + 1` 开始生效；
+- 每个 block/proposal/vote 绑定 `epoch`、`validatorSetHash`、`parentHash`、`height`、`round` 和 `blockHash`；
+- 成员 canonical 顺序由 `keyId` 字典序确定，不依赖 join 到达时间；
+- `open` 仅代表可申请加入，不代表陌生 LAN 设备可立刻取得投票权；申请需由当前 epoch 的 charter 准入规则确认；
+- 创始人不是永久单点管理员。creator 丢钥、离线、退出或被替换时按 charter 的治理票处理；驱逐不采用单个创始人单签特权。
+
+### 17.3 observed、provisional 与 confirmed
+
+记录一经签名 gossip 即为 `observed`；被当前节点验证、但尚未进入 confirmed chain segment 时为 `provisional`；满足当前 epoch 的确认规则后才为 `confirmed`。竞争或被 canonical fork-choice 淘汰的链段标记 `superseded`，签名或协议不合法的记录标记 `rejected`。
+
+投票是 `block.vote { epoch, validatorSetHash, parentHash, height, round, blockHash }`。成员在同一 `(epoch,height,round)` 只能签一份票；冲突票构成 `equivocation.evidence`，保留审计并交由治理处理。view change 通过递增 round 发生，不能只以“slot+1”口头约定。
+
+网络分区可使双方各自积累 provisional 记录与并行链段。重连后节点验证 epoch/parent/round 域并运行 charter 定义的 fork-choice；视图重放到 canonical confirmed 链位置。自动投影只能影响链内视图：本地 checkout、恢复、补丁、知识覆盖和编辑器写入始终要求现时预览确认，reorg 不得静默改写文件。
+
+### 17.4 因果与排序
+
+所有共享记录包含 `authorSeq`（同 keyId 持久递增）、`causalParents[]`（已知前序 recordId）和可选业务依赖。权威投影排序为 confirmed `(height, recordIndex, recordId)`，未确认内容按因果可达性和稳定 recordId 展示。`ts` 保留为带签名的展示时间，不跨设备裁定成员、分类、审批、状态、知识基线或 commit head；并发不能被伪装为“较晚时间的正确版本”。
+
+## 18. 通用 Work Item、证据与业务决策协议
+
+### 18.1 Work Item 事件模型
+
+`Record` envelope 保持不变。新增逻辑实体 `workId`，由 append-only 事件投影，而非原地修改：
+
+| 记录 | 核心字段 | 投影 |
+| --- | --- | --- |
+| `work.item` | workId, type, title, objective, owner?, contributors?, priority?, dueAt?, labels, parentWorkId?, classification | Work Item 基本资料 |
+| `work.state` | workId, from?, to, reason?, blockedBy?, expectedUnblockAt?, evidenceRefs? | 状态历史与当前状态 |
+| `work.link` | fromWorkId, toRef, relation, hardness?, rationale? | 依赖/语义图 |
+| `work.activity` | workId, activityType, bounded summary, inputs/outputs/evidence | 非编码活动轨迹 |
+| `work.result` | workId, conclusion, leftovers, nextActions, artifact/evidence refs | 可接续结果 |
+
+状态机为 `draft → intake → triaged → ready → claimed → in_progress → waiting|blocked|in_review → approved|rejected|completed`，另有 `cancelled`、`deferred`、`archived`。状态事件携带理由，terminal 状态的 reopen 必须显式产生新状态事件。claim 是可过期、可审计、非排他的协作意向；owner/贡献者是责任声明，不创建执行强锁。
+
+`work.link` 的 `requires`、`blocks`、`duplicates`、`supersedes`、`implements`、`informs`、`produces`、`consumes`、`approved_by` 不重载 `parentRecordId`：后者仅表示接续/谱系。hard `requires` 图必须无环；未满足的 hard link 只在非 terminal work item 上推导 blocked/waiting。
+
+### 18.2 Coding adapter 与非编码 adapter
+
+coding Work Item 在会话任务终态时可自动附加 `task.share { workRef }`、TaskTrajectory 摘要、`ws.commit` 和测试/审查证据。TaskTrajectory 继续只含操作与结果摘要、绝不含对话原文。
+
+research、writing、meeting、review、operations、procurement、compliance 等不应伪造 filesTouched/toolCounts：它们以 `work.activity`（受长度和分类限制的结构化摘要）、`work.result`、资产与 evidence 表达过程和结论。现有本地 TaskNode 可以引用 `workId`；没有 TaskNode 的工作也完全合法。现有 SOP 的 evidence → proposal → human decision 仍可作为本地 adapter，但共享事实应投影为下述 evidence/decision/approval 记录。
+
+### 18.3 证据、主张、决策与审批
+
+| 记录 | 核心字段 | 不可混淆的语义 |
+| --- | --- | --- |
+| `evidence.register` | evidenceId, kind, assetRef?/externalRef?, locator?, capturedAt?, method?, sourceAuthority, integrity?, classification | 可引用来源/观测 |
+| `evidence.assess` | evidenceId, verdict, confidence?, rationale, claimRefs? | 支持、反驳、不足或已替代 |
+| `claim.make` / `claim.assess` | claimId, assertion, evidenceRefs / verdict, confidence, rationale | 对事实主张的可审计评估 |
+| `decision.propose` / `decision.resolve` | decisionId, question, options, recommendation?, evidenceRefs, owner? / outcome, rationale | 业务结论 |
+| `approval.request` / `approval.respond` / `approval.close` | approvalId, subjectRef, subjectVersion, policy, expiresAt / verdict, conditions, delegation? | 内容/业务授权 |
+
+区块确认票只证明 record inclusion；`approval.respond` 才能表示 approve/reject/request_changes/abstain/delegate。审批绑定 `subjectVersion`；被审对象变更后旧审批只能显示 stale，不能自动沿用。
+
+### 18.4 外部、派生与可用资产
+
+`asset.publish` 继续表示可传输内容。`external.asset` 表示不复制或无法复制的来源：canonical URI、normalized URI、source system、locator、accessedAt、content hash（若可得）、rights/attribution、availability（external_only/cached/mirrored/unavailable）和 classification。`asset.derive` 为摘要、格式转换、脱敏、分析、PDF/HTML 等派生物建立不可变来源边；原资产不会被派生物覆盖。
+
+## 19. 分类、处理与可用性
+
+### 19.1 分类模型
+
+所有 Work Item、资产、证据、主张、决策、审批和派生物可携带：
+
+```ts
+type Classification = {
+  level: "public" | "internal" | "confidential" | "restricted";
+  categories?: ("credentials" | "personal_data" | "sensitive_personal_data" |
+    "financial" | "health" | "legal_privileged" | "security_sensitive" |
+    "proprietary_source" | "third_party_restricted")[];
+  handling: {
+    share: "chain" | "named_members" | "local_only";
+    export: "allowed" | "approval_required" | "prohibited";
+    retention: "project_default" | "ephemeral" | "legal_hold";
+  };
+  basis?: string;
+};
+```
+
+分类默认从 parent/source 保守继承。降级必须写入 `classification.change`（before/after、actor、reason、approvalRef?）；脱敏必须通过新的 `asset.derive { transformation: "redaction" }` 产生可共享副本。`.chainignore` 是构建物、密钥和路径的技术 deny list；秘密检测与分类决策才是自动分发的业务门。
+
+没有加密封装和命名成员 ACL 的 MVP 中，`restricted`、credentials 与 sensitive_personal_data 一律 local_only：不得进入 task.share、ws.commit、blob、gossip 或任何“标题占位”自动记录。现有 `share.rule` 仍是已共享内容的增量止血，不是删除、撤回或分类安全替代。
+
+### 19.2 participant、replica 与 archive
+
+- **participant** 可读取和缓存空间数据，但可依据配额逐出未 pin 的对象；
+- **replica** 对指定已 pin 的 ledger/object 承担持续可用性，并 gossip availability；
+- **archive** 保存只读账本和对象归档，提供可验证 bootstrap/import，不参与日常确认。
+
+作者默认 pin 自己发布且允许共享的对象；空间健康视图显示副本数、缺失对象、最后持有者风险与可验证归档。`view.db` 可由账本重建，不能推导已被所有持有者逐出的 blob/tree/commit。空间退休使用签名声明；恢复可从 live replica 或已确认 archive import 开始。
+
+未来 pruning/snapshot 只能在阈值签名的 archive checkpoint 下进行：checkpoint 必须锚定前一可验证历史、validator epoch、对象清单与校验根，使节点能从创世或可信归档连续验证，而不是把截断误称为普通重放。
+
+## 20. v7 UI 与发送生命周期
+
+链不是第八个模块。任务树顶部展示 `spaceId`、主题来源、epoch、成员/准入、confirmed/provisional 同步和副本健康；任务树底部是唯一链操作日志。会话打开工作区时负责选择/创建空间；设计、审查、知识库、编辑器和会话仍在原有表面中显示来源 tag 与可点击溯源。
+
+通用 Work Item 在任务树中与本地节点混排：research 证据、decision/approval、restricted 阻止分发和 coding task.share 都以类型与确认状态标识。业务审批状态和账本 confirmed 状态分列显示。restricted 条目只在本地显示“不可分发；可创建脱敏派生物”，不会向成员泄露标题或元数据。
+
+统一发送管线为：本地事件 → 分类/技术 deny 检查 → 构造签名记录 → observed/provisional gossip → epoch 确认 → confirmed 投影。只有符合分类与空间策略的内容进入该管线；离线 outbox 保存待发项，但当空间、epoch 或分类已变化时必须重新验证，不能盲目续传。
+
+## 21. v7 验证重点
+
+协议和 UI 验证必须覆盖：同主题并发创世/多空间选择；成员 epoch 变更、quorum 边界、离线成员与双签；分区双写、不同高度竞争后缀、时钟倒退和因果排序；Work Item 生命周期、hard dependency 环、coding/non-coding adapters；evidence/claim/decision/approval 与 subjectVersion stale；分类继承、redaction、restricted 拒绝传播；缺失 blob、最后持有者丢失、replica health、archive bootstrap 与签名 snapshot 恢复。
+
+### v7 需求追溯
+
+| 需求 | 设计落点 | 实施任务 |
+| --- | --- | --- |
+| R41、R42、R43、R44、R45 空间、epoch、确认与因果 | §17.1–§17.4 | 27、30、31、35 |
+| R46、R47、R48 Work Item 与 coding/non-coding adapter | §18.1–§18.2 | 28、30、32、34 |
+| R49、R50 evidence、decision、approval 与资产来源 | §18.3–§18.4 | 28、30、33、34 |
+| R51 分类与脱敏派生 | §19.1 | 29、30、32、34、35 |
+| R52、R53 副本、归档与恢复 | §19.2 | 29–31、32、35 |

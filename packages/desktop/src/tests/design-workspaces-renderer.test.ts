@@ -830,3 +830,112 @@ test("spec page exposes the prompt-doc view and the regenerate entry (specs/prom
   delete overrides.designSuiteRead;
   delete overrides.designThemeList;
 });
+
+test("cross-review: theme groups collapse via summary; composer creates themes inline and threads context (specs cross-review)", async () => {
+  const prototype = suite("prototype", [version("latest", { spec: "# Scope", openui: "root = Text('v1')" })]);
+  const uiSuite = suite("ui", [version("ui-v1", { openui: 'root = Screen("UI v1")', designSystemId: "dark-tech" })]);
+  const theme = {
+    id: "t1",
+    title: "登录",
+    createdAt: "2026-09-10T00:00:00.000Z",
+    updatedAt: "2026-09-10T00:00:00.000Z",
+  };
+  overrides.listWorkspaceSessions = async () => ({ workspaces: [{ root: "/work/current", label: "current" }] });
+  overrides.designSuiteList = async (_root: string, kind?: string) =>
+    kind === "ui" ? [summary(uiSuite)] : [summary(prototype)];
+  overrides.designSuiteRead = async (_root: string, id: string) => (id === uiSuite.id ? uiSuite : prototype);
+  overrides.designThemeList = async () => [theme];
+  const dir = renderWithI18n(
+    ReactPkg.createElement(DesignPanel, { activeRoot: "/work/current", onOpenWorkspace: () => {} })
+  );
+  await settle();
+  // F13 折叠：details/summary 原生折叠。
+  const group = dir.container.querySelector(".ui-design-directory-theme[open]") as HTMLDetailsElement | null;
+  assert.ok(group, "theme group renders as a collapsible <details> (default open)");
+  rtl.fireEvent.click(group!.querySelector("summary") as Element);
+  assert.equal(group!.open, false, "clicking the summary collapses the group");
+  rtl.fireEvent.click(group!.querySelector("summary") as Element);
+  assert.equal(group!.open, true, "clicking again re-opens it");
+
+  // F14 编辑器内新建主题 + D14 设计上下文随 runSpec 透传。
+  const created = {
+    id: "t-new",
+    title: "权限",
+    createdAt: "2026-09-10T00:00:00.000Z",
+    updatedAt: "2026-09-10T00:00:00.000Z",
+  };
+  overrides.designThemeCreate = async () => ({ ok: true, theme: created });
+  const pw = renderWithI18n(
+    ReactPkg.createElement(PrototypeWorkspace, { root: "/work/current", suiteId: prototype.id })
+  );
+  await settle();
+  rtl.fireEvent.click(pw.getByText("Design context (theme / stage / relations)"));
+  // 工作台编辑器内的内联新建按钮（目录里也有同名入口，限定 composer 范围）。
+  rtl.fireEvent.click(pw.container.querySelector(".ui-design-theme-new-inline") as Element);
+  await rtl.act(async () => {
+    rtl.fireEvent.change(pw.container.querySelector(".ui-design-theme-create-inline input") as Element, {
+      target: { value: "权限" },
+    });
+  });
+  rtl.fireEvent.click(pw.container.querySelector('.ui-design-theme-create-inline button[type="submit"]') as Element);
+  await settle();
+  const themeSelect = pw.container.querySelector(".ui-design-theme-pick select") as HTMLSelectElement;
+  assert.equal(themeSelect.value, "t-new", "created theme is auto-selected in the composer");
+  // 阶段 + 继承 + 参考 → runSpec 透传（D14）。
+  const stageInput = pw.container.querySelectorAll(".ui-design-theme-context-grid input")[0] as HTMLInputElement;
+  await rtl.act(async () => {
+    rtl.fireEvent.change(stageInput, { target: { value: "阶段1" } });
+  });
+  await rtl.act(async () => {
+    rtl.fireEvent.change(pw.getByLabelText("Describe the requirement; one sentence is enough…"), {
+      target: { value: "Build login" },
+    });
+  });
+  rtl.fireEvent.click(pw.getByText("Generate requirements"));
+  await settle();
+  const call = stub.calls.find((item) => item.method === "actionRun" && item.args[0] === "prototype.spec");
+  assert.deepEqual(call?.args[1], {
+    root: "/work/current",
+    requirement: "Build login",
+    suiteId: prototype.id,
+    themeId: "t-new",
+    stage: "阶段1",
+  });
+  delete overrides.listWorkspaceSessions;
+  delete overrides.designSuiteList;
+  delete overrides.designSuiteRead;
+  delete overrides.designThemeList;
+  delete overrides.designThemeCreate;
+});
+
+test("cross-review: theme CRUD failures surface an error instead of a silent no-op", async () => {
+  const uiSuite = suite("ui", [version("ui-v1", { openui: 'root = Screen("UI v1")' })]);
+  overrides.listWorkspaceSessions = async () => ({ workspaces: [{ root: "/work/current", label: "current" }] });
+  overrides.designSuiteList = async () => [summary(uiSuite)];
+  overrides.designSuiteRead = async () => uiSuite;
+  overrides.designThemeList = async () => [];
+  overrides.designThemeCreate = async () => ({ ok: false, error: "theme title too long (limit 200 characters)" });
+  const out = renderWithI18n(
+    ReactPkg.createElement(DesignPanel, { activeRoot: "/work/current", onOpenWorkspace: () => {} })
+  );
+  await settle();
+  rtl.fireEvent.click(out.getByText("+ New theme"));
+  await rtl.act(async () => {
+    rtl.fireEvent.change(out.container.querySelector(".ui-design-directory-theme-create input") as Element, {
+      target: { value: "登录" },
+    });
+  });
+  rtl.fireEvent.click(
+    out.container.querySelector('.ui-design-directory-theme-create button[type="submit"]') as Element
+  );
+  await settle();
+  assert.ok(
+    (out.container.textContent ?? "").includes("theme title too long"),
+    "the {ok:false} error surfaces in the directory"
+  );
+  delete overrides.listWorkspaceSessions;
+  delete overrides.designSuiteList;
+  delete overrides.designSuiteRead;
+  delete overrides.designThemeList;
+  delete overrides.designThemeCreate;
+});

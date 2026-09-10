@@ -316,3 +316,60 @@ test("render_leafer persists uiDesign and projects ui-design.md (specs/prompt-do
     await client.close();
   }
 });
+
+test("render_leafer cross-review hardening: uiDesign clamp, explicit clear, strict lineage (specs/prompt-doc-chain)", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "a2ui-leafer-uidesign-hard-"));
+  roots.push(root);
+  const client = await clientFor(root);
+  try {
+    // uiDesign 超限钳制。
+    const oversized = await client.callTool({
+      name: "render_leafer",
+      arguments: {
+        leafer: DESIGN,
+        designSystemId: "dark-tech",
+        uiDesign: `# x\n\n## a\n${"y".repeat(513 * 1024)}`,
+      },
+    });
+    assert.equal(oversized.isError, true, "oversized uiDesign must be clamped");
+    assert.match(textOf(oversized), /too large|too deep/);
+
+    // 空串 = 显式清除：追加时旧 uiDesign 不残留。
+    const first = await client.callTool({
+      name: "render_leafer",
+      arguments: {
+        leafer: DESIGN,
+        designSystemId: "dark-tech",
+        uiDesign: "# 视觉稿提示\n\n## 画布构图\n- 居中卡片",
+      },
+    });
+    const ref = refOf(first);
+    const revised = JSON.parse(DESIGN) as { children: unknown[] };
+    revised.children.push({ tag: "Text", x: 10, y: 10, text: "KPI" });
+    const second = await client.callTool({
+      name: "render_leafer",
+      arguments: {
+        leafer: JSON.stringify(revised),
+        suiteId: ref.suiteId,
+        versionId: ref.versionId,
+        uiDesign: "",
+      },
+    });
+    assert.ok(!second.isError, textOf(second));
+    const suite = readDesignSuite(root, ref.suiteId);
+    assert.equal(
+      (suite?.currentVersion.content as UiSuiteContent).uiDesign,
+      undefined,
+      "empty-string uiDesign explicitly clears the stale visual intent"
+    );
+
+    // 严格 lineage：仅 note 不再隐含套件意图。
+    const orphan = await client.callTool({
+      name: "render_leafer",
+      arguments: { leafer: DESIGN, note: "no lineage" },
+    });
+    assert.equal(orphan.isError, true, "note-only call must not mint an orphan UI suite");
+  } finally {
+    await client.close();
+  }
+});

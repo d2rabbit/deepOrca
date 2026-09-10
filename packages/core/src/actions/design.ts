@@ -227,11 +227,8 @@ export const designMaterializeRun: ActionRun<DesignMaterializeInput, DesignMater
     }
     if (ctx.signal.aborted) return { ok: false, error: "cancelled" };
     uiDesign = uiDocument;
-    ctx.emit({
-      message: "ui-design prompt document distilled",
-      percent: 40,
-      data: { code: "design.uidesign.saved" },
-    });
+    // 交叉审查修复：saved 终态码移到 render_leafer 成功后发射——ui-design
+    // 随画布同一调用落盘，画布生成失败时不得谎报"已保存"。
   }
   // specs/prompt-doc-chain:materialize.generating 移到 ui-design stage 之后
   // ——进度叙事与真实阶段一致（先蒸馏视觉意图，再生成画布）。
@@ -292,6 +289,8 @@ export const designMaterializeRun: ActionRun<DesignMaterializeInput, DesignMater
     });
     if (!repaired.ok) return { ok: false, error: repaired.error };
     if (ctx.signal.aborted) return { ok: false, error: "cancelled" };
+    // F11：追加到既有套件且本次没有新 ui-design → 空串显式清除（见上）。
+    const uiDesignArg = uiDesign !== null ? uiDesign : suiteId ? "" : undefined;
     const saved = await executeA2ui(ctx, "render_leafer", {
       leafer: repaired.value,
       requirement: effectiveRequirement,
@@ -300,8 +299,9 @@ export const designMaterializeRun: ActionRun<DesignMaterializeInput, DesignMater
       // 主题字段自动继承（specs/prd-theme-layer WP3）：UI 套件 meta 随基底
       // 原型的主题/关系落地，工作台/目录可后经 IPC 手动改。
 
-      // specs/prompt-doc-chain：ui-design.md 随 UI 版本落内容字段。
-      ...(uiDesign ? { uiDesign } : {}),
+      // specs/prompt-doc-chain：ui-design.md 随 UI 版本落内容字段（uiDesignArg
+      // 见上——含空串显式清除语义）。
+      ...(uiDesignArg !== undefined ? { uiDesign: uiDesignArg } : {}),
       ...(inheritedTheme?.themeId ? { themeId: inheritedTheme.themeId } : {}),
       ...(inheritedTheme?.stage ? { stage: inheritedTheme.stage } : {}),
       ...(inheritedTheme?.inherits
@@ -322,6 +322,14 @@ export const designMaterializeRun: ActionRun<DesignMaterializeInput, DesignMater
       ...(input.note?.trim() ? { note: input.note.trim() } : {}),
     });
     if (!saved.ok) return saved;
+    // specs/prompt-doc-chain：ui-design 与画布同调用落盘成功——终态码在此。
+    if (uiDesign) {
+      ctx.emit({
+        message: "ui-design prompt document saved with the canvas",
+        percent: 95,
+        data: { code: "design.uidesign.saved" },
+      });
+    }
     ctx.emit({ message: "UI design suite version saved", percent: 100, data: { code: "design.materialize.saved" } });
     try {
       const sessionId = ctx.activeSessionId?.();

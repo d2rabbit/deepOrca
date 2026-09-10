@@ -499,6 +499,8 @@ export const prototypeSpecDefinition: ActionDefinition<PrototypeSpecInput> = {
 // 截断处标注让模型知道不完整。
 const SPEC_REFERENCE_PER_DOC_BUDGET = 8000;
 const SPEC_REFERENCE_TOTAL_BUDGET = 24000;
+/** 超预算后"仅列标题"行的硬上限——超过则折叠为一行省略说明。 */
+const SPEC_REFERENCE_OVERFLOW_LIST_MAX = 20;
 
 function truncateBudgeted(text: string, budget: number): string {
   return text.length <= budget ? text : `${text.slice(0, budget)}\n…[已截断：参考全文超出单篇预算]`;
@@ -520,9 +522,20 @@ async function collectSpecReferenceBlock(
   if (entries.length === 0) return "";
   const lines: string[] = ["", "## 参考 PRD（设计参考上下文）"];
   let used = 0;
+  // 交叉审查修复：超预算的"仅列标题"行本身也计入预算并有硬上限——否则
+  // N 条参考=N 行提示词，预算形同虚设（条目数不可控时静默撑爆上下文）。
+  let overflowListed = 0;
+  let omitted = 0;
   for (const entry of entries) {
     if (used >= SPEC_REFERENCE_TOTAL_BUDGET) {
-      lines.push(`### ${entry.label}（超出总预算，仅列标题）：${entry.ref.suiteId}`);
+      if (overflowListed >= SPEC_REFERENCE_OVERFLOW_LIST_MAX) {
+        omitted += 1;
+        continue;
+      }
+      overflowListed += 1;
+      const line = `### ${entry.label}（超出总预算，仅列标题）：${entry.ref.suiteId}`;
+      used += line.length;
+      lines.push(line);
       continue;
     }
     const read = await readSuiteVersion(ctx, entry.ref.suiteId, entry.ref.versionId);
@@ -544,6 +557,9 @@ async function collectSpecReferenceBlock(
       `### ${entry.label}：${read.value.title}（${entry.ref.suiteId}${entry.ref.versionId ? ` @ ${entry.ref.versionId}` : " @ head"}）`
     );
     lines.push(body);
+  }
+  if (omitted > 0) {
+    lines.push(`…（另有 ${omitted} 条参考超出预算，已省略）`);
   }
   lines.push("约束：延续参考 PRD 的术语/角色/架构约定，不复制其内容；与本次需求冲突时以本次需求为准。");
   return lines.join("\n");
@@ -838,8 +854,11 @@ export const prototypeMaterializeRun: ActionRun<PrototypeMaterializeInput, Proto
     // readSuiteBase 的 head-moved 守卫(fix-all 同款坑,修复同款)。
     let baseVersionId = versionId;
     // specs/prompt-doc-chain stage0：所选版本无 pd-design 时自动蒸馏（有则
-    // 直接用——手动重算语义由 prototype.pddesign 承载）。派生失效语义由
-    // save_pd_design 承载（重置 openui/variants/verification/arch 同规）。
+    // 直接用——手动重算语义由 prototype.pddesign 承载）。交叉审查修复：stage0
+    // 保存走 preserveDerived——不清空 openui/variants/verification/arch（同一
+    // 动作内紧随的 render_openui 会重建派生物；清空会在生成失败/取消时把
+    // 用户既有原型从 head 上抹掉）。重置语义只属于手动重算（意图变更、不伴
+    // 随再生成）。
     let pdDesign: string | null = storedPdDesign;
     if (suiteId && !pdDesign) {
       ctx.emit({
@@ -852,6 +871,7 @@ export const prototypeMaterializeRun: ActionRun<PrototypeMaterializeInput, Proto
       if (ctx.signal.aborted) return { ok: false, error: "cancelled" };
       const savedPd = await executeA2ui(ctx, "save_pd_design", {
         document: distilled.document,
+        preserveDerived: true,
         suiteId,
         ...(baseVersionId ? { versionId: baseVersionId } : {}),
         ...(input.note?.trim() ? { note: input.note.trim() } : {}),
@@ -860,6 +880,12 @@ export const prototypeMaterializeRun: ActionRun<PrototypeMaterializeInput, Proto
       pdDesign = distilled.document;
       // head 前移：save_pd_design 追加了新版本，设备循环以新 head 为基线。
       if (savedPd.artifactRef) baseVersionId = savedPd.artifactRef.versionId;
+      // 交叉审查修复：自动路径同样发射 saved 终态码（此前只有手动动作发）。
+      ctx.emit({
+        message: "pd-design document saved",
+        percent: 45,
+        data: { code: "prototype.pddesign.saved" },
+      });
     }
     for (const [index, device] of renderDevices.entries()) {
       // 进度码保持稳定契约:单设备(缺省)与旧版完全一致(一次 generating);

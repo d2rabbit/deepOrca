@@ -14,6 +14,7 @@ import {
   LEAFER_CREATE_CONTRACT,
   prototypeMaterializeRun,
   prototypePdDesignRun,
+  prototypeSpecRun,
 } from "../actions";
 import { NULL_SPAWNER } from "../actions/types";
 import type { ActionContext, RunSubagentOptions } from "../actions/types";
@@ -32,7 +33,12 @@ interface FakeSuite {
 
 function makeCtx(
   suites: Record<string, FakeSuite>,
-  options: { generatedQueue?: string[]; mcpCalls?: McpCall[]; subagentCalls?: RunSubagentOptions[] } = {}
+  options: {
+    generatedQueue?: string[];
+    mcpCalls?: McpCall[];
+    subagentCalls?: RunSubagentOptions[];
+    emits?: Array<{ data?: unknown }>;
+  } = {}
 ): ActionContext {
   const mcpCalls = options.mcpCalls ?? [];
   const subagentCalls = options.subagentCalls ?? [];
@@ -40,7 +46,9 @@ function makeCtx(
   return {
     projectRoot: process.cwd(),
     signal: new AbortController().signal,
-    emit: () => {},
+    emit: (event) => {
+      options.emits?.push(event);
+    },
     spawner: NULL_SPAWNER,
     runSubagent: async (call) => {
       subagentCalls.push(call);
@@ -141,9 +149,10 @@ test("prototype.pddesign rejects structure-less output without persisting", asyn
 test("materialize stage0 auto-distills when pdDesign is absent and threads the new head", async () => {
   const mcpCalls: McpCall[] = [];
   const subagentCalls: RunSubagentOptions[] = [];
+  const emits: Array<{ data?: unknown }> = [];
   const ctx = makeCtx(
     { proto: { kind: "prototype", title: "登录 PRD", content: { spec: SPEC, requirement: "登录模块" } } },
-    { generatedQueue: [PD_DOC, OPENUI], mcpCalls, subagentCalls }
+    { generatedQueue: [PD_DOC, OPENUI], mcpCalls, subagentCalls, emits }
   );
   const result = await prototypeMaterializeRun({ suiteId: "proto", versionId: "head-1" }, ctx);
   assert.ok(result.ok, `materialize must succeed: ${result.ok ? "" : (result as { error?: string }).error}`);
@@ -152,6 +161,16 @@ test("materialize stage0 auto-distills when pdDesign is absent and threads the n
   assert.match(subagentCalls[0]?.prompt ?? "", /pd-design prompt document/);
   const save = mcpCalls.find((call) => call.name.endsWith("save_pd_design"));
   assert.ok(save, "stage0 persists pd-design before the device loop");
+  // 交叉审查修复锚点：stage0 保存走 preserveDerived（生成失败/取消不抹既有
+  // 原型）；自动路径同样发射 saved 终态码。
+  assert.equal(save?.args.preserveDerived, true, "stage0 save must preserve derived artifacts");
+  const codes = emits.map((event) => (event.data as { code?: string } | undefined)?.code);
+  assert.deepEqual(codes, [
+    "prototype.pddesign.generating",
+    "prototype.pddesign.saved",
+    "prototype.materialize.generating",
+    "prototype.materialize.saved",
+  ]);
   const render = mcpCalls.find((call) => call.name.endsWith("render_openui"));
   assert.equal(render?.args.versionId, "v-new", "the device loop threads the NEW head (save_pd_design moved it)");
   // 原型提示词以 pd-design 为主驱动。
@@ -319,4 +338,89 @@ test("design.revise injects the ui-design context only when it exists", async ()
   );
   assert.ok(result2.ok);
   assert.ok(!(subagentCalls2[0]?.prompt ?? "").includes("ui-design visual intent"));
+});
+
+test("design.materialize emits uidesign.saved only after render_leafer persists (cross-review fix)", async () => {
+  const mcpCalls: McpCall[] = [];
+  const emits: Array<{ data?: unknown }> = [];
+  // 蒸馏成功但画布输出非法 → 失败路径：不得出现 uidesign.saved。
+  const ctx = makeCtx(
+    {
+      proto: {
+        kind: "prototype",
+        title: "登录 PRD",
+        content: { spec: SPEC, openui: "root = Column([])", pdDesign: PD_MARKDOWN, requirement: "登录模块" },
+      },
+    },
+    { generatedQueue: [UI_DOC, '```json\n{"tag": "Broken"}\n```'], mcpCalls, emits }
+  );
+  const result = await designMaterializeRun(
+    { prototypeSuiteId: "proto", prototypeVersionId: "head-1", designSystemId: "dark-tech", requirement: "登录模块" },
+    ctx
+  );
+  assert.equal(result.ok, false, "canvas generation fails on the invalid document");
+  const codes = emits.map((event) => (event.data as { code?: string } | undefined)?.code);
+  assert.ok(codes.includes("design.uidesign.generating"), "distill stage ran");
+  assert.ok(!codes.includes("design.uidesign.saved"), "saved must NOT fire when persistence never happened");
+  assert.ok(!mcpCalls.some((call) => call.name.endsWith("render_leafer")));
+});
+
+test("basis switch without pdDesign clears the stale uiDesign (explicit empty-string semantics)", async () => {
+  const mcpCalls: McpCall[] = [];
+  // 新基底无 pdDesign + 追加到既有 UI 套件（suiteId/versionId）→ uiDesign
+  // 必须以空串显式清除，旧基底的视觉意图不得残留。
+  const ctx = makeCtx(
+    {
+      proto: {
+        kind: "prototype",
+        title: "新基底 PRD",
+        content: { spec: SPEC, openui: "root = Column([])", requirement: "x" },
+      },
+    },
+    { generatedQueue: [LEAFER_DOC], mcpCalls }
+  );
+  const result = await designMaterializeRun(
+    {
+      prototypeSuiteId: "proto",
+      prototypeVersionId: "head-1",
+      designSystemId: "dark-tech",
+      suiteId: "ui-existing",
+      versionId: "ui-v1",
+      requirement: "x",
+    },
+    ctx
+  );
+  assert.ok(result.ok, `materialize must succeed: ${result.ok ? "" : (result as { error?: string }).error}`);
+  const render = mcpCalls.find((call) => call.name.endsWith("render_leafer"));
+  assert.equal(render?.args.uiDesign, "", "append without a distilled ui-design passes the explicit clear");
+});
+
+test("reference block hard-caps overflow title lines (cross-review fix)", async () => {
+  const subagentCalls: RunSubagentOptions[] = [];
+  const suites: Record<string, FakeSuite> = {
+    big: { kind: "prototype", title: "大 PRD", content: { spec: "A".repeat(9000) } },
+    medium: { kind: "prototype", title: "中 PRD", content: { spec: "B".repeat(9000) } },
+    large: { kind: "prototype", title: "大二号 PRD", content: { spec: "C".repeat(9000) } },
+  };
+  for (let i = 0; i < 40; i += 1) {
+    suites[`ref-${i}`] = { kind: "prototype", title: `参考 ${i}`, content: { spec: "D" } };
+  }
+  const ctx = makeCtx(suites, { generatedQueue: ["```markdown\n# X\n```"], subagentCalls });
+  const result = await prototypeSpecRun(
+    {
+      requirement: "x",
+      references: [
+        { suiteId: "big" },
+        { suiteId: "medium" },
+        { suiteId: "large" },
+        ...Array.from({ length: 40 }, (_, i) => ({ suiteId: `ref-${i}` })),
+      ],
+    },
+    ctx
+  );
+  assert.ok(result.ok);
+  const prompt = subagentCalls[0]?.prompt ?? "";
+  const overflowLines = prompt.split("\n").filter((line) => line.includes("超出总预算，仅列标题"));
+  assert.equal(overflowLines.length, 20, "overflow title lines hard-capped at 20");
+  assert.ok(prompt.includes("另有 20 条参考超出预算，已省略"), "remaining refs collapse into one omission line");
 });

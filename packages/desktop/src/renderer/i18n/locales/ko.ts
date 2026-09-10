@@ -31,6 +31,7 @@ export const ko: Record<MessageKey, string> = {
   "designTheme.emptyTheme": "이 그룹에 아직 PRD가 없습니다",
   "designTheme.ungrouped": "미분류",
   "designTheme.assignTheme": "테마 / 단계",
+  "designTheme.opFailed": "테마 작업에 실패했습니다. 다시 시도해 주세요.",
   "common.close": "닫기",
   "common.apply": "적용",
   "common.remove": "제거",

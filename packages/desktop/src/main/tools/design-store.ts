@@ -1136,19 +1136,32 @@ function writeThemes(root: string, index: DesignIndex, themes: DesignTheme[]): v
   writeJsonAtomic(path.join(getDesignsDir(root), "index.json"), { ...index, themes });
 }
 
-/** List themes oldest-first（稳定分组序：阶段随时间累积）. */
+/** List themes oldest-first（稳定分组序：阶段随时间累积）. 交叉审查修复：
+ * 手改/损坏的单条主题（缺 createdAt 之类）不得炸掉整个主题层——过滤坏条目
+ * 再排序，排序键缺失降级到稳定序。 */
 export function listDesignThemes(root: string): DesignTheme[] {
-  try {
-    return themesOf(getIndex(root))
-      .slice()
-      .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-  } catch {
-    return [];
-  }
+  const valid = themesOf(getIndex(root)).filter(
+    (theme): theme is DesignTheme =>
+      Boolean(theme) && typeof theme === "object" && typeof theme.id === "string" && typeof theme.title === "string"
+  );
+  return valid
+    .slice()
+    .sort((a, b) =>
+      (typeof a.createdAt === "string" ? a.createdAt : "").localeCompare(
+        typeof b.createdAt === "string" ? b.createdAt : ""
+      )
+    );
 }
 
+/** 主题载荷钳制（交叉审查修复，与 SUITE 载荷钳制同思路）：标题/备注/阶段
+ *  是渲染层反复回显的文本，长度必须有界。 */
+export const THEME_TITLE_MAX_CHARS = 200;
+export const THEME_NOTE_MAX_CHARS = 2000;
+export const THEME_STAGE_MAX_CHARS = 64;
+export const THEME_REFERENCES_MAX_ENTRIES = 100;
+
 export function createDesignTheme(root: string, input: { title: string; note?: string }): DesignTheme | null {
-  const title = input.title?.trim();
+  const title = input.title?.trim().slice(0, THEME_TITLE_MAX_CHARS);
   if (!title) return null;
   try {
     const index = getIndex(root);
@@ -1203,6 +1216,13 @@ export function deleteDesignTheme(root: string, id: string): boolean {
     const themes = themesOf(index);
     if (!themes.some((theme) => theme.id === id)) return false;
     const suites = index.suites ?? [];
+    // 交叉审查修复：先写索引（渲染层的权威视图——主题移除 + summary 解绑
+    // 一次原子完成），meta 尽力收敛；中途失败不再让索引半新半旧且事件照发。
+    writeJsonAtomic(path.join(getDesignsDir(root), "index.json"), {
+      ...index,
+      suites: suites.map((suite) => (suite.themeId === id ? { ...suite, themeId: undefined } : suite)),
+      themes: themes.filter((theme) => theme.id !== id),
+    });
     for (const suite of suites) {
       if (suite.themeId !== id) continue;
       const meta = readSuiteMeta(root, suite.id);
@@ -1210,14 +1230,14 @@ export function deleteDesignTheme(root: string, id: string): boolean {
       const dir = resolveArtifactDir(root, suite.id);
       const metaPath = dir ? resolveContainedFile(dir, "meta.json") : null;
       if (!metaPath) continue;
-      const next: DesignSuiteMeta = { ...meta, themeId: undefined };
-      writeJsonAtomic(metaPath, next);
+      try {
+        const next: DesignSuiteMeta = { ...meta, themeId: undefined };
+        writeJsonAtomic(metaPath, next);
+      } catch {
+        // best-effort：索引已解绑（显示正确）；meta 残留无害，下次 assign/
+        // append 的 meta 写会自然收敛。
+      }
     }
-    writeJsonAtomic(path.join(getDesignsDir(root), "index.json"), {
-      ...index,
-      suites: suites.map((suite) => (suite.themeId === id ? { ...suite, themeId: undefined } : suite)),
-      themes: themes.filter((theme) => theme.id !== id),
-    });
     notifySuiteChange({ root, suiteId: id, change: "theme" });
     return true;
   } catch {
@@ -1247,7 +1267,7 @@ export function assignSuiteTheme(root: string, suiteId: string, input: AssignSui
         ? meta.stage
         : input.stage === null || !input.stage.trim()
           ? undefined
-          : input.stage.trim();
+          : input.stage.trim().slice(0, THEME_STAGE_MAX_CHARS);
     const inherits =
       input.inherits === undefined ? meta.inherits : input.inherits === null ? undefined : { ...input.inherits };
     const references =
@@ -1255,7 +1275,15 @@ export function assignSuiteTheme(root: string, suiteId: string, input: AssignSui
         ? meta.references
         : input.references === null
           ? undefined
-          : input.references.map((ref) => ({ ...ref }));
+          : input.references
+              .slice(0, THEME_REFERENCES_MAX_ENTRIES)
+              .filter((ref) => typeof ref?.suiteId === "string" && ref.suiteId.length <= 128)
+              .map((ref) => ({
+                suiteId: ref.suiteId,
+                ...(typeof ref.versionId === "string" && ref.versionId.length <= 128
+                  ? { versionId: ref.versionId }
+                  : {}),
+              }));
     const next: DesignSuiteMeta = { ...meta };
     if (themeId === undefined) delete next.themeId;
     else next.themeId = themeId;

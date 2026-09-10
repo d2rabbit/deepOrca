@@ -144,38 +144,79 @@ export function WorkspaceDirectory({ activeRoot, kind, title }: Props): JSX.Elem
     [kind]
   );
 
+  // 交叉审查修复：四个主题写路径统一失败显面——{ok:false} 不再静默吞掉
+  // （否则指派/重命名在主题被并发删除时看似成功），IPC 异常不再变成
+  // unhandled rejection（re-review L9 同款纪律）。
+  const surfaceThemeError = (message: string): void => {
+    setError(message);
+  };
+
   const createTheme = async (root: string): Promise<void> => {
     const trimmed = newThemeTitle.trim();
     if (!trimmed) return;
-    const result = await suiteApi.designThemeCreate(root, { title: trimmed });
-    if (result.ok) {
+    try {
+      const result = await suiteApi.designThemeCreate(root, { title: trimmed });
+      if (!result.ok) {
+        surfaceThemeError(result.error ?? t("designTheme.opFailed"));
+        return;
+      }
       setCreatingFor(null);
       setNewThemeTitle("");
+      setError(null);
       await refreshRoot(root);
+    } catch (cause) {
+      surfaceThemeError(cause instanceof Error ? cause.message : String(cause));
     }
   };
 
   const renameTheme = async (root: string, id: string): Promise<void> => {
     const trimmed = renameTitle.trim();
     if (!trimmed) return;
-    await suiteApi.designThemeUpdate(root, id, { title: trimmed });
-    setRenamingId(null);
-    await refreshRoot(root);
+    try {
+      const result = await suiteApi.designThemeUpdate(root, id, { title: trimmed });
+      if (!result.ok) {
+        surfaceThemeError(result.error ?? t("designTheme.opFailed"));
+        return;
+      }
+      setRenamingId(null);
+      setError(null);
+      await refreshRoot(root);
+    } catch (cause) {
+      surfaceThemeError(cause instanceof Error ? cause.message : String(cause));
+    }
   };
 
   const deleteTheme = async (root: string, id: string): Promise<void> => {
-    await suiteApi.designThemeDelete(root, id);
-    setDeletingId(null);
-    await refreshRoot(root);
+    try {
+      const result = await suiteApi.designThemeDelete(root, id);
+      if (!result.ok) {
+        surfaceThemeError(result.error ?? t("designTheme.opFailed"));
+        return;
+      }
+      setDeletingId(null);
+      setError(null);
+      await refreshRoot(root);
+    } catch (cause) {
+      surfaceThemeError(cause instanceof Error ? cause.message : String(cause));
+    }
   };
 
   const saveAssign = async (root: string, suiteId: string): Promise<void> => {
-    await suiteApi.designSuiteAssignTheme(root, suiteId, {
-      themeId: assignThemeId || null,
-      stage: assignStage.trim() || null,
-    });
-    setAssigningId(null);
-    await refreshRoot(root);
+    try {
+      const result = await suiteApi.designSuiteAssignTheme(root, suiteId, {
+        themeId: assignThemeId || null,
+        stage: assignStage.trim() || null,
+      });
+      if (!result.ok) {
+        surfaceThemeError(result.error ?? t("designTheme.opFailed"));
+        return;
+      }
+      setAssigningId(null);
+      setError(null);
+      await refreshRoot(root);
+    } catch (cause) {
+      surfaceThemeError(cause instanceof Error ? cause.message : String(cause));
+    }
   };
 
   /** 关系 chips 的目标套件标题（本 kind 优先，跨 kind 次之，降级 suiteId）。 */
@@ -292,8 +333,10 @@ export function WorkspaceDirectory({ activeRoot, kind, title }: Props): JSX.Elem
                       {group.themes.map((theme) => {
                         const themeSuites = themed.filter((suite) => suite.themeId === theme.id);
                         return (
-                          <div className="ui-design-directory-theme" key={theme.id} data-theme-id={theme.id}>
-                            <div className="ui-design-directory-theme-head">
+                          // EARS 10 可折叠分组（交叉审查修复）：details/summary
+                          // 原生折叠，默认展开。
+                          <details className="ui-design-directory-theme" key={theme.id} data-theme-id={theme.id} open>
+                            <summary className="ui-design-directory-theme-head">
                               {renamingId === theme.id ? (
                                 <form
                                   className="ui-design-directory-theme-rename"
@@ -354,7 +397,7 @@ export function WorkspaceDirectory({ activeRoot, kind, title }: Props): JSX.Elem
                                   )}
                                 </>
                               )}
-                            </div>
+                            </summary>
                             <div className="ui-design-directory-items">
                               {themeSuites.length === 0 ? (
                                 <span className="ui-design-directory-none">{t("designTheme.emptyTheme")}</span>
@@ -362,15 +405,15 @@ export function WorkspaceDirectory({ activeRoot, kind, title }: Props): JSX.Elem
                                 themeSuites.map((suite) => suiteCard(group, suite))
                               )}
                             </div>
-                          </div>
+                          </details>
                         );
                       })}
-                      <div className="ui-design-directory-theme ungrouped">
-                        <div className="ui-design-directory-theme-head">
+                      <details className="ui-design-directory-theme ungrouped" open>
+                        <summary className="ui-design-directory-theme-head">
                           <span className="ui-design-directory-dot" />
                           <strong>{t("designTheme.ungrouped")}</strong>
                           <small>{ungrouped.length}</small>
-                        </div>
+                        </summary>
                         <div className="ui-design-directory-items">
                           {ungrouped.length === 0 ? (
                             <span className="ui-design-directory-none">{t("designTheme.emptyTheme")}</span>
@@ -378,7 +421,7 @@ export function WorkspaceDirectory({ activeRoot, kind, title }: Props): JSX.Elem
                             ungrouped.map((suite) => suiteCard(group, suite))
                           )}
                         </div>
-                      </div>
+                      </details>
                     </div>
                   ) : (
                     <div className="ui-design-directory-items">

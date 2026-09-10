@@ -685,7 +685,11 @@ function persistSuiteContent(
     if (theme.stage !== undefined) patch.stage = theme.stage;
     if (theme.inherits !== undefined) patch.inherits = theme.inherits;
     if (theme.references !== undefined) patch.references = theme.references;
-    if (Object.keys(patch).length > 0) assignSuiteTheme(root, suiteId, patch);
+    // 交叉审查修复：主题盖章失败必须显式失败（主题可能在版本追加与盖章
+    // 之间被并发删除）——静默成功会让目录分组悄然丢卡。
+    if (Object.keys(patch).length > 0 && !assignSuiteTheme(root, suiteId, patch)) {
+      return { error: `theme assignment failed for suite "${suiteId}" (theme no longer exists?)` };
+    }
   }
   return { ref: { suiteId: updated.id, versionId: updated.currentVersionId, kind } };
 }
@@ -1287,6 +1291,13 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
         "(openui/variants/verification/arch) because the upstream design intent changed.",
       inputSchema: {
         document: z.string().describe("The complete pd-design markdown document (PD_DESIGN_CONTRACT shape)."),
+        preserveDerived: z
+          .boolean()
+          .optional()
+          .describe(
+            "Stage0 mode: keep the derived artifacts (openui/variants/verification/arch) — the caller " +
+              "regenerates them in the same action; default false resets them (manual recompute)."
+          ),
         ...suiteLineageSchema,
         note: z.string().optional().describe("Optional version note"),
       },
@@ -1296,12 +1307,18 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
       if (!document.trim()) {
         return { content: [{ type: "text", text: "Error: empty pd-design document." }], isError: true };
       }
-      if (!usesSuitePersistence(args)) {
-        return suiteError("save_pd_design persists suite versions — pass suiteId/versionId lineage");
+      // 交叉审查修复：严格 lineage 守卫——note 不再隐含套件意图（否则
+      // {document, note} 直调会铸出无 spec 的孤儿套件）。
+      if (!stringArg(args, "suiteId")) {
+        return suiteError("save_pd_design appends suite versions — pass suiteId/versionId lineage");
       }
       if (stringArg(args, "versionId") && !stringArg(args, "suiteId")) {
         return suiteError("versionId requires suiteId");
       }
+      // 交叉审查修复：与 save_suite_arch 同规的载荷钳制。
+      const documentReason = suitePayloadError(document);
+      if (documentReason) return suiteError(`document: ${documentReason}`);
+      const preserveDerived = args.preserveDerived === true;
       const persisted = persistSuiteContent(
         projectRoot,
         args,
@@ -1310,18 +1327,25 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
         (base) => ({
           ...((base ?? {}) as PrototypeSuiteContent),
           pdDesign: document,
-          // 上游设计意图重算 → 派生物全部失效（与 render_spec 同规）。
-          openui: undefined,
-          openuiVariants: undefined,
-          verification: { status: "pending", checks: [] },
-          arch: undefined,
+          // 手动重算 = 上游意图变更 → 派生物失效（与 render_spec 同规）；
+          // stage0（preserveDerived）→ 保留：同一动作内 render_openui 将重建。
+          ...(preserveDerived
+            ? {}
+            : {
+                openui: undefined,
+                openuiVariants: undefined,
+                verification: { status: "pending" as const, checks: [] },
+                arch: undefined,
+              }),
         }),
         "draft"
       );
       if ("error" in persisted) return suiteError(persisted.error);
       return artifactResult(
         persisted.ref,
-        "pd-design document saved as a prototype suite version. OpenUI/verification/arch were reset.",
+        preserveDerived
+          ? "pd-design document saved as a prototype suite version (derived artifacts preserved for the in-action regeneration)."
+          : "pd-design document saved as a prototype suite version. OpenUI/verification/arch were reset.",
         { pdDesign: document }
       );
     }
@@ -1376,7 +1400,15 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
     },
     async (args) => {
       const rawLeafer = stringArg(args, "leafer");
-      const uiDesign = stringArg(args, "uiDesign");
+      // 空串是合法值（显式清除语义）——不能走 trim-falsy 的 stringArg。
+      const rawUiDesignArg = args.uiDesign;
+      const rawUiDesign = typeof rawUiDesignArg === "string" ? rawUiDesignArg : undefined;
+      // 交叉审查修复：ui-design.md 与 leafer 同为模型可控大文本——同规钳制；
+      // 空串 = 显式清除（design.materialize 基底切换时清旧意图）。
+      if (rawUiDesign) {
+        const uiDesignReason = suitePayloadError(rawUiDesign);
+        if (uiDesignReason) return suiteError(`uiDesign: ${uiDesignReason}`);
+      }
       if (!rawLeafer) return suiteError("leafer JSON is required");
       // Canonicalize at the seam (WP5 无抖动): every stored leafer document —
       // from the action loop or a direct model call — carries identical
@@ -1415,8 +1447,11 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
       // scene blob must not bloat the suite store.
       const payloadReason = suitePayloadError(leafer);
       if (payloadReason) return suiteError(`leafer: ${payloadReason}`);
-      if (!usesSuitePersistence(args)) {
-        return suiteError("render_leafer persists suite versions — pass designSystemId or suiteId/versionId lineage");
+      // 交叉审查修复：严格 lineage 守卫——note 不再隐含套件意图（孤儿套件）。
+      if (!stringArg(args, "suiteId") && !stringArg(args, "designSystemId")) {
+        return suiteError(
+          "render_leafer persists suite versions — pass designSystemId (new suite) or suiteId/versionId lineage (append)"
+        );
       }
       const requirement =
         typeof args.requirement === "string" && args.requirement.trim() ? args.requirement : undefined;
@@ -1443,8 +1478,9 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
             ...((base ?? {}) as UiSuiteContent),
             ...(requirement ? { requirement } : {}),
             leafer,
-            // specs/prompt-doc-chain: ui-design.md 随 UI 版本落内容字段。
-            ...(uiDesign ? { uiDesign } : {}),
+            // specs/prompt-doc-chain: ui-design.md 随 UI 版本落内容字段
+            // （rawUiDesign 为空串时显式清除）。
+            ...(rawUiDesign !== undefined ? (rawUiDesign ? { uiDesign: rawUiDesign } : { uiDesign: undefined }) : {}),
             openui: undefined,
             ...(sourcePrototype ? { sourcePrototype } : {}),
             ...(designSystemId ? { designSystemId } : {}),

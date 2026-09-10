@@ -32,6 +32,7 @@ export const zhTW: Record<MessageKey, string> = {
   "designTheme.emptyTheme": "此分組暫無 PRD",
   "designTheme.ungrouped": "未分組",
   "designTheme.assignTheme": "歸屬主題 / 階段",
+  "designTheme.opFailed": "主題操作失敗，請重試。",
   "common.close": "關閉",
   "common.apply": "套用",
   "common.remove": "移除",

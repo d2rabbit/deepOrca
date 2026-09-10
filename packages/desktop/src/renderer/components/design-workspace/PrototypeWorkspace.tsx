@@ -106,6 +106,9 @@ export function PrototypeWorkspace({
   const [specStage, setSpecStage] = useState("");
   const [specInherits, setSpecInherits] = useState("");
   const [specRefs, setSpecRefs] = useState<string[]>([]);
+  // 编辑器内联新建主题（EARS 12 含新建主题）。
+  const [creatingThemeInComposer, setCreatingThemeInComposer] = useState(false);
+  const [inlineThemeTitle, setInlineThemeTitle] = useState("");
 
   const loadSeq = useRef(0);
   /** Suite currently viewed — re-targets clear the per-suite surfaces (M5). */
@@ -579,6 +582,25 @@ export function PrototypeWorkspace({
     });
   };
 
+  /** 编辑器内联新建主题（EARS 12）：创建即选中，失败显面错误条。 */
+  const createThemeInline = async (): Promise<void> => {
+    const trimmed = inlineThemeTitle.trim();
+    if (!trimmed) return;
+    try {
+      const result = await suiteApi.designThemeCreate(root, { title: trimmed });
+      if (!result.ok || !result.theme) {
+        setError(result.error ?? t("designTheme.opFailed"));
+        return;
+      }
+      setCreatingThemeInComposer(false);
+      setInlineThemeTitle("");
+      setThemes((current) => [...current, result.theme!]);
+      setSpecThemeId(result.theme.id);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    }
+  };
+
   /** 手动重算 pd-design.md（specs/prompt-doc-chain）：与 materialize stage0
    *  同一生成路径；保存即重置派生物（openui/variants/verification/arch）。 */
   const runPdDesign = () => {
@@ -855,18 +877,59 @@ export function PrototypeWorkspace({
                 <div className="ui-design-theme-context-grid">
                   <label>
                     <span>{t("designTheme.themeLabel")}</span>
-                    <select
-                      value={specThemeId}
-                      disabled={busy !== null || readOnly}
-                      onChange={(event) => setSpecThemeId(event.target.value)}
-                    >
-                      <option value="">{t("designTheme.themeNone")}</option>
-                      {themes.map((theme) => (
-                        <option key={theme.id} value={theme.id}>
-                          {theme.title}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="ui-design-theme-pick">
+                      {/* EARS 12 含新建主题（交叉审查修复）：选择器旁内联创建，
+                          免去为挂个新主题专门跑去 HubSheet。 */}
+                      <select
+                        value={specThemeId}
+                        disabled={busy !== null || readOnly}
+                        onChange={(event) => setSpecThemeId(event.target.value)}
+                      >
+                        <option value="">{t("designTheme.themeNone")}</option>
+                        {themes.map((theme) => (
+                          <option key={theme.id} value={theme.id}>
+                            {theme.title}
+                          </option>
+                        ))}
+                      </select>
+                      {creatingThemeInComposer ? (
+                        <form
+                          className="ui-design-theme-create-inline"
+                          onSubmit={(event) => {
+                            event.preventDefault();
+                            void createThemeInline();
+                          }}
+                        >
+                          <input
+                            value={inlineThemeTitle}
+                            autoFocus
+                            placeholder={t("designTheme.themeTitlePlaceholder")}
+                            onChange={(event) => setInlineThemeTitle(event.target.value)}
+                            onKeyDown={(event) => {
+                              if (event.key === "Escape") setCreatingThemeInComposer(false);
+                            }}
+                          />
+                          <button type="submit" disabled={!inlineThemeTitle.trim()}>
+                            {t("common.save")}
+                          </button>
+                          <button type="button" onClick={() => setCreatingThemeInComposer(false)}>
+                            {t("common.cancel")}
+                          </button>
+                        </form>
+                      ) : (
+                        <button
+                          type="button"
+                          className="ui-design-theme-new-inline"
+                          disabled={busy !== null || readOnly}
+                          onClick={() => {
+                            setCreatingThemeInComposer(true);
+                            setInlineThemeTitle("");
+                          }}
+                        >
+                          + {t("designTheme.newTheme")}
+                        </button>
+                      )}
+                    </div>
                   </label>
                   <label>
                     <span>{t("designTheme.stageLabel")}</span>

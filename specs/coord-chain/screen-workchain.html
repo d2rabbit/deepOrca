@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>DeepOrca — 工作链设计稿 v6（对照真实 UI 修正 · 两级共享 · 链自动记账）</title>
 <!--
-  工作链（Coord Chain）HTML 交互视觉稿 · v5（2026-09-08）
+  工作链（Coord Chain）HTML 交互视觉稿 · v6.1（2026-09-10 · 通用协作空间增补）
   ═══════════════════════════════════════════════════════════
   定位：specs/coord-chain 的说明设计稿（annotated spec）。仅设计，不落地实现。
         v1 = 真实 DOM + 链注入（基础稿）；v2 = 链融于模块 + 版本融合概念定稿；
@@ -21,19 +21,19 @@
   ② 顶栏 cockpit 回归真实 TopBar 语义：只放状态与控制胶囊（品牌/模型/上下文 +
      标注/图例/浅深切换/窗口控制），不再承担功能切换。
   ③ 标注层补 Hub 坞说明（两级 hub 交互 · 链没有自己的坞图标）。
-  ④ 链概念不变：链不作为独立模块（恒定主题条底座 + 模块内融合表面）；●本地 / ⛓链上 /
-     ◆随代码 三种版本节点；fork=checkout 即上链；无 merge 择线。
+  ④ 链不作为独立模块：任务树承载空间身份、epoch、确认/副本健康与审计；模块内仅呈现自动记账投影。●本地 / ⛓链上 / ◆随代码 三种版本节点；fork=checkout 即上链；无 merge 择线。
 
   交互演示：
    ① Hub 底部坞：图标切模块 · ⟨ 收起 → tide orb 召唤 · theme-seg 浅/深 · 标注/图例开关
    ② 标注模式：pin 编号 → 设计说明弹层（交互逻辑 + R 条款）
    ③ 任务树：域 pills/成员过滤 · 节点详情 · 轨迹常开 · ⑂ fork 弹层 · 链操作日志实时追加
-   ④ 会话：选中联动 · 上链共享预览确认 · 接续上下文卡
-   ⑤ 原型/UI 设计：三段页签 · 融合 rail（⛓ 版本 = 溯源 diff 视图）· 发布为链上版本
+   ④ 会话：选中联动 · 工作区空间选择 · 接续上下文卡 · 终态自动记账
+   ⑤ 原型/UI 设计：三段页签 · 融合 rail（⛓ 版本 = 溯源 diff 视图）· 自动版本投影
    ⑥ 审查报告：子页切换 · 范围下拉联动报告 · 报告全结构 · CRG 定位 ◎ ↔ 图谱双向闪烁 ·
       图例严重度过滤器 · ⛓ 批注回链 · 一键修复 → 任务树
    ⑦ 知识库：三子页 · 构建历史（本地 ∪ 链上同步）· 应用前差异预览
-   ⑧ 编辑器：文件树/页签联动 · 历史（checkpoint ∪ ⛓ 快照）· 快照上链/恢复/对比
+   ⑧ 编辑器：文件树/页签联动 · 历史（checkpoint ∪ ⛓ 来源）· ws.commit 投影恢复/对比
+   ⑨ 通用协作：研究 Work Item + 外部证据 + 决策/审批；restricted 内容本地阻止分发并引导创建脱敏派生物
 -->
 <style>
   /* ── Aqua 语义 token（styles.css 同源 · 双外观） ── */
@@ -1146,7 +1146,7 @@ var NOTES = [
   { mv: "tree", sel: "#thDomains", t: "域 pills · 真实过滤",
     b: "与会话任务/代码审查等本地域并列，⛓ 链上记录是独立可过滤域——点选后仅显示链上节点。链上记录不只是被动展示：它和本地节点一起参与谱系（接续链在树上直接可见）。" },
   { mv: "tree", sel: ".mem-filter", t: "成员过滤 · 本地视角不变",
-    b: "按成员淡化链上节点；本地（本机）节点永远不受成员过滤影响——本地是用户的私有视角，链上内容才是共享视角。这是「默认关、显式共享」原则在树视图上的投射。" },
+    b: "按成员淡化链上节点；本地（本机）节点永远不受成员过滤影响——本地是用户的私有视角，链上内容才是共享视角。工作区级启用决定协作空间边界，节点级 opt-out 仅收回后续增量；restricted 内容在没有加密 ACL 前不会进入该共享视图。" },
   { mv: "tree", sel: "#graph", t: "任务树 = 整条共享链",
     b: "节点形状：● 会话主任务（圆环）· ⑂ fork（小环，对应 git 分支）· ◆ 伴随任务（菱形）· ⛓ 链上记录（虚线环 + 成员色）。本地谱系与链上 task.share 谱系按时间一树混排：A 机完成任务上链 → B 机「接续开发」→ 新的 ⛓ 节点带 parentRecordId 挂回——任务的工作链直接长在任务树上，不需要去别的面板看（R14/R15）。" },
   { mv: "tree", sel: "#detail", t: "节点详情板 · 本地/链上二分（R34）",
@@ -1186,7 +1186,7 @@ var NOTES = [
   { mv: "kb", sel: ".ui-knowledge-buildbar", t: "顶部 = 同步状态行（R35）",
     b: "知识库顶部只声明一件事：已同步 + 对应链信息 + 时间；存在同步覆盖/写入行为时在此标注（如「最近写入：#12 · 覆盖采纳」）。不铺设语义声明 chips、不设模块内 fork 按钮（fork 铁律：fork 只在任务树发起，R32）。语义本身（追随代码 · 覆盖即采纳 · 对方缺失保留本地 · AGENTS.md 始终合并 · 符号关系图自动 update hook）是模块行为，不是 UI 文案——见 R35 与设计文档 §10。" },
   { mv: "editor", sel: ".ed-canvas", t: "文件树 / 页签 / 画布联动",
-    b: "编辑器结对（PAIR）会话级轨迹进任务树；文件级变更通过 GitFileHistory 自动产出 checkpoint（changedFilePaths/checkpointHash 现成可得）——这正是上链共享「随行 ws.commit」与 fork「变更集直通提交」的数据源（R28）。" },
+    b: "编辑器结对（PAIR）会话级轨迹进任务树；文件级变更通过 GitFileHistory 自动产出 checkpoint（changedFilePaths/checkpointHash 现成可得）——这是 coding Work Item 的随行 ws.commit 与 fork 变更集提交数据源（R28/R48），不是编辑器独立上链动作。" },
   { mv: "editor", sel: ".ed-pair", t: "结对栏（既有内容 · 不受影响）",
     b: "编辑器右侧 hub 的既有结对编程栏目原样保留：综对命令/计划/变更文件/审批队列不动——本地历史不进入右栏，结对栏不受任何影响。" },
   { mv: "editor", sel: ".ed-baseline", t: "底部基线行 = 历史入口（R36 · 底部基线式）",
@@ -1262,7 +1262,13 @@ var NODES = [
   { id: "n9", lane: 0, kind: "chain", member: "kel", genesis: true, title: "创世 · git:github.com/zshipu/gvgl", time: "2 天前",
     meta: ["创世成员 kelthas-mbp · 准入 open · 多数派 2/3"] },
   { id: "n10", lane: 1, kind: "chain", member: "dev", shared: false, title: "内部重构 · 未共享节点", rec: "r:e1a2…", time: "10:12",
-    meta: [] }
+    meta: [] },
+  { id: "n11", lane: 2, kind: "chain", member: "design", title: "研究 · 登录风控阈值证据汇总", rec: "r:w-evidence…", time: "09:46",
+    meta: ["⛓ work.item · research · confirmed", "外部来源 3 项 · 结论：建议分级阈值", "依赖：决策 D-14"] },
+  { id: "n12", lane: 2, kind: "chain", member: "kel", title: "决策 · 风控阈值方案 D-14", rec: "r:decision…", time: "09:52",
+    meta: ["⛓ decision.propose · evidence 3 项", "业务审批：1/2 · 账本：confirmed", "等待产品负责人响应"] },
+  { id: "n13", lane: 2, kind: "chain", member: "kel", shared: false, title: "受限资料 · 原始客户访谈", rec: "local:restricted", time: "10:01",
+    meta: ["🔒 restricted · 不可分发", "可创建脱敏派生物后关联 Work Item"] }
 ];
 var TRACES = {
   n3: [

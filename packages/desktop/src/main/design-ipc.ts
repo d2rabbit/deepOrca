@@ -52,6 +52,9 @@ import {
   readFormState,
   saveFormState,
   updateDesignTheme,
+  THEME_NOTE_MAX_CHARS,
+  THEME_REFERENCES_MAX_ENTRIES,
+  THEME_TITLE_MAX_CHARS,
   type AssignSuiteThemeInput,
   type DesignTheme,
 } from "./tools/design-store.js";
@@ -393,10 +396,19 @@ export function registerDesignIpc(helpers: DesignIpcHelpers, deps: DesignIpcDeps
   handlePrivileged(IpcRequest.DesignThemeCreate, (root: string, input?: { title?: unknown; note?: unknown }) => {
     const resolved = pinned(root);
     if (!resolved) return { ok: false as const, error: "unregistered workspace" };
+    // 交叉审查修复：渲染层载荷钳制（与 SUITE_LEAFER_MAX_CHARS 同思路）——
+    // 半受信渲染层不得借主题通道写无界文本进 index.json。
     const title = typeof input?.title === "string" ? input.title : "";
+    if (title.length > THEME_TITLE_MAX_CHARS) {
+      return { ok: false as const, error: `theme title too long (limit ${THEME_TITLE_MAX_CHARS} characters)` };
+    }
+    const note = typeof input?.note === "string" ? input.note : "";
+    if (note.length > THEME_NOTE_MAX_CHARS) {
+      return { ok: false as const, error: `theme note too long (limit ${THEME_NOTE_MAX_CHARS} characters)` };
+    }
     const theme = store.createTheme(resolved, {
       title,
-      ...(typeof input?.note === "string" && input.note.trim() ? { note: input.note } : {}),
+      ...(note.trim() ? { note: note.slice(0, THEME_NOTE_MAX_CHARS) } : {}),
     });
     return theme ? { ok: true as const, theme } : { ok: false as const, error: "theme title is required" };
   });
@@ -405,8 +417,12 @@ export function registerDesignIpc(helpers: DesignIpcHelpers, deps: DesignIpcDeps
     (root: string, id: string, input?: { title?: unknown; note?: unknown }) => {
       const resolved = pinned(root);
       if (!resolved) return { ok: false as const, error: "unregistered workspace" };
+      const updateTitle = typeof input?.title === "string" ? input.title : undefined;
+      if (updateTitle !== undefined && updateTitle.length > THEME_TITLE_MAX_CHARS) {
+        return { ok: false as const, error: `theme title too long (limit ${THEME_TITLE_MAX_CHARS} characters)` };
+      }
       const ok = store.updateTheme(resolved, id, {
-        ...(typeof input?.title === "string" ? { title: input.title } : {}),
+        ...(updateTitle !== undefined ? { title: updateTitle } : {}),
         // note: null = 显式清除；undefined = 不动；字符串 = 替换。
         ...(input && "note" in input ? { note: input.note === null ? null : String(input.note ?? "") } : {}),
       });
@@ -436,10 +452,13 @@ export function registerDesignIpc(helpers: DesignIpcHelpers, deps: DesignIpcDeps
         return undefined;
       };
       const rawReferences = input.references;
+      // 交叉审查修复：references 条数/长度钳制（与 store 常量一致）。
       const references = Array.isArray(rawReferences)
         ? rawReferences
+            .slice(0, THEME_REFERENCES_MAX_ENTRIES)
             .map((item) => asRef(item))
             .filter((item): item is DesignThemeRef => item !== undefined && item !== null)
+            .filter((ref) => ref.suiteId.length <= 128 && (!ref.versionId || ref.versionId.length <= 128))
         : undefined;
       const patch: AssignSuiteThemeInput = {};
       if ("themeId" in input) {

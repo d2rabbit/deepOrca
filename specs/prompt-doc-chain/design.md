@@ -66,3 +66,16 @@ UiSuiteContent.uiDesign?: string;         // UI 强化提示词文档（markdown
 ## 7. 非目标（重申）
 
 ui-design 独立重算、对话侧命令链路、设计系统变更自动重算、brief/arch 改动。
+
+## 8. 交叉审查修复批（2026-09-10，五路交叉审查后落地）
+
+- stage0 保存走 `preserveDerived`（同动作内 render_openui 将重建派生物；手动重算才重置——否则生成失败会把既有原型从 head 抹掉）；
+- `design.uidesign.saved` 移到 render_leafer 成功后发射（画布失败不得谎报"已保存"）；stage0 自动路径同样发射 `prototype.pddesign.saved` 终态码；
+- uiDesign 空串 = 显式清除（基底切换且新基底无 pd-design 时清旧视觉意图，revise 不再"keep it honored"过期意图）；
+- save_pd_design / render_leafer：载荷钳制（suitePayloadError 同规）+ 严格 lineage 守卫（note 不再隐含套件意图）；
+- 参考区块超预算"仅列标题"行硬上限 20 条 + 省略行（防 N 条参考=N 行注入）；
+- 主题 IPC 通道载荷钳制（title≤200/note≤2000/stage≤64/references≤100×128）；
+- store 嬗壮性：坏主题条目过滤不炸层、删主题先写索引（权威视图）meta 尽力收敛、references/stage 写入钳制；
+- a2ui append 路径 assignSuiteTheme 返回值显式检查（主题被并发删除 → 工具显式失败）；
+- 目录主题组 `<details>` 可折叠（EARS 10）+ 编辑器内联新建主题（EARS 12）+ 四个主题写路径失败显面；
+- 已知限制（记录不修）：同基底 pd-design 重算后，已物化 UI 套件的 uiDesign 仍为旧蒸馏（无失效链；revise 注入旧意图）——需要派生谱系跟踪，超出本批范围。

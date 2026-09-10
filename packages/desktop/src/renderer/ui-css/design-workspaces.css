@@ -2349,3 +2349,58 @@
   font-size: 10px;
   font-style: normal;
 }
+
+/* 编辑器"设计上下文"内的主题选择 + 内联新建（EARS 12）。 */
+.ui-design-theme-pick {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.ui-design-theme-pick select {
+  flex: 1;
+  min-width: 0;
+}
+
+.ui-design-theme-new-inline {
+  flex: none;
+  padding: 2px 8px;
+  border: 1px dashed var(--ui-border-soft);
+  border-radius: 6px;
+  background: none;
+  color: var(--ui-text-faint);
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.ui-design-theme-new-inline:hover {
+  color: var(--ui-text);
+}
+
+.ui-design-theme-create-inline {
+  display: flex;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
+.ui-design-theme-create-inline input {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+}
+
+/* EARS 10 可折叠主题组：summary 承载原 head 布局。 */
+.ui-design-directory-theme > summary {
+  list-style: none;
+  cursor: pointer;
+}
+
+.ui-design-directory-theme > summary::-webkit-details-marker {
+  display: none;
+}
+
+.ui-design-directory-theme[open] > summary .ui-design-directory-dot {
+  background: var(--ui-accent, #6366f1);
+}

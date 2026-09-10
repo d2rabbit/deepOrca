@@ -31,6 +31,7 @@ export const ja: Record<MessageKey, string> = {
   "designTheme.emptyTheme": "このグループに PRD はまだありません",
   "designTheme.ungrouped": "未分類",
   "designTheme.assignTheme": "テーマ / フェーズ",
+  "designTheme.opFailed": "テーマ操作に失敗しました。再試行してください。",
   "common.close": "閉じる",
   "common.apply": "適用",
   "common.remove": "削除",

@@ -789,10 +789,12 @@ test("progress emits carry stable machine codes for the renderer i18n seam", asy
     })
   );
   assert.equal(design.ok, true);
+  // 交叉审查修复后的发射序：uidesign.saved 移到 render_leafer 成功后——
+  // 与 materialize.generating（画布生成开始）交错为正确叙事。
   assert.deepEqual(codesOf(designEmits), [
     "design.uidesign.generating",
-    "design.uidesign.saved",
     "design.materialize.generating",
+    "design.uidesign.saved",
     "design.materialize.saved",
   ]);
 });

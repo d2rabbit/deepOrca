@@ -2,7 +2,7 @@
 
 > 日期：2026-08-27 · 状态：**本阶段方案（2026-09-08 调整；专属路线，优先级高于 [`next-version-plan.md`](./next-version-plan.md) 的 A–D 主线）**
 > 来源：用户方向确立（2026-08-27）：「内置区块链的 AI 协调工作链」为与其他 coding agent 的核心区分点，与 next-version 并列双王牌。
-> **实施路线调整（2026-09-08 用户拍板）**：coord-chain 为**本阶段方案**，**不再通过 `next/coord-chain` 分支实现与合并**——上层交互逻辑以设计稿 v6（2026-09-08 交互定稿 + §11 链上行为协议）为准实施；该分支已完成的 OC1–OC2 协议底层（Ed25519/X25519+AES-GCM 协议核心、ws 加密传输、ChainNode 建链/重放、mDNS 发现+邀请码、SQLite 视图接线、双节点 e2e）**保留为实现参考**（快照 `specs/branch-implemented/coord-chain/`），OC1/OC2 视作「有参考实现的地基」而非待办。
+> **实施路线调整（2026-09-10 v7）**：coord-chain 为**本阶段方案**，不经 `next/coord-chain` 分支直接合并。该分支的 OC1–OC2 密码学、传输、重放和对象层仅保留为 pre-v6 技术参考；active spec 以协作空间身份、成员 epoch、通用 Work Item、分类与副本可用性为 MVP 地基。历史实现不能覆盖当前共享/UI/数据根/治理语义。
 > 依据口径：现状以 [`feature-roadmap.md`](./feature-roadmap.md) §0 为准；实现以 [`specs/coord-chain/`](../../specs/coord-chain/design.md) 为准；调研 [`2026-08-27-coord-chain-technology-survey.md`](../research/2026-08-27-coord-chain-technology-survey.md)。
 
 ## 0. 定位与优先级声明
@@ -14,19 +14,19 @@
 
 ## 1. 愿景与差异化
 
-一句话：**局域网内多台 DeepOrca 按「工作区主题」自动组成联盟链，需求文档/设计稿/架构图/任务记录以可审计方式共享，任何人（的 AI）都能基于链上任务记录接续开发——无云、无账号服务器、防篡改。共享层是自研的类 Git「链工作区」：commit 谱系、diff、历史版本检出，但没有中心仓库服务器。**
+一句话：**局域网内多台 DeepOrca 按工作区主题发现协作空间，以 spaceId/签名 charter 确认成员与治理；代码、调研、设计、评审、决策和任务记录以可审计方式协作，任何人（的 AI）都能基于 Work Item 接续工作——无云、无账号服务器、可验证但不伪造强一致。共享层保留自研类 Git「链工作区」作为 coding adapter，而非通用协作的唯一模型。**
 
-产品体验定位（2026-08-27 需求确立）：**「腾讯文档/飞书共享文档」的放大版**——像共享文档一样"打开就有、成员可见、随手共享"，但共享的粒度是整个项目的工作记录而非单篇文档，且**共享只认工作区主题**：同主题（同一项目，无论各机器路径如何）自动同链，跨主题互相不可见。
+产品体验定位（v7）：**「共享文档空间」的可审计放大版**——像共享文档一样可发现、可接续、成员可见，但共享的是整个项目的工作事实而非单篇文档。主题只用于发现；成员经 spaceId、创世哈希和签名 charter 选择或确认独立协作空间。跨主题在发现层隔离，同主题的多个空间也绝不隐式合并。
 
 与竞品的区分（调研 §1）：
 
 | 维度 | 竞品（Claude Code / Cursor / Copilot Workspace 等） | DeepOrca OC |
 | --- | --- | --- |
 | 多人协作载体 | 云端账号 + Git 仓库 | 局域网内置联盟链，无云 |
-| 共享粒度 | 仓库/工单（人工归置） | **工作区主题**：同项目自动同链，跨主题发现层隔离 |
+| 共享粒度 | 仓库/工单（人工归置） | **协作空间**：主题发现候选，spaceId/charter 确认边界；跨主题发现层隔离 |
 | 版本化协作 | Git 仓库 + 中心托管（GitHub/GitLab） | **链工作区**：自研类 Git 对象模型（blob/tree/commit，CID 寻址 + 记录锚定），谱系/diff/历史检出，无中心服务器 |
 | 协作痕迹 | 分散在 IM/工单/commit message | 链上记录：签名、联签、可本地审计、不可篡改 |
-| 任务记录复用 | 基本不存在 | task.share → 接续开发 → parentRecordId 任务谱系 |
+| 工作事实复用 | 基本不存在 | Work Item → evidence/decision/approval/result → 接续；coding 使用 task.share/ws.commit adapter |
 | AI 参与协作 | 被动（人协调 AI） | AI 可查链/认领任务（defineAction 表面），声明性防撞车 |
 | 数据边界 | 出企业网络 | 数据不出局域网 |
 
@@ -37,13 +37,13 @@
 | 分期 | 内容 | 体量 | 优先级 |
 | --- | --- | --- | --- |
 | **OC0 设计冻结** | 本路线文档 + spec 三件套评审定稿；与主线 C 的 ws/Ed25519 地基共享协调会（一次） | 小（文档期可完成） | P0 |
-| **OC1 协议库** | `packages/ledger/`：身份/JCS/**工作区主题解析（git remote/显式名 → themeId）**/记录/区块/联签/链ID（主题锚定）/重放校验/CID/**链工作区对象模型（tree/commit/tree diff）**/SQLite 视图 + 单测（纯离线） | 中 | P0 |
-| **OC2 组网同步** | mDNS 发现 + ws 加密传输 + gossip + 对象/blob have/want 分块分发 + IPC 接线 + 双机端到端（含 commit→检出 round-trip 与跨主题隔离负例） | 中大 | P0 |
-| **OC3 语义与 UI** | 资产共享/**链工作区提交流（wsCommit/wsLog/wsDiff/wsCheckout + `.chainignore`）**/任务记录上链（变更随行 ws.commit）/接续开发（版本对齐 + 任务谱系互链）/AI 协调动作/Hub 共享空间面板/六套 i18n | 中大 | P0 |
-| **OC4 深化加固** | blob 静态加密 + ACL、撤销与密钥轮换、账本快照修剪、规模压测、文档 | 中 | P1 |
+| **OC1 协议库** | `packages/ledger/`：身份/JCS/主题发现 + **space charter/spaceId/epoch 确认/因果重放**/CID/通用 Work Item、证据、决策、审批、分类/链工作区对象模型/SQLite 视图 + 单测（纯离线） | 中大 | P0 |
+| **OC2 组网同步** | theme→space 候选发现 + space-bound 邀请 + ws 加密传输 + gossip + epoch 同步 + 对象/blob have/want、pin/availability/归档 bootstrap + 双机端到端 | 中大 | P0 |
+| **OC3 语义与 UI** | Work Item 生命周期/依赖/claim、证据与外部来源、决策/审批、分类与脱敏派生、coding/non-coding adapters、接续开发与任务树空间状态/审计面/六套 i18n | 中大 | P0 |
+| **OC4 深化加固** | restricted 命名成员加密/ACL、密钥轮换与治理恢复、签名 archive/pruning、规模与分区压测、文档 | 中 | P1 |
 
-- OC1–OC3 构成 MVP（可用即差异化成立）；OC4 是安全与规模化收尾。
-- 任务明细与需求追溯见 [`specs/coord-chain/tasks.md`](../../specs/coord-chain/tasks.md)（22 项，R1–R31）。
+- OC1–OC3 构成 MVP：空间治理、确认边界、分类拒绝规则与通用 Work Item 是可用差异化的前提；命名成员 restricted 共享需 OC4 的加密/ACL 才可启用。
+- 任务明细与需求追溯见 [`specs/coord-chain/tasks.md`](../../specs/coord-chain/tasks.md)（35 项，R1–R53）。
 
 ## 3. 与 next-version 四主线的接口
 
@@ -70,7 +70,7 @@
 | --- | --- | --- |
 | 企业网禁组播，mDNS 失效 | 中 | 邀请码兜底已进 MVP 范围（R4）；OC2 真实办公网验证成功率 |
 | "区块链"叙事被误解为炒币 | 中 | 文档与对外表述统一为"联盟式许可链/防篡改审计"，不提代币 |
-| 隐私事故（误共享） | 高 | 默认关 + 逐次显式 + 预览确认 + 轨迹不含对话原文（R1/R14/R16/R20） |
+| 隐私事故（误共享） | 高 | 默认关 + 分类继承/技术 deny/秘密检测；restricted 在无加密 ACL 前 local-only；节点 opt-out 仅作增量止血，轨迹不含对话原文（R1/R14/R16/R20/R51） |
 | 主题误匹配/误隔离（fork 各异、非 git 工作区无 remote） | 中 | 面板明示主题来源与值 + 可覆盖；加入时主题锚定核对（R24/R26）；非 git 工作区强制显式主题名引导 |
 | 协议设计缺陷（分叉/重放边角） | 中 | OC1 单测穷举 + OC0 正式评审；账本可全量重放，升级期可校验自愈 |
 | Hypercore 路线后悔成本 | 低 | 对象/blob 层接口化（`objects.ts` 内部可替换；Hyperdrive 是版本化文件系统的同构先例，一并评估，见设计 §13） |
@@ -78,6 +78,6 @@
 ## 6. 启动顺序
 
 1. **冻结期内（现在）**：OC0——spec 三件套 + 本文档评审定稿；与主线 C 地基协调会；`docs/spec-open-items-status.md` 台账登记本路线条目。
-2. **（2026-09-08 修订）本阶段直接实施**：不再另开 `next/coord-chain` 分支——上层交互（OC3 语义与 UI，按 v6 定稿）在当前工作线实施；OC1/OC2 底层对照分支参考实现取材校准；真实局域网双机验证（原 OC2 手测项）尽早安排。
+2. **（2026-09-10 v7 修订）本阶段直接实施**：不再另开 `next/coord-chain` 分支；先实现空间身份/epoch/分类/Work Item 的 OC1.5–OC2.5 地基，再接入 coding 与非编码工作面。OC1/OC2 历史分支仅可作为底层技术取材；真实局域网、分区、多空间和归档恢复验证尽早安排。
 3. OC1 后半程并行准备 OC2 的双机测试环境（真实局域网 + Windows/macOS 各一）。
 4. OC2 端到端打通即内部 dogfood（本团队自己的需求文档与任务记录先上链），OC3 完成后对外可演示——差异化叙事成立的最小闭环。

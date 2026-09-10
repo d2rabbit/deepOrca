@@ -32,6 +32,7 @@ export const zh: Record<MessageKey, string> = {
   "designTheme.emptyTheme": "该分组暂无 PRD",
   "designTheme.ungrouped": "未分组",
   "designTheme.assignTheme": "归属主题 / 阶段",
+  "designTheme.opFailed": "主题操作失败，请重试。",
   "common.close": "关闭",
   "common.apply": "应用",
   "common.remove": "移除",

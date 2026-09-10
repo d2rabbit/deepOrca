@@ -73,13 +73,13 @@
 
 - [ ] 13. 双机端到端验证（自动化 + 手测清单）
   - 自动：本地起两节点（子进程 + 随机端口 + 手动邀请码路径）跑通 建链→加入→共享资产→**A 机 commit → B 机 log/diff/checkout round-trip**→断线→重连；**隔离负例**：两工作区主题不同（不同 git remote/主题名）时互不可见、零握手
-  - 手测：真实局域网两台 Windows/一台 macOS 的 mDNS 发现率、防火墙首启体验、同项目不同本机路径自动同链
+  - 手测：真实局域网两台 Windows/一台 macOS 的 mDNS 发现率、防火墙首启体验、同项目不同本机路径发现同主题空间候选并核对 spaceId
   - _Requirement: R4, R5, R11, R12, R19, R25, R27, R29_
 
 ## OC3 共享语义与 UI
 
 - [ ] 14. 资产与链工作区提交流
-  - 「上链共享」动作（会话产物/设计稿/架构图/任意文件）：分块→manifest→`asset.publish`；共享前预览确认（链 ID/成员数/内容摘要）
+  - 显式资产导入/发布（会话产物/设计稿/架构图/任意文件）：分块→manifest→`asset.publish`；这是非自动生成资产的例外操作，须先通过分类/技术 deny 检查。变更集 diff 可供检查，但不恢复逐模块「上链共享」或逐动作确认。
   - **`wsCommit`**：选定文件/目录或会话变更集（`GitFileHistory.changedFilePaths` 直通）→ tree → commit → 分发 → `ws.commit` 记录；共享范围忽略清单（`.chainignore` + 默认规则：构建产物/密钥类文件，内容 OC3 评审）
   - `wsLog/wsDiff/wsCheckout` 三接口（谱系分页/两 commit 文件级 diff/历史检出：预览确认 + 目标目录白名单 + 路径穿越拒绝）
   - 资产列表/拉取/打开/撤销（revoke）
@@ -102,9 +102,9 @@
   - `chain.query`（成员/资产/任务/认领）、`chain.claim`（认领/进度/完成）；LLM 表面注册与进度接线
   - _Requirement: R17, R18_
 
-- [ ] 18. 共享空间 UI 全量（2026-09-08 改写：链是底座层，非第八模块）
+- [ ] 18. 共享空间 UI 全量（2026-09-08 改写：链是底座层，非第八模块；v7 由任务 32–34 扩展通用协作语义）
   - 设置面板「协作链」段（用户级总闸 + 设备名）；**会话模块「打开工作区」流程内置共享决定**（解析/设定工作区主题并明示链 ID/成员，非 git 工作区强制显式主题名）
-  - 恒定主题条：主题 + 链 ID + 成员 + 同步态 + **链操作日志**（一切自动记账的全量审计聚合面）
+  - 任务树顶部空间状态：主题来源 + 空间/链 ID + 成员 + 同步态；任务树底部**链操作日志**是一切自动记账的全量审计聚合面（无恒定全局主题条）
   - 各模块表面按 §10 矩阵落地：会话对齐本地 UI + 链 id 弹窗；任务树 hub 本地/链上二分 + 节点级共享开关；原型/UI 版本 rail 自动记账（无发布按钮）；知识库追随代码（无应用按钮）；编辑器本地历史 ∪ 链上来源（无快照上链按钮）；审查保持既有核心
   - 链浏览器/网络自检（原「审计」子页能力保留于链操作日志与设置面板入口）
   - i18n 六套字典（en/zh + ja/ko/zh-tw/zh-hk）全键覆盖
@@ -160,3 +160,62 @@
   - `npm run check && npm test` 全绿；关闭态零行为回归清单（R21 逐项走查）
   - 用户文档（组网要求/防火墙/邀请码/隐私姿态）+ `docs/` 架构补篇
   - _Requirement: R21, R23_
+
+
+## v7 设计增补工作包（先于新增实现任务评审）
+
+> 下列任务承接 R41–R53，且校正 OC1–OC4 的旧前提：主题仅用于发现；空间身份、epoch 确认、分类和可恢复性属于 MVP 地基。它们只在协议和 UI 评审通过后进入实现。
+
+### OC1.5 协作空间治理与通用事实模型
+
+- [ ] 27. 空间 charter、身份与 epoch 协议
+  - `space.charter` / spaceId / invitation、同主题多空间候选、并发创世保留与归档关联
+  - 成员 epoch、角色、治理变更、validator-set hash、proposal/vote/confirmation、round/view change 与双签证据
+  - confirmed/provisional/superseded/rejected 状态、canonical fork-choice、因果头与 replay 验证
+  - _Requirement: R3–R10, R24–R26, R41, R42, R43, R44, R45_
+
+- [ ] 28. 通用 Work Item、证据、决策与审批记录/视图
+  - schema 与 materialized views：work items/state/links、evidence/claims、decisions/approvals、external assets/derivations、classification、replica health
+  - work 状态迁移、dependency 环检测、subjectVersion stale、业务审批与区块确认语义隔离
+  - TaskTrajectory、TaskNode、SOP evidence/decision 仅以 adapter 接入，保持本地与 coding 隐私边界
+  - _Requirement: R10, R46, R47, R48, R49, R50_
+
+- [ ] 29. 分类与数据可用性协议
+  - classification inheritance/change、restricted 拒绝共享、redaction derivative、`.chainignore`/秘密扫描的职责边界
+  - participant/replica/archive、author pin、对象可用性、缺失对象与 archive checkpoint/import 验证
+  - _Requirement: R11–R13, R19–R21, R40, R51, R52, R53_
+
+- [ ] 30. 协议性质与回放测试
+  - 并发创世/同主题多空间、epoch 边界、离线 quorum、双签、分区双写/不同高度后缀、时钟回退和因果排序
+  - Work Item terminal/reopen、dependency 环、evidence/claim、decision/approval stale、分类继承/redaction/restricted 拒绝、缺失 blob/最后持有者/archive restore
+  - _Requirement: R5, R8–R10, R41, R42, R43, R44, R45, R46, R47, R48, R49, R50, R51, R52, R53_
+
+### OC2.5 发现、同步与恢复
+
+- [ ] 31. 空间绑定发现、邀请与恢复
+  - mDNS 发布 themeId + spaceId + charter/genesis 摘要；同主题多候选选择；space-bound invitation；archive bootstrap
+  - epoch 同步、待发 outbox 在空间/epoch/分类变化后的重新验证；对象 availability/pin gossip 与诊断
+  - _Requirement: R4–R6, R12–R13, R41, R42, R43, R44, R45, R52, R53_
+
+### OC3.5 通用协作 UI 与模块投影
+
+- [ ] 32. 任务树 Work Item 与空间状态
+  - 顶部空间身份/epoch/confirmed-provisional/副本健康，底部审计日志；本地与链上 Work Item 混排
+  - 生命周期、dependency/blocker、soft claim、分类与 restricted 本地阻止态；不恢复恒定主题条或第八模块
+  - _Requirement: R20, R32–R34, R41, R42, R43, R44, R45, R46, R47, R51, R52, R53_
+
+- [ ] 33. 证据、来源、决策与审批表面
+  - external asset/evidence 浏览、claim 评估、decision 选项与 approval 队列；账本确认与业务审批分列；subjectVersion stale 提示
+  - _Requirement: R49–R50_
+
+- [ ] 34. 七模块 adapter 与非编码场景
+  - coding：task.share/ws.commit/review；非编码：研究、会议、设计、写作、采购/合规的 activity/result/evidence 生成与接续
+  - 原型/UI/审查/知识库/编辑器保留既有 UI，显示 Work Item 与空间来源投影；分类阻止时提供脱敏派生路径
+  - _Requirement: R14–R18, R32–R39, R46, R47, R48, R49, R50, R51, R52_
+
+### OC4.5 加密、ACL 与长期空间治理
+
+- [ ] 35. restricted 共享解锁与长期治理
+  - 命名成员加密封装、ACL、密钥轮换、成员驱逐/恢复、法律保留、签名归档与 pruning checkpoint
+  - 5/20/50 节点、分区、archive/bootstrap、长期副本与隐私回归验证
+  - _Requirement: R6, R13, R19–R21, R43, R44, R45, R51, R52, R53_

@@ -30,6 +30,7 @@ export const en = {
   "designTheme.emptyTheme": "No PRD in this group yet",
   "designTheme.ungrouped": "Ungrouped",
   "designTheme.assignTheme": "Theme / stage",
+  "designTheme.opFailed": "Theme operation failed. Try again.",
   "common.close": "Close",
   "common.apply": "Apply",
   "common.remove": "Remove",

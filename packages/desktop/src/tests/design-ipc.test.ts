@@ -482,3 +482,26 @@ describe("leafer canvas append (DesignSuiteAppendLeafer)", () => {
     assert.match(result.error ?? "", /too large/);
   });
 });
+
+describe("PRD theme payload clamps (cross-review fix)", () => {
+  test("oversized theme titles/notes and reference floods are refused at the boundary", () => {
+    const harness = createHarness({
+      createTheme: (_root, input) => ({ id: "t1", title: input.title, createdAt: "", updatedAt: "" }),
+      assignSuiteTheme: () => true,
+    });
+    const bigTitle = invoke<{ ok: boolean; error?: string }>(harness, IpcRequest.DesignThemeCreate, ROOT_A, {
+      title: "T".repeat(5000),
+    });
+    assert.equal(bigTitle.ok, false);
+    assert.match(bigTitle.error ?? "", /too long/);
+    const bigNote = invoke<{ ok: boolean; error?: string }>(harness, IpcRequest.DesignThemeCreate, ROOT_A, {
+      title: "ok",
+      note: "N".repeat(5000),
+    });
+    assert.equal(bigNote.ok, false);
+    const flood = invoke<{ ok: boolean }>(harness, IpcRequest.DesignSuiteAssignTheme, ROOT_A, SUITE.id, {
+      references: Array.from({ length: 5000 }, () => ({ suiteId: "s" })),
+    });
+    assert.equal(flood.ok, true, "assign still succeeds — the flood is clamped, not refused");
+  });
+});
