@@ -69,6 +69,16 @@ export type ModelCapabilityRegistration = {
  * NON_MULTIMODAL_MODELS sets. `deepseek-chat` / `deepseek-reasoner` stay
  * registered even though DeepSeek discontinued them (2026-07-24) so
  * existing settings keep resolving with their historical capabilities.
+ *
+ * V4.1 era (2026-09-11 vision/pricing guides): `deepseek-flash`
+ * (DeepSeek-V4.1-Flash, 1M window / 384K output) is the current flagship —
+ * natively multimodal with thinking ON by default. The discontinued names
+ * deepseek-v4-flash / deepseek-v4-flash-vision-exp remain callable and are
+ * server-side routed to V4.1-Flash at Flash pricing (same for
+ * deepseek-v4-pro from 2026-09-14 until V4.1 Pro launches), so the family's
+ * lightweightModel keeps its historical id — existing endpoint registrations
+ * keep tier-1 background resolution unchanged while the calls themselves are
+ * served (and billed) as V4.1-Flash.
  */
 const DEEPSEEK_FAMILY: ModelFamilySpec = {
   id: "deepseek",
@@ -81,7 +91,14 @@ const DEEPSEEK_FAMILY: ModelFamilySpec = {
   thinkingProtocol: "deepseek",
   reasoningField: "reasoning_content",
   reasoningReadFields: ["reasoning_content", "reasoning"],
-  reasoningReplay: "empty-field",
+  // V4.1 thinking-mode contract (2026-09-11 guide): requests carrying tools
+  // MUST replay the full reasoning_content on every replayed assistant
+  // message — an empty/missing field is a 400 ("若未正确回传…API 会返回
+  // 400 报错", applies even when that turn made no tool call). The engine's
+  // main loop always sends tools, so "content" is the only valid mode. On
+  // tool-less requests the field is documented as ignored, so replaying the
+  // stored content is harmless there too.
+  reasoningReplay: "content",
 };
 
 /**
@@ -104,6 +121,17 @@ const MODEL_OVERRIDES: Record<string, Partial<ModelFamilySpec>> = {
   // 512K is the established trigger, not the raw window).
   "deepseek-v4-flash-vision-exp": {
     defaultsToThinking: true,
+    contextWindowTokens: 512 * 1024,
+  },
+  // Current flagship (2026-09-11): DeepSeek-V4.1-Flash — vision-guide
+  // confirmed multimodal ("支持在文本之外输入图片"), thinking default ON
+  // ("支持非思考与思考模式（默认）"). Docs list a 1M window / 384K output;
+  // 512K stays the product's compaction trigger (established V4 decision —
+  // the trigger is a product value, not the raw window; users can raise it
+  // via settings.compactTokenThreshold).
+  "deepseek-flash": {
+    defaultsToThinking: true,
+    multimodal: true,
     contextWindowTokens: 512 * 1024,
   },
   "deepseek-chat": { multimodal: false },
@@ -214,7 +242,7 @@ export function endpointQuotaKind(baseURL: string | undefined): EndpointQuotaKin
  * union of every family's list (see endpointModelFamily).
  */
 export const FAMILY_MODEL_SUGGESTIONS: Readonly<Record<ModelFamilyId, readonly string[]>> = {
-  deepseek: ["deepseek-v4-pro", "deepseek-v4-flash", "deepseek-v4-flash-vision-exp"],
+  deepseek: ["deepseek-flash", "deepseek-v4-pro", "deepseek-v4-flash"],
   stepfun: ["step-3.7-flash", "step-router-v1"],
   glm: [],
   kimi: [],

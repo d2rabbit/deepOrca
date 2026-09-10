@@ -63,10 +63,11 @@ export function familyThinkLevels(familyId: string): readonly ThinkLevelMeta[] {
 export type ThinkLevelFamilyMap = Readonly<Record<ThinkLevel, string>>;
 
 /**
- * DeepSeek V4 family (deepseek-v4-flash / -pro / -flash-vision-exp): the API
- * effectively serves low / high / max — medium and xhigh are both folded to
- * high server-side (thinking-mode guide's request→effective table), so the
- * unified scale projects low→low, medium→high, high→high, xhigh→high, max→max.
+ * DeepSeek V4/V4.1 family (deepseek-flash / deepseek-v4-flash / -pro /
+ * -flash-vision-exp): the API effectively serves low / high / max — medium
+ * and xhigh are both folded to high server-side (thinking-mode guide's
+ * request→effective table), so the unified scale projects low→low,
+ * medium→high, high→high, xhigh→high, max→max.
  */
 const DEEPSEEK_V4_FAMILY: ThinkLevelFamilyMap = {
   low: "low",

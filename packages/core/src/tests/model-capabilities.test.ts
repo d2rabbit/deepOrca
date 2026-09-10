@@ -44,7 +44,9 @@ test("deepseek v4 models keep their pre-registry capabilities", () => {
     assert.equal(spec.multimodal, false);
     assert.equal(spec.contextWindowTokens, 512 * 1024);
     assert.equal(spec.lightweightModel, "deepseek-v4-flash");
-    assert.equal(spec.reasoningReplay, "empty-field");
+    // V4.1 (2026-09-11): the family replay contract moved to "content" —
+    // tool-carrying requests must replay the full reasoning_content.
+    assert.equal(spec.reasoningReplay, "content");
     assert.equal(spec.reasoningField, "reasoning_content");
     assert.deepEqual(spec.reasoningReadFields, ["reasoning_content", "reasoning"]);
   }
@@ -57,6 +59,20 @@ test("deepseek-v4-flash-vision-exp registers as the multimodal experimental vari
   assert.equal(spec.defaultsToThinking, true);
   assert.equal(spec.multimodal, true, "vision experimental model accepts image input");
   assert.equal(spec.contextWindowTokens, 512 * 1024);
+  assert.equal(spec.lightweightModel, "deepseek-v4-flash");
+});
+
+test("deepseek-flash (V4.1) registers as the current multimodal thinking flagship", () => {
+  const spec = resolveModelSpec({ model: "deepseek-flash" });
+  assert.equal(spec.id, "deepseek");
+  assert.equal(spec.familyResolved, true);
+  // vision guide: "支持在文本之外输入图片"；pricing: "思考模式为默认"。
+  assert.equal(spec.defaultsToThinking, true, "V4.1 Flash defaults to thinking mode");
+  assert.equal(spec.multimodal, true, "V4.1 Flash accepts image input");
+  // Docs list a 1M window; 512K stays the product's compaction trigger.
+  assert.equal(spec.contextWindowTokens, 512 * 1024);
+  // The family lightweight keeps its historical id — old names remain
+  // callable and are server-routed to V4.1-Flash at Flash pricing.
   assert.equal(spec.lightweightModel, "deepseek-v4-flash");
 });
 
@@ -141,7 +157,10 @@ test("FAMILY_MODEL_SUGGESTIONS covers every family id without legacy ids", () =>
   }
   // Curated: legacy/discontinued ids stay resolvable but are never suggested.
   assert.ok(!FAMILY_MODEL_SUGGESTIONS.deepseek.includes("deepseek-chat"));
+  // V4.1 era: flash 置顶建议；已下线的视觉实验名撤出建议（仍可解析）。
+  assert.equal(FAMILY_MODEL_SUGGESTIONS.deepseek[0], "deepseek-flash");
   assert.ok(FAMILY_MODEL_SUGGESTIONS.deepseek.includes("deepseek-v4-flash"));
+  assert.ok(!FAMILY_MODEL_SUGGESTIONS.deepseek.includes("deepseek-v4-flash-vision-exp"));
   assert.deepEqual(FAMILY_MODEL_SUGGESTIONS.stepfun, ["step-3.7-flash", "step-router-v1"]);
 });
 
@@ -405,10 +424,19 @@ function assistantMessage(overrides: Partial<SessionMessage> = {}): SessionMessa
   } as SessionMessage;
 }
 
-test("message converter replays an empty reasoning_content field for deepseek thinking mode", () => {
+test("message converter replays stored reasoning verbatim for deepseek; no key without content (V4.1)", () => {
   const converter = new OpenAIMessageConverter();
-  const messages = converter.buildMessages([assistantMessage()], true, "deepseek-v4-pro");
-  assert.equal(messages.length, 1);
-  assert.deepEqual((messages[0] as { reasoning_content?: string }).reasoning_content, "");
-  assert.deepEqual((messages[0] as { content: string }).content, "hello");
+  // 有存储 reasoning → 逐字回放（V4.1: tools 请求必须完整回传）。
+  const withReasoning = converter.buildMessages(
+    [assistantMessage({ messageParams: { reasoning_content: "trace" } })],
+    true,
+    "deepseek-v4-pro"
+  );
+  assert.equal((withReasoning[0] as { reasoning_content?: string }).reasoning_content, "trace");
+  // 无存储 reasoning（非思考轮）→ 键省略（空串同样属于"未正确回传"）。
+  const bare = converter.buildMessages([assistantMessage()], true, "deepseek-v4-pro");
+  assert.equal(Object.prototype.hasOwnProperty.call(bare[0] ?? {}, "reasoning_content"), false);
+  // unknown family 保持 legacy empty-field 形状（R4/R6 字节不变）。
+  const unknownModel = converter.buildMessages([assistantMessage()], true, "some-model");
+  assert.equal((unknownModel[0] as { reasoning_content?: string }).reasoning_content, "");
 });
