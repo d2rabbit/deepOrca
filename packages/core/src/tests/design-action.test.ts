@@ -126,10 +126,54 @@ test("SessionManager registers every suite v2 action", () => {
 
 test("prototype.spec creates a real suite through render_spec and returns ArtifactRef", async () => {
   const mcpCalls: McpCall[] = [];
-  const result = await prototypeSpecRun(
-    { requirement: "Task board" },
-    makeCtx({ generated: "```markdown\n# Tasks\n\n## Page list\n- Board\n```", mcpCalls })
-  );
+  const deepTasks = [
+    "```markdown",
+    "# Tasks 需求文档",
+    "",
+    "## 1. 背景与目标",
+    "",
+    "## 2. 用户与场景",
+    "",
+    "## 3. 功能需求",
+    "",
+    "| 模块 | 需求 | 优先级 | 交互要点 |",
+    "| --- | --- | --- | --- |",
+    "| 看板 | 任务卡片 | P0 | 拖拽 |",
+    "| 列表 | 任务列表 | P1 | 筛选 |",
+    "| 统计 | 完成率 | P2 | 图表 |",
+    "",
+    "## 4. 数据与字段",
+    "",
+    "| 实体 | 字段 | 类型 | 校验 | 示例 |",
+    "| --- | --- | --- | --- | --- |",
+    "| 任务 | 标题 | string | 非空 | 买菜 |",
+    "| 任务 | 截止 | date | 未来 | 今天 |",
+    "",
+    "## 5. 页面清单",
+    "",
+    "| 页面 | 页面ID | 目的 | 关键元素 |",
+    "| --- | --- | --- | --- |",
+    "| 看板页 | board | 看板 | 卡片列 |",
+    "",
+    "### board 交互明细",
+    "",
+    "- 拖拽 → 状态流转",
+    "- 新建 → 弹窗表单",
+    "",
+    "## 6. 非功能需求",
+    "",
+    "## 7. 验收标准",
+    "",
+    "- [ ] a",
+    "- [ ] b",
+    "- [ ] c",
+    "- [ ] d",
+    "- [ ] e",
+    "",
+    "## 8. 待确认",
+    "```",
+  ].join("\n");
+  const result = await prototypeSpecRun({ requirement: "Task board" }, makeCtx({ generated: deepTasks, mcpCalls }));
   assert.equal(result.ok, true);
   assert.deepEqual(result.artifactRef, PROTOTYPE_REF);
   const save = mcpCalls.find((call) => call.name.endsWith("render_spec"));
@@ -726,7 +770,18 @@ test("progress emits carry stable machine codes for the renderer i18n seam", asy
   const specEmits: ActionProgress[] = [];
   const spec = await prototypeSpecRun(
     { requirement: "Task board" },
-    makeCtx({ generated: "```markdown\n# Tasks\n\n## Page list\n- Board\n```", emits: specEmits })
+    makeCtx({
+      generated:
+        "```markdown\n# Tasks 需求文档\n\n## 1. 背景与目标\n\n## 2. 用户与场景\n\n## 3. 功能需求\n\n" +
+        "| 模块 | 需求 | 优先级 | 交互要点 |\n| --- | --- | --- | --- |\n| 看板 | 卡片 | P0 | 拖拽 |\n" +
+        "| 列表 | 列表 | P1 | 筛选 |\n| 统计 | 完成率 | P2 | 图表 |\n" +
+        "\n## 4. 数据与字段\n\n| 实体 | 字段 | 类型 | 校验 | 示例 |\n| --- | --- | --- | --- | --- |\n" +
+        "| 任务 | 标题 | string | 非空 | 买菜 |\n| 任务 | 截止 | date | 未来 | 今天 |\n" +
+        "\n## 5. 页面清单\n\n| 页面 | 页面ID | 目的 | 关键元素 |\n| --- | --- | --- | --- |\n" +
+        "| 看板页 | board | 看板 | 卡片列 |\n\n### board 交互明细\n\n- 拖拽 → 状态流转\n- 新建 → 弹窗表单\n" +
+        "\n## 6. 非功能需求\n\n## 7. 验收标准\n\n- [ ] a\n- [ ] b\n- [ ] c\n- [ ] d\n- [ ] e\n\n## 8. 待确认\n```",
+      emits: specEmits,
+    })
   );
   assert.equal(spec.ok, true);
   assert.deepEqual(codesOf(specEmits), ["prototype.spec.generating", "prototype.spec.saved"]);
@@ -836,7 +891,17 @@ test("re-review L1: prose mentioning triple backticks mid-line does not trip the
     { requirement: "Task board" },
     makeCtx({
       mcpCalls,
-      generated: "Wrap it in a ```openui fence later. # Tasks\n\n## Page list\n- Board",
+      // 尾部追加深度节（过深度门）；中行围栏陷阱保留在前半——抽取语义不变。
+      generated:
+        "Wrap it in a ```openui fence later. # Tasks\n\n## Page list\n- Board\n\n" +
+        "## 1. 背景与目标\n\n## 2. 用户与场景\n\n## 3. 功能需求\n\n" +
+        "| 模块 | 需求 | 优先级 | 交互要点 |\n| --- | --- | --- | --- |\n" +
+        "| 看板 | 卡片 | P0 | 拖拽 |\n| 列表 | 列表 | P1 | 筛选 |\n| 统计 | 完成率 | P2 | 图表 |\n" +
+        "\n## 4. 数据与字段\n\n| 实体 | 字段 | 类型 | 校验 | 示例 |\n| --- | --- | --- | --- | --- |\n" +
+        "| 任务 | 标题 | string | 非空 | 买菜 |\n| 任务 | 截止 | date | 未来 | 今天 |\n" +
+        "\n## 5. 页面清单\n\n| 页面 | 页面ID | 目的 | 关键元素 |\n| --- | --- | --- | --- |\n" +
+        "| 看板页 | board | 看板 | 卡片列 |\n\n### board 交互明细\n\n- 拖拽 → 状态流转\n- 新建 → 弹窗表单\n" +
+        "\n## 6. 非功能需求\n\n## 7. 验收标准\n\n- [ ] a\n- [ ] b\n- [ ] c\n- [ ] d\n- [ ] e\n\n## 8. 待确认",
     })
   );
   assert.equal(result.ok, true);
@@ -854,7 +919,16 @@ test("re-review M6: a mid-line fence mention does not hijack body extraction ahe
     { requirement: "Task board" },
     makeCtx({
       mcpCalls,
-      generated: "I will use a ```markdown\nfragment``` and continue.\n\n# Tasks\n\n## Page list\n- Board",
+      generated:
+        "I will use a ```markdown\nfragment``` and continue.\n\n# Tasks\n\n## Page list\n- Board\n\n" +
+        "## 1. 背景与目标\n\n## 2. 用户与场景\n\n## 3. 功能需求\n\n" +
+        "| 模块 | 需求 | 优先级 | 交互要点 |\n| --- | --- | --- | --- |\n" +
+        "| 看板 | 卡片 | P0 | 拖拽 |\n| 列表 | 列表 | P1 | 筛选 |\n| 统计 | 完成率 | P2 | 图表 |\n" +
+        "\n## 4. 数据与字段\n\n| 实体 | 字段 | 类型 | 校验 | 示例 |\n| --- | --- | --- | --- | --- |\n" +
+        "| 任务 | 标题 | string | 非空 | 买菜 |\n| 任务 | 截止 | date | 未来 | 今天 |\n" +
+        "\n## 5. 页面清单\n\n| 页面 | 页面ID | 目的 | 关键元素 |\n| --- | --- | --- | --- |\n" +
+        "| 看板页 | board | 看板 | 卡片列 |\n\n### board 交互明细\n\n- 拖拽 → 状态流转\n- 新建 → 弹窗表单\n" +
+        "\n## 6. 非功能需求\n\n## 7. 验收标准\n\n- [ ] a\n- [ ] b\n- [ ] c\n- [ ] d\n- [ ] e\n\n## 8. 待确认",
     })
   );
   assert.equal(result.ok, true);

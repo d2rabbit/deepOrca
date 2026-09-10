@@ -77,10 +77,64 @@ const REF_SPEC = "# 权限角色 PRD\n\n## 权限矩阵\n\n- 行/列";
 const PARENT: FakeSuite = { kind: "prototype", title: "人员管理 PRD", content: { spec: PARENT_SPEC } };
 const REF: FakeSuite = { kind: "prototype", title: "权限角色 PRD", content: { spec: REF_SPEC } };
 
+const PD_DEEP_FIELDS = [
+  "## 1. 背景与目标",
+  "",
+  "## 2. 用户与场景",
+  "",
+  "## 3. 功能需求",
+  "",
+  "| 模块 | 需求 | 优先级 | 交互要点 |",
+  "| --- | --- | --- | --- |",
+  "| 账号登录 | 登录 | P0 | 失败内联 |",
+  "| 会话保持 | token | P1 | 过期回登录 |",
+  "| 登出 | 清除 | P2 | 确认 |",
+  "",
+  "## 4. 数据与字段",
+  "",
+  "| 实体 | 字段 | 类型 | 校验 | 示例 |",
+  "| --- | --- | --- | --- | --- |",
+  "| 用户 | 姓名 | string | 非空 | 张三 |",
+  "| 用户 | 邮箱 | string | email | a@b.c |",
+  "",
+  "## 5. 页面清单",
+  "",
+  "| 页面 | 页面ID | 目的 | 关键元素 |",
+  "| --- | --- | --- | --- |",
+  "| 登录页 | login | 登录 | 表单 |",
+  "",
+  "### login 交互明细",
+  "",
+  "- 提交 → 校验并跳转",
+  "- 失败 → 内联错误条",
+  "",
+  "## 6. 非功能需求",
+  "",
+  "## 7. 验收标准",
+  "",
+  "- [ ] a",
+  "- [ ] b",
+  "- [ ] c",
+  "- [ ] d",
+  "- [ ] e",
+  "",
+  "## 8. 待确认",
+].join("\n");
+const PD_DEEP_FENCED = "```markdown\n# 登录 PRD 深度完整\n\n" + PD_DEEP_FIELDS + "\n```";
+
 test("prototype.spec injects inherited/referenced PRD full texts and stamps theme meta via render_spec", async () => {
   const mcpCalls: McpCall[] = [];
   const subagentCalls: RunSubagentOptions[] = [];
-  const generated = "```markdown\n# 登录 PRD\n\n## 用户与场景\n\n- 登录/鉴权\n```";
+  const generated =
+    "```markdown\n# 登录 PRD\n\n## 用户与场景\n\n- 登录/鉴权\n" +
+    "\n## 1. 背景与目标\n\n## 3. 功能需求\n\n" +
+    "| 模块 | 需求 | 优先级 | 交互要点 |\n| --- | --- | --- | --- |\n" +
+    "| 账号登录 | 登录 | P0 | 失败内联 |\n| 会话保持 | token | P1 | 过期回登录 |\n| 登出 | 清除 | P2 | 确认 |\n" +
+    "\n## 4. 数据与字段\n\n| 实体 | 字段 | 类型 | 校验 | 示例 |\n| --- | --- | --- | --- | --- |\n" +
+    "| 用户 | 姓名 | string | 非空 | 张三 |\n| 用户 | 邮箱 | string | email | a@b.c |\n" +
+    "\n## 5. 页面清单\n\n| 页面 | 页面ID | 目的 | 关键元素 |\n| --- | --- | --- | --- |\n" +
+    "| 登录页 | login | 登录 | 表单 |\n\n### login 交互明细\n\n- 提交 → 校验并跳转\n- 失败 → 内联错误条\n" +
+    "\n## 6. 非功能需求\n\n## 7. 验收标准\n\n- [ ] a\n- [ ] b\n- [ ] c\n- [ ] d\n- [ ] e\n\n## 8. 待确认\n```";
   const ctx = makeCtx({ parent: PARENT, ref: REF }, { generatedQueue: [generated], mcpCalls, subagentCalls });
   const result = await prototypeSpecRun(
     {
@@ -118,13 +172,60 @@ test("prototype.spec truncates per-doc at 8K and lists overflow refs as titles-o
   const third: FakeSuite = { kind: "prototype", title: "第三篇 PRD", content: { spec: "C".repeat(200) } };
   const mcpCalls: McpCall[] = [];
   const subagentCalls: RunSubagentOptions[] = [];
+  const deepBase = [
+    "```markdown",
+    "# 登录 PRD",
+    "",
+    "## 1. 背景与目标",
+    "",
+    "## 2. 用户与场景",
+    "",
+    "## 3. 功能需求",
+    "",
+    "| 模块 | 需求 | 优先级 | 交互要点 |",
+    "| --- | --- | --- | --- |",
+    "| 账号登录 | 登录 | P0 | 失败内联 |",
+    "| 会话保持 | token | P1 | 过期回登录 |",
+    "| 登出 | 清除 | P2 | 确认 |",
+    "",
+    "## 4. 数据与字段",
+    "",
+    "| 实体 | 字段 | 类型 | 校验 | 示例 |",
+    "| --- | --- | --- | --- | --- |",
+    "| 用户 | 姓名 | string | 非空 | 张三 |",
+    "| 用户 | 邮箱 | string | email | a@b.c |",
+    "",
+    "## 5. 页面清单",
+    "",
+    "| 页面 | 页面ID | 目的 | 关键元素 |",
+    "| --- | --- | --- | --- |",
+    "| 登录页 | login | 登录 | 表单 |",
+    "",
+    "### login 交互明细",
+    "",
+    "- 提交 → 校验并跳转",
+    "- 失败 → 内联错误条",
+    "",
+    "## 6. 非功能需求",
+    "",
+    "## 7. 验收标准",
+    "",
+    "- [ ] a",
+    "- [ ] b",
+    "- [ ] c",
+    "- [ ] d",
+    "- [ ] e",
+    "",
+    "## 8. 待确认",
+    "```",
+  ].join("\n");
   const ctx = makeCtx(
     {
       big: { kind: "prototype", title: "大 PRD", content: { spec: big } },
       medium: { kind: "prototype", title: "中 PRD", content: { spec: medium } },
       third,
     },
-    { generatedQueue: ["```markdown\n# X\n```"], mcpCalls, subagentCalls }
+    { generatedQueue: [deepBase], mcpCalls, subagentCalls }
   );
   const result = await prototypeSpecRun(
     {
@@ -156,7 +257,7 @@ test("prototype.spec lists over-budget refs as titles-only beyond the 24K total"
       large: { kind: "prototype", title: "大二号 PRD", content: { spec: large } },
       fourth: { kind: "prototype", title: "第四篇 PRD", content: { spec: "D" } },
     },
-    { generatedQueue: ["```markdown\n# X\n```"], subagentCalls }
+    { generatedQueue: [PD_DEEP_FENCED], subagentCalls }
   );
   const result = await prototypeSpecRun(
     {
@@ -173,7 +274,7 @@ test("prototype.spec lists over-budget refs as titles-only beyond the 24K total"
 
 test("prototype.spec skips missing references without failing", async () => {
   const subagentCalls: RunSubagentOptions[] = [];
-  const ctx = makeCtx({ parent: PARENT }, { generatedQueue: ["```markdown\n# X\n```"], subagentCalls });
+  const ctx = makeCtx({ parent: PARENT }, { generatedQueue: [PD_DEEP_FENCED], subagentCalls });
   const result = await prototypeSpecRun(
     { requirement: "x", inheritsFrom: { suiteId: "gone" }, references: [{ suiteId: "also-gone" }] },
     ctx
@@ -186,16 +287,23 @@ test("prototype.spec skips missing references without failing", async () => {
 
 test("prototype.spec without references keeps the prompt byte-identical to the pre-theme-layer baseline", async () => {
   const subagentCalls: RunSubagentOptions[] = [];
-  const ctx = makeCtx({ parent: PARENT }, { generatedQueue: ["```markdown\n# X\n```"], subagentCalls });
+  const ctx = makeCtx({ parent: PARENT }, { generatedQueue: [PD_DEEP_FENCED], subagentCalls });
   await prototypeSpecRun({ requirement: "做一个登录模块" }, ctx);
-  assert.equal(
-    subagentCalls[0]?.prompt,
-    "Write the complete structured PRD for the requirement below, following the spec-writer document " +
-      "contract exactly. Do not call tools. " +
-      "Return only the complete markdown document in one markdown code fence.\n\n" +
-      "做一个登录模块",
-    "no reference block — the prompt must not jitter"
+  // 无参考时：提示词 = 头部 + 骨架 + 需求（参考区块缺省不注入）。
+  // 骨架单源 SPEC_SKELETON——这里锚定头部与需求段，证明参考区块未注入。
+  const prompt = subagentCalls[0]?.prompt ?? "";
+  assert.ok(
+    prompt.startsWith(
+      "Write the complete structured PRD for the requirement below. Fill the EXACT skeleton below " +
+        "section-for-section — do not rename, reorder, or drop sections; replace every <placeholder> " +
+        "with concrete content. Do not call tools. " +
+        "Return only the complete markdown document in one markdown code fence.\n\n" +
+        "## 骨架（逐节填充）\n"
+    ),
+    "skeleton-inlined head preserved"
   );
+  assert.ok(prompt.endsWith("做一个登录模块"), "requirement is the tail — reference block absent");
+  assert.ok(!prompt.includes("参考 PRD"), "no reference block injected without references");
 });
 
 test("design.materialize carries the basis prototype's theme fields into render_leafer", async () => {

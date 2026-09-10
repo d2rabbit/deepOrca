@@ -15,6 +15,7 @@ import {
   prototypeMaterializeRun,
   prototypePdDesignRun,
   prototypeSpecRun,
+  specSectionsAudit,
 } from "../actions";
 import { NULL_SPAWNER } from "../actions/types";
 import type { ActionContext, RunSubagentOptions } from "../actions/types";
@@ -410,7 +411,9 @@ test("reference block hard-caps overflow title lines (cross-review fix)", async 
   for (let i = 0; i < 40; i += 1) {
     suites[`ref-${i}`] = { kind: "prototype", title: `参考 ${i}`, content: { spec: "D" } };
   }
-  const ctx = makeCtx(suites, { generatedQueue: ["```markdown\n# X\n```"], subagentCalls });
+  // 队列尾用深度完整文档——深度门放行，本测试钉的是参考区块溢出钳制。
+  const deepDoc = `\`\`\`markdown\n${PD_DEEP}\n\`\`\``;
+  const ctx = makeCtx(suites, { generatedQueue: [deepDoc], subagentCalls });
   const result = await prototypeSpecRun(
     {
       requirement: "x",
@@ -429,3 +432,158 @@ test("reference block hard-caps overflow title lines (cross-review fix)", async 
   assert.equal(overflowLines.length, 20, "overflow title lines hard-capped at 20");
   assert.ok(prompt.includes("另有 20 条参考超出预算，已省略"), "remaining refs collapse into one omission line");
 });
+
+// ── PRD 深度机械门（交叉审查：历次契约强化失效根因——无机械执行）──────────────
+
+test("specSectionsAudit: complete deep PRD passes with zero findings", async () => {
+  const { specSectionsAudit } = await import("../actions");
+  const deep = [
+    "# 登录 PRD",
+    "",
+    "## 1. 背景与目标",
+    "",
+    "## 2. 用户与场景",
+    "",
+    "## 3. 功能需求",
+    "",
+    "| 模块 | 需求 | 优先级 | 交互要点 |",
+    "| --- | --- | --- | --- |",
+    "| 账号登录 | 账号密码登录 | P0 | 失败内联提示 |",
+    "| 会话保持 | token 存储 | P1 | 过期回登录 |",
+    "| 登出 | 清除会话 | P2 | 确认弹窗 |",
+    "",
+    "## 4. 数据与字段",
+    "",
+    "| 实体 | 字段 | 类型 | 校验 | 示例 |",
+    "| --- | --- | --- | --- | --- |",
+    "| 用户 | 姓名 | string | 非空 | 张三 |",
+    "| 用户 | 邮箱 | string | email 格式 | a@b.c |",
+    "",
+    "## 5. 页面清单",
+    "",
+    "| 页面 | 页面ID | 目的 | 关键元素 |",
+    "| --- | --- | --- | --- |",
+    "| 登录页 | login | 登录 | 表单 |",
+    "",
+    "### login 交互明细",
+    "",
+    "- 提交 → 校验并跳转",
+    "- 失败 → 内联错误条",
+    "",
+    "## 6. 非功能需求",
+    "",
+    "## 7. 验收标准",
+    "",
+    "- [ ] a",
+    "- [ ] b",
+    "- [ ] c",
+    "- [ ] d",
+    "- [ ] e",
+    "",
+    "## 8. 待确认",
+  ].join("\n");
+  assert.deepEqual(specSectionsAudit(deep), [], "complete deep PRD has zero findings");
+});
+
+test("specSectionsAudit: thin PRD produces specific findings per missing depth", async () => {
+  const { specSectionsAudit } = await import("../actions");
+  const thin = "# 登录\n\n## 功能需求\n\n- 支持登录\n\n## 验收标准\n\n- [ ] 能登录";
+  const findings = specSectionsAudit(thin);
+  assert.ok(
+    findings.some((f) => f.includes("背景与目标")),
+    "missing sections flagged"
+  );
+  assert.ok(
+    findings.some((f) => f.includes("数据与字段")),
+    "missing entity table flagged"
+  );
+  assert.ok(
+    findings.some((f) => f.includes("页面清单")),
+    "missing page list flagged"
+  );
+  assert.ok(
+    findings.some((f) => f.includes("验收标准")),
+    "thin acceptance flagged"
+  );
+});
+
+test("prototype.spec runs the depth-gate repair round with findings (cross-review)", async () => {
+  const mcpCalls: McpCall[] = [];
+  const subagentCalls: RunSubagentOptions[] = [];
+  const thin = "```markdown\n# 登录 PRD\n\n## 功能需求\n\n- 支持登录\n```";
+  const deep = `\`\`\`markdown\n${PD_DEEP}\n\`\`\``;
+  const ctx = makeCtx({}, { generatedQueue: [thin, deep], mcpCalls, subagentCalls });
+  const result = await prototypeSpecRun({ requirement: "登录模块" }, ctx);
+  assert.ok(result.ok, `spec must succeed after repair: ${result.ok ? "" : (result as { error?: string }).error}`);
+  // 两轮子代理：首轮薄文档 → 深度门拦截 → 携 findings 修复。
+  assert.equal(subagentCalls.length, 2);
+  assert.match(subagentCalls[1]?.prompt ?? "", /FAILED the depth audit/);
+  assert.match(subagentCalls[1]?.prompt ?? "", /缺少「背景与目标」节/);
+  const save = mcpCalls.find((call) => call.name.endsWith("render_spec"));
+  assert.match(String(save?.args.document ?? ""), /# 登录 PRD 深度完整/);
+});
+
+test("prototype.spec inlines the skeleton in the first-round prompt", async () => {
+  const subagentCalls: RunSubagentOptions[] = [];
+  const ctx = makeCtx(
+    {},
+    {
+      generatedQueue: [
+        "```markdown\n# X\n```",
+        "```markdown\n# X 深度版\n\n## 页面清单\n\n### p 交互明细\n\n- a → b\n- c → d\n```",
+      ],
+      subagentCalls,
+    }
+  );
+  await prototypeSpecRun({ requirement: "登录模块" }, ctx);
+  const prompt = subagentCalls[0]?.prompt ?? "";
+  assert.match(prompt, /## 骨架（逐节填充）/);
+  assert.match(prompt, /逐页交互明细/);
+  assert.match(prompt, /数据与字段/);
+});
+
+const PD_DEEP = [
+  "# 登录 PRD 深度完整",
+  "",
+  "## 1. 背景与目标",
+  "",
+  "## 2. 用户与场景",
+  "",
+  "## 3. 功能需求",
+  "",
+  "| 模块 | 需求 | 优先级 | 交互要点 |",
+  "| --- | --- | --- | --- |",
+  "| 账号登录 | 登录 | P0 | 失败内联 |",
+  "| 会话保持 | token | P1 | 过期回登录 |",
+  "| 登出 | 清除 | P2 | 确认 |",
+  "",
+  "## 4. 数据与字段",
+  "",
+  "| 实体 | 字段 | 类型 | 校验 | 示例 |",
+  "| --- | --- | --- | --- | --- |",
+  "| 用户 | 姓名 | string | 非空 | 张三 |",
+  "| 用户 | 邮箱 | string | email | a@b.c |",
+  "",
+  "## 5. 页面清单",
+  "",
+  "| 页面 | 页面ID | 目的 | 关键元素 |",
+  "| --- | --- | --- | --- |",
+  "| 登录页 | login | 登录 | 表单 |",
+  "",
+  "### login 交互明细",
+  "",
+  "- 提交 → 校验并跳转",
+  "- 失败 → 内联错误条",
+  "",
+  "## 6. 非功能需求",
+  "",
+  "## 7. 验收标准",
+  "",
+  "- [ ] a",
+  "- [ ] b",
+  "- [ ] c",
+  "- [ ] d",
+  "- [ ] e",
+  "",
+  "## 8. 待确认",
+].join("\n");

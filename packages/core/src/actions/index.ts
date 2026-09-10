@@ -181,6 +181,7 @@ export {
   prototypeSpecRun,
   prototypePdDesignDefinition,
   prototypePdDesignRun,
+  specSectionsAudit,
   prototypeMaterializeDefinition,
   prototypeMaterializeRun,
   prototypeVerifyDefinition,

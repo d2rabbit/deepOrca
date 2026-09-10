@@ -430,6 +430,57 @@ export async function repairOpenuiProgram(
   }
 }
 
+/** specs/prompt-doc-chain 交叉审查追加：PRD 骨架单源（SKILL.md 撤模板改引用，
+ *  生成提示词内联——弱模型"填空"远强于"读文档自由发挥"）。 */
+export const SPEC_SKELETON = `# <产品/功能名称> 需求文档
+
+| 项目 | 内容 |
+| --- | --- |
+| 产品定位 | 一句话:为<谁>解决<什么问题> |
+| **目标平台** | **必填**:\`web\` / \`mobile\` / \`tablet\` / \`desktop-app\` / 组合式。从需求推断;推断不出→写 [TODO: 待确认目标平台] 并加入待确认节,**不得编造** |
+| 重要性 / 紧迫性 | 高/中/低 |
+| 需求方 | 从上下文推断,否则 [TODO] |
+| 文档日期 | <当天日期> |
+
+## 1. 背景与目标
+
+（目标 / 度量 / 目标值 表,2-3 行）
+
+## 2. 用户与场景
+
+（角色表 + 核心场景表）
+
+## 3. 功能需求
+
+（功能清单表:模块 / 需求描述 / 优先级 P0-P2 / 交互要点。每条具体可测;
+ 空态 / 加载 / 失败与重试逐条覆盖。）
+
+## 4. 数据与字段
+
+（核心数据实体表:实体 / 字段 / 类型 / 校验与约束 / 示例。每个页面展示、
+ 编辑或过滤的核心实体都必须有字段级定义。）
+
+## 5. 页面清单
+
+（页面清单表:页面 / 页面ID / 目的 / 关键元素与操作。页面ID 必填——
+ 英文 kebab/camel,是原型程序 $page 的取值。附 Mermaid 页面导航图。
+
+### <页面ID> 逐页交互明细
+
+（每个页面一小节,逐条 \`状态/事件 → 行为\` 行,含空态/加载/错误三态。）
+
+## 6. 非功能需求
+
+（表格:类别 / 要求 / 度量;无内容写"无特殊要求"。）
+
+## 7. 验收标准
+
+（可勾选验收点 5-10 条 - [ ],覆盖每个 P0,每条"操作 → 预期可见结果"。）
+
+## 8. 待确认
+
+（开放问题列表,没有则写"无"。）`;
+
 export interface PrototypeSpecInput {
   requirement: string;
   suiteId?: string;
@@ -565,6 +616,66 @@ async function collectSpecReferenceBlock(
   return lines.join("\n");
 }
 
+// ── PRD 深度机械门（specs/prompt-doc-chain 交叉审查追加）────────────────────
+// 历次"契约强化"失效的根因：深度要求全在 SKILL.md，落盘门只查"有任意标题"，
+// 弱模型薄文档 100% 过门。此审计把深度变成可机械判定的结构事实，不过=带
+// findings 修复一轮。
+
+/** 单篇参考 PRD 的深度审计结论（findings 为空 = 达标）。 */
+export function specSectionsAudit(markdown: string): string[] {
+  const findings: string[] = [];
+  const has = (re: RegExp): boolean => re.test(markdown);
+  for (const section of ["背景与目标", "用户与场景", "功能需求", "数据与字段", "页面清单", "验收标准", "待确认"]) {
+    if (!has(new RegExp(`^##\\s+.*${section}`, "m"))) {
+      findings.push(`缺少「${section}」节`);
+    }
+  }
+  // 功能需求表：≥3 行数据行且至少 1 条 P0。
+  const fnSection = sectionBody(markdown, "功能需求");
+  const fnRows = fnSection ? (fnSection.match(/^\|(?!--)[^|]*\|/gm) ?? []).length : 0;
+  if (fnRows < 3) findings.push(`功能需求表仅有 ${fnRows} 行（需 ≥3 行模块/描述/优先级）`);
+  if (fnSection && !/P0/.test(fnSection)) findings.push("功能需求缺少 P0 优先级条目");
+  // 数据与字段：至少一张实体表 ≥2 数据行。
+  const dataSection = sectionBody(markdown, "数据与字段");
+  const dataRows = dataSection ? (dataSection.match(/^\|(?!--)[^|]*\|/gm) ?? []).length : 0;
+  if (dataRows < 3)
+    findings.push(`数据与字段节缺实体字段表（仅 ${dataRows} 行，需实体/字段/类型/校验/示例 ≥2 数据行）`);
+  // 页面清单：每页面ID 有 ### 明细节且 ≥2 条交互行。
+  const pageList = parsePageList(markdown);
+  if (pageList && pageList.hasIds) {
+    for (const page of pageList.pages) {
+      if (!page.id) continue;
+      const detailRe = new RegExp(`^###\\s+.*${page.id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "m");
+      if (!detailRe.test(markdown)) {
+        findings.push(`页面 ${page.name}(${page.id}) 缺「### ${page.id} 交互明细」小节`);
+        continue;
+      }
+      const detailBody = sectionBody(markdown, page.id);
+      const interactionLines = detailBody ? (detailBody.match(/→/g) ?? []).length : 0;
+      if (interactionLines < 2) findings.push(`页面 ${page.id} 交互明细不足（需 ≥2 条 状态/事件 → 行为）`);
+    }
+  }
+  // 验收标准：≥5 可勾选项。
+  const acceptSection = sectionBody(markdown, "验收标准");
+  const checkboxes = acceptSection ? (acceptSection.match(/^-\s*\[\s*\]/gm) ?? []).length : 0;
+  if (checkboxes < 5) findings.push(`验收标准仅 ${checkboxes} 条可勾选项（需 ≥5 条覆盖 P0）`);
+  return findings;
+}
+
+/** 提取指定标题节的正文（到下一个同级或更高级标题为止）。 */
+function sectionBody(markdown: string, sectionTitle: string): string | null {
+  const start = markdown.search(new RegExp(`^#{1,6}\\s+.*${sectionTitle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`, "m"));
+  if (start === -1) return null;
+  const rest = markdown.slice(start);
+  // 节体从标题行的换行符之后开始——不能用 slice(1)（砍掉一个 # 后标题行
+  // 余部仍匹配 ^#{1,3}，节体会截断在标题行自身，行数统计恒为 0）。
+  const bodyStart = rest.indexOf("\n");
+  if (bodyStart === -1) return "";
+  const body = rest.slice(bodyStart + 1);
+  const next = body.search(/^#{1,3}\s+/m);
+  return next === -1 ? body : body.slice(0, next);
+}
+
 // ── 提示词文档链（specs/prompt-doc-chain）：pd-design.md ─────────────────────
 /** pd-design.md 的产出契约：可执行的提示词文档（写给原型生成器的指令），
  *  不是 PRD 复述。 */
@@ -632,29 +743,73 @@ export const prototypeSpecRun: ActionRun<PrototypeSpecInput, PrototypeSpecOutput
   });
   try {
     const referenceBlock = await collectSpecReferenceBlock(ctx, input?.inheritsFrom, input?.references);
+    // specs/prompt-doc-chain 交叉审查：骨架内联（单源 SPEC_SKELETON——
+    // SKILL.md 撤模板改方法论，防漂移顾虑由单源化消除）。弱模型"填空"
+    // 远强于"读文档自由发挥"——这是历次契约强化失效后的机械补强第一半。
     const generated = await ctx.runSubagent({
       skill: "spec-writer",
       prompt:
-        // 提示词只指到技能契约,不逐字复述节名(节名与技能文档漂移就是当初
-        // "两份矛盾清单"的根因)。管线模式由"Do not call tools"声明:持久化
-        // 由本 action 通过 render_spec 完成,子代理只回文档。
-        "Write the complete structured PRD for the requirement below, following the spec-writer document " +
-        "contract exactly. Do not call tools. " +
+        "Write the complete structured PRD for the requirement below. " +
+        "Fill the EXACT skeleton below section-for-section — do not rename, reorder, or drop " +
+        "sections; replace every <placeholder> with concrete content. " +
+        "Do not call tools. " +
         "Return only the complete markdown document in one markdown code fence.\n\n" +
+        "## 骨架（逐节填充）\n" +
+        SPEC_SKELETON +
+        "\n\n## 需求\n" +
         requirement +
-        // 参考区块（specs/prd-theme-layer）：仅在携带继承/交叉参考时注入——
-        // 无参考时与既有提示词字节一致。
         (referenceBlock ? `\n${referenceBlock}` : ""),
       silent: true,
     });
     // PRD 内嵌 ```mermaid 图(标准化格式),必须用嵌套围栏感知抽取,否则文档
     // 在第一张图处被截断且 looksLikeSpecDocument 拦不住(任意标题即过)。
-    const document = extractMarkdownDocument(generated);
+    let document = extractMarkdownDocument(generated);
     if (!document || !looksLikeSpecDocument(document)) {
       return {
         ok: false,
         error: "spec-writer returned an empty or section-less requirements document (truncated output?) — regenerate",
       };
+    }
+    // 深度机械门（交叉审查追加）：结构不全 → 带 findings 修复一轮（机械补强
+    // 第二半）。与 openui 修复环同构：fail-closed,两轮耗尽仍薄则拒绝落盘。
+    let findings = specSectionsAudit(document);
+    if (findings.length > 0) {
+      ctx.emit({
+        message: `PRD depth gate: repairing ${findings.length} finding(s)`,
+        percent: 55,
+        data: { code: "prototype.spec.repairing" },
+      });
+      const findingsText = findings.map((finding) => `- ${finding}`).join("\n");
+      const repaired = await ctx.runSubagent({
+        skill: "spec-writer",
+        prompt:
+          "The PRD below FAILED the depth audit. Fix EVERY finding by expanding the document in place — " +
+          "keep all existing correct content, fill the missing sections/tables/details. " +
+          "Do not call tools. Return only the complete corrected markdown document in one markdown code fence.\n\n" +
+          "## 深度审计 findings\n" +
+          findingsText +
+          "\n\n## 当前 PRD\n" +
+          document,
+        silent: true,
+      });
+      const repairedDocument = extractMarkdownDocument(repaired);
+      if (!repairedDocument || !looksLikeSpecDocument(repairedDocument)) {
+        return {
+          ok: false,
+          error:
+            "spec-writer repair round returned an unusable document — " + `original findings: ${findings.join("; ")}`,
+        };
+      }
+      const remaining = specSectionsAudit(repairedDocument);
+      if (remaining.length > 0) {
+        return {
+          ok: false,
+          error: `PRD depth gate still failing after repair: ${remaining.join("; ")}`,
+        };
+      }
+      // 修复产物替换落盘文档——否则修复轮白跑，薄文档原样持久化。
+      document = repairedDocument;
+      findings = remaining;
     }
     if (ctx.signal.aborted) return { ok: false, error: "cancelled" };
     const saved = await executeA2ui(ctx, "render_spec", {

@@ -9,6 +9,8 @@ import type { MessageKey } from "../../i18n/messages";
 const PROGRESS_KEYS: Record<string, MessageKey> = {
   "prototype.spec.generating": "prototypeWorkspace.progressSpec",
   "prototype.spec.saved": "prototypeWorkspace.progressSpecSaved",
+  // specs/prompt-doc-chain 交叉审查：PRD 深度门修复轮。
+  "prototype.spec.repairing": "prototypeWorkspace.progressRepair",
   "prototype.materialize.repairing": "prototypeWorkspace.progressRepair",
   "prototype.revise.repairing": "prototypeWorkspace.progressRepair",
   // WP2.5:design 线也过修复环,同款进度文案。
