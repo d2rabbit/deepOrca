@@ -33,4 +33,4 @@
 - [ ] core 测试（pddesign/stage0/失效/ui-design stage/降级字节不变/revise 注入）+ mutation check
 - [ ] a2ui/store/渲染测试
 - [ ] `npm run check` + `npm test` 全绿，分批提交
-- [ ] 真机走查（与 PRD 主题层走查合并执行）
+- [x] 真机走查（与 PRD 主题层走查合并执行）——2026-09-11 p-core 实测：stage0 自动蒸馏/手动重算（EARS 3 重置语义）/提示词视图/ui-design 落盘/基底重算后再物化全过
