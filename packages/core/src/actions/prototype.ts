@@ -76,11 +76,24 @@ export interface UiSuiteContent {
   designSystemId?: string;
 }
 
+/** specs/prd-theme-layer：PRD 主题关系引用（指向另一套件；versionId 省略 =
+ *  跟随其 head）。与 desktop 侧 shared/ipc 的同构类型保持一致。 */
+export interface DesignThemeRef {
+  suiteId: string;
+  versionId?: string;
+}
+
 interface SuiteVersionPayload {
   artifactRef: ArtifactRef;
   title: string;
   status: string;
   content: PrototypeSuiteContent | UiSuiteContent;
+  /** specs/prd-theme-layer：read_suite_version 载荷附带的套件 meta 主题字段
+   *  （design.materialize 由此透传给 UI 套件）。 */
+  themeId?: string;
+  stage?: string;
+  inherits?: DesignThemeRef;
+  references?: DesignThemeRef[];
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -241,9 +254,9 @@ async function executeA2ui(
 export async function readSuiteVersion(
   ctx: ActionContext,
   suiteId: string,
-  versionId: string
+  versionId?: string
 ): Promise<{ ok: true; value: SuiteVersionPayload } | { ok: false; error: string }> {
-  const result = await executeA2ui(ctx, "read_suite_version", { suiteId, versionId });
+  const result = await executeA2ui(ctx, "read_suite_version", { suiteId, ...(versionId ? { versionId } : {}) });
   if (!result.ok) return result;
   const payload = parseJsonRecord(result.output);
   if (!payload || !isRecord(payload.artifactRef) || !isRecord(payload.content)) {
@@ -264,6 +277,27 @@ export async function readSuiteVersion(
       title: typeof payload.title === "string" ? payload.title : "Untitled",
       status: typeof payload.status === "string" ? payload.status : "draft",
       content: payload.content as PrototypeSuiteContent | UiSuiteContent,
+      // 套件 meta 主题字段（specs/prd-theme-layer）——宽松解析，缺失即省略。
+      ...(typeof payload.themeId === "string" ? { themeId: payload.themeId } : {}),
+      ...(typeof payload.stage === "string" ? { stage: payload.stage } : {}),
+      ...(isRecord(payload.inherits) && typeof payload.inherits.suiteId === "string"
+        ? {
+            inherits: {
+              suiteId: payload.inherits.suiteId,
+              ...(typeof payload.inherits.versionId === "string" ? { versionId: payload.inherits.versionId } : {}),
+            },
+          }
+        : {}),
+      ...(Array.isArray(payload.references)
+        ? {
+            references: payload.references
+              .filter((item) => isRecord(item) && typeof item.suiteId === "string")
+              .map((item) => ({
+                suiteId: String(item.suiteId),
+                ...(isRecord(item) && typeof item.versionId === "string" ? { versionId: String(item.versionId) } : {}),
+              })),
+          }
+        : {}),
     },
   };
 }
@@ -393,6 +427,12 @@ export interface PrototypeSpecInput {
   suiteId?: string;
   baseVersionId?: string;
   note?: string;
+  /** specs/prd-theme-layer：主题归属 + 阶段 + 继承/交叉参考（随 render_spec
+   *  落套件 meta；参考 PRD 全文注入生成提示词）。 */
+  themeId?: string;
+  stage?: string;
+  inheritsFrom?: DesignThemeRef;
+  references?: DesignThemeRef[];
 }
 
 export interface PrototypeSpecOutput {
@@ -414,12 +454,92 @@ export const prototypeSpecDefinition: ActionDefinition<PrototypeSpecInput> = {
       suiteId: { type: "string", description: "Prototype suite to revise; omit for a new suite" },
       baseVersionId: { type: "string", description: "Immutable suite version used as the revision base" },
       note: { type: "string", description: "Optional version note" },
+      themeId: { type: "string", description: "PRD theme id (specs/prd-theme-layer) — must be an existing theme" },
+      stage: { type: "string", description: "Phase label within the theme (display only, e.g. 'Phase 1')" },
+      inheritsFrom: {
+        type: "object",
+        properties: {
+          suiteId: { type: "string", description: "PRD suite this one inherits from" },
+          versionId: { type: "string", description: "Pinned version; omit to follow its head" },
+        },
+        required: ["suiteId"],
+        additionalProperties: false,
+        description: "PRD whose terminology/roles/architecture this one inherits",
+      },
+      references: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            suiteId: { type: "string", description: "Cross-referenced PRD suite" },
+            versionId: { type: "string", description: "Pinned version; omit to follow its head" },
+          },
+          required: ["suiteId"],
+          additionalProperties: false,
+        },
+        description: "Cross-referenced PRD suites consulted as design references",
+      },
     },
     required: ["requirement"],
     additionalProperties: false,
   },
   sideEffects: ["write-in-cwd"],
 };
+
+// ── PRD 主题层（specs/prd-theme-layer）：参考 PRD 全文注入 ────────────────────
+// 单篇预算/总预算（字符）：参考是上下文，不是要复制的产物——预算防失控，
+// 截断处标注让模型知道不完整。
+const SPEC_REFERENCE_PER_DOC_BUDGET = 8000;
+const SPEC_REFERENCE_TOTAL_BUDGET = 24000;
+
+function truncateBudgeted(text: string, budget: number): string {
+  return text.length <= budget ? text : `${text.slice(0, budget)}\n…[已截断：参考全文超出单篇预算]`;
+}
+
+/** 拉取继承/交叉参考 PRD 的 spec 全文并装配"参考 PRD"提示词区块。任何参考
+ *  缺失（套件/版本不可用、无 spec、超总预算）都降级为缺失/标题行，绝不阻断
+ *  生成；无任何参考时返回空串——提示词保持与无主题层时字节一致（无抖动）。 */
+async function collectSpecReferenceBlock(
+  ctx: ActionContext,
+  inheritsFrom: DesignThemeRef | undefined,
+  references: DesignThemeRef[] | undefined
+): Promise<string> {
+  const entries: Array<{ label: string; ref: DesignThemeRef }> = [];
+  if (inheritsFrom?.suiteId?.trim()) entries.push({ label: "继承", ref: inheritsFrom });
+  for (const ref of references ?? []) {
+    if (ref.suiteId?.trim()) entries.push({ label: "交叉参考", ref });
+  }
+  if (entries.length === 0) return "";
+  const lines: string[] = ["", "## 参考 PRD（设计参考上下文）"];
+  let used = 0;
+  for (const entry of entries) {
+    if (used >= SPEC_REFERENCE_TOTAL_BUDGET) {
+      lines.push(`### ${entry.label}（超出总预算，仅列标题）：${entry.ref.suiteId}`);
+      continue;
+    }
+    const read = await readSuiteVersion(ctx, entry.ref.suiteId, entry.ref.versionId);
+    if (!read.ok || read.value.artifactRef.kind !== "prototype") {
+      lines.push(
+        `### 参考缺失：${entry.label} ${entry.ref.suiteId}${entry.ref.versionId ? ` @ ${entry.ref.versionId}` : ""}（套件或版本不可用，已跳过）`
+      );
+      continue;
+    }
+    const spec =
+      "spec" in read.value.content && typeof read.value.content.spec === "string" ? read.value.content.spec.trim() : "";
+    if (!spec) {
+      lines.push(`### 参考缺失：${entry.label} ${read.value.title}（该 PRD 无需求文档，已跳过）`);
+      continue;
+    }
+    const body = truncateBudgeted(spec, Math.min(SPEC_REFERENCE_PER_DOC_BUDGET, SPEC_REFERENCE_TOTAL_BUDGET - used));
+    used += body.length;
+    lines.push(
+      `### ${entry.label}：${read.value.title}（${entry.ref.suiteId}${entry.ref.versionId ? ` @ ${entry.ref.versionId}` : " @ head"}）`
+    );
+    lines.push(body);
+  }
+  lines.push("约束：延续参考 PRD 的术语/角色/架构约定，不复制其内容；与本次需求冲突时以本次需求为准。");
+  return lines.join("\n");
+}
 
 export const prototypeSpecRun: ActionRun<PrototypeSpecInput, PrototypeSpecOutput> = async (input, ctx) => {
   const requirement = input?.requirement?.trim();
@@ -435,6 +555,7 @@ export const prototypeSpecRun: ActionRun<PrototypeSpecInput, PrototypeSpecOutput
     data: { code: "prototype.spec.generating" },
   });
   try {
+    const referenceBlock = await collectSpecReferenceBlock(ctx, input?.inheritsFrom, input?.references);
     const generated = await ctx.runSubagent({
       skill: "spec-writer",
       prompt:
@@ -444,7 +565,10 @@ export const prototypeSpecRun: ActionRun<PrototypeSpecInput, PrototypeSpecOutput
         "Write the complete structured PRD for the requirement below, following the spec-writer document " +
         "contract exactly. Do not call tools. " +
         "Return only the complete markdown document in one markdown code fence.\n\n" +
-        requirement,
+        requirement +
+        // 参考区块（specs/prd-theme-layer）：仅在携带继承/交叉参考时注入——
+        // 无参考时与既有提示词字节一致。
+        (referenceBlock ? `\n${referenceBlock}` : ""),
       silent: true,
     });
     // PRD 内嵌 ```mermaid 图(标准化格式),必须用嵌套围栏感知抽取,否则文档
@@ -462,6 +586,25 @@ export const prototypeSpecRun: ActionRun<PrototypeSpecInput, PrototypeSpecOutput
       requirement,
       ...(suiteId ? { suiteId } : {}),
       ...(baseVersionId ? { versionId: baseVersionId } : {}),
+      // 主题字段随 PRD 落套件 meta（specs/prd-theme-layer WP3）。
+      ...(input?.themeId?.trim() ? { themeId: input.themeId.trim() } : {}),
+      ...(input?.stage?.trim() ? { stage: input.stage.trim() } : {}),
+      ...(input?.inheritsFrom?.suiteId?.trim()
+        ? {
+            inheritsSuiteId: input.inheritsFrom.suiteId.trim(),
+            ...(input.inheritsFrom.versionId?.trim() ? { inheritsVersionId: input.inheritsFrom.versionId.trim() } : {}),
+          }
+        : {}),
+      ...(input?.references && input.references.length > 0
+        ? {
+            references: input.references
+              .filter((ref) => ref.suiteId?.trim())
+              .map((ref) => ({
+                suiteId: ref.suiteId.trim(),
+                ...(ref.versionId?.trim() ? { versionId: ref.versionId.trim() } : {}),
+              })),
+          }
+        : {}),
       note: input.note?.trim() || (suiteId ? "prototype specification revision" : "initial prototype specification"),
     });
     if (!saved.ok) return saved;

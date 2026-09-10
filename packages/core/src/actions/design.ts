@@ -43,7 +43,7 @@ import {
   repairOpenuiProgram,
 } from "./prototype";
 import { extractProgramPages } from "../common/openui-pages";
-import type { ArtifactRef, UiSuiteContent } from "./prototype";
+import type { ArtifactRef, DesignThemeRef, UiSuiteContent } from "./prototype";
 
 export interface DesignMaterializeInput {
   requirement?: string;
@@ -149,6 +149,11 @@ export const designMaterializeRun: ActionRun<DesignMaterializeInput, DesignMater
   let prototypeContent: string | null = null;
   let suiteRequirement: string | undefined;
   let sourcePrototype: { suiteId: string; versionId: string } | undefined;
+  // specs/prd-theme-layer：基底原型的主题/关系（read_suite_version 载荷携带
+  // 套件 meta 字段），透传给 UI 套件——UI 设计稿自动继承 PRD 主题。
+  let inheritedTheme:
+    | { themeId?: string; stage?: string; inherits?: DesignThemeRef; references?: DesignThemeRef[] }
+    | undefined;
   if (prototypeSuiteId && prototypeVersionId) {
     const read = await readSuiteVersion(ctx, prototypeSuiteId, prototypeVersionId);
     if (!read.ok) return read;
@@ -159,6 +164,12 @@ export const designMaterializeRun: ActionRun<DesignMaterializeInput, DesignMater
       suiteRequirement = read.value.content.requirement;
     }
     sourcePrototype = { suiteId: prototypeSuiteId, versionId: prototypeVersionId };
+    inheritedTheme = {
+      ...(read.value.themeId ? { themeId: read.value.themeId } : {}),
+      ...(read.value.stage ? { stage: read.value.stage } : {}),
+      ...(read.value.inherits ? { inherits: read.value.inherits } : {}),
+      ...(read.value.references && read.value.references.length > 0 ? { references: read.value.references } : {}),
+    };
     if (!prototypeContent) return { ok: false, error: "selected prototype suite version has no OpenUI content" };
   } else if (prototypeId) {
     prototypeContent = readArtifactFile(ctx.projectRoot, prototypeId, "prototype.openui.txt");
@@ -221,6 +232,24 @@ export const designMaterializeRun: ActionRun<DesignMaterializeInput, DesignMater
       requirement: effectiveRequirement,
       designSystemId,
       ...(sourcePrototype ? { sourcePrototype } : {}),
+      // 主题字段自动继承（specs/prd-theme-layer WP3）：UI 套件 meta 随基底
+      // 原型的主题/关系落地，工作台/目录可后经 IPC 手动改。
+      ...(inheritedTheme?.themeId ? { themeId: inheritedTheme.themeId } : {}),
+      ...(inheritedTheme?.stage ? { stage: inheritedTheme.stage } : {}),
+      ...(inheritedTheme?.inherits
+        ? {
+            inheritsSuiteId: inheritedTheme.inherits.suiteId,
+            ...(inheritedTheme.inherits.versionId ? { inheritsVersionId: inheritedTheme.inherits.versionId } : {}),
+          }
+        : {}),
+      ...(inheritedTheme?.references && inheritedTheme.references.length > 0
+        ? {
+            references: inheritedTheme.references.map((ref) => ({
+              suiteId: ref.suiteId,
+              ...(ref.versionId ? { versionId: ref.versionId } : {}),
+            })),
+          }
+        : {}),
       ...(suiteId ? { suiteId, versionId } : {}),
       ...(input.note?.trim() ? { note: input.note.trim() } : {}),
     });
