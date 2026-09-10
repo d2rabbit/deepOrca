@@ -50,6 +50,12 @@ UI-Design 子域（`design.materialize → lint/review/revise → 导出`）的�
 16. When PM-Design 原型模块（`prototype.*`）运行, the system shall 继续全链路使用 OpenUI Lang——Leafer 不进入原型管线（guard 测试锁定双向边界）。
 17. When design 域动作解析 suite content, the system shall 按 `leafer` 字段存在性路由到 Leafer 栈、`openui` 字段路由到旧栈（字段级双栈共存，suite 级不混写）。
 
+### WP5 — 自检自修复强化与 M3E 方法论内化
+
+18. When materialize/revise 产出结构合法的 Leafer 文档, the system shall 在持久化前运行**确定性自检 gate**（结构校验 ∪ error 级 lint：越界/空场景），gate 未过进入有限次修复环且 fail-closed；warning/info 级发现不触发修复轮（防抖动）。
+19. When 组装 leafer 修订 prompt, the system shall 以**确定性 UI→大纲编译**（`describeLeaferDocument`：几何→语义措辞、元素按稳定 `name` 指代、固定遍历序）与**规范化 JSON** 为基线——同一文档输入产出字节级相同的提示词；修订指令逐字引用（M3E 意图直通）。
+20. When `render_leafer` 持久化, the system shall 规范化文档字符串并以**零 LLM** 方式自动运行确定性 lint、将发现写入 `quality.lintFindings`（review 状态不受影响）。
+
 ## 非目标
 
 - Stitch 借鉴项：自动补缺失屏、设计能力 MCP 化、Agent Manager 式并排对比（P2 独立评估）；

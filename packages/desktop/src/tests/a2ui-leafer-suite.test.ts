@@ -115,6 +115,49 @@ test("render_leafer appends a new head version and refuses prototype suites", as
   }
 });
 
+test("render_leafer canonicalizes the document and auto-populates deterministic lint", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "a2ui-leafer-canonical-"));
+  roots.push(root);
+  const client = await clientFor(root);
+  try {
+    // Pretty-printed input with key jitter — storage must be canonical and
+    // carry the deterministic lint findings (WP5 自检测, zero LLM).
+    const pretty = JSON.stringify(JSON.parse(DESIGN), null, 2);
+    const result = await client.callTool({
+      name: "render_leafer",
+      arguments: { leafer: pretty, requirement: "Dashboard", designSystemId: "dark-tech" },
+    });
+    assert.ok(!result.isError, textOf(result));
+    const ref = refOf(result);
+    const suite = readDesignSuite(root, ref.suiteId);
+    const content = suite?.currentVersion.content as UiSuiteContent;
+    assert.equal(content.leafer, JSON.stringify(JSON.parse(DESIGN)), "stored document is canonical (compact)");
+    assert.equal(content.quality?.lintFindings.length, 0, "clean document → zero findings");
+
+    // A document with an out-of-bounds element lands WITH its finding.
+    const outOfBounds = JSON.stringify({
+      tag: "Leafer",
+      width: 800,
+      height: 600,
+      children: [{ tag: "Rect", x: 900, y: 700, width: 100, height: 50, fill: "#123456" }],
+    });
+    const flagged = await client.callTool({
+      name: "render_leafer",
+      arguments: { leafer: outOfBounds, designSystemId: "dark-tech" },
+    });
+    assert.ok(!flagged.isError, textOf(flagged));
+    const flaggedRef = refOf(flagged);
+    const flaggedSuite = readDesignSuite(root, flaggedRef.suiteId);
+    const flaggedContent = flaggedSuite?.currentVersion.content as UiSuiteContent;
+    assert.ok(
+      (flaggedContent.quality?.lintFindings ?? []).some((finding) => finding.ruleId === "out-of-bounds"),
+      "deterministic lint findings persist with the version"
+    );
+  } finally {
+    await client.close();
+  }
+});
+
 test("render_leafer validates the document at the write boundary", async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "a2ui-leafer-invalid-"));
   roots.push(root);

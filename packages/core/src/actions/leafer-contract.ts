@@ -35,18 +35,25 @@ export const LEAFER_PRESERVE_CONTRACT =
   "Preserve the root canvas size/fill and every element not named by the revision instruction — " +
   "the result must stay ONE complete scene document, never a fragment or a description of the change.";
 
-/** For creation: the single-JSON-document requirement with concrete syntax. */
+/** For creation: the single-JSON-document requirement with concrete syntax.
+ *  M3E-canvas anti-collapse principles internalized (specs/artifact-landing
+ *  design.md 附录 D): 受控词汇 (#1, primitives whitelist) · 命名指代 (#5,
+ *  stable names) · 负向禁令 (#3, explicit bans) · 落地守则 (#9, token colors /
+ *  real copy) · 完成定义 (#10, self-check line). */
 export const LEAFER_CREATE_CONTRACT =
   "It must be ONE Leafer scene-tree JSON document in a single json code fence: root object " +
   '`{"tag": "Leafer", "width": <canvas-width>, "height": <canvas-height>, "fill": "<background>", "children": [...]}`. ' +
   `Allowed tags ONLY: ${LEAFER_PRIMITIVES.join(", ")}. ` +
+  'Every direct child of the root and every Frame carries a stable "name" (e.g. "hero", "nav-bar") — revisions address elements by these names. ' +
   "Position elements with absolute x/y plus width/height (exception: Text may auto-size); compose rows/columns with " +
   '`flow: "x" | "y"`, `gap`, `padding` and `flowAlign` on Group/Box/Frame containers. Style with fill/stroke/' +
   'cornerRadius/shadow/opacity (solid "#rrggbb" or gradient `{type: "linear" | "radial", stops: [{offset, color}, ...]}`). ' +
-  "Every Text node carries real product copy in the document's language — never placeholders or lorem ipsum. " +
+  "Every Text node carries real product copy in the document's language — never placeholders, lorem ipsum, or empty strings. " +
   "All geometry stays inside the root canvas (desktop mockups 1440×1024, mobile 375×812, tablet 834×1112). " +
-  "Use ONLY the colors/typography of the given design system — do not invent hex values outside its palette. " +
-  "No comments, no trailing commas, strictly valid JSON.";
+  "NEVER stack identical duplicates on top of each other, NEVER place elements outside the canvas, NEVER invent colors outside the design system palette. " +
+  "Use ONLY the colors/typography of the given design system. " +
+  "No comments, no trailing commas, strictly valid JSON. " +
+  "Before returning, self-check: every element inside the canvas, every Text filled, sibling names unique.";
 
 // ── Deterministic structural validation (the repair loop's verdict source) ──
 

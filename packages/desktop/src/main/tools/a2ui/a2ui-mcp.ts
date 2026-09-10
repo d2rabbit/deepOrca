@@ -23,7 +23,7 @@ import * as fs from "node:fs";
 import * as nodePath from "node:path";
 import { generatePrototype, listTemplates } from "./a2ui-templates";
 import { validateOpenuiCode } from "./openui-validate";
-import { looksLikeArchDoc, OPENUI_PRESERVE_CONTRACT } from "@deeporca/core";
+import { lintLeaferDocument, looksLikeArchDoc, OPENUI_PRESERVE_CONTRACT } from "@deeporca/core";
 import { BASIC_CATALOG_ID, convertLegacyComponents } from "../../../shared/a2ui-legacy";
 import {
   appendDesignSuiteVersion,
@@ -1197,13 +1197,24 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
       },
     },
     async (args) => {
-      const leafer = stringArg(args, "leafer");
-      if (!leafer) return suiteError("leafer JSON is required");
+      const rawLeafer = stringArg(args, "leafer");
+      if (!rawLeafer) return suiteError("leafer JSON is required");
+      // Canonicalize at the seam (WP5 无抖动): every stored leafer document —
+      // from the action loop or a direct model call — carries identical
+      // formatting, so like-for-like versions diff cleanly and the stored
+      // projection is byte-stable.
+      let leafer: string;
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(rawLeafer);
+        leafer = JSON.stringify(parsed);
+      } catch (error) {
+        return suiteError(`leafer: invalid scene document (${error instanceof Error ? error.message : String(error)})`);
+      }
       // Boundary re-validation: the core repair gate already ran, but this tool
       // is model-reachable directly, so the cheap root-shape parse must hold at
       // the write boundary too.
       try {
-        const parsed: unknown = JSON.parse(leafer);
         if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("not an object");
         const root = parsed as { tag?: unknown; children?: unknown };
         if (root.tag !== "Leafer") throw new Error('root.tag must be "Leafer"');
@@ -1222,6 +1233,11 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
         typeof args.requirement === "string" && args.requirement.trim() ? args.requirement : undefined;
       const sourcePrototype = sourcePrototypeArg(args);
       const designSystemId = stringArg(args, "designSystemId");
+      // Self-check at persist (WP5): the deterministic lint runs here for FREE
+      // (no LLM) so quality.lintFindings is populated the moment a version
+      // lands — the workspace quality tab is never empty-stale. Review state
+      // stays untouched (design.review owns it).
+      const lintFindings = lintLeaferDocument(leafer);
       const persisted = persistSuiteContent(
         projectRoot,
         args,
@@ -1234,12 +1250,16 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
           openui: undefined,
           ...(sourcePrototype ? { sourcePrototype } : {}),
           ...(designSystemId ? { designSystemId } : {}),
-          quality: { lintFindings: [], runtimeChecks: [] },
+          quality: { lintFindings, runtimeChecks: [] },
         }),
         "ready"
       );
       if ("error" in persisted) return suiteError(persisted.error);
-      return artifactResult(persisted.ref, `Leafer design saved (${leafer.length} chars).`, { leafer });
+      return artifactResult(
+        persisted.ref,
+        `Leafer design saved (${leafer.length} chars, ${lintFindings.length} lint finding(s)).`,
+        { leafer }
+      );
     }
   );
 

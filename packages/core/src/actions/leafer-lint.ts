@@ -198,6 +198,19 @@ export function lintLeaferDocument(leaferJson: string, tokens?: unknown): Leafer
     });
   };
 
-  if (Array.isArray(root.children)) walkChildren(root.children, "document", 0);
+  if (Array.isArray(root.children)) {
+    // Self-check gate (WP5, M3E 完成定义): a canvas with zero elements is
+    // renderable but not a design — error-level, so the repair loop fixes it.
+    if (root.children.length === 0) {
+      push(
+        "empty-scene",
+        "error",
+        "The scene has no elements at all — an empty canvas is not a design.",
+        "document",
+        "Add the frames/elements the requirement describes."
+      );
+    }
+    walkChildren(root.children, "document", 0);
+  }
   return findings;
 }

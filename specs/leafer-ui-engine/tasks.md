@@ -48,6 +48,19 @@
 - [ ] 4.4 端到端走查：一句话生成 → 画布微调 → 版本轨 → lint/review → `.ddu` 双击可交互（平移/缩放/选中微调）——**移交预生产真机清单**
 - [x] 4.5 按 WP 分批提交（docs 勘误 / WP0+WP2 core / WP1+WP3 desktop / WP4 收编）
 
+## WP5 自检自修复强化与 M3E 方法论内化（core + desktop main）
+
+- [x] 5.1 契约强化：稳定 `name` 命名指代 + 负向禁令三连 + 自检完成定义句写进 `LEAFER_CREATE_CONTRACT`（M3E #1/#3/#5/#9/#10）
+  - 验收：契约测试 pin 命名/禁令/自检句；EARS 18
+- [x] 5.2 `describeLeaferDocument` UI→大纲确定性编译器：几何→语义、稳定名指代、键序不敏感、字节级确定性
+  - 验收：同输入两次编译字节相同；键序翻转输出不变；语义方位断言；EARS 19
+- [x] 5.3 自检 gate 双源化：修复环判定 = 结构 ∪ error 级 lint（越界/empty-scene）；warning 不进 gate；成功值规范化
+  - 验收：空场景被 gate 拦截并修复；重复几何（warning）直通不振荡；规范化输出断言；EARS 18
+- [x] 5.4 revise leafer 分支 prompt = 契约 + 逐字指令 + describe 大纲 + 规范化 JSON
+  - 验收：prompt 断言 verbatim instruction / outline / canonical 三段；EARS 19
+- [x] 5.5 `render_leafer` 规范化落盘 + 零 LLM 自动 lint 写 `quality.lintFindings`
+  - 验收：MCP 测试断言 canonical 存储 + out-of-bounds 文档自带发现；EARS 20
+
 ## P2 跟进（不在本 spec 实施范围）
 
 - [ ] Stitch 借鉴：自动补缺失屏（`@Set($page,…)` 目标缺失 → 可选 agent 补屏，failed 兜底）

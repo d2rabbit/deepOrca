@@ -13,6 +13,8 @@ import {
   parseLeaferDocument,
   validateLeaferDocument,
   repairLeaferProgram,
+  selfCheckLeaferDocument,
+  describeLeaferDocument,
   lintLeaferDocument,
 } from "../actions";
 import { NULL_SPAWNER } from "../actions/types";
@@ -144,9 +146,10 @@ test("leafer repair: invalid then valid generation converges and persists nothin
     basePercent: 70,
   });
   assert.ok(result.ok, `repair should converge: ${result.ok ? "" : result.error}`);
-  assert.equal(result.value, VALID_DOC);
+  // Success returns the CANONICAL document (no whitespace/key-order jitter).
+  assert.equal(result.value, JSON.stringify(JSON.parse(VALID_DOC)));
   assert.equal(subagentCalls.length, 2, "round 0 repairs to invalid, round 1 converges");
-  assert.match(subagentCalls[0].prompt, /Validation issues:/);
+  assert.match(subagentCalls[0].prompt, /Self-check issues:/);
   assert.match(subagentCalls[0].prompt, /root-canvas/);
 });
 
@@ -162,8 +165,109 @@ test("leafer repair: exhausted budget returns a structured error (fail-closed)",
     basePercent: 70,
   });
   assert.equal(result.ok, false);
-  assert.match(result.ok ? "" : result.error, /failed structural validation after 2 repair round/);
+  assert.match(result.ok ? "" : result.error, /failed the self-check gate after 2 repair round/);
   assert.match(result.ok ? "" : result.error, /root-canvas/);
+});
+
+// ── Self-check gate (WP5, M3E 完成定义) ──────────────────────────────────────
+
+test("leafer self-check gate: empty scene is an error, warnings never trigger repair rounds", () => {
+  // Empty scene: renderable but not a design — the gate blocks it.
+  const empty = JSON.stringify({ tag: "Leafer", width: 800, height: 600, fill: "#fff", children: [] });
+  const verdict = selfCheckLeaferDocument(empty);
+  assert.equal(verdict.valid, false);
+  assert.ok(verdict.issues.some((issue) => issue.code === "empty-scene"));
+  // Warning-level findings (duplicate-geometry) do NOT gate — no oscillation.
+  const withDuplicates = JSON.stringify({
+    tag: "Leafer",
+    width: 800,
+    height: 600,
+    children: [
+      { tag: "Rect", name: "a", x: 10, y: 10, width: 50, height: 50, fill: "#111111" },
+      { tag: "Rect", name: "b", x: 10, y: 10, width: 50, height: 50, fill: "#111111" },
+    ],
+  });
+  assert.equal(selfCheckLeaferDocument(withDuplicates).valid, true, "warnings must not enter the repair gate (无抖动)");
+});
+
+test("leafer repair: gate-level lint findings (out-of-bounds) drive repair rounds", async () => {
+  const outOfBounds = JSON.stringify({
+    tag: "Leafer",
+    width: 800,
+    height: 600,
+    children: [{ tag: "Rect", name: "ghost", x: 900, y: 700, width: 100, height: 50, fill: "#111111" }],
+  });
+  const fixed = JSON.stringify({
+    tag: "Leafer",
+    width: 800,
+    height: 600,
+    children: [{ tag: "Rect", name: "ghost", x: 100, y: 100, width: 100, height: 50, fill: "#111111" }],
+  });
+  const subagentCalls: RunSubagentOptions[] = [];
+  const ctx = makeCtx({ generatedQueue: [fixed], subagentCalls });
+  const result = await repairLeaferProgram(ctx, {
+    text: outOfBounds,
+    contract: LEAFER_CREATE_CONTRACT,
+    progressCode: "design.materialize.repairing",
+    basePercent: 70,
+  });
+  assert.ok(result.ok, `lint-driven repair should converge: ${result.ok ? "" : result.error}`);
+  assert.equal(subagentCalls.length, 1);
+  assert.match(subagentCalls[0].prompt, /out-of-bounds/);
+});
+
+// ── UI→prompt deterministic compiler (WP5, M3E #2/#5) ────────────────────────
+
+test("leafer describe: deterministic, key-order invariant, semantic positions", () => {
+  const doc = {
+    tag: "Leafer",
+    width: 1440,
+    height: 1024,
+    fill: "#ffffff",
+    children: [
+      {
+        tag: "Frame",
+        name: "hero",
+        x: 0,
+        y: 0,
+        width: 1440,
+        height: 300,
+        fill: "#111318",
+        children: [
+          { tag: "Text", name: "title", x: 24, y: 24, text: "Monthly Ops Dashboard", fill: "#F5F5F5", fontSize: 24 },
+        ],
+      },
+      { tag: "Rect", name: "cta", x: 1200, y: 900, width: 200, height: 80, fill: "#4F46E5" },
+    ],
+  };
+  const a = describeLeaferDocument(JSON.stringify(doc));
+  const b = describeLeaferDocument(JSON.stringify(doc));
+  assert.equal(a.outline, b.outline, "same document → byte-identical outline");
+  assert.equal(a.nodeCount, 3);
+  // Key-order jitter in the input must not change the outline (无抖动).
+  const flipped = JSON.stringify({
+    children: doc.children,
+    fill: doc.fill,
+    height: doc.height,
+    width: doc.width,
+    tag: doc.tag,
+  });
+  assert.equal(describeLeaferDocument(flipped).outline, a.outline, "key order must not jitter the outline");
+  // Geometry→semantic translation (M3E #2).
+  assert.match(a.outline, /Canvas 1440x1024, background #ffffff, 2 top-level element/);
+  assert.match(a.outline, /- Frame "hero" 1440x300 at top-full-width/);
+  assert.match(a.outline, /- Text "title" auto-sized.*"Monthly Ops Dashboard"/);
+  assert.match(a.outline, /- Rect "cta" 200x80 at bottom-right/);
+  // Unnamed elements get a deterministic path fallback (M3E #5).
+  const unnamed = describeLeaferDocument(
+    JSON.stringify({
+      tag: "Leafer",
+      width: 100,
+      height: 100,
+      children: [{ tag: "Rect", x: 0, y: 0, width: 10, height: 10 }],
+    })
+  );
+  assert.match(unnamed.outline, /rect-at-c0/);
 });
 
 // ── materialize / revise switch (EARS 1/10) ──────────────────────────────────
@@ -197,7 +301,7 @@ test("design.materialize rejects a structurally broken generation before persist
     makeCtx({ generatedQueue: [`\`\`\`json\n${broken}\n\`\`\``, broken, broken], mcpCalls })
   );
   assert.equal(result.ok, false);
-  assert.match(result.ok ? "" : (result.error ?? ""), /structural validation/);
+  assert.match(result.ok ? "" : (result.error ?? ""), /self-check gate/);
   assert.ok(!mcpCalls.some((call) => call.name.endsWith("render_leafer")), "invalid documents must never persist");
 });
 
@@ -224,6 +328,11 @@ test("design.revise(part=design) revises the leafer baseline with PRESERVE contr
   assert.ok(save, "leafer revise must persist through render_leafer");
   assert.equal(save.args.suiteId, UI_REF.suiteId);
   assert.match(subagentCalls[0].prompt, /Preserve the root canvas size/);
+  // WP5 UI→prompt: deterministic outline + canonical baseline + verbatim
+  // instruction (M3E 意图直通/命名指代/无抖动).
+  assert.match(subagentCalls[0].prompt, /Instruction \(verbatim\): "make the hero larger"/);
+  assert.match(subagentCalls[0].prompt, /Current design outline/);
+  assert.match(subagentCalls[0].prompt, /Current scene JSON \(canonical\)/);
   assert.ok(
     !mcpCalls.some((call) => call.name.endsWith("update_openui")),
     "leafer revise must not touch the legacy channel"

@@ -27,6 +27,7 @@ import { randomUUID } from "node:crypto";
 import type { ActionContext, ActionDefinition, ActionRun } from "./types";
 import { OPENUI_CREATE_CONTRACT, OPENUI_PRESERVE_CONTRACT } from "./openui-contract";
 import { LEAFER_CREATE_CONTRACT, LEAFER_PRESERVE_CONTRACT, looksLikeLeaferDocument } from "./leafer-contract";
+import { canonicalLeaferJson, describeLeaferDocument } from "./leafer-describe";
 import { repairLeaferProgram } from "./leafer-repair";
 import { lintLeaferDocument } from "./leafer-lint";
 import { validateDembrandtTargetUrl } from "../common/dembrandt";
@@ -598,12 +599,22 @@ export const designReviseRun: ActionRun<DesignReviseInput, SuiteActionOutput> = 
     // (field-level routing, EARS 17); legacy OpenUI suites keep the update_openui
     // path below — one suite version never mixes both fields.
     if (content.leafer?.trim()) {
+      // UI→prompt stable baseline (WP5, M3E #2/#5/#7): the canonical JSON plus
+      // the deterministic semantic outline (elements addressed by stable
+      // names, geometry translated to position words) make the revision
+      // prompt a pure function of the stored document — byte-identical for
+      // the same input, so like-for-like instructions cannot jitter.
+      const baseline = canonicalLeaferJson(content.leafer) ?? content.leafer;
+      const { outline } = describeLeaferDocument(baseline);
       const generated = await ctx.runSubagent({
         skill: "deep-design",
         prompt:
-          `Revise only this Leafer scene-tree target: ${target}. Instruction: ${instruction}. Preserve unrelated content. ` +
+          `Revise only this Leafer scene-tree target: ${target}. ` +
+          `Instruction (verbatim): "${instruction}". Preserve unrelated content. ` +
           `${LEAFER_PRESERVE_CONTRACT} ${LEAFER_CREATE_CONTRACT} ` +
-          `Return only the complete revised Leafer scene-tree JSON document in one json code fence. Do not call tools.\n\n${content.leafer}`,
+          `Current design outline (semantic map — address elements by their stable names):\n${outline}\n\n` +
+          "Current scene JSON (canonical). Modify ONLY what the instruction requires and return the COMPLETE " +
+          `revised document in one json code fence. Do not call tools.\n${baseline}`,
         silent: true,
       });
       const revised = extractGeneratedBody(generated);

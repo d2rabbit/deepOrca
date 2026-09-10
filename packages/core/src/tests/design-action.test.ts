@@ -576,7 +576,7 @@ test("design.materialize: the suite's stored requirement reaches the prompt with
     width: 1440,
     height: 1024,
     fill: "#ffffff",
-    children: [],
+    children: [{ tag: "Frame", name: "board", x: 0, y: 0, width: 1440, height: 1024, fill: "#111318" }],
   });
   const result = await designMaterializeRun(
     input,
@@ -736,7 +736,7 @@ test("progress emits carry stable machine codes for the renderer i18n seam", asy
     width: 1440,
     height: 1024,
     fill: "#ffffff",
-    children: [],
+    children: [{ tag: "Frame", name: "board", x: 0, y: 0, width: 1440, height: 1024, fill: "#111318" }],
   });
   const design = await designMaterializeRun(
     {
