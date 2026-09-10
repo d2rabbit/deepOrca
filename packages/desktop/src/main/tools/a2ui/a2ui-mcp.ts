@@ -1071,6 +1071,8 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
             ...((base ?? {}) as PrototypeSuiteContent),
             ...(requirement ? { requirement } : {}),
             spec: document,
+            // specs/prompt-doc-chain:spec 重写 → pd-design 派生链失效。
+            pdDesign: undefined,
             openui: undefined,
             // spec 重写后旧架构文档随之失效,与 openui 同等重置(否则新版本
             // 会带着与当前 PRD 不符的"已批准架构")。
@@ -1272,6 +1274,59 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
     }
   );
 
+  // Tool: save_pd_design — persist the pd-design prompt document (specs/
+  // prompt-doc-chain). Called by prototype.pddesign (manual recompute) and
+  // prototype.materialize stage0 (auto). Upstream design intent changed →
+  // derived artifacts reset (same discipline as render_spec).
+  registerTool(
+    "save_pd_design",
+    {
+      description:
+        "Persist a pd-design prompt document (原型提示词文档) as a prototype suite version. " +
+        "Called by the prototype.pddesign action; resets the derived prototype artifacts " +
+        "(openui/variants/verification/arch) because the upstream design intent changed.",
+      inputSchema: {
+        document: z.string().describe("The complete pd-design markdown document (PD_DESIGN_CONTRACT shape)."),
+        ...suiteLineageSchema,
+        note: z.string().optional().describe("Optional version note"),
+      },
+    },
+    async (args) => {
+      const document = String(args.document ?? "");
+      if (!document.trim()) {
+        return { content: [{ type: "text", text: "Error: empty pd-design document." }], isError: true };
+      }
+      if (!usesSuitePersistence(args)) {
+        return suiteError("save_pd_design persists suite versions — pass suiteId/versionId lineage");
+      }
+      if (stringArg(args, "versionId") && !stringArg(args, "suiteId")) {
+        return suiteError("versionId requires suiteId");
+      }
+      const persisted = persistSuiteContent(
+        projectRoot,
+        args,
+        "prototype",
+        deriveTitle(document),
+        (base) => ({
+          ...((base ?? {}) as PrototypeSuiteContent),
+          pdDesign: document,
+          // 上游设计意图重算 → 派生物全部失效（与 render_spec 同规）。
+          openui: undefined,
+          openuiVariants: undefined,
+          verification: { status: "pending", checks: [] },
+          arch: undefined,
+        }),
+        "draft"
+      );
+      if ("error" in persisted) return suiteError(persisted.error);
+      return artifactResult(
+        persisted.ref,
+        "pd-design document saved as a prototype suite version. OpenUI/verification/arch were reset.",
+        { pdDesign: document }
+      );
+    }
+  );
+
   // Tool: render_leafer — persist a Leafer JSON scene tree as a UI-Design
   // suite version (specs/leafer-ui-engine). The leafer counterpart of
   // render_openui's suite path: called ONLY by the design.* actions after the
@@ -1310,10 +1365,18 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
           .array(z.object({ suiteId: z.string(), versionId: z.string().optional() }))
           .optional()
           .describe("Cross-referenced PRD suites (auto-carried from the basis prototype)"),
+        uiDesign: z
+          .string()
+          .optional()
+          .describe(
+            "ui-design.md — the visual-strengthened prompt document distilled from the basis " +
+              "prototype's pd-design (specs/prompt-doc-chain)"
+          ),
       },
     },
     async (args) => {
       const rawLeafer = stringArg(args, "leafer");
+      const uiDesign = stringArg(args, "uiDesign");
       if (!rawLeafer) return suiteError("leafer JSON is required");
       // Canonicalize at the seam (WP5 无抖动): every stored leafer document —
       // from the action loop or a direct model call — carries identical
@@ -1380,6 +1443,8 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
             ...((base ?? {}) as UiSuiteContent),
             ...(requirement ? { requirement } : {}),
             leafer,
+            // specs/prompt-doc-chain: ui-design.md 随 UI 版本落内容字段。
+            ...(uiDesign ? { uiDesign } : {}),
             openui: undefined,
             ...(sourcePrototype ? { sourcePrototype } : {}),
             ...(designSystemId ? { designSystemId } : {}),

@@ -66,6 +66,8 @@ import {
   memoryDistillRun,
   prototypeSpecDefinition,
   prototypeSpecRun,
+  prototypePdDesignDefinition,
+  prototypePdDesignRun,
   prototypeMaterializeDefinition,
   prototypeMaterializeRun,
   prototypeVerifyDefinition,
@@ -475,6 +477,8 @@ export abstract class SessionManagerBase {
     // ── Prototype module (design-module split): 需求 → 需求文档 → 原型图 —
     // two explicit steps, no auto-routing (real-machine feedback) ──────────
     this.actionRegistry.register(prototypeSpecDefinition, prototypeSpecRun);
+    // specs/prompt-doc-chain：PRD → pd-design.md（原型提示词文档，手动重算）。
+    this.actionRegistry.register(prototypePdDesignDefinition, prototypePdDesignRun);
     this.actionRegistry.register(prototypeMaterializeDefinition, prototypeMaterializeRun);
     this.actionRegistry.register(prototypeVerifyDefinition, prototypeVerifyRun);
     this.actionRegistry.register(prototypeArchDefinition, prototypeArchRun);

@@ -795,3 +795,38 @@ test("ThemeStrip hides without theme meta and renders theme/stage/relation chips
   assert.ok((strip?.textContent ?? "").includes("阶段1"), "stage chip rendered");
   assert.ok((strip?.textContent ?? "").includes("人员管理"), "relation chips resolve titles");
 });
+
+test("spec page exposes the prompt-doc view and the regenerate entry (specs/prompt-doc-chain)", async () => {
+  const prototype = suite("prototype", [
+    version("latest", {
+      spec: "# Scope",
+      pdDesign: "# 登录原型设计提示\n\n## 页面结构\n- 登录页：账号密码表单",
+      openui: "root = Text('v1')",
+    }),
+  ]);
+  overrides.designSuiteList = async () => [summary(prototype)];
+  overrides.designSuiteRead = async () => prototype;
+  overrides.designThemeList = async () => [];
+  const out = renderWithI18n(
+    ReactPkg.createElement(PrototypeWorkspace, { root: "/work/current", suiteId: prototype.id })
+  );
+  await settle();
+  // 提示词视图切换（en locale）。
+  rtl.fireEvent.click(out.getByText("Prompt doc"));
+  await settle();
+  const pdView = out.container.querySelector('[data-testid="pd-design-view"]');
+  assert.ok(pdView, "pd-design view renders");
+  assert.ok((pdView?.textContent ?? "").includes("登录原型设计提示"), "pd-design body rendered");
+  // 手动重算入口 → prototype.pddesign 动作。
+  rtl.fireEvent.click(out.getByText("Regenerate pd-design"));
+  await settle();
+  const call = stub.calls.find((item) => item.method === "actionRun" && item.args[0] === "prototype.pddesign");
+  assert.deepEqual(call?.args[1], {
+    root: "/work/current",
+    suiteId: prototype.id,
+    versionId: "latest",
+  });
+  delete overrides.designSuiteList;
+  delete overrides.designSuiteRead;
+  delete overrides.designThemeList;
+});

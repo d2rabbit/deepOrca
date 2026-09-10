@@ -63,6 +63,9 @@ function makeCtxFor(
 ): ActionContext {
   const content = {
     requirement: "番茄钟",
+    // specs/prompt-doc-chain：自带 pd-design → 跳过 stage0（本文件钉的是
+    // 逐端生成/head 线程化语义，stage0 行为由 prompt-doc-chain.test.ts 覆盖）。
+    pdDesign: "# 番茄钟 原型提示\n\n## 页面结构\n- 首页",
     openui: fixture.openui ?? 'root = Text("x")',
     ...(fixture.openuiVariants ? { openuiVariants: fixture.openuiVariants } : {}),
     verification: { status: "pending", checks: [] },

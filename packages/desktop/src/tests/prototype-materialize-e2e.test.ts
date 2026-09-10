@@ -75,6 +75,14 @@ async function makeCtx(): Promise<ActionContext> {
     },
     spawner: NULL_SPAWNER,
     runSubagent: async (opts: { prompt?: string }) => {
+      // specs/prompt-doc-chain：stage0（pd-design 蒸馏）先于设备循环——返回
+      // 合规的提示词文档，让本测试真跑完整链。
+      if (opts.prompt?.includes("pd-design prompt document")) {
+        return {
+          sessionId: "sub",
+          content: "```markdown\n# 轻订单 原型提示\n\n## 页面结构\n- 订单页\n\n## 交互叙事\n- 下单→列表\n```",
+        };
+      }
       // 从提示词里的平台契约识别设备,返回该端的结构化程序。
       const device = opts.prompt?.includes("BOTTOM TAB BAR")
         ? "mobile"

@@ -110,6 +110,9 @@ export interface PrototypeSuiteContent {
   verification?: PrototypeVerificationResult;
   /** Technical architecture document (user ask 2026-09-08 技术架构模块). */
   arch?: string;
+  /** specs/prompt-doc-chain: pd-design.md——PRD 蒸馏的原型提示词文档（原型
+   *  生成的主驱动；render_spec 重写 PRD 时失效）。 */
+  pdDesign?: string;
 }
 
 export interface UiSuiteContent {
@@ -119,6 +122,9 @@ export interface UiSuiteContent {
    *  字段级双栈路由：有 leafer → Leafer 栈；仅 openui → 旧栈只读；同一
    *  suite 版本不混写两种字段。与 core 的 UiSuiteContent 镜像（已知）。 */
   leafer?: string;
+  /** specs/prompt-doc-chain: ui-design.md——原型转 UI 的视觉强化提示词
+   *  （pd-design 的视觉翻译），随 design.materialize 落盘。 */
+  uiDesign?: string;
   tokens?: unknown;
   components?: unknown;
   quality?: DesignQualityResult;
@@ -696,6 +702,8 @@ function syncSuiteProjections(dir: string, kind: DesignSuiteKind, content: Desig
     const prototype = content as PrototypeSuiteContent;
     writeProjectionFile(dir, "requirement.md", prototype.requirement);
     writeProjectionFile(dir, "spec.md", prototype.spec);
+    // specs/prompt-doc-chain: pd-design.md 提示词文档投影。
+    writeProjectionFile(dir, "pd-design.md", prototype.pdDesign);
     writeProjectionFile(dir, "prototype.openui.txt", prototype.openui);
     // WP4.1:平台变体投影——desktop 即本体文件,变体单独成文件,任何按文件
     // 消费的下游(简报/外部工具)都能拿到每端程序。
@@ -723,6 +731,8 @@ function syncSuiteProjections(dir: string, kind: DesignSuiteKind, content: Desig
   }
   writeJsonProjection(dir, "design.leafer.json", leaferProjection);
   writeProjectionFile(dir, "prototype.openui.txt", ui.openui);
+  // specs/prompt-doc-chain: ui-design.md 强化提示词投影。
+  writeProjectionFile(dir, "ui-design.md", ui.uiDesign);
   writeJsonProjection(dir, "tokens.json", ui.tokens);
   writeJsonProjection(dir, "components.json", ui.components);
   writeJsonProjection(dir, "quality.json", ui.quality);

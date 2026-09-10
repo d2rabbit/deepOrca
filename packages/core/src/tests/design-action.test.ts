@@ -16,6 +16,7 @@ import {
   prototypeReviseDefinition,
   prototypeReviseRun,
   prototypeSpecDefinition,
+  prototypePdDesignRun,
   prototypeSpecRun,
   prototypeVerifyDefinition,
   prototypeVerifyRun,
@@ -39,6 +40,8 @@ function makeCtx(
     prototype?: Record<string, unknown>;
     ui?: Record<string, unknown>;
     generated?: string;
+    /** specs/prompt-doc-chain：stage0/原型/UI 三级子代理按序消费的队列。 */
+    generatedQueue?: string[];
     mcpCalls?: McpCall[];
     subagentCalls?: SubagentCall[];
     emits?: ActionProgress[];
@@ -47,6 +50,7 @@ function makeCtx(
   const mcpCalls = options.mcpCalls ?? [];
   const subagentCalls = options.subagentCalls ?? [];
   const emits = options.emits ?? [];
+  let callIndex = 0;
   return {
     projectRoot: path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), "../.."),
     signal: new AbortController().signal,
@@ -56,7 +60,10 @@ function makeCtx(
     spawner: NULL_SPAWNER,
     runSubagent: async (call) => {
       subagentCalls.push(call);
-      return { sessionId: "sub", content: options.generated ?? "```\nok\n```" };
+      const queue = options.generatedQueue;
+      const content = queue ? queue[Math.min(callIndex, queue.length - 1)] : (options.generated ?? "```\nok\n```");
+      callIndex += 1;
+      return { sessionId: "sub", content };
     },
     executeMcpTool: async (name, args) => {
       mcpCalls.push({ name, args });
@@ -135,7 +142,13 @@ test("prototype.materialize reads an immutable suite version and resets verifica
   const result = await prototypeMaterializeRun(
     { suiteId: PROTOTYPE_REF.suiteId, versionId: PROTOTYPE_REF.versionId },
     makeCtx({
-      prototype: { requirement: "Task board", spec: "# Tasks\n\n## Page list\n- Board" },
+      prototype: {
+        requirement: "Task board",
+        spec: "# Tasks\n\n## Page list\n- Board",
+        // specs/prompt-doc-chain：自带 pd-design → 跳过 stage0（本测试钉的是
+        // 版本读取/持久化语义，stage0 行为由 prompt-doc-chain.test.ts 覆盖）。
+        pdDesign: "# Task board 原型提示\n\n## 页面结构\n- Board",
+      },
       generated: "```openui\nroot = Column([board])\nboard = Card([])\n```",
       mcpCalls,
     })
@@ -718,11 +731,27 @@ test("progress emits carry stable machine codes for the renderer i18n seam", asy
   assert.equal(spec.ok, true);
   assert.deepEqual(codesOf(specEmits), ["prototype.spec.generating", "prototype.spec.saved"]);
 
+  const pdEmits: ActionProgress[] = [];
+  const pd = await prototypePdDesignRun(
+    { suiteId: PROTOTYPE_REF.suiteId, versionId: PROTOTYPE_REF.versionId },
+    makeCtx({
+      prototype: { requirement: "Task board", spec: "# Tasks\n\n## Page list\n- Board" },
+      generated: "```markdown\n# Task board 原型提示\n\n## 页面结构\n- Board\n\n## 交互叙事\n- 提交\n```",
+      emits: pdEmits,
+    })
+  );
+  assert.equal(pd.ok, true);
+  assert.deepEqual(codesOf(pdEmits), ["prototype.pddesign.generating", "prototype.pddesign.saved"]);
+
   const materializeEmits: ActionProgress[] = [];
   const materialize = await prototypeMaterializeRun(
     { suiteId: PROTOTYPE_REF.suiteId, versionId: PROTOTYPE_REF.versionId },
     makeCtx({
-      prototype: { requirement: "Task board", spec: "# Tasks\n\n## Page list\n- Board" },
+      prototype: {
+        requirement: "Task board",
+        spec: "# Tasks\n\n## Page list\n- Board",
+        pdDesign: "# Task board 原型提示\n\n## 页面结构\n- Board",
+      },
       generated: "```openui\nroot = Column([board])\nboard = Card([])\n```",
       emits: materializeEmits,
     })
@@ -745,13 +774,27 @@ test("progress emits carry stable machine codes for the renderer i18n seam", asy
       designSystemId: "terminal-mono",
     },
     makeCtx({
-      prototype: { requirement: "Task board", openui: "root = Column([board])" },
-      generated: `\`\`\`json\n${designLeaferDoc}\n\`\`\``,
+      prototype: {
+        requirement: "Task board",
+        opuni: undefined,
+        openui: "root = Column([board])",
+        // specs/prompt-doc-chain：带 pd-design → ui-design 强化 stage 先行。
+        pdDesign: "# Task board 原型提示\n\n## 页面结构\n- Board",
+      },
+      generatedQueue: [
+        "```markdown\n# Task board 视觉稿提示\n\n## 画布构图\n- Board 帧\n\n## tokens 映射\n- accent\n```",
+        `\`\`\`json\n${designLeaferDoc}\n\`\`\``,
+      ],
       emits: designEmits,
     })
   );
   assert.equal(design.ok, true);
-  assert.deepEqual(codesOf(designEmits), ["design.materialize.generating", "design.materialize.saved"]);
+  assert.deepEqual(codesOf(designEmits), [
+    "design.uidesign.generating",
+    "design.uidesign.saved",
+    "design.materialize.generating",
+    "design.materialize.saved",
+  ]);
 });
 
 test("re-review M1: nested/array evidence shapes pass the review evidence gate", async () => {

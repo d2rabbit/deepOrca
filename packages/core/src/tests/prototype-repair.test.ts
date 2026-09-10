@@ -87,6 +87,9 @@ function makeCtx(options: CtxOptions = {}): ActionContext {
             content: {
               requirement: "订单",
               spec: "# 订单 需求文档\n\n## 页面清单\n\n- 订单页\n",
+              // specs/prompt-doc-chain：自带 pd-design → 跳过 stage0（本文件
+              // 钉的是修复环语义，stage0 行为由 prompt-doc-chain.test.ts 覆盖）。
+              pdDesign: "# 订单 原型提示\n\n## 页面结构\n- 订单页",
             },
           }),
         };

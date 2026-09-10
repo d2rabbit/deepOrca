@@ -1010,6 +1010,8 @@ export type DesignQualityResult = {
 export type PrototypeSuiteContent = {
   requirement?: string;
   spec?: string;
+  /** specs/prompt-doc-chain: pd-design.md——PRD 蒸馏的原型提示词文档。 */
+  pdDesign?: string;
   openui?: string;
   /** 平台变体(user ask 2026-09-09):mobile/tablet 的结构性独立程序。 */
   openuiVariants?: Partial<Record<"desktop" | "mobile" | "tablet", string>>;
@@ -1026,6 +1028,8 @@ export type UiSuiteContent = {
    *  字段级双栈路由（EARS 17）：有 leafer → Leafer 栈；仅 openui → 旧栈只读；
    *  同一 suite 版本不混写两种字段（guard 测试锁定）。 */
   leafer?: string;
+  /** specs/prompt-doc-chain: ui-design.md——原型转 UI 的视觉强化提示词。 */
+  uiDesign?: string;
   tokens?: unknown;
   components?: unknown;
   quality?: DesignQualityResult;

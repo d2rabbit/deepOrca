@@ -288,3 +288,31 @@ test("render_leafer inherits theme meta fields from the basis prototype (specs/p
     await client.close();
   }
 });
+
+test("render_leafer persists uiDesign and projects ui-design.md (specs/prompt-doc-chain)", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "a2ui-leafer-uidesign-"));
+  roots.push(root);
+  const client = await clientFor(root);
+  try {
+    const created = await client.callTool({
+      name: "render_leafer",
+      arguments: {
+        leafer: DESIGN,
+        requirement: "Dashboard",
+        designSystemId: "dark-tech",
+        uiDesign: "# 登录视觉稿提示\n\n## 画布构图\n- 登录帧居中卡片",
+      },
+    });
+    assert.ok(!created.isError, textOf(created));
+    const ref = refOf(created);
+    const suite = readDesignSuite(root, ref.suiteId);
+    const content = suite?.currentVersion.content as UiSuiteContent;
+    assert.match(content.uiDesign ?? "", /# 登录视觉稿提示/);
+    assert.ok(
+      fs.existsSync(path.join(root, ".deeporca", "designs", ref.suiteId, "ui-design.md")),
+      "ui-design.md projection written"
+    );
+  } finally {
+    await client.close();
+  }
+});

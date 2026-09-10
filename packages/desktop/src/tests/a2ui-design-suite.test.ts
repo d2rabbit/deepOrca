@@ -596,3 +596,56 @@ test("render_spec append with theme args overwrites the suite's theme meta witho
     await client.close();
   }
 });
+
+test("save_pd_design persists the prompt doc, resets derived artifacts, and projects pd-design.md", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "a2ui-suite-pddesign-"));
+  roots.push(root);
+  const client = await clientFor(root);
+  try {
+    const spec = await client.callTool({
+      name: "render_spec",
+      arguments: { document: "# 登录 PRD\n\n## Page list\n- Login", requirement: "登录模块", note: "suite mode" },
+    });
+    const ref = JSON.parse(text(spec).match(/ArtifactRef:\s*(\{[^\n]+\})/)![1]) as {
+      suiteId: string;
+      versionId: string;
+    };
+    const pd = await client.callTool({
+      name: "save_pd_design",
+      arguments: {
+        document: "# 登录原型设计提示\n\n## 页面结构\n- 登录页\n\n## 交互叙事\n- 提交→校验",
+        suiteId: ref.suiteId,
+        versionId: ref.versionId,
+      },
+    });
+    assert.ok(!pd.isError, text(pd));
+    const suite = readDesignSuite(root, ref.suiteId);
+    const content = suite?.currentContent as PrototypeSuiteContent;
+    assert.match(content.pdDesign ?? "", /# 登录原型设计提示/);
+    // 派生物失效（与 render_spec 同规）。
+    assert.equal(content.openui, undefined);
+    assert.equal(content.verification?.status, "pending");
+    assert.equal(content.arch, undefined);
+    // 投影文件。
+    assert.ok(
+      fs.existsSync(path.join(root, ".deeporca", "designs", ref.suiteId, "pd-design.md")),
+      "pd-design.md projection written"
+    );
+
+    // render_spec 重写 PRD → pdDesign 派生链失效（save_pd_design 已前移
+    // head——按 head 追加，不沿用旧 versionId）。
+    const revised = await client.callTool({
+      name: "render_spec",
+      arguments: { document: "# 登录 PRD v2\n\n## Page list\n- Login\n- MFA", suiteId: ref.suiteId },
+    });
+    assert.ok(!revised.isError, text(revised));
+    const afterSpec = readDesignSuite(root, ref.suiteId);
+    assert.equal(
+      (afterSpec?.currentContent as PrototypeSuiteContent).pdDesign,
+      undefined,
+      "spec rewrite invalidates pdDesign"
+    );
+  } finally {
+    await client.close();
+  }
+});

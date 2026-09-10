@@ -36,6 +36,7 @@ import { getExtensionRoot } from "../prompt";
 import {
   executeA2ui,
   extractGeneratedBody,
+  extractMarkdownDocument,
   looksLikeOpenuiProgram,
   readArtifactFile,
   readSuiteVersion,
@@ -44,6 +45,16 @@ import {
 } from "./prototype";
 import { extractProgramPages } from "../common/openui-pages";
 import type { ArtifactRef, DesignThemeRef, UiSuiteContent } from "./prototype";
+
+/** specs/prompt-doc-chain：ui-design.md 的产出契约——pd-design 的视觉翻译
+ *  （写给视觉画布生成器的指令），不是 pd-design 复述。 */
+export const UI_DESIGN_CONTRACT =
+  "It must be ONE markdown document: a `# ` title plus these `## ` sections in order — " +
+  "`画布构图`（每页一帧：区块布局 / 网格 / 留白，落到画布坐标语言）、" +
+  "`tokens 映射`（色彩 / 字级 / 圆角 → 设计系统 token 语义）、`视觉层级`（每帧的焦点序）、" +
+  "`状态呈现`（空态 / 加载 / 错误的视觉处理）。 " +
+  "The page set MUST come from the pd-design 页面结构 — do not invent pages. " +
+  "Write every section as DIRECTIVES to the canvas generator.";
 
 export interface DesignMaterializeInput {
   requirement?: string;
@@ -148,6 +159,8 @@ export const designMaterializeRun: ActionRun<DesignMaterializeInput, DesignMater
 
   let prototypeContent: string | null = null;
   let suiteRequirement: string | undefined;
+  // specs/prompt-doc-chain：基底原型的 pd-design（ui-design 强化阶段的翻译源）。
+  let basisPdDesign: string | null = null;
   let sourcePrototype: { suiteId: string; versionId: string } | undefined;
   // specs/prd-theme-layer：基底原型的主题/关系（read_suite_version 载荷携带
   // 套件 meta 字段），透传给 UI 套件——UI 设计稿自动继承 PRD 主题。
@@ -160,6 +173,7 @@ export const designMaterializeRun: ActionRun<DesignMaterializeInput, DesignMater
     if (read.value.artifactRef.kind !== "prototype")
       return { ok: false, error: "source suite is not a prototype suite" };
     prototypeContent = "openui" in read.value.content ? read.value.content.openui?.trim() || null : null;
+    basisPdDesign = "pdDesign" in read.value.content ? read.value.content.pdDesign?.trim() || null : null;
     if (!requirement && "requirement" in read.value.content) {
       suiteRequirement = read.value.content.requirement;
     }
@@ -176,15 +190,56 @@ export const designMaterializeRun: ActionRun<DesignMaterializeInput, DesignMater
     if (!prototypeContent) return { ok: false, error: `prototype artifact not found for id "${prototypeId}"` };
   }
 
+  // The caller's input object is never mutated; the suite's stored requirement
+  // reaches BOTH the generation prompt and the persisted version (previously
+  // the prompt still saw the stale pre-read snapshot).
+  const effectiveRequirement = requirement ?? suiteRequirement;
+  // specs/prompt-doc-chain：基底原型携带 pd-design → 先产出 ui-design.md
+  // （视觉强化提示词，随 render_leafer 落盘）再画布生成；无 pd-design（旧
+  // 数据）→ 既有提示词字节不变（降级零回归）。
+  let uiDesign: string | null = null;
+  if (basisPdDesign) {
+    ctx.emit({
+      message: "Strengthening the design intent into the ui-design prompt document",
+      percent: 30,
+      data: { code: "design.uidesign.generating" },
+    });
+    const uiGenerated = await ctx.runSubagent({
+      skill: "deep-design",
+      prompt:
+        "Strengthen the interaction design intent below into a ui-design prompt document for a " +
+        "visual-canvas generator — a VISUAL TRANSLATION of the pd-design, not a restatement. " +
+        UI_DESIGN_CONTRACT +
+        " Do not call tools. " +
+        "Return only the complete markdown document in one markdown code fence.\n\n" +
+        "## pd-design（交互意图，翻译源）\n" +
+        basisPdDesign +
+        (prototypeContent ? "\n\n## 原型程序（页面/流的保真参照）\n" + prototypeContent : "") +
+        (effectiveRequirement ? "\n\n## 需求\n" + effectiveRequirement : ""),
+      silent: true,
+    });
+    const uiDocument = extractMarkdownDocument(uiGenerated);
+    if (!uiDocument || !uiDocument.match(/^#\s+/m) || (uiDocument.match(/^##\s+/gm) ?? []).length < 2) {
+      return {
+        ok: false,
+        error: "deep-design returned an empty or structure-less ui-design document — regenerate",
+      };
+    }
+    if (ctx.signal.aborted) return { ok: false, error: "cancelled" };
+    uiDesign = uiDocument;
+    ctx.emit({
+      message: "ui-design prompt document distilled",
+      percent: 40,
+      data: { code: "design.uidesign.saved" },
+    });
+  }
+  // specs/prompt-doc-chain:materialize.generating 移到 ui-design stage 之后
+  // ——进度叙事与真实阶段一致（先蒸馏视觉意图，再生成画布）。
   ctx.emit({
     message: "Generating UI design from the selected prototype and design system",
     percent: 50,
     data: { code: "design.materialize.generating" },
   });
-  // The caller's input object is never mutated; the suite's stored requirement
-  // reaches BOTH the generation prompt and the persisted version (previously
-  // the prompt still saw the stale pre-read snapshot).
-  const effectiveRequirement = requirement ?? suiteRequirement;
   // specs/leafer-ui-engine WP0.3: the UI-Design stack produces a Leafer JSON
   // scene tree (prototype module stays on OpenUI Lang — guard-tested split).
   const promptParts = [
@@ -194,7 +249,17 @@ export const designMaterializeRun: ActionRun<DesignMaterializeInput, DesignMater
     LEAFER_CREATE_CONTRACT,
     `Use this bundled design system exactly. Its complete source is included below:\n\n${designSystem}`,
   ];
-  if (prototypeContent) {
+  if (uiDesign) {
+    // specs/prompt-doc-chain：ui-design.md 主驱动——画布从视觉翻译文档出发，
+    // 原型程序降为保真参照。
+    promptParts.push(
+      "The ui-design document below is the distilled VISUAL intent — drive the canvas from it. " +
+        "The prototype program after it is the fidelity reference for pages/flows.\n\n" +
+        "## ui-design（视觉意图——主驱动）\n" +
+        uiDesign +
+        (prototypeContent ? "\n\n## 原型程序（保真参照）\n" + prototypeContent : "")
+    );
+  } else if (prototypeContent) {
     promptParts.push(
       "Cover every page and flow in this OpenUI prototype as separate canvas frames (one Frame per page, " +
         "labeled with a Text node), preserving its information architecture and Action wiring as visual " +
@@ -234,6 +299,9 @@ export const designMaterializeRun: ActionRun<DesignMaterializeInput, DesignMater
       ...(sourcePrototype ? { sourcePrototype } : {}),
       // 主题字段自动继承（specs/prd-theme-layer WP3）：UI 套件 meta 随基底
       // 原型的主题/关系落地，工作台/目录可后经 IPC 手动改。
+
+      // specs/prompt-doc-chain：ui-design.md 随 UI 版本落内容字段。
+      ...(uiDesign ? { uiDesign } : {}),
       ...(inheritedTheme?.themeId ? { themeId: inheritedTheme.themeId } : {}),
       ...(inheritedTheme?.stage ? { stage: inheritedTheme.stage } : {}),
       ...(inheritedTheme?.inherits
@@ -648,6 +716,11 @@ export const designReviseRun: ActionRun<DesignReviseInput, SuiteActionOutput> = 
           `Instruction (verbatim): "${instruction}". Preserve unrelated content. ` +
           `${LEAFER_PRESERVE_CONTRACT} ${LEAFER_CREATE_CONTRACT} ` +
           `Current design outline (semantic map — address elements by their stable names):\n${outline}\n\n` +
+          // specs/prompt-doc-chain：ui-design 存在时作为视觉意图基线注入
+          // （存储文档的纯函数——无抖动约定不破）。
+          (content.uiDesign
+            ? `Current ui-design visual intent (from the prototype — keep it honored):\n${content.uiDesign}\n\n`
+            : "") +
           "Current scene JSON (canonical). Modify ONLY what the instruction requires and return the COMPLETE " +
           `revised document in one json code fence. Do not call tools.\n${baseline}`,
         silent: true,
