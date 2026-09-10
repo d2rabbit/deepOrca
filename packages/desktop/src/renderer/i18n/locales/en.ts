@@ -1803,6 +1803,7 @@ export const en = {
   "prototypeWorkspace.vbadgeNote": "Acceptance {passed}/{total} · healed {heal}",
   "prototypeWorkspace.reportMeta": "Version {version} · generated {time}",
   "prototypeWorkspace.specTitle": "Requirements document",
+  "prototypeWorkspace.specDocTocAria": "Document sections",
   "prototypeWorkspace.specMeta": "Version {version}",
   "prototypeWorkspace.quickSpecThree": "Drop the settings page",
   "prototypeWorkspace.quickProtoThree": "Single-column KPIs at 375px",

@@ -32,8 +32,11 @@ import path from "node:path";
  */
 const LEAKED_PREFIXES = [
   "Scan the codebase",
-  // prototype.spec
+  // prototype.spec — current PRD wording AND the pre-PRD wording: sessions
+  // leaked in the 2026-09-09 normalize-wash window (before f90b6d20 renamed
+  // the spec prompt) carry the old "requirements document" summary.
   "Write the complete structured PRD for the requirement below",
+  "Write the complete structured requirements document for the requirement below",
   // prototype.materialize / design.materialize
   "Create the complete OpenUI Lang prototype for the requirements document below",
   "Create a complete OpenUI Lang program for this requirement",

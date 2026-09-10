@@ -1795,6 +1795,7 @@ export const ko: Record<MessageKey, string> = {
   "prototypeWorkspace.vbadgeNote": "수용 {passed}/{total} · 자가 치유 {heal}",
   "prototypeWorkspace.reportMeta": "버전 {version} · 생성 {time}",
   "prototypeWorkspace.specTitle": "요구사항 문서",
+  "prototypeWorkspace.specDocTocAria": "문서 섹션",
   "prototypeWorkspace.specMeta": "버전 {version}",
   "prototypeWorkspace.quickSpecThree": "설정 페이지 제거",
   "prototypeWorkspace.quickProtoThree": "375px에서 KPI 1열로",

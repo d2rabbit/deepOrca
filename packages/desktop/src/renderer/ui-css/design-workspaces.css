@@ -713,6 +713,12 @@
 .ui-design-preview-toolbar button,
 .ui-report-finding > button,
 .ui-design-locate {
+  /* 家族级对齐:纯文本按钮(locate)文本也要在 28px 盒内垂直居中;icon+文本
+     按钮由 primitives 的全局原语兜底,这里收口为家族统一口径。 */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
   min-height: 28px;
   padding: 4px 9px;
   border: 1px solid var(--ui-border-soft);
@@ -720,12 +726,6 @@
   background: var(--ui-surface-raised);
   color: var(--ui-accent);
   font-size: 11px;
-}
-
-.ui-design-toolbar button {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
 }
 
 .ui-design-toolbar button:disabled,

@@ -571,8 +571,9 @@ If the query is simple (single intent), respond with a single-element array.`;
       try {
         const kbServer = kbBuilder(this.projectRoot);
         await this.mcpManager.connectInProcessServer(KB_MCP_SERVER_NAME, kbServer);
-      } catch (error) {
-        console.error("[session] kb MCP server failed:", error);
+      } catch {
+        // KB 是纯本地只读面:连接失败时工具缺席即静默降级(同 Activity-Frames
+        // 块),core 不得直接 console.*(host 注入 logger 层规则)。
       }
     }
 

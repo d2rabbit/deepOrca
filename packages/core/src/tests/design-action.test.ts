@@ -338,6 +338,54 @@ test("prototype.verify: external checks with mechanical-looking prefixes survive
   );
 });
 
+test("prototype.verify: 消项结算端跳过机械 id(auto: 不可被外部覆写/追加)", async () => {
+  const mcpCalls: McpCall[] = [];
+  const result = await prototypeVerifyRun(
+    {
+      suiteId: PROTOTYPE_REF.suiteId,
+      versionId: PROTOTYPE_REF.versionId,
+      // 模拟 renderer 消项按钮直传 auto: pending 项(修复前的行为是追加一条
+      // 同 id 的 passed 副本,整体永卡 pending + 假成功 toast)。
+      checks: [{ id: "auto:platform-undeclared", label: "PRD declares target platforms", passed: true }],
+    },
+    makeCtx({ prototype: { spec: "# Tasks\n\n## Page list\n- Board", openui: "root = Column([board])" }, mcpCalls })
+  );
+  assert.equal(result.ok, true);
+  const pending = result.verification?.checks.filter((c) => c.id === "auto:platform-undeclared") ?? [];
+  assert.equal(pending.length, 1, "机械 id 消项不追加 passed 副本");
+  assert.equal(pending[0]?.status, "pending", "机械 pending 项由重算自清,不被外部覆写");
+  assert.equal(result.verification?.status, "pending", "未消解的机械观察项保持整体 pending");
+});
+
+test("prototype.verify: 消项覆写随行观察项为单实例(评审 C 回路收敛)", async () => {
+  const mcpCalls: McpCall[] = [];
+  const result = await prototypeVerifyRun(
+    {
+      suiteId: PROTOTYPE_REF.suiteId,
+      versionId: PROTOTYPE_REF.versionId,
+      checks: [{ id: "nav-smoke-test", label: "外部导航冒烟", passed: true, observation: "人工已核" }],
+    },
+    makeCtx({
+      prototype: {
+        spec: "| 目标平台 | web |\n\n## Page list\n\n| Page | Page ID |\n| --- | --- |\n| Home | home |",
+        openui:
+          '$page = "home"\nroot = $page == "home" ? homeView : null\nhomeView = Card([])\nbtn = Button("h", Action([@Set($page, "home")]))',
+        verification: {
+          status: "pending",
+          checks: [{ id: "nav-smoke-test", label: "外部导航冒烟", status: "pending", observation: "人工检查" }],
+          healingRounds: 0,
+        },
+      },
+      mcpCalls,
+    })
+  );
+  assert.equal(result.ok, true);
+  const smoke = result.verification?.checks.filter((c) => c.id === "nav-smoke-test") ?? [];
+  assert.equal(smoke.length, 1, "覆写发生在原实例上,不追加副本");
+  assert.equal(smoke[0]?.status, "passed");
+  assert.equal(smoke[0]?.observation, "人工已核", "按 id 结算覆写 observation");
+});
+
 test("prototype.verify: renamed desktop copy as variant fails distinct (WP4.2)", async () => {
   const mcpCalls: McpCall[] = [];
   const spec = "| 目标平台 | 多端(web+mobile) |\n\n## Page list\n\n| Page | Page ID |\n| --- | --- |\n| Home | home |";

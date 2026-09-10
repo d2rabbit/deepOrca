@@ -1,5 +1,6 @@
 import { useMemo, useState, type JSX } from "react";
 import { StreamdownView } from "../StreamdownView";
+import { useI18n } from "../../i18n";
 
 type Props = {
   markdown: string;
@@ -84,6 +85,7 @@ export function parseSpecDocument(markdown: string): ParsedDoc {
  * shared Streamdown pipeline (tables / Mermaid / code render properly).
  */
 export function SpecDocumentView({ markdown, className }: Props): JSX.Element {
+  const { t } = useI18n();
   const doc = useMemo(() => parseSpecDocument(markdown), [markdown]);
   const [activeSection, setActiveSection] = useState<string>(doc.sections[0]?.id ?? "");
 
@@ -94,8 +96,8 @@ export function SpecDocumentView({ markdown, className }: Props): JSX.Element {
 
   return (
     <div className={`ui-spec-doc ${className ?? ""}`}>
-      <aside className="ui-spec-doc-toc" aria-label="document sections">
-        <div className="ui-spec-doc-toc-title">{doc.title || "需求文档"}</div>
+      <aside className="ui-spec-doc-toc" aria-label={t("prototypeWorkspace.specDocTocAria")}>
+        <div className="ui-spec-doc-toc-title">{doc.title || t("prototypeWorkspace.specTitle")}</div>
         {doc.sections.map((section) => (
           <a
             key={section.id}

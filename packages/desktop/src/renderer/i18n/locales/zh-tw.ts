@@ -1757,6 +1757,7 @@ export const zhTW: Record<MessageKey, string> = {
   "prototypeWorkspace.vbadgeNote": "驗收 {passed}/{total} · 自癒 {heal}",
   "prototypeWorkspace.reportMeta": "版本 {version} · 產生於 {time}",
   "prototypeWorkspace.specTitle": "需求文件",
+  "prototypeWorkspace.specDocTocAria": "文件目錄",
   "prototypeWorkspace.specMeta": "版本 {version}",
   "prototypeWorkspace.quickSpecThree": "砍掉設定頁",
   "prototypeWorkspace.quickProtoThree": "375px 下 KPI 改單列",

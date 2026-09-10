@@ -230,6 +230,24 @@
 /* =========================================================================
    Controls — Button
    ========================================================================= */
+/* Raw-button icon+label alignment: JSX renders `<Icon /> label` as an inline
+   svg followed by a text node — under the default inline layout the svg sits
+   on the text BASELINE, so the pair reads vertically misaligned (and the
+   line box height tracks the icon, not the label). Flex EVERY button with a
+   direct svg child: the label is usually a bare TEXT node, which CSS cannot
+   select — an `:not(:only-child)` guard would look only at element siblings
+   and exclude exactly this icon+text case. Icon-only buttons get the same
+   centering for free (single flex item); whitespace-only text nodes create
+   no flex item, so `gap` is the single source of icon↔label spacing. */
+button:has(> svg) {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+button > svg {
+  flex-shrink: 0;
+}
+
 .ui-btn {
   display: inline-flex;
   align-items: center;

@@ -1163,7 +1163,10 @@ export function PrototypeWorkspace({
                             <IconSparkle /> {t("prototypeWorkspace.fixFinding")}
                           </button>
                         ) : null}
-                        {check.status === "pending" ? (
+                        {/* 消项只对可结算的观察项开放:auto: 机械 pending 项每次
+                            verify 重算、结算端跳过保留命名空间——按钮对它们是假
+                            承诺(弹成功 toast 但状态永卡 pending),由重新生成自清。 */}
+                        {check.status === "pending" && !check.id.startsWith("auto:") ? (
                           <button
                             type="button"
                             disabled={readOnly || busy !== null}

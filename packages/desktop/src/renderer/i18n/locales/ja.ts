@@ -1803,6 +1803,7 @@ export const ja: Record<MessageKey, string> = {
   "prototypeWorkspace.vbadgeNote": "受け入れ {passed}/{total} · 自己修復 {heal}",
   "prototypeWorkspace.reportMeta": "バージョン {version} · 生成 {time}",
   "prototypeWorkspace.specTitle": "要件ドキュメント",
+  "prototypeWorkspace.specDocTocAria": "ドキュメント目次",
   "prototypeWorkspace.specMeta": "バージョン {version}",
   "prototypeWorkspace.quickSpecThree": "設定ページを削る",
   "prototypeWorkspace.quickProtoThree": "375px で KPI を 1 列に",

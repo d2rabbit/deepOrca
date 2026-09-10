@@ -542,6 +542,12 @@ export const prototypeMaterializeRun: ActionRun<PrototypeMaterializeInput, Proto
       : declaredPlatforms
         ? normalizeOpenuiDevices(declaredPlatforms)
         : ["desktop"];
+  // legacy artifact 路径(无 suite)没有版本链与 openuiVariants 变体槽:逐端
+  // render 只会各存一个互不关联的独立 artifact、且只回传最后一个(last-write-
+  // wins)——收敛为单一主端(desktop 优先),多端平台化必须走 suite 路径。
+  const renderDevices: OpenuiDevice[] = suiteId
+    ? devices
+    : [devices.includes("desktop") ? "desktop" : (devices[0] ?? "desktop")];
   try {
     // 平台化适配(user ask 2026-09-09):每个设备一次独立生成——各端是导航
     // 模型/列布局/密度结构性不同的程序(设备契约见 openui-contract),不是
@@ -552,13 +558,13 @@ export const prototypeMaterializeRun: ActionRun<PrototypeMaterializeInput, Proto
     // 必须以最新 head 为基线——循环里沿用输入 versionId 会在第二端撞
     // readSuiteBase 的 head-moved 守卫(fix-all 同款坑,修复同款)。
     let baseVersionId = versionId;
-    for (const [index, device] of devices.entries()) {
+    for (const [index, device] of renderDevices.entries()) {
       // 进度码保持稳定契约:单设备(缺省)与旧版完全一致(一次 generating);
       // 多设备才发每端进度,码不变,renderer i18n 无需新增。
-      if (devices.length > 1) {
+      if (renderDevices.length > 1) {
         ctx.emit({
-          message: `[${index + 1}/${devices.length}] ${device} — generating the OpenUI prototype`,
-          percent: 15 + Math.round((index / devices.length) * 70),
+          message: `[${index + 1}/${renderDevices.length}] ${device} — generating the OpenUI prototype`,
+          percent: 15 + Math.round((index / renderDevices.length) * 70),
           data: { code: "prototype.materialize.generating", device },
         });
       } else {
@@ -601,7 +607,7 @@ export const prototypeMaterializeRun: ActionRun<PrototypeMaterializeInput, Proto
         code,
         contract: `${OPENUI_CREATE_CONTRACT} ${OPENUI_DEVICE_CONTRACTS[device]}`,
         progressCode: "prototype.materialize.repairing",
-        basePercent: devices.length > 1 ? 15 + Math.round(((index + 0.5) / devices.length) * 70) : 55,
+        basePercent: renderDevices.length > 1 ? 15 + Math.round(((index + 0.5) / renderDevices.length) * 70) : 55,
       });
       if (ctx.signal.aborted) return { ok: false, error: "cancelled" };
       const saved = await executeA2ui(ctx, "render_openui", {
@@ -893,6 +899,11 @@ export const prototypeVerifyRun: ActionRun<PrototypeVerifyInput, PrototypeVerify
     }
   }
   for (const [index, check] of (input.checks ?? []).entries()) {
+    // auto:/确定性 id 是保留命名空间:机械 pending 检查每次 verify 重算,外部
+    // 输入(renderer 消项按钮/agent)既覆写不到也不能追加——否则一条 passed
+    // 副本与重算的 pending 项同 id 并存,整体状态永卡 pending(消项死按钮)。
+    // 静默跳过:机械项由重算机制自清,不需要人工消项。
+    if (check.id && isMechanical(check.id.trim())) continue;
     const resolved: PrototypeVerificationCheck = {
       id: check.id?.trim() || `external-${index + 1}`,
       label: check.label,
@@ -901,7 +912,8 @@ export const prototypeVerifyRun: ActionRun<PrototypeVerifyInput, PrototypeVerify
     };
     // 按 id 消项:传入的 check 若命中已随行的观察项,则覆写其状态(这是
     // "revise 加观察 → 处理 → verify 消项"回路的结算端),否则作为新外部项追加。
-    const carriedIndex = checks.findIndex((existing) => existing.id === resolved.id && !isMechanical(existing.id));
+    // 机械 id 已在上方被跳过,这里的匹配天然只落在外部/随行观察项上。
+    const carriedIndex = checks.findIndex((existing) => existing.id === resolved.id);
     if (carriedIndex !== -1) checks[carriedIndex] = resolved;
     else checks.push(resolved);
   }

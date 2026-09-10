@@ -16,7 +16,20 @@ function unzipList(buffer: Buffer): string[] {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ddp-variant-"));
   const zipPath = path.join(dir, "pkg.ddp");
   fs.writeFileSync(zipPath, buffer);
-  const listing = execFileSync("unzip", ["-Z1", zipPath], { encoding: "utf8" });
+  // 跨平台:Windows 无 unzip 二进制,用系统自带的 .NET ZipFile(同为独立标准
+  // 实现,校验手写 zip 结构的效力不变);POSIX 保持 unzip -Z1。
+  const listing =
+    process.platform === "win32"
+      ? execFileSync(
+          "powershell",
+          [
+            "-NoProfile",
+            "-Command",
+            `Add-Type -AssemblyName System.IO.Compression.FileSystem; [System.IO.Compression.ZipFile]::OpenRead('${zipPath}').Entries.FullName -join [char]10`,
+          ],
+          { encoding: "utf8" }
+        )
+      : execFileSync("unzip", ["-Z1", zipPath], { encoding: "utf8" });
   fs.rmSync(dir, { recursive: true, force: true });
   return listing.trim().split("\n").filter(Boolean);
 }

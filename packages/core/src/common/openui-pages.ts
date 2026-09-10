@@ -57,7 +57,10 @@ function outsideFences(markdown: string): string {
 // ── target platforms (WP0.2) ─────────────────────────────────────────────────
 
 const PLATFORM_KEYWORDS: ReadonlyArray<{ pattern: RegExp; device: OpenuiDevice }> = [
-  { pattern: /desktop[- ]?app|桌面应用|桌面端\s*app/i, device: "desktop" },
+  // "Web App"/"桌面 App"/"网页 App" 是 desktop 的复合词——必须先于 mobile 行的
+  // 裸 app\b 匹配(token 不按空白分词,"Web App" 是单 token,否则被 app\b 捞成
+  // mobile,Web 产品被硬造成手机程序)。
+  { pattern: /desktop[- ]?app|桌面应用|桌面端\s*app|桌面\s*app|web\s*app|网页\s*app/i, device: "desktop" },
   { pattern: /mini[- ]?program|小程序/i, device: "mobile" },
   { pattern: /tablet|平板/i, device: "tablet" },
   { pattern: /mobile|移动端|手机|app\b/i, device: "mobile" },
@@ -126,8 +129,13 @@ export interface SpecPageList {
   readonly hasIds: boolean;
 }
 
-const ID_INLINE = /[（(]\s*([a-z][a-z0-9-_]*)\s*[）)]/i;
-const ID_COLUMN = /^[a-z][a-z0-9-_]*$/i;
+// 行内/列两种 id 识别都仅小写(与 ID_COLUMN 同规):大写括注如 名称(P0) 是
+// 优先级标记,不当页面 id——误认会让 verify 逐页覆盖整批误报。
+const ID_INLINE = /[（(]\s*([a-z][a-z0-9-_]*)\s*[）)]/;
+// 仅小写 kebab:大小写不敏感会把优先级列的 "P0"/"High" 这类大写标记单元格
+// 误当页面 id,verify 的逐页覆盖检查拿它们比对会整批误报——合法 id 由
+// spec-writer 契约生成为小写 kebab(见页面 ID 列规范)。
+const ID_COLUMN = /^[a-z][a-z0-9-_]*$/;
 const PAGE_LIST_HEADER = /^(页面(名称|名|清单)?|屏幕|名称|name|screen|page(\s+name)?)$/i;
 
 /**

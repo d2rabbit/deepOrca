@@ -168,6 +168,9 @@ export function DesignWorkspace({
         if (!targetId) {
           setSuite(null);
           setSelectedVersion(null);
+          // 库清空也是一次成功加载:清掉可能残留的错误态(评审 B)——后台
+          // 刷新成功必须能把工作区从错误页自愈回空库页。
+          setError(null);
           return;
         }
         const next = await suiteApi.designSuiteRead(root, targetId);
@@ -196,7 +199,10 @@ export function DesignWorkspace({
       } catch (cause) {
         if (seq === loadSeq.current && !background) setError(cause instanceof Error ? cause.message : String(cause));
       } finally {
-        if (seq === loadSeq.current && !background) setLoading(false);
+        // seq 仍是最新者必须收尾 loading——无论前台还是后台。否则前台 load
+        // 被后台刷新超越时双方都跳过收尾,loading 永久卡死(评审 A:恢复
+        // edaf5b968 的"最新 load 必收尾"不变式)。
+        if (seq === loadSeq.current) setLoading(false);
       }
     },
     [root, suiteId, t]

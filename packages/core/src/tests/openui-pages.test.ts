@@ -34,6 +34,17 @@ test("extractTargetPlatforms: combo declarations enumerate devices", () => {
   assert.deepEqual(extractTargetPlatforms("| 目标平台 | 多端 |"), ["desktop", "mobile", "tablet"], "总称按三端");
 });
 
+test("extractTargetPlatforms: Web/桌面 + App 复合词判 desktop,不被裸 app 捞成 mobile", () => {
+  // token 不按空白分词,"Web App"/"桌面 App" 是单 token——必须先命中 desktop
+  // 行的复合词,否则 mobile 行的裸 app\b 会把 Web 产品硬造成手机程序。
+  assert.deepEqual(extractTargetPlatforms("| 目标平台 | Web App |"), ["desktop"]);
+  assert.deepEqual(extractTargetPlatforms("| 目标平台 | 桌面 App |"), ["desktop"]);
+  assert.deepEqual(extractTargetPlatforms("| 目标平台 | Desktop App |"), ["desktop"]);
+  // 裸 App / iOS/Android App 仍判 mobile。
+  assert.deepEqual(extractTargetPlatforms("| 目标平台 | App |"), ["mobile"]);
+  assert.deepEqual(extractTargetPlatforms("| 目标平台 | iOS App / Android App |"), ["mobile"]);
+});
+
 test("extractTargetPlatforms: absent declaration returns null (legacy PRD)", () => {
   assert.equal(extractTargetPlatforms("# 只有标题的旧 PRD\n\n## 页面清单\n\n| 页面 | 目的 |\n| --- | --- |"), null);
   // 围栏内的行不算声明
@@ -75,6 +86,25 @@ test("parsePageList: legacy rows without ids degrade hasIds to false", () => {
   assert.ok(list);
   assert.equal(list?.pages.length, 2);
   assert.equal(list?.hasIds, false);
+});
+
+test("parsePageList: 优先级列的大写标记单元格不当页面 id(降级数量比对)", () => {
+  const spec = [
+    "## 页面清单",
+    "",
+    "| 页面 | 优先级 | 说明 |",
+    "| --- | --- | --- |",
+    "| 订单列表 | P0 | 浏览全部订单 |",
+    "| 设置 | P1 | 偏好配置 |",
+  ].join("\n");
+  const list = parsePageList(spec);
+  assert.ok(list);
+  assert.equal(list?.pages.length, 2);
+  assert.ok(
+    list?.pages.every((page) => page.id === undefined),
+    "P0/P1 are priority markers, not page ids"
+  );
+  assert.equal(list?.hasIds, false, "no usable ids → coverage degrades to count comparison");
 });
 
 test("parsePageList: fence transparency, CJK no-space heading, section boundary", () => {

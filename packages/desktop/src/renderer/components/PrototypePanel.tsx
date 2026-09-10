@@ -40,6 +40,13 @@ export type PrototypeSelection = {
   action?: string;
 };
 
+/** WP3.5 form-state slot target: root+suite (+ optional device slot). */
+type FormStateScope = {
+  root: string | null | undefined;
+  suiteId: string | null | undefined;
+  slot: string | null | undefined;
+};
+
 type Props = {
   /** A2UI JSON messages (used when mode === "a2ui"). */
   a2uiJson: string;
@@ -164,14 +171,18 @@ export function PrototypePanel({
   const lastSavedAt = useRef(0);
 
   // WP3.5:有 suite 时走 per-suite 槽位通道(桌面本体=无槽,变体=formState.<device>.json),
-  // 否则回落全局键。latest refs 让 unmount flush 闭包拿到最新作用域与待存状态
-  // (旧注释声称 flush,实现却丢弃——现在真 flush)。
-  const pendingStateRef = useRef<Record<string, unknown> | null>(null);
-  const scopeRef = useRef({ root: formStateRoot, suiteId: formStateSuiteId, slot: formStateDeviceSlot });
+  // 否则回落全局键。待存值自带「输入时刻」的作用域快照——定时器 flush 与
+  // unmount flush 都按快照落盘,切设备/套件后旧端状态不会串写进新槽。
+  const pendingSaveRef = useRef<{ state: Record<string, unknown>; scope: FormStateScope } | null>(null);
+  const scopeRef = useRef<FormStateScope>({
+    root: formStateRoot,
+    suiteId: formStateSuiteId,
+    slot: formStateDeviceSlot,
+  });
   scopeRef.current = { root: formStateRoot, suiteId: formStateSuiteId, slot: formStateDeviceSlot };
 
-  const persist = useCallback((state: Record<string, unknown>): void => {
-    const { root, suiteId, slot } = scopeRef.current;
+  const persist = useCallback((state: Record<string, unknown>, scope: FormStateScope = scopeRef.current): void => {
+    const { root, suiteId, slot } = scope;
     if (root && suiteId) {
       void api.designSuiteSaveFormState(root, suiteId, state, slot ?? undefined).catch(() => {});
       return;
@@ -200,21 +211,17 @@ export function PrototypePanel({
   const handleStateUpdate = useCallback(
     (state: Record<string, unknown>) => {
       if (saveTimer.current) clearTimeout(saveTimer.current);
-      pendingStateRef.current = state;
-      const elapsed = Date.now() - lastSavedAt.current;
-      // 交叉审查修正:flush 捕获「当次输入时」的作用域快照——若在节流窗口内
-      // 切设备/套件,旧端状态仍写回旧端槽位,而不是 scopeRef 指向的新槽。
+      // 快照「当次输入时」的作用域:若在节流窗口内切设备/套件,旧端状态仍写
+      // 回旧端槽位,而不是 scopeRef 指向的新槽(定时器与 unmount 两条 flush
+      // 路径同规)。
       const scopeAtUpdate = { ...scopeRef.current };
+      pendingSaveRef.current = { state, scope: scopeAtUpdate };
+      const elapsed = Date.now() - lastSavedAt.current;
       const flush = () => {
         lastSavedAt.current = Date.now();
         saveTimer.current = null;
-        const savedScope = scopeRef.current;
-        scopeRef.current = scopeAtUpdate;
-        try {
-          persist(state);
-        } finally {
-          scopeRef.current = savedScope;
-        }
+        persist(state, scopeAtUpdate);
+        pendingSaveRef.current = null;
       };
       saveTimer.current = setTimeout(
         flush,
@@ -225,14 +232,16 @@ export function PrototypePanel({
   );
 
   // Flush any pending form-state save when unmounting / switching modes —
-  // the throttled tail (≤2s of input) must not be dropped.
+  // the throttled tail (≤2s of input) must not be dropped. 写回用「输入时刻」
+  // 的作用域快照(pendingSaveRef.scope),不是卸载时刻的 scopeRef。
   useEffect(() => {
     return () => {
       if (saveTimer.current) {
         clearTimeout(saveTimer.current);
         saveTimer.current = null;
-        const pending = pendingStateRef.current;
-        if (pending) persist(pending);
+        const pending = pendingSaveRef.current;
+        if (pending) persist(pending.state, pending.scope);
+        pendingSaveRef.current = null;
       }
     };
   }, [persist]);
