@@ -12,8 +12,12 @@ export const en = {
   "prototypeWorkspace.pdRegenDone": "pd-design.md regenerated",
   "prototypeWorkspace.progressPdDesign": "Distilling the pd-design prompt document…",
   "prototypeWorkspace.progressPdDesignSaved": "pd-design.md saved",
+  "prototypeWorkspace.progressPdDesignDegraded":
+    "pd-design distillation failed — generating from the requirements document directly",
   "designWorkspace.progressUiDesign": "Strengthening into the ui-design prompt document…",
   "designWorkspace.progressUiDesignSaved": "ui-design.md distilled",
+  "designWorkspace.progressUiDesignDegraded":
+    "ui-design strengthening failed — generating the canvas from the prototype directly",
   "designTheme.contextTitle": "Design context (theme / stage / relations)",
   "designTheme.themeNone": "No theme",
   "designTheme.relationNone": "Not set",

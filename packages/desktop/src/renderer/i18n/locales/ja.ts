@@ -13,8 +13,12 @@ export const ja: Record<MessageKey, string> = {
   "prototypeWorkspace.pdRegenDone": "pd-design.md を再生成しました",
   "prototypeWorkspace.progressPdDesign": "pd-design プロンプト文書を蒸留中…",
   "prototypeWorkspace.progressPdDesignSaved": "pd-design.md を保存しました",
+  "prototypeWorkspace.progressPdDesignDegraded":
+    "pd-design の蒸留に失敗——要件文書からの直接生成にフォールバックしました",
   "designWorkspace.progressUiDesign": "ui-design プロンプト文書へ強化中…",
   "designWorkspace.progressUiDesignSaved": "ui-design.md を蒸留しました",
+  "designWorkspace.progressUiDesignDegraded":
+    "ui-design の強化に失敗——プロトタイプからの直接キャンバス生成にフォールバックしました",
   "designTheme.contextTitle": "設計コンテキスト（テーマ / フェーズ / 関係）",
   "designTheme.themeNone": "テーマなし",
   "designTheme.relationNone": "未設定",

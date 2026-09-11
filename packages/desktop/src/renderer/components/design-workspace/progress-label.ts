@@ -22,6 +22,12 @@ const PROGRESS_KEYS: Record<string, MessageKey> = {
   "prototype.pddesign.repairing": "prototypeWorkspace.progressRepair",
   "design.uidesign.generating": "designWorkspace.progressUiDesign",
   "design.uidesign.saved": "designWorkspace.progressUiDesignSaved",
+  // specs/design-stage-gates：ui-design 修复轮 + arch 门修复轮 + 两级降级
+  // （增强阶段 fail-open——OCR plan-failure 分层，降级也要让用户看见）。
+  "design.uidesign.repairing": "prototypeWorkspace.progressRepair",
+  "prototype.arch.repairing": "prototypeWorkspace.progressRepair",
+  "prototype.materialize.degraded": "prototypeWorkspace.progressPdDesignDegraded",
+  "design.uidesign.degraded": "designWorkspace.progressUiDesignDegraded",
   "prototype.materialize.generating": "prototypeWorkspace.progressMaterialize",
   "prototype.materialize.saved": "prototypeWorkspace.progressMaterializeSaved",
   "prototype.arch.generating": "prototypeWorkspace.progressArch",
