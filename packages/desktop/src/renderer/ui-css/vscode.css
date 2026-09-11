@@ -947,8 +947,10 @@ button.ui-topbar-pill {
   max-width: 300px;
   color: var(--ui-text);
 }
+/* Secondary-chrome text, not a hairline hint: faint measured 3.2-3.3:1 on the
+   topbar surface in the default Line theme (both tones). */
 .ui-topbar-sep {
-  color: var(--ui-text-faint);
+  color: var(--ui-text-dim);
   margin: 0 2px;
   user-select: none;
 }

@@ -290,8 +290,10 @@
   color: var(--ui-text);
 }
 .ui-cockpit-icon-btn.active {
+  /* The accent tint stays as the active cue; the glyph uses the primary text
+     token, because accent-on-accent-soft measured 4.0-4.4:1 in three themes. */
   background: var(--ui-accent-soft);
-  color: var(--ui-accent);
+  color: var(--ui-text);
 }
 .ui-cockpit-icon-btn:disabled {
   opacity: 0.35;

@@ -158,7 +158,9 @@
   font-size: 10.5px;
   font-weight: 800;
   letter-spacing: 0.2em;
-  color: var(--ui-text-faint);
+  /* 10.5px/800 is NOT WCAG "large text", so this label needs 4.5:1 — faint
+     measured 3.2-3.3:1 here. */
+  color: var(--ui-text-dim);
 }
 .ui-actcol-label svg {
   width: 12px;
