@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type JSX } from "react";
 import { useI18n } from "../../i18n";
 import { IconBot } from "../../ui/icons";
+import { StreamdownView } from "../StreamdownView";
 
 type AgentMessage = { role: "user" | "agent"; text: string };
 
@@ -17,6 +18,8 @@ type Props = {
  * Silent floating design agent (mockup proto-dialog): quick chips + a message
  * body with a typing indicator + free-form input. Every instruction runs as a
  * silent subagent — nothing lands in the main session (silent invariant).
+ * Agent bubbles render through the shared Streamdown markdown pipeline; user
+ * bubbles stay plain pre-wrapped text.
  */
 export function FloatingDesignAgent({ tabLabel, quickItems, disabled, busy, onSubmit }: Props): JSX.Element {
   const { t } = useI18n();
@@ -91,7 +94,7 @@ export function FloatingDesignAgent({ tabLabel, quickItems, disabled, busy, onSu
           <div className="ui-floating-design-agent-body" ref={bodyRef}>
             {messages.map((message, index) => (
               <div className={`ui-floating-design-agent-msg ${message.role}`} key={`${message.role}-${index}`}>
-                {message.text}
+                {message.role === "agent" ? <StreamdownView className="ui-md" markdown={message.text} /> : message.text}
               </div>
             ))}
             {typing ? (

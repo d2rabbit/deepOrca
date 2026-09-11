@@ -1707,10 +1707,13 @@
   color: var(--ui-text);
 }
 
+/* Agent bubbles render markdown (shared .ui-md pipeline) — the markdown layer
+   owns its whitespace, so pre-wrap only applies to plain user bubbles. */
 .ui-floating-design-agent-msg.agent {
   align-self: flex-start;
   background: var(--ui-surface-sunken);
   color: var(--ui-text-dim);
+  white-space: normal;
 }
 
 /* ── Spec → slides（specs/artifact-landing 链路 B）：视图段控 + 预览舞台 ── */

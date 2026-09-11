@@ -1059,7 +1059,6 @@ button.ui-edpair-cp:disabled {
   font-size: 12px;
   line-height: 1.65;
   color: var(--ui-text);
-  white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 .ui-edexplain-body .busy {
@@ -1068,9 +1067,21 @@ button.ui-edpair-cp:disabled {
   gap: 8px;
   color: var(--ui-text-dim);
 }
-.ui-edexplain-body .prose {
-  font-family: var(--ui-font-mono, monospace);
-  font-size: 11.5px;
+/* Compact-card scoping over the shared .ui-md pipeline: tighter heading
+   rhythm and hard width caps so wide code/tables scroll instead of blowing
+   out the 400px card. */
+.ui-edexplain-body .ui-md h1,
+.ui-edexplain-body .ui-md h2,
+.ui-edexplain-body .ui-md h3 {
+  margin: 6px 0 4px;
+}
+.ui-edexplain-body .ui-md pre,
+.ui-edexplain-body .ui-md [data-streamdown="table-wrapper"] {
+  max-width: 100%;
+  overflow-x: auto;
+}
+.ui-edexplain-body .ui-md table {
+  font-size: 11px;
 }
 .ui-edexplain-foot {
   padding: 6px 12px;
