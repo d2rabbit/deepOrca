@@ -374,9 +374,9 @@ export const zh: Record<MessageKey, string> = {
   "builtin-plugin.memory.desc": "跨会话长期记忆（TencentDB）+ 行为记忆（activity-frames）。",
   "builtin-plugin.work.name": "工作",
   "builtin-plugin.work.desc": "单文件 HTML 幻灯片生成（Bento）。",
-  "builtin-plugin.agents.name": "数字体",
+  "builtin-plugin.agents.name": "Agent 技能组",
 
-  "builtin-plugin.agents.desc": "编辑器智能体与专用执行体（随 DeepOrca 出厂）。",
+  "builtin-plugin.agents.desc": "智能体相关技能合集（随 DeepOrca 出厂，持续扩充）。",
 
   "builtin-plugin.other.name": "其他",
   "builtin-plugin.other.desc": "未归属任何插件包的内置项。",
@@ -1718,7 +1718,7 @@ export const zh: Record<MessageKey, string> = {
   "designWorkspace.quickQualityThree": "修复触达目标过小",
   "designWorkspace.dirChainDesign": "视觉稿 → 设计系统 → 质量与评审",
   "designWorkspace.dirNote":
-    "此处仅按工作区分组展示（目录，不含操作）；切换工作区在会话/窗口层进行，产物按工作区隔离（.deeporca/designs/）。",
+    "点击工作区、主题或产物卡可在对应设计工作台打开；此处按工作区分组，产物按工作区隔离（.deeporca/designs/）。",
   "designWorkspace.dirNotRun": "未跑",
   "designWorkspace.dirNotGenerated": "未生成",
   "designWorkspace.dirItemsCount": "{count} 项",

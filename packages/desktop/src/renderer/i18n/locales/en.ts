@@ -387,9 +387,9 @@ export const en = {
   "builtin-plugin.memory.desc": "Cross-session long-term memory (TencentDB) + behavioral memory (activity-frames).",
   "builtin-plugin.work.name": "Work",
   "builtin-plugin.work.desc": "Single-file HTML slides generation (Bento).",
-  "builtin-plugin.agents.name": "Digital Entities",
+  "builtin-plugin.agents.name": "Agent Skills",
 
-  "builtin-plugin.agents.desc": "Editor agent and specialized executors (bundled with DeepOrca).",
+  "builtin-plugin.agents.desc": "Agent-related skills bundled with DeepOrca (grows over time).",
 
   "builtin-plugin.other.name": "Other",
   "builtin-plugin.other.desc": "Built-in items not assigned to a plugin package.",
@@ -1768,7 +1768,7 @@ export const en = {
   "designWorkspace.quickQualityThree": "Fix undersized touch targets",
   "designWorkspace.dirChainDesign": "Visual → design system → quality & review",
   "designWorkspace.dirNote":
-    "Read-only grouping by workspace — actions live inside each workspace sheet; switching happens at the session/window level, and artifacts stay isolated per workspace (.deeporca/designs/).",
+    "Click a workspace, theme or artifact to open its design sheet; entries group by workspace and artifacts stay isolated per workspace (.deeporca/designs/).",
   "designWorkspace.dirNotRun": "not run",
   "designWorkspace.dirNotGenerated": "not generated",
   "designWorkspace.dirItemsCount": "{count} items",

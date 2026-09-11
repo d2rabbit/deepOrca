@@ -133,6 +133,22 @@
   font-style: normal;
 }
 
+/* 目录导航行（工作区标题 / 主题 / 套件标题）：点击打开对应设计工作台。 */
+.ui-design-directory-open {
+  cursor: pointer;
+  border-radius: var(--ui-radius-sm);
+}
+
+.ui-design-directory-workspace.ui-design-directory-open:hover,
+.ui-design-directory-item.ui-design-directory-open:hover {
+  background: var(--ui-surface-hover);
+}
+
+.ui-design-directory-open:focus-visible {
+  outline: 1px solid var(--ui-accent);
+  outline-offset: -1px;
+}
+
 .ui-design-directory-items {
   padding: 4px 9px 7px;
 }
@@ -2146,6 +2162,7 @@
   gap: 6px;
   min-height: 22px;
   font-size: 12px;
+  cursor: pointer;
 }
 
 .ui-design-directory-theme-head small {

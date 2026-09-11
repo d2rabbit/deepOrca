@@ -387,9 +387,9 @@ export const ja: Record<MessageKey, string> = {
   "builtin-plugin.design.desc": "DeepDesign + PM-Designer + taste デザイン原則。",
   "builtin-plugin.browser.name": "ブラウザとネットアクセス",
   "builtin-plugin.browser.desc": "Chrome 操作 + Web 検索 + アクセス戦略。",
-  "builtin-plugin.agents.name": "デジタルエンティティ",
+  "builtin-plugin.agents.name": "Agent スキルグループ",
 
-  "builtin-plugin.agents.desc": "エディタエージェントと専用実行体（DeepOrca に同梱）。",
+  "builtin-plugin.agents.desc": "エージェント関連スキルのコレクション（DeepOrca に同梱、随時拡充）。",
 
   "builtin-plugin.other.name": "その他",
   "builtin-plugin.other.desc": "プラグインタグループに割り当てられていない組み込み項目。",
@@ -1769,7 +1769,7 @@ export const ja: Record<MessageKey, string> = {
   "designWorkspace.quickQualityThree": "小さすぎるタッチターゲットを修正",
   "designWorkspace.dirChainDesign": "ビジュアル → デザインシステム → 品質レビュー",
   "designWorkspace.dirNote":
-    "ここではワークスペース別のグループ表示のみ（ディレクトリ、操作なし）。切り替えはセッション/ウィンドウ層で行い、成果物はワークスペース毎に分離されます（.deeporca/designs/）。",
+    "ワークスペース・テーマ・成果物カードをクリックすると対応するデザインワークスペースが開きます。エントリはワークスペース別にグループ化され、成果物はワークスペース毎に分離されます（.deeporca/designs/）。",
   "designWorkspace.dirNotRun": "未実行",
   "designWorkspace.dirNotGenerated": "未生成",
   "designWorkspace.dirItemsCount": "{count} 件",
