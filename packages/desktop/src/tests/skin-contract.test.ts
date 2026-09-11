@@ -107,6 +107,22 @@ test("every skin guards reduced motion", () => {
   }
 });
 
+test("skins keep layout gaps in the shared structure layer", () => {
+  for (const skin of SKINS) {
+    const css = skinCss(skin);
+    assert.doesNotMatch(css, /\b(?:gap|row-gap|column-gap)\s*:/, `${skin}: gap belongs in ui-css, not the skin`);
+    for (const token of ["--ui-surface-edge:", "--ui-gap-surface:", "--ui-gap-divider:"]) {
+      assert.ok(css.includes(token), `${skin}: missing ${token} material binding`);
+    }
+  }
+});
+
+test("shared dividers consume the theme gap separator token", () => {
+  const css = readFileSync(join(rendererDir, "ui-css", "primitives.css"), "utf8");
+  assert.match(css, /\.ui-divider\s*\{[\s\S]*border-top:\s*1px solid var\(--ui-gap-divider\)/);
+  assert.match(css, /\.ui-divider--vertical\s*\{[\s\S]*border-left:\s*1px solid var\(--ui-gap-divider\)/);
+});
+
 test("decorative background rotation leaves semantic card variants alone", () => {
   // A bare `.ui-card:nth-child(...)` rotation is (0,2,0) and out-ranks
   // `.ui-card--warn` (0,1,0), so warning cards silently lost their semantic

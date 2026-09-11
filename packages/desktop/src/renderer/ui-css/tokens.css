@@ -39,6 +39,14 @@
 
   --ui-border: #9aa7b6;
   --ui-border-soft: #c3cdd9;
+  /* Edge/gap semantics: skins may change the material, while layout keeps one
+     structural source for spacing and dividers. */
+  --ui-surface-edge: var(--ui-border-soft);
+  --ui-surface-edge-strong: var(--ui-border);
+  --ui-edge-highlight: transparent;
+  --ui-edge-shadow: transparent;
+  --ui-gap-surface: var(--ui-bg);
+  --ui-gap-divider: var(--ui-border-soft);
 
   --ui-success: #2f9e44;
   --ui-danger: #b92c24;

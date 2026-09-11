@@ -53,6 +53,10 @@
 
   --ui-border: ButtonBorder;
   --ui-border-soft: #767676;
+  --ui-surface-edge: ButtonBorder;
+  --ui-surface-edge-strong: ButtonText;
+  --ui-gap-surface: Canvas;
+  --ui-gap-divider: #767676;
 
   --ui-success: #006400;
   --ui-danger: #b00000;

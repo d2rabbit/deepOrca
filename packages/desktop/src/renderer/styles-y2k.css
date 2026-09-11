@@ -61,6 +61,10 @@
 
   --ui-border: rgba(160, 190, 255, 0.35);
   --ui-border-soft: rgba(160, 190, 255, 0.18);
+  --ui-surface-edge: rgba(160, 190, 255, 0.35);
+  --ui-surface-edge-strong: rgba(0, 224, 255, 0.7);
+  --ui-gap-surface: var(--y2k-ground);
+  --ui-gap-divider: rgba(0, 224, 255, 0.35);
 
   --ui-success: #22e6a5;
   --ui-danger: #ff9ec8;
@@ -117,6 +121,10 @@
 
   --ui-border: rgba(70, 95, 140, 0.35);
   --ui-border-soft: rgba(70, 95, 140, 0.18);
+  --ui-surface-edge: rgba(70, 95, 140, 0.35);
+  --ui-surface-edge-strong: rgba(0, 107, 140, 0.7);
+  --ui-gap-surface: var(--y2k-ground);
+  --ui-gap-divider: rgba(0, 107, 140, 0.35);
 
   --ui-success: #0f7a4d;
   --ui-danger: #c01a5e;
@@ -182,6 +190,7 @@ body,
 .ui-settings-section-title {
   background: var(--y2k-chrome);
   color: #000000;
+  border-top: 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.5);
   text-transform: uppercase;
   letter-spacing: 0.08em;

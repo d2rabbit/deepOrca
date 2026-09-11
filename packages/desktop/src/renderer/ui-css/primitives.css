@@ -18,16 +18,17 @@
 }
 .ui-divider {
   border: none;
-  border-top: 1px solid var(--ui-border-soft);
+  border-top: 1px solid var(--ui-gap-divider);
   margin: 0;
   width: 100%;
 }
 .ui-divider--vertical {
   border-top: none;
-  border-left: 1px solid var(--ui-border-soft);
+  border-left: 1px solid var(--ui-gap-divider);
   width: 0;
   align-self: stretch;
 }
+
 .ui-scroll {
   overflow: auto;
   min-height: 0;
@@ -38,13 +39,17 @@
    ========================================================================= */
 .ui-panel {
   background: var(--ui-surface);
-  border: 1px solid var(--ui-border-soft);
+  border: 1px solid var(--ui-surface-edge);
   border-radius: var(--ui-radius-lg);
+  box-shadow: inset 0 1px 0 var(--ui-edge-highlight);
 }
 
 .ui-card {
   background: var(--ui-surface-raised);
-  border: 1px solid var(--ui-border-soft);
+  border: 1px solid var(--ui-surface-edge);
+  box-shadow:
+    inset 0 1px 0 var(--ui-edge-highlight),
+    var(--ui-shadow-card);
   border-radius: var(--ui-radius-lg);
   box-shadow: var(--ui-shadow-card);
   padding: var(--ui-space-4);
@@ -533,7 +538,7 @@ button > svg {
   display: inline-flex;
   padding: 2px;
   border-radius: var(--ui-radius-md);
-  background: var(--ui-surface-sunken);
+  background: var(--ui-gap-surface);
   gap: 2px;
 }
 .ui-segmented-option {

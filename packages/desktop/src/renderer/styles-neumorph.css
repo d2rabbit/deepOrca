@@ -57,6 +57,12 @@
      state cues that are not shadows. */
   --ui-border: transparent;
   --ui-border-soft: transparent;
+  --ui-surface-edge: transparent;
+  --ui-surface-edge-strong: rgba(255, 255, 255, 0.2);
+  --ui-edge-highlight: var(--nm-light);
+  --ui-edge-shadow: var(--nm-dark);
+  --ui-gap-surface: var(--nm-bg);
+  --ui-gap-divider: rgba(255, 255, 255, 0.18);
 
   --ui-success: #1f6b41;
   --ui-danger: #b8352f;

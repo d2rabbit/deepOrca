@@ -62,6 +62,12 @@
 
   --ui-border: var(--nb-ink);
   --ui-border-soft: var(--nb-ink);
+  --ui-surface-edge: var(--nb-ink);
+  --ui-surface-edge-strong: var(--nb-ink);
+  --ui-edge-highlight: transparent;
+  --ui-edge-shadow: var(--nb-ink);
+  --ui-gap-surface: var(--nb-cream);
+  --ui-gap-divider: var(--nb-ink);
 
   /* Dark-on-cream semantics, each ≥4.5:1 as TEXT and dark enough to carry
      white text when used as a fill. */
@@ -230,7 +236,8 @@ body,
   font-weight: 900;
   letter-spacing: -0.01em;
   text-transform: uppercase;
-  border-bottom: 2px solid var(--ui-border);
+  border-top: 0;
+  border-bottom: 2px solid var(--ui-surface-edge-strong);
 }
 
 /* Chunky headings — the loudest type in the app. */

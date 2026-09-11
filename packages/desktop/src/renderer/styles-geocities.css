@@ -61,6 +61,10 @@
 
   --ui-border: var(--gc-purple);
   --ui-border-soft: #5a4fbf;
+  --ui-surface-edge: var(--gc-purple);
+  --ui-surface-edge-strong: var(--gc-gold);
+  --ui-gap-surface: var(--gc-sky);
+  --ui-gap-divider: var(--gc-purple);
 
   --ui-success: var(--gc-led);
   --ui-danger: #ff4d6d;
@@ -113,6 +117,10 @@
 
   --ui-border: #7b6ee0;
   --ui-border-soft: #a9a0ee;
+  --ui-surface-edge: #7b6ee0;
+  --ui-surface-edge-strong: #5145b8;
+  --ui-gap-surface: var(--gc-sky);
+  --ui-gap-divider: #7b6ee0;
 
   --ui-success: #0f7a2e;
   --ui-danger: #b01836;
@@ -238,6 +246,7 @@ select {
   background-size: 100% 5px;
   background-position: left bottom;
   background-repeat: no-repeat;
+  border-top: 0;
   border-bottom: 3px solid;
   border-image: linear-gradient(90deg, #ff0000, #ff8000, #ffff00, #00c000, #0080ff, #8000ff) 1;
 }

@@ -57,6 +57,12 @@
   --ui-focus-ring: #4a3bb5;
 
   --ui-border: rgba(90, 110, 160, 0.22);
+  --ui-surface-edge: rgba(90, 110, 160, 0.22);
+  --ui-surface-edge-strong: rgba(90, 110, 160, 0.38);
+  --ui-edge-highlight: rgba(255, 255, 255, 0.55);
+  --ui-edge-shadow: rgba(90, 110, 160, 0.2);
+  --ui-gap-surface: #eef2fb;
+  --ui-gap-divider: rgba(90, 110, 160, 0.3);
   --ui-border-soft: rgba(90, 110, 160, 0.12);
 
   --ui-success: #1f7a4d;
@@ -127,6 +133,12 @@
   --ui-focus-ring: #c0b6ff;
 
   --ui-border: rgba(255, 255, 255, 0.14);
+  --ui-surface-edge: rgba(255, 255, 255, 0.14);
+  --ui-surface-edge-strong: rgba(255, 255, 255, 0.24);
+  --ui-edge-highlight: rgba(255, 255, 255, 0.18);
+  --ui-edge-shadow: rgba(0, 0, 0, 0.24);
+  --ui-gap-surface: #252b48;
+  --ui-gap-divider: rgba(255, 255, 255, 0.2);
   --ui-border-soft: rgba(255, 255, 255, 0.08);
 
   --ui-success: #66d9a0;

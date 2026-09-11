@@ -53,8 +53,9 @@ const REASONING_KEY = "deeporca.reasoningMode";
 const THEME_KEY = "deeporca.theme";
 const LINE_VARIANT_KEY = "deeporca.lineVariant";
 
-/** DOM id given to the injected theme stylesheet so it can be swapped at runtime. */
-export const THEME_LINK_ID = "deeporca-theme-css";
+import { switchThemeStylesheet } from "./theme-link";
+
+export { THEME_LINK_ID } from "./theme-link";
 
 const THEME_STYLESHEETS: Record<Theme, string> = {
   aqua: "./styles.css",
@@ -123,10 +124,7 @@ export function resolveTheme(platform: string): Theme {
 
 /** Swap the injected theme stylesheet in place (no reload required). */
 export function applyTheme(theme: Theme): void {
-  const link = document.getElementById(THEME_LINK_ID) as HTMLLinkElement | null;
-  if (link) {
-    link.href = themeStylesheet(theme);
-  }
+  switchThemeStylesheet(themeStylesheet(theme));
 }
 
 export function setTheme(theme: Theme): void {

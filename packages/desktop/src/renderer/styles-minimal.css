@@ -49,6 +49,12 @@
 
   /* Hairlines, not frames. */
   --ui-border: #e2e2e2;
+  --ui-surface-edge: #e2e2e2;
+  --ui-surface-edge-strong: #b8b8b8;
+  --ui-edge-highlight: rgba(255, 255, 255, 0.7);
+  --ui-edge-shadow: rgba(0, 0, 0, 0.06);
+  --ui-gap-surface: var(--mn-ground);
+  --ui-gap-divider: #d0d0d0;
   --ui-border-soft: #ededed;
 
   --ui-success: #1f6b3a;
@@ -74,11 +80,12 @@
     -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans", "PingFang SC", "Microsoft YaHei", sans-serif;
   --ui-font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
 
-  /* Negative space: the mid/large steps open up, the dense chrome steps stay
-     put so toolbars and rails keep fitting. */
-  --ui-space-4: 20px;
-  --ui-space-5: 32px;
-  --ui-space-6: 44px;
+  --ui-surface-edge: #e2e2e2;
+  --ui-surface-edge-strong: #b8b8b8;
+  --ui-edge-highlight: rgba(255, 255, 255, 0.7);
+  --ui-edge-shadow: rgba(0, 0, 0, 0.06);
+  --ui-gap-surface: var(--ui-bg);
+  --ui-gap-divider: #d0d0d0;
 }
 
 :root[data-appearance="dark"] {
@@ -102,6 +109,12 @@
   --ui-focus-ring: #f2f2f2;
 
   --ui-border: #262629;
+  --ui-surface-edge: #262629;
+  --ui-surface-edge-strong: #444448;
+  --ui-edge-highlight: rgba(255, 255, 255, 0.1);
+  --ui-edge-shadow: rgba(0, 0, 0, 0.4);
+  --ui-gap-surface: var(--mn-ground);
+  --ui-gap-divider: #36363a;
   --ui-border-soft: #1e1e21;
 
   --ui-success: #7fd39b;
