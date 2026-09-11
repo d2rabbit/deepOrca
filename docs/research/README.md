@@ -12,7 +12,7 @@
 
 ## 总览
 
-52 份文档（含 1 份 EN 孪生 + 08-18 新增 1 份 + 08-19 UI/UX 重设计 4 份 + 08-19 超大版本重构预研 2 份 + 08-21 新增 1 份 + 08-27 新增 1 份 + 09-03 新增 4 份 + 09-04 新增 5 份）：**✅ 21 · 🟡 12 · ⬜ 16 · ❌ 3（作废）**。整体消费率高；作废 3 份均为 2026-08-17 拍板（zread 对比线、MemOS 线、pi-sdk 线），理由见各行备注。
+53 份文档（含 1 份 EN 孪生 + 08-18 新增 1 份 + 08-19 UI/UX 重设计 4 份 + 08-19 超大版本重构预研 2 份 + 08-21 新增 1 份 + 08-27 新增 1 份 + 09-03 新增 4 份 + 09-04 新增 5 份 + 09-11 新增 1 份；另有 09-01/09-05/09-10 若干份尚未登记，台账滞后待补）：**✅ 21 · 🟡 12 · ⬜ 17 · ❌ 3（作废）**。整体消费率高；作废 3 份均为 2026-08-17 拍板（zread 对比线、MemOS 线、pi-sdk 线），理由见各行备注。
 
 ---
 
@@ -171,6 +171,14 @@
 | 文档 | 主题 | 对应模块 | 消费 | 备注 |
 | --- | --- | --- | --- | --- |
 | [2026-09-05-interaction-redesign.md](./2026-09-05-interaction-redesign.md) | 交互体系完整重设计：全表面一手盘点（现状基线/缺口）→ 统一基建（ContextMenu 组件/ShellRevealInFolder/EditorFileOps 废纸篓语义）→ 五表面菜单设计（Sidebar 会话/编辑器 CM6+结对画布/消息流/知识库审查/Token）→ P0-P3 排期与风险 | 规划落点：`renderer/components/ContextMenu.tsx`、`shared/ipc.ts`（两个新 IPC）、Sidebar/EditorPanel/EditorTabBar/cm6-kernel/PairBar/KnowledgePanel 等接线 | 🟨 | 纯设计留档，无代码变更。**用户定调**：任务树保持现状（历史记录，零改动）；删除一律废纸篓；编辑区右键走 CM6 `domEventHandlers`。**已落 spec**：[specs/next-version/context-menu-interaction/](../../specs/next-version/context-menu-interaction/design.md)（design+tasks，方案稿；2026-09-08 移入 next-version 规划区储备） |
+
+---
+
+## 2026-09-11 · Code2Video / Remotion 代码生成视频预研
+
+| 文档 | 主题 | 对应模块 | 消费 | 备注 |
+| --- | --- | --- | --- | --- |
+| [2026-09-11-code2video-remotion-prestudy.md](./2026-09-11-code2video-remotion-prestudy.md) | 「代码→视频」双路线预研：**Code2Video**（NUS Show Lab，arXiv 2510.01174，MIT）三 agent 管线写 Manim 代码生成教学视频——ScopeRefine 行→块→全局分级修复（compile+dry-run 两道机械门）、6×6 Grid 锚点让 VLM 布局反馈可机械执行（占用表 + 按行回写）、MMMC/TeachQuiz 评估（较直接生成 baseline +40%）；**Remotion**（v4.0.52x，双层许可）React 即视频引擎——2026 全面 agent 化（官方 Skills 2.0 十三个 SKILL.md router-first 按需加载 / Studio WebMCP / 弃用官方 MCP 转 skills / skills-evals），渲染走 Rust 合成器 + Lambda/客户端 webcodecs 多路径 | 规划落点（未启动）：remotion-dev/skills 与本仓 skill 发现路径（`.agents/skills`）同构、零适配分发；未来「原型→视频」类 spec 的管线参照（三段式落盘断点续跑 / stage-gate 机械门 / 分级降级 / VLM 评审回写）；Remotion 双层许可（>3 人营利公司需 Company License）为任何集成的前置决策点 | ⬜ | **用户拍板"落地研究文档即可，不急功能化"——纯留档零代码**。三条速记：① Remotion skills 与本仓 SKILL.md 方言完全同构（其 2026-05 自身已迁 `.agents/skills`），理论零适配可分发；② Code2Video ScopeRefine 与 `design-stage-gates` 两级降级跨域同构，可作 stage-gate 泛化的第二佐证（文 §2.3/§5.2）；③ Remotion "弃 MCP 转 skills" 官方决策可作 skill 路线外部印证。红线：任何 Remotion 集成 spec 先过许可证两问（文 §5.4） |
 
 ## 消费链（文档 → 文档 → 代码）
 
