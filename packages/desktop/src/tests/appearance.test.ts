@@ -15,7 +15,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -61,6 +61,24 @@ test("every registered theme resolves to a stylesheet that exists on disk", () =
     const css = cssFor(theme);
     assert.ok(css.length > 200, `${theme}: stylesheet looks empty`);
   }
+});
+
+test("desktop build discovers every source theme stylesheet", () => {
+  // Build must not keep a second manual theme list: it discovers styles-*.css.
+  // This verifies the discovery mechanism itself and that the registry has no
+  // stale/missing source file. A full desktop build is covered by the release
+  // gate; this cheap test makes registry/build drift fail in the normal suite.
+  const build = readFileSync(join(rendererDir, "..", "..", "build.mjs"), "utf8");
+  assert.match(build, /readdir\(resolve\(__dirname, "src\/renderer"\)\)/, "build must discover renderer styles");
+  assert.match(build, /\/\^styles-\.\+\\\.css\$\//, "build must filter styles-*.css");
+
+  const discovered = readdirSync(rendererDir)
+    .filter((name) => /^styles-.+\.css$/.test(name))
+    .sort();
+  const registered = THEME_IDS.map((theme) => themeStylesheet(theme).replace("./", "")).filter(
+    (name) => name !== "styles.css"
+  );
+  assert.deepEqual(discovered, [...registered].sort(), "every discovered skin must be registered, and vice versa");
 });
 
 test("every skin binds the core token vocabulary", () => {

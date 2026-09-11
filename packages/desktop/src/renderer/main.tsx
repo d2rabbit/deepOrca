@@ -37,39 +37,11 @@ import {
   themeStylesheet,
   THEME_LINK_ID,
 } from "./lib/appearance";
+import { injectStylesheet } from "./lib/stylesheet-loader";
 
 const container = document.getElementById("root");
 if (!container) {
   throw new Error("Root element #root not found");
-}
-
-function injectStylesheet(href: string, id?: string): Promise<void> {
-  return new Promise((resolve) => {
-    const link = document.createElement("link");
-    link.rel = "stylesheet";
-    link.href = href;
-    if (id) link.id = id;
-    link.onload = () => resolve();
-    link.onerror = () => {
-      // styles.css is the Aqua theme's token file, not a generic fallback —
-      // only the theme link may retry with it. An OpenUI canvas link failing
-      // is the degraded state build.mjs already warns about; appending Aqua
-      // tokens after them would silently re-skin the whole window (cascade:
-      // last wins) and override the user's chosen theme.
-      if (id !== THEME_LINK_ID) {
-        resolve();
-        return;
-      }
-      if (href !== "./styles.css") {
-        injectStylesheet("./styles.css", id).then(resolve);
-      } else {
-        // Aqua itself failed — give up and mount bare.
-        console.error("[desktop] failed to load any stylesheet");
-        resolve();
-      }
-    };
-    document.head.appendChild(link);
-  });
 }
 
 /** Prototype-window lazy fallback — rendered inside I18nProvider, so it can

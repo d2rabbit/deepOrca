@@ -10,7 +10,7 @@
 
 import { build, context } from "esbuild";
 import { execFileSync, spawnSync } from "node:child_process";
-import { cp, mkdir, rm } from "node:fs/promises";
+import { cp, mkdir, readdir, rm } from "node:fs/promises";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -425,29 +425,15 @@ async function copyStaticAssets() {
     await cp(orcaSvg, resolve(outdir, "orca-icon.svg"));
     await cp(orcaSvg, resolve(outdir, "renderer/orca-icon.svg"));
   }
-  // Theme stylesheets. styles.css (Aqua) above is the base and always ships;
-  // every other skin is copied when present, so a missing file never fails the
-  // build. Adding a skin = an entry here + lib/appearance.ts + its i18n label
-  // (the appearance test pins that all three stay in step).
-  for (const skin of [
-    "metro",
-    "glass",
-    "fusion",
-    "line",
-    "orca",
-    "neumorph",
-    "raw",
-    "neobrutal",
-    "minimal",
-    "clay",
-    "geocities",
-    "y2k",
-    "skeuo",
-  ]) {
-    const skinCss = resolve(__dirname, `src/renderer/styles-${skin}.css`);
-    if (existsSync(skinCss)) {
-      await cp(skinCss, resolve(outdir, `renderer/styles-${skin}.css`));
-    }
+  // Theme stylesheets are discovered rather than kept in a second manual list.
+  // `appearance.test.ts` guarantees every registered Theme maps to an existing
+  // source file; this loop guarantees every source `styles-*.css` reaches dist.
+  // Together they make a registry/build drift impossible without a failing test.
+  const themeStyles = (await readdir(resolve(__dirname, "src/renderer")))
+    .filter((name) => /^styles-.+\.css$/.test(name))
+    .sort();
+  for (const filename of themeStyles) {
+    await cp(resolve(__dirname, "src/renderer", filename), resolve(outdir, "renderer", filename));
   }
 }
 
