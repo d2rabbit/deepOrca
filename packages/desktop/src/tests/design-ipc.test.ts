@@ -356,6 +356,69 @@ test("design system catalog: nine bundled ids + project pseudo-entry + vendored 
   }
 });
 
+test("catalog: one bad vendored entry does not swallow the rest of the collection", () => {
+  configureDesignSystemsVendorRoot(null);
+  const vendored = fs.mkdtempSync(path.join(os.tmpdir(), "design-md-partial-"));
+  try {
+    // 三个系统，中间那个的 DESIGN.md 是个目录（读文件必失败）——此前 try 包住
+    // 整个 for，一个坏条目会把字母序在它之后的全部吞掉（74 套时一次丢 40+）。
+    for (const id of ["alpha", "broken", "zulu"]) {
+      fs.mkdirSync(path.join(vendored, id), { recursive: true });
+      if (id === "broken") fs.mkdirSync(path.join(vendored, id, "DESIGN.md"));
+      else fs.writeFileSync(path.join(vendored, id, "DESIGN.md"), "## A\nx\n## B\ny\n## C\nz", "utf8");
+    }
+    configureDesignSystemsVendorRoot(vendored);
+    const ids = readDesignSystemCatalog(getExtensionRoot()).map((item) => item.id);
+    assert.deepEqual(
+      ids.filter((id) => id === "alpha" || id === "zulu"),
+      ["alpha", "zulu"],
+      "entries on both sides of the broken one survive"
+    );
+    assert.ok(!ids.includes("broken"), "unreadable entry is not listed");
+    assert.ok(ids.includes("warm-handcrafted"), "bundled set unaffected");
+  } finally {
+    configureDesignSystemsVendorRoot(null);
+    fs.rmSync(vendored, { recursive: true, force: true });
+  }
+});
+
+test("catalog: metadata only — no design-system bodies over IPC", () => {
+  const vendored = fs.mkdtempSync(path.join(os.tmpdir(), "design-md-meta-"));
+  try {
+    fs.mkdirSync(path.join(vendored, "stripe"), { recursive: true });
+    fs.writeFileSync(path.join(vendored, "stripe", "DESIGN.md"), "## A\nx\n## B\ny\n## C\nz", "utf8");
+    configureDesignSystemsVendorRoot(vendored);
+    const items = readDesignSystemCatalog(getExtensionRoot());
+    assert.ok(items.length > 0);
+    // The vendored entry is the one that used to carry ~2.15MB of markdown —
+    // without it this test would only cover the bundled nine.
+    assert.ok(
+      items.some((item) => item.id === "stripe"),
+      "vendored entry must be present or this proves nothing"
+    );
+    for (const item of items) {
+      assert.equal(item.content, undefined, `${item.id} must not carry content`);
+    }
+  } finally {
+    configureDesignSystemsVendorRoot(null);
+    fs.rmSync(vendored, { recursive: true, force: true });
+  }
+});
+
+test("catalog: an unreadable bundled directory degrades to the project entry", () => {
+  configureDesignSystemsVendorRoot(null);
+  const extensionRoot = fs.mkdtempSync(path.join(os.tmpdir(), "design-md-ext-"));
+  try {
+    // 没有 templates/design/systems —— 目录级失败降级为空，而不是抛。
+    assert.deepEqual(
+      readDesignSystemCatalog(extensionRoot).map((item) => item.id),
+      ["project"]
+    );
+  } finally {
+    fs.rmSync(extensionRoot, { recursive: true, force: true });
+  }
+});
+
 // ── Leafer canvas append (DesignSuiteAppendLeafer, WP1.4) ────────────────────
 
 const OLD_LEAFER = JSON.stringify({
