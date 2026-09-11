@@ -1718,7 +1718,7 @@ export const zh: Record<MessageKey, string> = {
   "designWorkspace.quickQualityThree": "修复触达目标过小",
   "designWorkspace.dirChainDesign": "视觉稿 → 设计系统 → 质量与评审",
   "designWorkspace.dirNote":
-    "此处仅按工作区分组展示（目录，不含操作）；切换工作区在会话/窗口层进行，产物按工作区隔离（.deeporca/designs/）。",
+    "点击工作区、主题或产物卡可在对应设计工作台打开；此处按工作区分组，产物按工作区隔离（.deeporca/designs/）。",
   "designWorkspace.dirNotRun": "未跑",
   "designWorkspace.dirNotGenerated": "未生成",
   "designWorkspace.dirItemsCount": "{count} 项",

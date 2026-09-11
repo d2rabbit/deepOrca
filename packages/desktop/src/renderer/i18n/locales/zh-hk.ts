@@ -1720,7 +1720,7 @@ export const zhHK: Record<MessageKey, string> = {
   "designWorkspace.quickQualityThree": "修復觸達目標過小",
   "designWorkspace.dirChainDesign": "視覺稿 → 設計系統 → 品質與審查",
   "designWorkspace.dirNote":
-    "此處僅按工作區分組展示（目錄，不含操作）；切換工作區在會話/視窗層進行，產物按工作區隔離（.deeporca/designs/）。",
+    "點擊工作區、主題或產物卡可在對應設計工作台開啟；此處按工作區分組，產物按工作區隔離（.deeporca/designs/）。",
   "designWorkspace.dirNotRun": "未跑",
   "designWorkspace.dirNotGenerated": "未產生",
   "designWorkspace.dirItemsCount": "{count} 項",

@@ -1768,7 +1768,7 @@ export const en = {
   "designWorkspace.quickQualityThree": "Fix undersized touch targets",
   "designWorkspace.dirChainDesign": "Visual → design system → quality & review",
   "designWorkspace.dirNote":
-    "Read-only grouping by workspace — actions live inside each workspace sheet; switching happens at the session/window level, and artifacts stay isolated per workspace (.deeporca/designs/).",
+    "Click a workspace, theme or artifact to open its design sheet; entries group by workspace and artifacts stay isolated per workspace (.deeporca/designs/).",
   "designWorkspace.dirNotRun": "not run",
   "designWorkspace.dirNotGenerated": "not generated",
   "designWorkspace.dirItemsCount": "{count} items",

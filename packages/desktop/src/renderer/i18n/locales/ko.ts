@@ -1758,7 +1758,7 @@ export const ko: Record<MessageKey, string> = {
   "designWorkspace.quickQualityThree": "너무 작은 터치 타깃 수정",
   "designWorkspace.dirChainDesign": "비주얼 → 디자인 시스템 → 품질 검토",
   "designWorkspace.dirNote":
-    "여기서는 워크스페이스별 그룹 표시만 합니다(디렉터리, 작업 없음). 전환은 세션/창 계층에서 이루어지며 산출물은 워크스페이스별로 분리됩니다(.deeporca/designs/).",
+    "작업 공간·테마·아티팩트 카드를 클릭하면 해당 디자인 작업 공간이 열립니다. 항목은 작업 공간별로 그룹화되며 산출물은 작업 공간별로 분리됩니다(.deeporca/designs/).",
   "designWorkspace.dirNotRun": "미실행",
   "designWorkspace.dirNotGenerated": "미생성",
   "designWorkspace.dirItemsCount": "{count}개 항목",

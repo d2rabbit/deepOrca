@@ -1769,7 +1769,7 @@ export const ja: Record<MessageKey, string> = {
   "designWorkspace.quickQualityThree": "小さすぎるタッチターゲットを修正",
   "designWorkspace.dirChainDesign": "ビジュアル → デザインシステム → 品質レビュー",
   "designWorkspace.dirNote":
-    "ここではワークスペース別のグループ表示のみ（ディレクトリ、操作なし）。切り替えはセッション/ウィンドウ層で行い、成果物はワークスペース毎に分離されます（.deeporca/designs/）。",
+    "ワークスペース・テーマ・成果物カードをクリックすると対応するデザインワークスペースが開きます。エントリはワークスペース別にグループ化され、成果物はワークスペース毎に分離されます（.deeporca/designs/）。",
   "designWorkspace.dirNotRun": "未実行",
   "designWorkspace.dirNotGenerated": "未生成",
   "designWorkspace.dirItemsCount": "{count} 件",

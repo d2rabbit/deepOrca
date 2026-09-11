@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type JSX } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type JSX } from "react";
 import { useI18n } from "../../i18n";
 import { subscribeToSuiteChanges, suiteApi } from "./api";
 import {
@@ -27,9 +27,26 @@ type Props = {
   activeRoot: string;
   kind: DesignSuiteKind;
   title: string;
+  /** 打开一个工作区的设计工作台（suiteId 缺省 = 该工作台的默认套件）。
+   *  tab 模型由 App 持有——目录只负责导航，不切换会话 root。 */
+  onOpenWorkspace: (root: string, suiteId?: string) => void;
+  /** 本 kind 的设计工作台 tab 正被查看（激活主题判定的前提）。 */
+  surfaceActive?: boolean;
+  /** 当前查看的套件 id（surfaceActive 时生效；缺省回退该工作区默认套件）。 */
+  activeSuiteId?: string;
 };
 
-export function WorkspaceDirectory({ activeRoot, kind, title }: Props): JSX.Element {
+/** 未分组组的激活 key（与主题 key 同一命名空间）。 */
+const UNGROUPED_KEY = "__ungrouped__";
+
+export function WorkspaceDirectory({
+  activeRoot,
+  kind,
+  title,
+  onOpenWorkspace,
+  surfaceActive,
+  activeSuiteId,
+}: Props): JSX.Element {
   const { t } = useI18n();
   const [groups, setGroups] = useState<DirectoryGroup[]>([]);
   const [loading, setLoading] = useState(true);
@@ -225,9 +242,38 @@ export function WorkspaceDirectory({ activeRoot, kind, title }: Props): JSX.Elem
     group.titleSource.find((candidate) => candidate.id === suiteId)?.title ??
     suiteId;
 
+  /** 激活分组 = 设计工作台正在查看的套件的主题归属（未分组套件落到未分组
+   *  组）。suiteId 缺省时回退该工作区的默认套件（与工作台的 summaries[0]
+   *  选择一致）。仅激活分组默认展开，其余折叠。 */
+  const activeGroupKey = useMemo(() => {
+    if (!surfaceActive) return null;
+    for (const group of groups) {
+      if (group.root !== activeRoot) continue;
+      const active = activeSuiteId ? group.suites.find((item) => item.id === activeSuiteId) : group.suites[0];
+      if (!active) return null;
+      if (!active.themeId || !group.themes.some((theme) => theme.id === active.themeId)) {
+        return `${group.root}:${UNGROUPED_KEY}`;
+      }
+      return `${group.root}:${active.themeId}`;
+    }
+    return null;
+  }, [surfaceActive, activeSuiteId, activeRoot, groups]);
+
   const suiteCard = (group: DirectoryGroup, suite: DesignSuiteSummary): JSX.Element => (
     <div className="ui-design-directory-suite" key={suite.id} data-suite-id={suite.id}>
-      <div className="ui-design-directory-item">
+      <div
+        className="ui-design-directory-item ui-design-directory-open"
+        role="button"
+        tabIndex={0}
+        onClick={() => onOpenWorkspace(group.root, suite.id)}
+        onKeyDown={(event) => {
+          if (event.target !== event.currentTarget) return;
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            onOpenWorkspace(group.root, suite.id);
+          }
+        }}
+      >
         <span>{suite.title}</span>
         {suite.stage ? <em className="ui-design-directory-stage">{suite.stage}</em> : null}
         <small>{t("designWorkspace.versionCount", { count: suite.versionCount })}</small>
@@ -235,7 +281,8 @@ export function WorkspaceDirectory({ activeRoot, kind, title }: Props): JSX.Elem
           type="button"
           className="ui-design-directory-assign"
           title={t("designTheme.assignTheme")}
-          onClick={() => {
+          onClick={(event) => {
+            event.stopPropagation();
             setAssigningId(assigningId === suite.id ? null : suite.id);
             setAssignThemeId(suite.themeId ?? "");
             setAssignStage(suite.stage ?? "");
@@ -316,13 +363,27 @@ export function WorkspaceDirectory({ activeRoot, kind, title }: Props): JSX.Elem
               const ungrouped = group.suites.filter(
                 (suite) => !suite.themeId || !group.themes.some((theme) => theme.id === suite.themeId)
               );
+              const ungroupedKey = `${group.root}:${UNGROUPED_KEY}`;
+              const ungroupedOpen = activeGroupKey === ungroupedKey;
               return (
                 <section
                   key={group.root}
                   className={`ui-design-directory-group${group.root === activeRoot ? " current" : ""}`}
                   data-root={group.root}
                 >
-                  <div className="ui-design-directory-workspace">
+                  <div
+                    className="ui-design-directory-workspace ui-design-directory-open"
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => onOpenWorkspace(group.root)}
+                    onKeyDown={(event) => {
+                      if (event.target !== event.currentTarget) return;
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        onOpenWorkspace(group.root);
+                      }
+                    }}
+                  >
                     <span className="ui-design-directory-dot" />
                     <strong>{group.label}</strong>
                     {group.root === activeRoot ? <i>{t("designWorkspace.current")}</i> : null}
@@ -332,11 +393,30 @@ export function WorkspaceDirectory({ activeRoot, kind, title }: Props): JSX.Elem
                     <div className="ui-design-directory-themes">
                       {group.themes.map((theme) => {
                         const themeSuites = themed.filter((suite) => suite.themeId === theme.id);
+                        const themeKey = `${group.root}:${theme.id}`;
+                        // 激活位进 key：激活主题切换时重挂载 <details> 播种
+                        // open 属性——原生点击折叠不受重渲染回写干扰；非激活
+                        // 组默认折叠（仅激活主题展开）。
+                        const seedOpen = activeGroupKey === themeKey;
                         return (
                           // EARS 10 可折叠分组（交叉审查修复）：details/summary
-                          // 原生折叠，默认展开。
-                          <details className="ui-design-directory-theme" key={theme.id} data-theme-id={theme.id} open>
-                            <summary className="ui-design-directory-theme-head">
+                          // 原生折叠；标题点击同时导航到该主题的工作台。
+                          <details
+                            className="ui-design-directory-theme"
+                            key={`${themeKey}:${seedOpen ? "open" : "closed"}`}
+                            data-theme-id={theme.id}
+                            open={seedOpen}
+                          >
+                            <summary
+                              className="ui-design-directory-theme-head"
+                              onClick={(event) => {
+                                const target = event.target as HTMLElement;
+                                if (target.closest("button, input, form")) return;
+                                // 已激活主题再点标题 = 仅导航，不顺手折叠组。
+                                if (seedOpen) event.preventDefault();
+                                onOpenWorkspace(group.root, themeSuites[0]?.id);
+                              }}
+                            >
                               {renamingId === theme.id ? (
                                 <form
                                   className="ui-design-directory-theme-rename"
@@ -408,8 +488,20 @@ export function WorkspaceDirectory({ activeRoot, kind, title }: Props): JSX.Elem
                           </details>
                         );
                       })}
-                      <details className="ui-design-directory-theme ungrouped" open>
-                        <summary className="ui-design-directory-theme-head">
+                      <details
+                        className="ui-design-directory-theme ungrouped"
+                        key={`${ungroupedKey}:${ungroupedOpen ? "open" : "closed"}`}
+                        open={ungroupedOpen}
+                      >
+                        <summary
+                          className="ui-design-directory-theme-head"
+                          onClick={(event) => {
+                            const target = event.target as HTMLElement;
+                            if (target.closest("button, input, form")) return;
+                            if (ungroupedOpen) event.preventDefault();
+                            onOpenWorkspace(group.root, ungrouped[0]?.id);
+                          }}
+                        >
                           <span className="ui-design-directory-dot" />
                           <strong>{t("designTheme.ungrouped")}</strong>
                           <small>{ungrouped.length}</small>

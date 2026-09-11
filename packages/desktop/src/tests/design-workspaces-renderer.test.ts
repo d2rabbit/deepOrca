@@ -117,7 +117,7 @@ after(() => {
   dom.cleanup();
 });
 
-test("prototype and design panels are read-only workspace directories with root-filtered refresh", async () => {
+test("directory forwards workspace/theme/suite clicks to open the matching design surface", async () => {
   const proto = suite("prototype", [version("latest", { spec: "# Scope", openui: "root = Text('ok')" })]);
   const ui = suite("ui", [
     version("latest", { openui: 'root = Screen("UI")\nhero = Card(data-sem="hero") { Text("Hero") }' }),
@@ -134,18 +134,18 @@ test("prototype and design panels are read-only workspace directories with root-
     if (root === "/work/current" && kind === "ui") return [summary(ui)];
     return [];
   };
-  const opened: string[] = [];
+  const opened: Array<[string, string | undefined]> = [];
   const out = renderWithI18n(
     ReactPkg.createElement(
       ReactPkg.Fragment,
       null,
       ReactPkg.createElement(PrototypeDesignPanel, {
         activeRoot: "/work/current",
-        onOpenWorkspace: (root) => opened.push(root),
+        onOpenWorkspace: (root: string, suiteId?: string) => opened.push([root, suiteId]),
       }),
       ReactPkg.createElement(DesignPanel, {
         activeRoot: "/work/current",
-        onOpenWorkspace: (root) => opened.push(root),
+        onOpenWorkspace: (root: string, suiteId?: string) => opened.push([root, suiteId]),
       })
     )
   );
@@ -153,9 +153,24 @@ test("prototype and design panels are read-only workspace directories with root-
   assert.equal(out.container.querySelectorAll(".ui-design-directory-group.current").length, 2);
   assert.ok(out.getByText("Orders prototype"));
   assert.ok(out.getByText("Orders UI"));
-  assert.equal(out.container.querySelectorAll(".ui-design-directory-item[role=button]").length, 0);
-  out.getByText("Orders prototype").dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
-  assert.deepEqual(opened, []);
+  // 工作区标题行 → 打开该 root 的工作台（不带 suiteId，落到默认套件）。
+  const otherHeader = out.container.querySelector(
+    '[data-root="/work/other"] .ui-design-directory-workspace'
+  ) as HTMLElement;
+  assert.equal(otherHeader.getAttribute("role"), "button", "workspace header is the navigation entry");
+  rtl.fireEvent.click(otherHeader);
+  assert.deepEqual(opened.at(-1), ["/work/other", undefined]);
+  // 套件标题行 → (root, suiteId)；三段状态行保持不可点。
+  const protoRow = out.container.querySelector(
+    `.ui-design-directory-suite[data-suite-id="${proto.id}"] > .ui-design-directory-item`
+  ) as HTMLElement;
+  rtl.fireEvent.click(protoRow);
+  assert.deepEqual(opened.at(-1), ["/work/current", proto.id]);
+  assert.equal(
+    out.container.querySelectorAll(".ui-design-directory-seg .ui-design-directory-item[role=button]").length,
+    0,
+    "segment status rows stay inert"
+  );
   const before = stub.calls.filter((call) => call.method === "designSuiteList").length;
   await rtl.act(async () => {
     stub.emit("onDesignChanged", { root: "/not-listed", suiteId: "x", change: "update" });
@@ -751,6 +766,80 @@ test("directory groups suites by requirement theme and shows relations", async (
   delete overrides.designThemeList;
 });
 
+test("theme groups default collapsed; only the active theme opens; theme titles navigate", async () => {
+  const prototype = suite("prototype", [version("proto-v1", { spec: "# Scope", openui: "root = Text('v1')" })]);
+  const uiA = suite("ui", [version("ui-a1", { openui: 'root = Screen("A")' })]);
+  const uiB = suite("ui", [version("ui-b1", { openui: 'root = Screen("B")' })]);
+  const themeA = {
+    id: "t-a",
+    title: "登录",
+    createdAt: "2026-09-10T00:00:00.000Z",
+    updatedAt: "2026-09-10T00:00:00.000Z",
+  };
+  const themeB = {
+    id: "t-b",
+    title: "支付",
+    createdAt: "2026-09-10T00:00:00.000Z",
+    updatedAt: "2026-09-10T00:00:00.000Z",
+  };
+  const sumA = { ...summary(uiA), id: "ui-a", themeId: themeA.id };
+  const sumB = { ...summary(uiB), id: "ui-b", themeId: themeB.id };
+  overrides.listWorkspaceSessions = async () => ({ workspaces: [{ root: "/work/current", label: "current" }] });
+  overrides.designSuiteList = async (_root: string, kind?: string) =>
+    kind === "ui" ? [sumA, sumB] : [summary(prototype)];
+  overrides.designSuiteRead = async (_root: string, id: string) => (id === "ui-a" ? uiA : uiB);
+  overrides.designThemeList = async () => [themeA, themeB];
+  const opened: Array<[string, string | undefined]> = [];
+  const renderPanel = (props: { surfaceActive?: boolean; activeSuiteId?: string }) =>
+    renderWithI18n(
+      ReactPkg.createElement(DesignPanel, {
+        activeRoot: "/work/current",
+        onOpenWorkspace: (root: string, suiteId?: string) => opened.push([root, suiteId]),
+        ...props,
+      })
+    );
+  // 无激活工作台：所有主题组（含未分组）默认折叠。
+  let out = renderPanel({});
+  await settle();
+  const groups = [...out.container.querySelectorAll(".ui-design-directory-theme")] as HTMLDetailsElement[];
+  assert.equal(groups.length, 3, "theme A + theme B + ungrouped");
+  assert.ok(
+    groups.every((details) => !details.open),
+    "all theme groups default collapsed"
+  );
+  out.unmount();
+  // 激活套件属于主题 B：仅 B 展开，其余收起。
+  out = renderPanel({ surfaceActive: true, activeSuiteId: "ui-b" });
+  await settle();
+  assert.equal((out.container.querySelector('[data-theme-id="t-b"]') as HTMLDetailsElement).open, true);
+  assert.equal((out.container.querySelector('[data-theme-id="t-a"]') as HTMLDetailsElement).open, false);
+  assert.equal((out.container.querySelector(".ui-design-directory-theme.ungrouped") as HTMLDetailsElement).open, false);
+  // 点击主题 A 标题 → 打开 (root, 主题 A 首个套件)；点击主题内 ✎ 不导航。
+  rtl.fireEvent.click(out.container.querySelector('[data-theme-id="t-a"] summary') as Element);
+  assert.deepEqual(opened.at(-1), ["/work/current", "ui-a"]);
+  const renameClicks = opened.length;
+  rtl.fireEvent.click(out.container.querySelector('[data-theme-id="t-a"] summary button') as Element);
+  assert.equal(opened.length, renameClicks, "rename button must not navigate");
+  out.unmount();
+  // 激活套件未分组：未分组组展开。
+  const sumC = { ...summary(uiA), id: "ui-c" };
+  overrides.designSuiteList = async (_root: string, kind?: string) =>
+    kind === "ui" ? [sumA, sumB, sumC] : [summary(prototype)];
+  out = renderPanel({ surfaceActive: true, activeSuiteId: "ui-c" });
+  await settle();
+  assert.equal((out.container.querySelector(".ui-design-directory-theme.ungrouped") as HTMLDetailsElement).open, true);
+  assert.equal((out.container.querySelector('[data-theme-id="t-b"]') as HTMLDetailsElement).open, false);
+  // 无 suiteId（点工作区标题进入的默认套件）→ 首个套件的主题激活。
+  out.unmount();
+  out = renderPanel({ surfaceActive: true });
+  await settle();
+  assert.equal((out.container.querySelector('[data-theme-id="t-a"]') as HTMLDetailsElement).open, true);
+  delete overrides.listWorkspaceSessions;
+  delete overrides.designSuiteList;
+  delete overrides.designSuiteRead;
+  delete overrides.designThemeList;
+});
+
 test("directory keeps the flat list when the workspace has no themes (zero regression)", async () => {
   const uiSuite = suite("ui", [version("ui-v1", { openui: 'root = Screen("UI v1")' })]);
   overrides.listWorkspaceSessions = async () => ({ workspaces: [{ root: "/work/current", label: "current" }] });
@@ -849,13 +938,15 @@ test("cross-review: theme groups collapse via summary; composer creates themes i
     ReactPkg.createElement(DesignPanel, { activeRoot: "/work/current", onOpenWorkspace: () => {} })
   );
   await settle();
-  // F13 折叠：details/summary 原生折叠。
-  const group = dir.container.querySelector(".ui-design-directory-theme[open]") as HTMLDetailsElement | null;
-  assert.ok(group, "theme group renders as a collapsible <details> (default open)");
+  // F13 折叠：details/summary 原生折叠；默认仅激活主题展开——无激活工作台
+  // 时全部折叠（user ask 2026-09-11）。
+  const group = dir.container.querySelector(".ui-design-directory-theme") as HTMLDetailsElement | null;
+  assert.ok(group, "theme group renders as a collapsible <details>");
+  assert.equal(group!.open, false, "no active surface → theme groups default collapsed");
   rtl.fireEvent.click(group!.querySelector("summary") as Element);
-  assert.equal(group!.open, false, "clicking the summary collapses the group");
+  assert.equal(group!.open, true, "clicking the summary expands the group");
   rtl.fireEvent.click(group!.querySelector("summary") as Element);
-  assert.equal(group!.open, true, "clicking again re-opens it");
+  assert.equal(group!.open, false, "clicking again collapses it");
 
   // F14 编辑器内新建主题 + D14 设计上下文随 runSpec 透传。
   const created = {

@@ -2142,6 +2142,10 @@ export function App(): JSX.Element {
   // a drag-resizable width (persisted); the CSS vars keep orb offset, stage
   // reflow and card width in lock-step.
   const companionOpen = Boolean(previewOpen && (prototypeJson || prototypeMode === "openui" || designContent));
+  // 设计目录的激活判定：本 kind 的工作台 tab 正被查看且属于当前活动 root
+  // （跨 root 的设计 tab 不参与目录的"当前工作区"标记与激活主题展开）。
+  const protoSurfaceActive = activeTab.kind === "prototype" && activeTab.root === projectRoot;
+  const designSurfaceActive = activeTab.kind === "design" && activeTab.root === projectRoot;
   const shellVars = {
     ...(panelOpen ? { "--ui-panel-w": `${panelWidth}px` } : {}),
     ...(companionOpen ? { "--ui-right-w": `${companionWidth}px` } : {}),
@@ -2218,11 +2222,21 @@ export function App(): JSX.Element {
             </Suspense>
           ) : sidebarView === "prototype" ? (
             <Suspense fallback={<div className="ui-side-panel-empty">{t("common.loading")}</div>}>
-              <PrototypeDesignPanel activeRoot={projectRoot} onOpenWorkspace={handleOpenPrototypeTab} />
+              <PrototypeDesignPanel
+                activeRoot={projectRoot}
+                surfaceActive={protoSurfaceActive}
+                activeSuiteId={protoSurfaceActive ? activeTab.suiteId : undefined}
+                onOpenWorkspace={handleOpenPrototypeTab}
+              />
             </Suspense>
           ) : sidebarView === "design" ? (
             <Suspense fallback={<div className="ui-side-panel-empty">{t("common.loading")}</div>}>
-              <DesignPanel activeRoot={projectRoot} onOpenWorkspace={handleOpenDesignTab} />
+              <DesignPanel
+                activeRoot={projectRoot}
+                surfaceActive={designSurfaceActive}
+                activeSuiteId={designSurfaceActive ? activeTab.suiteId : undefined}
+                onOpenWorkspace={handleOpenDesignTab}
+              />
             </Suspense>
           ) : sidebarView === "taskhub" ? (
             <Suspense fallback={<div className="ui-side-panel-empty">{t("common.loading")}</div>}>
