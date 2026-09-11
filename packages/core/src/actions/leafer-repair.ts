@@ -30,6 +30,7 @@ import {
   type LeaferVerdict,
 } from "./leafer-contract";
 import { lintLeaferDocument } from "./leafer-lint";
+import { callSubagentStable } from "./design-gates";
 
 /** Repair rounds after the initial generation (same budget rationale as
  *  MAX_OPENUI_REPAIR_ROUNDS: near-miss fixes are usually one-statement edits). */
@@ -93,15 +94,19 @@ export async function repairLeaferProgram(
       percent: opts.basePercent + round * 5,
       data: { code: opts.progressCode },
     });
-    const generated = await ctx.runSubagent({
-      skill: "deep-design",
-      prompt:
-        "The Leafer scene-tree JSON document below failed the deterministic self-check gate. " +
-        "Fix EVERY reported issue and return the COMPLETE corrected document in one json code fence. " +
-        "Change nothing beyond what the issues require. Do not call tools.\n\n" +
-        `${opts.contract}\n\nSelf-check issues:\n${formatLeaferFeedback(verdict)}\n\nCurrent document:\n${text}`,
-      silent: true,
-    });
+    const generated = await callSubagentStable(
+      ctx,
+      {
+        skill: "deep-design",
+        prompt:
+          "The Leafer scene-tree JSON document below failed the deterministic self-check gate. " +
+          "Fix EVERY reported issue and return the COMPLETE corrected document in one json code fence. " +
+          "Change nothing beyond what the issues require. Do not call tools.\n\n" +
+          `${opts.contract}\n\nSelf-check issues:\n${formatLeaferFeedback(verdict)}\n\nCurrent document:\n${text}`,
+        silent: true,
+      },
+      "leafer-selfcheck-repair"
+    );
     const candidate = extractGeneratedBody(generated);
     if (!candidate || !looksLikeLeaferDocument(candidate)) continue; // keep the last document, spend the next round
     text = candidate;

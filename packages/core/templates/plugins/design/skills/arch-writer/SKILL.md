@@ -35,52 +35,16 @@ explicit: layers, modules, data, flows, risks.
    domain — when the PRD is a pure front-end prototype with no persistence
    requirement, say so and model state as in-memory/local, keeping the
    section structure intact.
-3. Write the document in the PRD's language with EXACTLY these `##` sections,
-   in this order. Every Mermaid diagram MUST be followed by a companion table.
-
-```markdown
-# <产品/功能名称> 技术架构文档
-
-| 项目     | 内容                              |
-| -------- | --------------------------------- |
-| 依据 PRD | <PRD 标题 / 版本>                 |
-| 架构风格 | <如:单页交互原型 / 前端 + 轻服务> |
-| 文档日期 | <当天日期>                        |
-
-## 1. 技术选型
-
-（表格:层次 / 选型 / 理由。前端 = DeepOrca OpenUI Lang;其余层次按 PRD 推断,
-未决定的标 [TODO: 需补充什么]。）
-
-## 2. 系统架构
-
-（Mermaid `graph TB`,subgraph 分层:用户层 / 交互层 / 业务逻辑层 / 数据层 /
-外部服务。节点文字短句,`<br/>` 换行。图后附模块职责表:模块 / 职责 / 关键技术点。）
-
-## 3. 数据模型
-
-（Mermaid `erDiagram`:核心实体 + 关系 + PK/FK + 关键属性;图后附实体字段表:
-实体 / 字段 / 类型 / 约束 / 说明。纯展示型原型则明确"无持久化实体",
-并列出视图状态模型。）
-
-## 4. 核心流程
-
-（1-2 个最关键流程,Mermaid `sequenceDiagram` 或 `flowchart TD`;图后附步骤表:
-步骤 / 触发 / 处理 / 异常路径。）
-
-## 5. 模块拆分
-
-（表格:模块 / 职责 / 依赖 / 对外接口(或 OpenUI view/Action 对应关系)。
-模块边界与 PRD 功能清单的模块一一对应。）
-
-## 6. 非功能设计
-
-（表格:类别(性能/安全/容错/兼容) / 设计 / 度量。无则写"无特殊要求"。）
-
-## 7. 风险与对策
-
-（表格:风险 / 影响 / 对策 / 优先级。至少 2 行,没有则写"无重大架构风险"。）
-```
+3. Write the document in the PRD's language by filling the document skeleton
+   the ACTION PROMPT inlines (single source: `ARCH_SKELETON` in
+   `packages/core/src/actions/prototype.ts`, specs/design-stage-gates — this
+   skill deliberately keeps NO local copy so the two can never drift). Fill it
+   section-for-section; the seven sections are 技术选型 / 系统架构 / 数据模型 /
+   核心流程 / 模块拆分 / 非功能设计 / 风险与对策. Every Mermaid diagram MUST
+   be followed by a companion table. The action runs a mechanical depth gate
+   (seven sections, ≥2 diagrams incl. an erDiagram, table-row floors) and a
+   findings-repair round — placeholder `<…>` rows lifted from the skeleton do
+   NOT count toward the table floors, fill real content.
 
 4. Return the complete markdown document as your final message, wrapped in
    ONE markdown code fence — the caller (the prototype.arch action) validates

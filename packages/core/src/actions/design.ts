@@ -34,6 +34,14 @@ import { validateDembrandtTargetUrl } from "../common/dembrandt";
 import { runDembrandtProcess } from "../common/dembrandt-runner";
 import { getExtensionRoot } from "../prompt";
 import {
+  callSubagentStable,
+  leaferCanvasFindings,
+  normalizeGeneratedMarkdown,
+  programPageCount,
+  runDesignStage,
+  uiSectionsAudit,
+} from "./design-gates";
+import {
   executeA2ui,
   extractGeneratedBody,
   extractMarkdownDocument,
@@ -204,31 +212,52 @@ export const designMaterializeRun: ActionRun<DesignMaterializeInput, DesignMater
       percent: 30,
       data: { code: "design.uidesign.generating" },
     });
-    const uiGenerated = await ctx.runSubagent({
+    // specs/design-stage-gates S2：uiSectionsAudit 四节门 + findings 修复一轮；
+    // 修复仍败 **fail-open 降级**（uiDesign 置空，画布按既有原型驱动提示词
+    // 生成，与无 pd-design 的旧路径同构）——OCR plan-failure 分层借鉴：增强
+    // 阶段失败不阻塞主管线（此前轻检查失败会硬错误整个 materialize）。
+    const uiResult = await runDesignStage(ctx, {
+      stage: "ui-design",
       skill: "deep-design",
-      prompt:
-        "Strengthen the interaction design intent below into a ui-design prompt document for a " +
-        "visual-canvas generator — a VISUAL TRANSLATION of the pd-design, not a restatement. " +
-        UI_DESIGN_CONTRACT +
-        " Do not call tools. " +
-        "Return only the complete markdown document in one markdown code fence.\n\n" +
-        "## pd-design（交互意图，翻译源）\n" +
-        basisPdDesign +
-        (prototypeContent ? "\n\n## 原型程序（页面/流的保真参照）\n" + prototypeContent : "") +
-        (effectiveRequirement ? "\n\n## 需求\n" + effectiveRequirement : ""),
-      silent: true,
+      buildPrompt: (findings) => {
+        const base =
+          "Strengthen the interaction design intent below into a ui-design prompt document for a " +
+          "visual-canvas generator — a VISUAL TRANSLATION of the pd-design, not a restatement. " +
+          UI_DESIGN_CONTRACT +
+          " Do not call tools. " +
+          "Return only the complete markdown document in one markdown code fence.\n\n" +
+          "## pd-design（交互意图，翻译源）\n" +
+          basisPdDesign +
+          (prototypeContent ? "\n\n## 原型程序（页面/流的保真参照）\n" + prototypeContent : "") +
+          (effectiveRequirement ? "\n\n## 需求\n" + effectiveRequirement : "");
+        if (findings && findings.length > 0) {
+          return base + "\n\n## 深度审计 findings（逐条修复，不得删节）\n" + findings.map((f) => "- " + f).join("\n");
+        }
+        return base;
+      },
+      extract: (generated) => {
+        // {content} 包装走嵌套围栏感知树（字符串直入会在内层围栏截断）。
+        const doc = generated === null ? null : extractMarkdownDocument({ content: generated });
+        if (!doc || !/^#\s+/m.test(doc)) return null;
+        return normalizeGeneratedMarkdown(doc);
+      },
+      audit: uiSectionsAudit,
+      maxRepairs: 1,
+      progressCode: "design.uidesign.repairing",
+      basePercent: 40,
     });
-    const uiDocument = extractMarkdownDocument(uiGenerated);
-    if (!uiDocument || !uiDocument.match(/^#\s+/m) || (uiDocument.match(/^##\s+/gm) ?? []).length < 2) {
-      return {
-        ok: false,
-        error: "deep-design returned an empty or structure-less ui-design document — regenerate",
-      };
+    if (uiResult.ok) {
+      if (ctx.signal.aborted) return { ok: false, error: "cancelled" };
+      uiDesign = uiResult.document;
+      // 交叉审查修复：saved 终态码移到 render_leafer 成功后发射——ui-design
+      // 随画布同一调用落盘，画布生成失败时不得谎报"已保存"。
+    } else {
+      ctx.emit({
+        message: `ui-design strengthening failed — falling back to prototype-driven generation (${uiResult.error})`,
+        percent: 45,
+        data: { code: "design.uidesign.degraded" },
+      });
     }
-    if (ctx.signal.aborted) return { ok: false, error: "cancelled" };
-    uiDesign = uiDocument;
-    // 交叉审查修复：saved 终态码移到 render_leafer 成功后发射——ui-design
-    // 随画布同一调用落盘，画布生成失败时不得谎报"已保存"。
   }
   // specs/prompt-doc-chain:materialize.generating 移到 ui-design stage 之后
   // ——进度叙事与真实阶段一致（先蒸馏视觉意图，再生成画布）。
@@ -269,7 +298,11 @@ export const designMaterializeRun: ActionRun<DesignMaterializeInput, DesignMater
   );
 
   try {
-    const generated = await ctx.runSubagent({ skill: "deep-design", prompt: promptParts.join("\n\n"), silent: true });
+    const generated = await callSubagentStable(
+      ctx,
+      { skill: "deep-design", prompt: promptParts.join("\n\n"), silent: true },
+      "canvas-generate"
+    );
     const content = extractGeneratedBody(generated);
     if (!content || !looksLikeLeaferDocument(content)) {
       return {
@@ -277,17 +310,57 @@ export const designMaterializeRun: ActionRun<DesignMaterializeInput, DesignMater
         error: "deep-design returned an empty or invalid Leafer JSON document (no root/children) — regenerate",
       };
     }
+    // specs/design-stage-gates S5：画布深度门——基底原型已知页面数时 Frame
+    // 缺页 = 破损 UI，定向修复一轮后仍缺则 fail-closed；节点密度只作软提示
+    // 进修复契约（弱模型密度弹性大，硬门反致不稳定）。
+    const requiredPages = prototypeContent ? programPageCount(prototypeContent) : undefined;
+    let canvas = content;
+    let depth = leaferCanvasFindings(canvas, requiredPages);
+    if (depth.findings.length > 0) {
+      ctx.emit({
+        message: `Repairing canvas depth (${depth.findings.join("; ")})`,
+        percent: 65,
+        data: { code: "design.materialize.repairing" },
+      });
+      const depthRaw = await callSubagentStable(
+        ctx,
+        {
+          skill: "deep-design",
+          prompt:
+            "The Leafer scene-tree JSON document below is missing required page frames. " +
+            "Fix EVERY reported finding and return the COMPLETE corrected document in one json code fence. " +
+            "Change nothing beyond what the findings require. Do not call tools.\n\n" +
+            `${LEAFER_CREATE_CONTRACT}\n\nDepth findings:\n${depth.findings.map((f) => `- ${f}`).join("\n")}\n\nCurrent document:\n${canvas}`,
+          silent: true,
+        },
+        "canvas-depth-repair"
+      );
+      const depthDoc = extractGeneratedBody(depthRaw);
+      if (depthDoc && looksLikeLeaferDocument(depthDoc)) canvas = depthDoc;
+      depth = leaferCanvasFindings(canvas, requiredPages);
+      if (depth.findings.length > 0) {
+        return { ok: false, error: `leafer canvas depth gate: ${depth.findings.join("; ")}` };
+      }
+    }
     // EARS 2/3: fail-closed repair loop — persistence only happens with a
     // structurally valid document (the OpenUI loop fails open because the
     // desktop validator/renderer remains the backstop; leafer has no such
     // second line, and the verdict source is deterministic).
     const repaired = await repairLeaferProgram(ctx, {
-      text: content,
-      contract: LEAFER_CREATE_CONTRACT,
+      text: canvas,
+      contract:
+        depth.softNotes.length > 0
+          ? `${LEAFER_CREATE_CONTRACT}\nDepth notes: ${depth.softNotes.join("; ")}`
+          : LEAFER_CREATE_CONTRACT,
       progressCode: "design.materialize.repairing",
       basePercent: 70,
     });
     if (!repaired.ok) return { ok: false, error: repaired.error };
+    // 结构修复环理论上可能动掉 Frame——落盘前对最终产物复检硬门（确定性、零成本）。
+    const finalDepth = leaferCanvasFindings(repaired.value, requiredPages);
+    if (finalDepth.findings.length > 0) {
+      return { ok: false, error: `leafer canvas depth gate after repair: ${finalDepth.findings.join("; ")}` };
+    }
     if (ctx.signal.aborted) return { ok: false, error: "cancelled" };
     // F11：追加到既有套件且本次没有新 ui-design → 空串显式清除（见上）。
     const uiDesignArg = uiDesign !== null ? uiDesign : suiteId ? "" : undefined;

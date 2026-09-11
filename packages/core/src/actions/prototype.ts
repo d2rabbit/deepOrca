@@ -16,7 +16,18 @@ import {
   type OpenuiDevice,
 } from "./openui-contract";
 import { componentJaccard, extractProgramPages, extractTargetPlatforms, parsePageList } from "../common/openui-pages";
-import { pageCoverageFindings, pdSectionsAudit, runDesignStage } from "./design-gates";
+import {
+  archSectionsAudit,
+  callSubagentStable,
+  countTableDataRows,
+  normalizeGeneratedMarkdown,
+  openuiInteractivityFindings,
+  pageCoverageFindings,
+  pdSectionsAudit,
+  runDesignStage,
+  sectionBody,
+  subagentContentOf,
+} from "./design-gates";
 
 const DESIGNS_DIR = ".deeporca/designs";
 const SPEC_FILE = "spec.md";
@@ -128,15 +139,8 @@ function readArtifactFile(projectRoot: string, id: string, file: string): string
   }
 }
 
-function subagentContent(result: unknown): string | null {
-  // 纯字符串输入（generatePdDesignDocument 内部流转）也合法。
-  if (typeof result === "string") return result.trim() || null;
-  if (!isRecord(result) || typeof result.content !== "string") return null;
-  return result.content.trim() || null;
-}
-
 function extractGeneratedBody(result: unknown): string | null {
-  const content = subagentContent(result);
+  const content = subagentContentOf(result);
   if (!content) return null;
   // Line-anchored (re-review fix): prose merely MENTIONING ``` mid-line must
   // not open the extraction — only a real line-initial fence does.
@@ -418,15 +422,19 @@ export async function repairOpenuiProgram(
       percent: opts.basePercent + round * 5,
       data: { code: opts.progressCode },
     });
-    const generated = await ctx.runSubagent({
-      skill: "pm-designer-openui",
-      prompt:
-        "The OpenUI Lang program below failed validation against the official parser. " +
-        "Fix EVERY reported issue and return the COMPLETE corrected program in one code fence. " +
-        "Change nothing beyond what the issues require. Do not call tools.\n\n" +
-        `${opts.contract}\n\nParser issues:\n${formatOpenuiFeedback(verdict)}\n\nCurrent program:\n${code}`,
-      silent: true,
-    });
+    const generated = await callSubagentStable(
+      ctx,
+      {
+        skill: "pm-designer-openui",
+        prompt:
+          "The OpenUI Lang program below failed validation against the official parser. " +
+          "Fix EVERY reported issue and return the COMPLETE corrected program in one code fence. " +
+          "Change nothing beyond what the issues require. Do not call tools.\n\n" +
+          `${opts.contract}\n\nParser issues:\n${formatOpenuiFeedback(verdict)}\n\nCurrent program:\n${code}`,
+        silent: true,
+      },
+      "program-repair"
+    );
     const next = extractGeneratedBody(generated);
     if (!next || !looksLikeOpenuiProgram(next)) return code; // keep the last good draft
     code = next;
@@ -434,7 +442,10 @@ export async function repairOpenuiProgram(
 }
 
 /** specs/prompt-doc-chain 交叉审查追加：PRD 骨架单源（SKILL.md 撤模板改引用，
- *  生成提示词内联——弱模型"填空"远强于"读文档自由发挥"）。 */
+ *  生成提示词内联——弱模型"填空"远强于"读文档自由发挥"）。
+ *  specs/design-stage-gates：三张关键表 + 验收清单给出**行级模板**——p-core
+ *  真机证明弱模型对"（实体/字段/类型表）"这种抽象描述会自由发挥出非 GFM
+ *  形态；占位行（`<…>`）不计数，模板抄进产物也过不了深度门。 */
 export const SPEC_SKELETON = `# <产品/功能名称> 需求文档
 
 | 项目 | 内容 |
@@ -447,38 +458,75 @@ export const SPEC_SKELETON = `# <产品/功能名称> 需求文档
 
 ## 1. 背景与目标
 
-（目标 / 度量 / 目标值 表,2-3 行）
+| 目标 | 度量 | 目标值 |
+| --- | --- | --- |
+| <目标A> | <如何度量> | <数值> |
+| <目标B> | <如何度量> | <数值> |
 
 ## 2. 用户与场景
 
-（角色表 + 核心场景表）
+| 角色 | 描述 | 核心诉求 |
+| --- | --- | --- |
+| <角色A> | <一句话画像> | <要完成什么> |
+
+| 场景 | 角色 | 触发 | 期望结果 |
+| --- | --- | --- | --- |
+| <场景A> | <角色> | <何时何地> | <结果> |
 
 ## 3. 功能需求
 
-（功能清单表:模块 / 需求描述 / 优先级 P0-P2 / 交互要点。每条具体可测;
- 空态 / 加载 / 失败与重试逐条覆盖。）
+（每条具体可测;空态 / 加载 / 失败与重试逐条覆盖;至少一条 P0。）
+
+| 模块 | 需求描述 | 优先级 | 交互要点 |
+| --- | --- | --- | --- |
+| <模块A> | <具体可测的描述> | P0 | <空态/加载/失败如何呈现> |
+| <模块A> | <描述> | P0 | <要点> |
+| <模块B> | <描述> | P1 | <要点> |
 
 ## 4. 数据与字段
 
-（核心数据实体表:实体 / 字段 / 类型 / 校验与约束 / 示例。每个页面展示、
- 编辑或过滤的核心实体都必须有字段级定义。）
+（每个页面展示、编辑或过滤的核心实体都必须有字段级定义。）
+
+| 实体 | 字段 | 类型 | 校验与约束 | 示例 |
+| --- | --- | --- | --- | --- |
+| <实体A> | <字段1> | string | 必填,长度 2-20 | <示例值> |
+| <实体A> | <字段2> | enum | 取值:<a>/<b> | <示例值> |
+| <实体B> | <字段1> | number | 范围 0-100 | <示例值> |
 
 ## 5. 页面清单
 
-（页面清单表:页面 / 页面ID / 目的 / 关键元素与操作。页面ID 必填——
- 英文 kebab/camel,是原型程序 $page 的取值。附 Mermaid 页面导航图。
+（页面ID 必填——英文 kebab/camel,是原型程序 $page 的取值。表后附 Mermaid
+ 页面导航图（graph TD 形式,节点用页面ID）。）
 
-### <页面ID> 逐页交互明细
+| 页面 | 页面ID | 目的 | 关键元素与操作 |
+| --- | --- | --- | --- |
+| <页面名A> | <page-id-a> | <目的> | <元素/操作> |
+| <页面名B> | <page-id-b> | <目的> | <元素/操作> |
 
-（每个页面一小节,逐条 \`状态/事件 → 行为\` 行,含空态/加载/错误三态。）
+### <page-id-a> 逐页交互明细
+
+（逐条 \`状态/事件 → 行为\` 行,含空态/加载/错误三态。）
+
+- <初始态描述> → <行为>
+- <事件> → <行为>
 
 ## 6. 非功能需求
 
-（表格:类别 / 要求 / 度量;无内容写"无特殊要求"。）
+（无内容写"无特殊要求"。）
+
+| 类别 | 要求 | 度量 |
+| --- | --- | --- |
+| 性能 | <要求> | <度量> |
 
 ## 7. 验收标准
 
-（可勾选验收点 5-10 条 - [ ],覆盖每个 P0,每条"操作 → 预期可见结果"。）
+（可勾选验收点 5-10 条,覆盖每个 P0,每条"操作 → 预期可见结果"。）
+
+- [ ] <操作> → <预期可见结果>
+- [ ] <操作> → <预期可见结果>
+- [ ] <操作> → <预期可见结果>
+- [ ] <操作> → <预期可见结果>
+- [ ] <操作> → <预期可见结果>
 
 ## 8. 待确认
 
@@ -633,14 +681,15 @@ export function specSectionsAudit(markdown: string): string[] {
       findings.push(`缺少「${section}」节`);
     }
   }
-  // 功能需求表：≥3 行数据行且至少 1 条 P0。
+  // 功能需求表：≥3 行数据行且至少 1 条 P0。行计数占位感知（design-gates
+  // countTableDataRows）——骨架模板行抄进产物不计数，缩进表行照常计数。
   const fnSection = sectionBody(markdown, "功能需求");
-  const fnRows = fnSection ? (fnSection.match(/^\|(?!--)[^|]*\|/gm) ?? []).length : 0;
+  const fnRows = countTableDataRows(fnSection);
   if (fnRows < 3) findings.push(`功能需求表仅有 ${fnRows} 行（需 ≥3 行模块/描述/优先级）`);
   if (fnSection && !/P0/.test(fnSection)) findings.push("功能需求缺少 P0 优先级条目");
-  // 数据与字段：至少一张实体表 ≥2 数据行。
+  // 数据与字段：至少一张实体表 ≥2 数据行（同上占位感知）。
   const dataSection = sectionBody(markdown, "数据与字段");
-  const dataRows = dataSection ? (dataSection.match(/^\|(?!--)[^|]*\|/gm) ?? []).length : 0;
+  const dataRows = countTableDataRows(dataSection);
   if (dataRows < 3)
     findings.push(`数据与字段节缺实体字段表（仅 ${dataRows} 行，需实体/字段/类型/校验/示例 ≥2 数据行）`);
   // 页面清单：每页面ID 有 ### 明细节且 ≥2 条交互行。
@@ -658,25 +707,16 @@ export function specSectionsAudit(markdown: string): string[] {
       if (interactionLines < 2) findings.push(`页面 ${page.id} 交互明细不足（需 ≥2 条 状态/事件 → 行为）`);
     }
   }
-  // 验收标准：≥5 可勾选项。
+  // 验收标准：≥5 可勾选项（占位行 `- [ ] <…>` 不计——骨架抄写不达标）。
   const acceptSection = sectionBody(markdown, "验收标准");
-  const checkboxes = acceptSection ? (acceptSection.match(/^-\s*\[\s*\]/gm) ?? []).length : 0;
+  let checkboxes = 0;
+  if (acceptSection) {
+    for (const line of acceptSection.split("\n")) {
+      if (/^-\s*\[\s*\]/.test(line) && !/^-\s*\[\s*\]\s*<[^>]+>/.test(line)) checkboxes += 1;
+    }
+  }
   if (checkboxes < 5) findings.push(`验收标准仅 ${checkboxes} 条可勾选项（需 ≥5 条覆盖 P0）`);
   return findings;
-}
-
-/** 提取指定标题节的正文（到下一个同级或更高级标题为止）。 */
-function sectionBody(markdown: string, sectionTitle: string): string | null {
-  const start = markdown.search(new RegExp(`^#{1,6}\\s+.*${sectionTitle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`, "m"));
-  if (start === -1) return null;
-  const rest = markdown.slice(start);
-  // 节体从标题行的换行符之后开始——不能用 slice(1)（砍掉一个 # 后标题行
-  // 余部仍匹配 ^#{1,3}，节体会截断在标题行自身，行数统计恒为 0）。
-  const bodyStart = rest.indexOf("\n");
-  if (bodyStart === -1) return "";
-  const body = rest.slice(bodyStart + 1);
-  const next = body.search(/^#{1,3}\s+/m);
-  return next === -1 ? body : body.slice(0, next);
 }
 
 // ── 提示词文档链（specs/prompt-doc-chain）：pd-design.md ─────────────────────
@@ -698,11 +738,13 @@ async function generatePdDesignDocument(
   spec: string,
   inheritsFrom: DesignThemeRef | undefined,
   references: DesignThemeRef[] | undefined
-): Promise<{ ok: true; document: string } | { ok: false; error: string }> {
+): Promise<{ ok: true; document: string } | { ok: false; error: string; findings?: string[] }> {
   if (!ctx.runSubagent) return { ok: false, error: "runSubagent not available" };
-  const runSub = ctx.runSubagent;
   const referenceBlock = await collectSpecReferenceBlock(ctx, inheritsFrom, references);
-  const buildPrompt = (findings?: string[]): string => {
+  // specs/design-stage-gates：迁共享引擎——生成/瞬态重试/审计/修复轮/错误
+  // findings 明细统一由 runDesignStage 承载，本函数只保留 pd 特有的提示词
+  // 装配（契约 + 参考块）与抽取规则（markdown + # 标题 + 归一化）。
+  const buildPrompt = (findings: string[] | null): string => {
     const base =
       "Analyze the requirements document below and distill it into a pd-design prompt document. " +
       "It drives a prototype generator afterwards — every section must be a directive, not prose. " +
@@ -717,33 +759,24 @@ async function generatePdDesignDocument(
     }
     return base;
   };
-  // 稳定性强化：pdSectionsAudit 六节逐节审计 + findings 修复一轮。
-  const run = async (prompt: string): Promise<string> => {
-    const res = await runSub({ skill: "deep-design", prompt, silent: true });
-    return typeof res === "object" && res !== null && "content" in res
-      ? String((res as { content: unknown }).content)
-      : "";
-  };
-  let document = extractMarkdownDocument(await run(buildPrompt(undefined)));
-  if (!document || !document.match(/^#\s+/m)) {
-    return { ok: false, error: "deep-design returned an empty or title-less pd-design document — regenerate" };
-  }
-  let auditFindings = pdSectionsAudit(document);
-  if (auditFindings.length > 0) {
-    ctx.emit({ message: "Repairing pd-design sections", percent: 40, data: { code: "prototype.pddesign.repairing" } });
-    const repairedPrompt = buildPrompt(auditFindings);
-    const repairedRaw = await run(repairedPrompt);
-    const repairedDoc = extractMarkdownDocument(repairedRaw);
-    if (!repairedDoc || !repairedDoc.match(/^#\s+/m)) {
-      return { ok: false, error: "pd-design repair round returned an unusable document — regenerate" };
-    }
-    document = repairedDoc;
-    auditFindings = pdSectionsAudit(document);
-    if (auditFindings.length > 0) {
-      return { ok: false, error: "pd-design depth gate still failing after repair: " + auditFindings.join("; ") };
-    }
-  }
-  return { ok: true, document };
+  const result = await runDesignStage(ctx, {
+    stage: "pd-design",
+    skill: "deep-design",
+    buildPrompt,
+    extract: (content) => {
+      // {content} 包装走嵌套围栏感知树（同上——字符串直入会在内层围栏截断）。
+      const doc = content === null ? null : extractMarkdownDocument({ content });
+      if (!doc || !/^#\s+/m.test(doc)) return null;
+      return normalizeGeneratedMarkdown(doc);
+    },
+    audit: pdSectionsAudit,
+    maxRepairs: 1,
+    progressCode: "prototype.pddesign.repairing",
+    basePercent: 40,
+  });
+  return result.ok
+    ? { ok: true, document: result.document }
+    : { ok: false, error: result.error, findings: result.findings };
 }
 
 export const prototypeSpecRun: ActionRun<PrototypeSpecInput, PrototypeSpecOutput> = async (input, ctx) => {
@@ -764,24 +797,33 @@ export const prototypeSpecRun: ActionRun<PrototypeSpecInput, PrototypeSpecOutput
     // specs/prompt-doc-chain 交叉审查：骨架内联（单源 SPEC_SKELETON——
     // SKILL.md 撤模板改方法论，防漂移顾虑由单源化消除）。弱模型"填空"
     // 远强于"读文档自由发挥"——这是历次契约强化失效后的机械补强第一半。
-    const generated = await ctx.runSubagent({
-      skill: "spec-writer",
-      prompt:
-        "Write the complete structured PRD for the requirement below. " +
-        "Fill the EXACT skeleton below section-for-section — do not rename, reorder, or drop " +
-        "sections; replace every <placeholder> with concrete content. " +
-        "Do not call tools. " +
-        "Return only the complete markdown document in one markdown code fence.\n\n" +
-        "## 骨架（逐节填充）\n" +
-        SPEC_SKELETON +
-        "\n\n## 需求\n" +
-        requirement +
-        (referenceBlock ? `\n${referenceBlock}` : ""),
-      silent: true,
-    });
+    const generated = await callSubagentStable(
+      ctx,
+      {
+        skill: "spec-writer",
+        prompt:
+          "Write the complete structured PRD for the requirement below. " +
+          "Fill the EXACT skeleton below section-for-section — do not rename, reorder, or drop " +
+          "sections; replace every <placeholder> with concrete content. " +
+          "Do not call tools. " +
+          "Return only the complete markdown document in one markdown code fence.\n\n" +
+          "## 骨架（逐节填充）\n" +
+          SPEC_SKELETON +
+          "\n\n## 需求\n" +
+          requirement +
+          (referenceBlock ? `\n${referenceBlock}` : ""),
+        silent: true,
+      },
+      "spec-generate"
+    );
     // PRD 内嵌 ```mermaid 图(标准化格式),必须用嵌套围栏感知抽取,否则文档
     // 在第一张图处被截断且 looksLikeSpecDocument 拦不住(任意标题即过)。
-    let document = extractMarkdownDocument(generated);
+    // specs/design-stage-gates：归一化先行（缩进表格行确定性修复）——归一化
+    // 后的文档才是审计与落盘对象（OCR 确定性优先借鉴）。callSubagentStable
+    // 返回内容字符串——包回 {content} 形态走嵌套围栏感知树（字符串直入会
+    // 退化成单围栏惰性抽取，mermaid 文档在第一个内层围栏截断）。
+    const extracted = generated === null ? null : extractMarkdownDocument({ content: generated });
+    let document = extracted === null ? null : normalizeGeneratedMarkdown(extracted);
     if (!document || !looksLikeSpecDocument(document)) {
       return {
         ok: false,
@@ -798,19 +840,24 @@ export const prototypeSpecRun: ActionRun<PrototypeSpecInput, PrototypeSpecOutput
         data: { code: "prototype.spec.repairing" },
       });
       const findingsText = findings.map((finding) => `- ${finding}`).join("\n");
-      const repaired = await ctx.runSubagent({
-        skill: "spec-writer",
-        prompt:
-          "The PRD below FAILED the depth audit. Fix EVERY finding by expanding the document in place — " +
-          "keep all existing correct content, fill the missing sections/tables/details. " +
-          "Do not call tools. Return only the complete corrected markdown document in one markdown code fence.\n\n" +
-          "## 深度审计 findings\n" +
-          findingsText +
-          "\n\n## 当前 PRD\n" +
-          document,
-        silent: true,
-      });
-      const repairedDocument = extractMarkdownDocument(repaired);
+      const repaired = await callSubagentStable(
+        ctx,
+        {
+          skill: "spec-writer",
+          prompt:
+            "The PRD below FAILED the depth audit. Fix EVERY finding by expanding the document in place — " +
+            "keep all existing correct content, fill the missing sections/tables/details. " +
+            "Do not call tools. Return only the complete corrected markdown document in one markdown code fence.\n\n" +
+            "## 深度审计 findings\n" +
+            findingsText +
+            "\n\n## 当前 PRD\n" +
+            document,
+          silent: true,
+        },
+        "spec-repair"
+      );
+      const repairedExtracted = repaired === null ? null : extractMarkdownDocument({ content: repaired });
+      const repairedDocument = repairedExtracted === null ? null : normalizeGeneratedMarkdown(repairedExtracted);
       if (!repairedDocument || !looksLikeSpecDocument(repairedDocument)) {
         return {
           ok: false,
@@ -1040,25 +1087,37 @@ export const prototypeMaterializeRun: ActionRun<PrototypeMaterializeInput, Proto
         data: { code: "prototype.pddesign.generating" },
       });
       const distilled = await generatePdDesignDocument(ctx, spec, themeRefs.inherits, themeRefs.references);
-      if (!distilled.ok) return { ok: false, error: distilled.error };
-      if (ctx.signal.aborted) return { ok: false, error: "cancelled" };
-      const savedPd = await executeA2ui(ctx, "save_pd_design", {
-        document: distilled.document,
-        preserveDerived: true,
-        suiteId,
-        ...(baseVersionId ? { versionId: baseVersionId } : {}),
-        ...(input.note?.trim() ? { note: input.note.trim() } : {}),
-      });
-      if (!savedPd.ok) return savedPd;
-      pdDesign = distilled.document;
-      // head 前移：save_pd_design 追加了新版本，设备循环以新 head 为基线。
-      if (savedPd.artifactRef) baseVersionId = savedPd.artifactRef.versionId;
-      // 交叉审查修复：自动路径同样发射 saved 终态码（此前只有手动动作发）。
-      ctx.emit({
-        message: "pd-design document saved",
-        percent: 45,
-        data: { code: "prototype.pddesign.saved" },
-      });
+      if (distilled.ok) {
+        if (ctx.signal.aborted) return { ok: false, error: "cancelled" };
+        const savedPd = await executeA2ui(ctx, "save_pd_design", {
+          document: distilled.document,
+          preserveDerived: true,
+          suiteId,
+          ...(baseVersionId ? { versionId: baseVersionId } : {}),
+          ...(input.note?.trim() ? { note: input.note.trim() } : {}),
+        });
+        if (!savedPd.ok) return savedPd;
+        pdDesign = distilled.document;
+        // head 前移：save_pd_design 追加了新版本，设备循环以新 head 为基线。
+        if (savedPd.artifactRef) baseVersionId = savedPd.artifactRef.versionId;
+        // 交叉审查修复：自动路径同样发射 saved 终态码（此前只有手动动作发）。
+        ctx.emit({
+          message: "pd-design document saved",
+          percent: 45,
+          data: { code: "prototype.pddesign.saved" },
+        });
+      } else {
+        // specs/design-stage-gates（OCR plan-failure 分层借鉴）：stage0 自动
+        // 蒸馏是增强阶段——失败降级到 spec 直驱的既有提示词（与无 pd-design
+        // 的旧路径字节一致），绝不因提示词文档失败阻塞原型化。手动重算
+        // （prototype.pddesign）保持 fail-closed：显式动作产物即契约。
+        ctx.emit({
+          message: `pd-design distillation failed — falling back to spec-driven generation (${distilled.error})`,
+          percent: 45,
+          data: { code: "prototype.materialize.degraded" },
+        });
+        pdDesign = null;
+      }
     }
     for (const [index, device] of renderDevices.entries()) {
       // 进度码保持稳定契约:单设备(缺省)与旧版完全一致(一次 generating);
@@ -1081,32 +1140,36 @@ export const prototypeMaterializeRun: ActionRun<PrototypeMaterializeInput, Proto
       const pdSection = pdDesign
         ? "\n\n## pd-design（设计意图——主驱动）\n" + pdDesign + "\n\n## 需求文档（范围契约源）\n" + spec
         : "\n\n" + spec;
-      const generated = await ctx.runSubagent({
-        skill: "pm-designer-openui",
-        prompt:
-          (pdDesign
-            ? "Create the complete OpenUI Lang prototype from the distilled design intent below. "
-            : "Create the complete OpenUI Lang prototype for the requirements document below. ") +
-          OPENUI_DEVICE_CONTRACTS[device] +
-          " " +
-          // 契约单一来源(openui-contract.ts):单应用 $page 结构 + 质量底线
-          // (可交互/高保真/可编辑),详情见技能的质量契约节,提示词不另行复述。
-          OPENUI_CREATE_CONTRACT +
-          " " +
-          OPENUI_QUALITY_CONTRACT +
-          // PRD 遵守契约（p-core 真机走查：遵守声明太抽象，模型会"意思一下"）——
-          // 逐页、逐优先级、逐三态点名，生成后 verify 也按页面ID逐页比对。
-          " PRD compliance is non-negotiable: (1) EVERY page in the 页面清单/pd-design " +
-          "页面结构 gets its own view and its page id appears as a $page value, reachable " +
-          "in one click; (2) EVERY P0 功能需求 row is visibly implemented — its 交互要点 " +
-          "states (empty/loading/error-and-retry) each render a distinct branch; (3) the " +
-          "逐页交互明细 lines are implemented literally as written; (4) do not invent " +
-          "pages, fields, or flows beyond the document. " +
-          "Do not call tools. " +
-          "Return only the OpenUI Lang program in one code fence." +
-          pdSection,
-        silent: true,
-      });
+      const generated = await callSubagentStable(
+        ctx,
+        {
+          skill: "pm-designer-openui",
+          prompt:
+            (pdDesign
+              ? "Create the complete OpenUI Lang prototype from the distilled design intent below. "
+              : "Create the complete OpenUI Lang prototype for the requirements document below. ") +
+            OPENUI_DEVICE_CONTRACTS[device] +
+            " " +
+            // 契约单一来源(openui-contract.ts):单应用 $page 结构 + 质量底线
+            // (可交互/高保真/可编辑),详情见技能的质量契约节,提示词不另行复述。
+            OPENUI_CREATE_CONTRACT +
+            " " +
+            OPENUI_QUALITY_CONTRACT +
+            // PRD 遵守契约（p-core 真机走查：遵守声明太抽象，模型会"意思一下"）——
+            // 逐页、逐优先级、逐三态点名，生成后 verify 也按页面ID逐页比对。
+            " PRD compliance is non-negotiable: (1) EVERY page in the 页面清单/pd-design " +
+            "页面结构 gets its own view and its page id appears as a $page value, reachable " +
+            "in one click; (2) EVERY P0 功能需求 row is visibly implemented — its 交互要点 " +
+            "states (empty/loading/error-and-retry) each render a distinct branch; (3) the " +
+            "逐页交互明细 lines are implemented literally as written; (4) do not invent " +
+            "pages, fields, or flows beyond the document. " +
+            "Do not call tools. " +
+            "Return only the OpenUI Lang program in one code fence." +
+            pdSection,
+          silent: true,
+        },
+        `materialize-${device}`
+      );
       const code = extractGeneratedBody(generated);
       if (!code || !looksLikeOpenuiProgram(code)) {
         return {
@@ -1116,15 +1179,20 @@ export const prototypeMaterializeRun: ActionRun<PrototypeMaterializeInput, Proto
             "(no root/component statements) — regenerate",
         };
       }
-      // specs/prompt-doc-chain 稳定性强化：页面覆盖门——PRD 页面清单的每个
-      // 页面 ID 必须以 $page 比较/跳转出现在程序中。缺失 = 修复契约注入
-      // （只对 desktop 主体验证一次，多端走 verify 兜底）。
+      // specs/prompt-doc-chain 稳定性强化 + specs/design-stage-gates S4：
+      // 页面覆盖门（PRD 页面清单的每个页面 ID 必须以 $page 比较/跳转出现）
+      // 与交互密度门（组件数/Action 数/页面可达性）合并注入修复契约
+      // （只对 desktop 主体验证一次，多端走 verify 兜底；fail-open 层）。
       let coverageNote = "";
       if (device === "desktop" || renderDevices.length === 1) {
         const missing = pageCoverageFindings(spec, code);
+        const density = openuiInteractivityFindings(spec, code);
+        const notes: string[] = [];
         if (missing.length > 0) {
-          coverageNote = ` Missing pages (must add as $page values with views): ${missing.join(", ")}.`;
+          notes.push(` Missing pages (must add as $page values with views): ${missing.join(", ")}.`);
         }
+        for (const finding of density) notes.push(` ${finding}.`);
+        coverageNote = notes.join("");
       }
       // Local validation loop: official parser verdict → patch prompt → retry,
       // BEFORE persistence (user ask 2026-09-09). Fail-open when the desktop
@@ -1645,6 +1713,61 @@ export function looksLikeArchDoc(markdown: string): boolean {
   return /^#{1,6}\s+\S/m.test(markdown) && /^[ \t]*```[ \t]*mermaid/im.test(markdown);
 }
 
+/** specs/design-stage-gates：架构文档骨架单源（SPEC_SKELETON 同款纪律——
+ *  SKILL.md 撤模板改引用）。七节 + 三表行级模板 + 图示槽位说明。弱模型
+ *  "填空到行"；占位行不计数，骨架抄写过不了 archSectionsAudit。 */
+export const ARCH_SKELETON = `# <产品/功能名称> 技术架构文档
+
+| 项目 | 内容 |
+| --- | --- |
+| 依据 PRD | <PRD 标题 / 版本> |
+| 架构风格 | <如:单页交互原型 / 前端 + 轻服务> |
+| 文档日期 | <当天日期> |
+
+## 1. 技术选型
+
+| 领域 | 选型 | 理由 |
+| --- | --- | --- |
+| <前端框架> | <选型> | <一句话理由> |
+| <状态/路由> | <选型> | <理由> |
+| <后端/服务> | <选型> | <理由> |
+
+## 2. 系统架构
+
+（Mermaid \`graph TD\`（三反引号 + mermaid 围栏）:subgraph 分层（用户层/交互层/
+业务逻辑层/数据层）;图后附模块职责伴表。）
+
+## 3. 数据模型
+
+（Mermaid \`erDiagram\`:核心实体 + 关系 + 关键属性,与 PRD「数据与字段」
+ 一致;纯展示型原型明确"无持久化实体"并列视图状态模型。图后附实体伴表。）
+
+## 4. 核心流程
+
+（1-2 条端到端关键流程,Mermaid \`sequenceDiagram\` 或 \`flowchart TD\`;
+ 图后附步骤伴表:步骤/触发/处理/异常路径。）
+
+## 5. 模块拆分
+
+| 模块 | 职责 | 依赖 |
+| --- | --- | --- |
+| <模块A> | <职责> | <依赖> |
+| <模块B> | <职责> | <依赖> |
+| <模块C> | <职责> | <依赖> |
+
+## 6. 非功能设计
+
+| 类别 | 设计 | 度量 |
+| --- | --- | --- |
+| <性能/安全/容错> | <机制> | <度量> |
+
+## 7. 风险与对策
+
+| 风险 | 影响 | 对策 |
+| --- | --- | --- |
+| <风险A> | <影响> | <对策> |
+| <风险B> | <影响> | <对策> |`;
+
 export const prototypeArchRun: ActionRun<PrototypeArchInput, PrototypeArchOutput> = async (input, ctx) => {
   const suiteId = input?.suiteId?.trim();
   const versionId = input?.versionId?.trim();
@@ -1668,26 +1791,43 @@ export const prototypeArchRun: ActionRun<PrototypeArchInput, PrototypeArchOutput
     data: { code: "prototype.arch.generating" },
   });
   try {
-    const generated = await ctx.runSubagent({
+    // specs/design-stage-gates S3：骨架内联 + 强化 archSectionsAudit（七节/
+    // erDiagram/表行门槛）+ findings 修复一轮，复审仍败 fail-closed——显式
+    // 动作产物即契约（此前 looksLikeArchDoc"有标题有图即过"是同款薄门）。
+    const result = await runDesignStage(ctx, {
+      stage: "prototype.arch",
       skill: "arch-writer",
-      prompt:
-        "Write the complete standardized technical architecture document derived from the approved PRD below. " +
-        "Follow the arch-writer document contract exactly (技术选型表 / 系统架构 Mermaid / 数据模型 erDiagram / " +
-        "核心流程图 / 模块拆分表 / 非功能设计 / 风险与对策表; every diagram followed by a companion table). " +
-        "Do not call tools. Return only the complete markdown document in one markdown code fence.\n\n" +
-        spec,
-      silent: true,
+      buildPrompt: (findings) => {
+        const base =
+          "Write the complete standardized technical architecture document derived from the approved PRD below. " +
+          "Fill the EXACT skeleton below section-for-section — do not rename, reorder, or drop sections; " +
+          "replace every <placeholder> with concrete content; every diagram slot gets a real mermaid fence " +
+          "(```mermaid) followed by its companion table. " +
+          "Do not call tools. Return only the complete markdown document in one markdown code fence.\n\n" +
+          "## 骨架（逐节填充）\n" +
+          ARCH_SKELETON +
+          "\n\n## 需求文档（已验收）\n" +
+          spec;
+        if (findings && findings.length > 0) {
+          return base + "\n\n## 深度审计 findings（逐条修复，不得删节）\n" + findings.map((f) => "- " + f).join("\n");
+        }
+        return base;
+      },
+      // 架构文档内嵌 ```mermaid 围栏,单围栏惰性抽取会在第一个内层围栏处截断;
+      // extractMarkdownDocument 按行锚定围栏剥壳,最后一个围栏不是裸闭合行的
+      // 输出一律视为截断:拒绝,而不是抢救半份文档。
+      extract: (generated) => {
+        const doc = generated === null ? null : extractMarkdownDocument({ content: generated });
+        if (!doc || !looksLikeArchDoc(doc)) return null;
+        return normalizeGeneratedMarkdown(doc);
+      },
+      audit: archSectionsAudit,
+      maxRepairs: 1,
+      progressCode: "prototype.arch.repairing",
+      basePercent: 60,
     });
-    // 架构文档内嵌 ```mermaid 围栏,单围栏惰性抽取会在第一个内层围栏处截断;
-    // extractMarkdownDocument 按行锚定围栏剥壳,最后一个围栏不是裸闭合行的
-    // 输出一律视为截断:拒绝,而不是抢救半份文档。
-    const document = extractMarkdownDocument(generated);
-    if (!document || !looksLikeArchDoc(document)) {
-      return {
-        ok: false,
-        error: "arch-writer returned an empty or diagram-less architecture document (truncated output?) — regenerate",
-      };
-    }
+    if (!result.ok) return { ok: false, error: result.error };
+    const document = result.document;
     if (ctx.signal.aborted) return { ok: false, error: "cancelled" };
     const saved = await executeA2ui(ctx, "save_suite_arch", {
       suiteId,

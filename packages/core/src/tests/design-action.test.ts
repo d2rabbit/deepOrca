@@ -845,7 +845,7 @@ test("progress emits carry stable machine codes for the renderer i18n seam", asy
         pdDesign: "# Task board 原型提示\n\n## 页面结构\n- Board",
       },
       generatedQueue: [
-        "```markdown\n# Task board 视觉稿提示\n\n## 画布构图\n- Board 帧\n\n## tokens 映射\n- accent\n```",
+        "```markdown\n# Task board 视觉稿提示\n\n## 画布构图\n- Board 帧\n\n## tokens 映射\n- accent\n\n## 视觉层级\n- 标题>卡片\n\n## 状态呈现\n- 空态/加载/错误\n```",
         `\`\`\`json\n${designLeaferDoc}\n\`\`\``,
       ],
       emits: designEmits,

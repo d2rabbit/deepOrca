@@ -113,8 +113,10 @@ const PD_DOC = [
 ].join("\n");
 const OPENUI = "```\nroot = Column([])\n```";
 const PD_MARKDOWN = "# 登录原型设计提示\n\n## 页面结构\n- 登录页\n\n## 交互叙事\n- 提交→校验";
-const UI_DOC = "```markdown\n# 登录视觉稿提示\n\n## 画布构图\n- 登录帧居中卡片\n\n## tokens 映射\n- 主色→accent\n```";
-const UI_MARKDOWN = "# 登录视觉稿提示\n\n## 画布构图\n- 登录帧居中卡片\n\n## tokens 映射\n- 主色→accent";
+const UI_DOC =
+  "```markdown\n# 登录视觉稿提示\n\n## 画布构图\n- 登录帧居中卡片\n\n## tokens 映射\n- 主色→accent\n\n## 视觉层级\n- 标题>表单>辅助\n\n## 状态呈现\n- 空态/加载/错误三态齐备\n```";
+const UI_MARKDOWN =
+  "# 登录视觉稿提示\n\n## 画布构图\n- 登录帧居中卡片\n\n## tokens 映射\n- 主色→accent\n\n## 视觉层级\n- 标题>表单>辅助\n\n## 状态呈现\n- 空态/加载/错误三态齐备";
 const LEAFER_DOC = JSON.stringify({
   tag: "Leafer",
   width: 1440,
@@ -165,7 +167,7 @@ test("prototype.pddesign rejects structure-less output without persisting", asyn
   );
   const result = await prototypePdDesignRun({ suiteId: "proto" }, ctx);
   assert.equal(result.ok, false);
-  assert.match(result.ok ? "" : (result as { error?: string }).error, /pd-design document/);
+  assert.match(result.ok ? "" : (result as { error?: string }).error, /pd-design/);
   assert.ok(!mcpCalls.some((call) => call.name.endsWith("save_pd_design")), "nothing persisted on gate failure");
 });
 

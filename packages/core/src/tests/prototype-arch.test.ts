@@ -25,14 +25,18 @@ after(() => {
   for (const dir of tmpDirs) fs.rmSync(dir, { recursive: true, force: true });
 });
 
+// specs/design-stage-gates：架构门升级为七节 + erDiagram + 表行门槛——
+// fixture 同步升级为合规文档（占位行不计数，全部为真实内容行）。
 const ARCH_DOC = [
   "# 番茄钟 技术架构文档",
   "",
   "## 1. 技术选型",
   "",
-  "| 层次 | 选型 |",
-  "| --- | --- |",
-  "| 前端 | OpenUI Lang |",
+  "| 层次 | 选型 | 理由 |",
+  "| --- | --- | --- |",
+  "| 前端 | OpenUI Lang | 原型栈 |",
+  "| 状态 | 内存会话 | 轻量 |",
+  "| 存储 | localStorage | 持久 |",
   "",
   "## 2. 系统架构",
   "",
@@ -42,6 +46,41 @@ const ARCH_DOC = [
   "    ui[计时器界面]",
   "  end",
   "```",
+  "",
+  "## 3. 数据模型",
+  "",
+  "```mermaid",
+  "erDiagram",
+  "  TASK ||--o{ SESSION : has",
+  "```",
+  "",
+  "## 4. 核心流程",
+  "",
+  "```mermaid",
+  "sequenceDiagram",
+  "  U->>S: start",
+  "```",
+  "",
+  "## 5. 模块拆分",
+  "",
+  "| 模块 | 职责 | 依赖 |",
+  "| --- | --- | --- |",
+  "| timer | 计时 | core |",
+  "| stats | 统计 | timer |",
+  "| store | 存储 | stats |",
+  "",
+  "## 6. 非功能设计",
+  "",
+  "| 类别 | 设计 | 度量 |",
+  "| --- | --- | --- |",
+  "| 性能 | 零依赖渲染 | 60fps |",
+  "",
+  "## 7. 风险与对策",
+  "",
+  "| 风险 | 影响 | 对策 |",
+  "| --- | --- | --- |",
+  "| 后台节流 | 计时漂移 | 时间戳校正 |",
+  "| 数据丢失 | 历史清空 | 云同步 |",
 ].join("\n");
 
 type McpCall = { name: string; args: Record<string, unknown> };
@@ -107,7 +146,7 @@ test("prototype.arch: diagram-less output is rejected before persistence (标准
     })
   );
   assert.equal(res.ok, false);
-  assert.match(res.error ?? "", /diagram-less/);
+  assert.match(res.error ?? "", /prototype\.arch/);
   assert.equal(mcpCalls.filter((c) => c.name.endsWith("save_suite_arch")).length, 0);
 });
 
@@ -180,7 +219,7 @@ test("prototype.arch: wrapped output truncated mid-inner-fence is refused despit
     makeCtx({ ...PASSED, generated: truncated, mcpCalls })
   );
   assert.equal(res.ok, false);
-  assert.match(res.error ?? "", /diagram-less/);
+  assert.match(res.error ?? "", /prototype\.arch/);
   assert.equal(mcpCalls.filter((c) => c.name.endsWith("save_suite_arch")).length, 0);
 });
 
@@ -194,7 +233,7 @@ test("prototype.arch: bare markdown truncated mid-mermaid is refused (旧 extrac
     makeCtx({ ...PASSED, generated: truncated, mcpCalls })
   );
   assert.equal(res.ok, false);
-  assert.match(res.error ?? "", /diagram-less/);
+  assert.match(res.error ?? "", /prototype\.arch/);
   assert.equal(mcpCalls.filter((c) => c.name.endsWith("save_suite_arch")).length, 0);
 });
 
@@ -223,7 +262,7 @@ test("prototype.arch: wrapped output truncated after an inner close is refused (
     makeCtx({ ...PASSED, generated: truncated, mcpCalls })
   );
   assert.equal(res.ok, false);
-  assert.match(res.error ?? "", /diagram-less/);
+  assert.match(res.error ?? "", /prototype\.arch/);
   assert.equal(mcpCalls.filter((c) => c.name.endsWith("save_suite_arch")).length, 0);
 });
 
@@ -246,13 +285,14 @@ test("prototype.arch: a complete bare markdown document (no wrapper) persists in
   const mcpCalls: McpCall[] = [];
   // The bare branch must stay alive: heading-first output with inner mermaid
   // fences is the off-wrapper fallback shape and used to be returned whole.
+  // specs/design-stage-gates：改用七节合规文档——裸形态与深度门叠加验证。
   const res = await prototypeArchRun(
     { suiteId: REF.suiteId, versionId: REF.versionId },
-    makeCtx({ ...PASSED, generated: TWO_DIAGRAM_DOC, mcpCalls })
+    makeCtx({ ...PASSED, generated: ARCH_DOC, mcpCalls })
   );
   assert.equal(res.ok, true);
   const arch = mcpCalls.find((c) => c.name.endsWith("save_suite_arch"));
-  assert.equal(arch?.args.document, TWO_DIAGRAM_DOC, "bare documents are returned whole, never re-extracted");
+  assert.equal(arch?.args.document, ARCH_DOC, "bare documents are returned whole, never re-extracted");
 });
 
 test("looksLikeArchDoc: an inline ```mermaid mention is not a diagram", () => {
