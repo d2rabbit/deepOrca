@@ -122,6 +122,19 @@ export {
   designDriftDefinition,
   designDriftRun,
 } from "./design";
+// specs/design-stage-gates：共享 stage-gate 引擎 + 审计器/深度门/稳定 seam 公共面。
+export {
+  archSectionsAudit,
+  callSubagentStable,
+  countTableDataRows,
+  leaferCanvasFindings,
+  normalizeGeneratedMarkdown,
+  openuiInteractivityFindings,
+  programPageCount,
+  runDesignStage,
+  subagentContentOf,
+} from "./design-gates";
+export type { DesignStageConfig, DesignStageResult, LeaferCanvasDepth } from "./design-gates";
 export type {
   DesignMaterializeInput,
   DesignMaterializeOutput,
