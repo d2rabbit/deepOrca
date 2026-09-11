@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
 import { describe, test } from "node:test";
 
-import { getExtensionRoot } from "@deeporca/core";
+import { configureDesignSystemsVendorRoot, getExtensionRoot } from "@deeporca/core";
 
 import { readDesignSystemCatalog, registerDesignIpc } from "../main/design-ipc.js";
 import type { DesignIpcHelpers, DesignStoreOps } from "../main/design-ipc.js";
@@ -316,9 +319,12 @@ describe("PRD theme channels (specs/prd-theme-layer)", () => {
   });
 });
 
-test("design system catalog is sourced from exactly the nine bundled template ids", () => {
-  const ids = readDesignSystemCatalog(getExtensionRoot()).map((item) => item.id);
-  assert.deepEqual(ids, [
+test("design system catalog: nine bundled ids + project pseudo-entry + vendored when injected", () => {
+  // specs/design-md-collection：目录 = bundled（9 套闭合）+ project 伪条目；
+  // vendored 条目只在宿主注入根之后出现（测试环境默认未注入）。
+  configureDesignSystemsVendorRoot(null);
+  const baseIds = readDesignSystemCatalog(getExtensionRoot()).map((item) => item.id);
+  assert.deepEqual(baseIds, [
     "brutalist-contrast",
     "dark-tech",
     "editorial",
@@ -328,7 +334,26 @@ test("design system catalog is sourced from exactly the nine bundled template id
     "swiss-international",
     "terminal-mono",
     "warm-handcrafted",
+    "project",
   ]);
+  const vendored = fs.mkdtempSync(path.join(os.tmpdir(), "design-md-catalog-"));
+  fs.mkdirSync(path.join(vendored, "design-md", "stripe"), { recursive: true });
+  fs.writeFileSync(path.join(vendored, "design-md", "stripe", "DESIGN.md"), "## A\nx\n## B\ny\n## C\nz", "utf8");
+  configureDesignSystemsVendorRoot(vendored);
+  try {
+    const withVendor = readDesignSystemCatalog(getExtensionRoot());
+    assert.ok(
+      withVendor.some((item) => item.id === "stripe"),
+      "vendored entry appears"
+    );
+    assert.ok(
+      withVendor.some((item) => item.id === "project"),
+      "project pseudo-entry retained"
+    );
+  } finally {
+    configureDesignSystemsVendorRoot(null);
+    fs.rmSync(vendored, { recursive: true, force: true });
+  }
 });
 
 // ── Leafer canvas append (DesignSuiteAppendLeafer, WP1.4) ────────────────────

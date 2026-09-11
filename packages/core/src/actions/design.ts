@@ -32,7 +32,7 @@ import { repairLeaferProgram } from "./leafer-repair";
 import { lintLeaferDocument } from "./leafer-lint";
 import { validateDembrandtTargetUrl } from "../common/dembrandt";
 import { runDembrandtProcess } from "../common/dembrandt-runner";
-import { getExtensionRoot } from "../prompt";
+import { PROJECT_DESIGN_SYSTEM_ID, resolveDesignSystem } from "./design-systems";
 import {
   callSubagentStable,
   leaferCanvasFindings,
@@ -84,31 +84,6 @@ export interface DesignMaterializeOutput {
   error?: string;
 }
 
-const DESIGN_SYSTEM_IDS = [
-  "brutalist-contrast",
-  "dark-tech",
-  "editorial",
-  "glass-morphism",
-  "modern-minimal",
-  "soft-neumorphic",
-  "swiss-international",
-  "terminal-mono",
-  "warm-handcrafted",
-] as const;
-
-function readDesignSystem(id: string): string | null {
-  if (!(DESIGN_SYSTEM_IDS as readonly string[]).includes(id)) return null;
-  const root = path.resolve(getExtensionRoot(), "templates", "design", "systems");
-  const target = path.resolve(root, `${id}.md`);
-  if (!target.startsWith(root + path.sep)) return null;
-  try {
-    const content = fs.readFileSync(target, "utf8").trim();
-    return content || null;
-  } catch {
-    return null;
-  }
-}
-
 export const designMaterializeDefinition: ActionDefinition<DesignMaterializeInput> = {
   id: "design.materialize",
   description:
@@ -130,7 +105,13 @@ export const designMaterializeDefinition: ActionDefinition<DesignMaterializeInpu
       },
       prototypeSuiteId: { type: "string", description: "Prototype suite id used as the interaction source" },
       prototypeVersionId: { type: "string", description: "Immutable prototype suite version" },
-      designSystemId: { type: "string", enum: [...DESIGN_SYSTEM_IDS], description: "One bundled design system" },
+      designSystemId: {
+        type: "string",
+        description:
+          "Design system id: one of the bundled systems, a vendored collection id " +
+          "(VoltAgent/awesome-design-md brand name, e.g. 'linear.app'), or 'project' to use " +
+          "the workspace root DESIGN.md (Google Stitch convention)",
+      },
       suiteId: { type: "string", description: "Existing UI suite to append" },
       versionId: { type: "string", description: "Existing UI suite base version" },
       note: { type: "string", description: "Optional version note" },
@@ -161,8 +142,19 @@ export const designMaterializeRun: ActionRun<DesignMaterializeInput, DesignMater
     return { ok: false, error: "suiteId and versionId must be provided together" };
   }
   if (!designSystemId) return { ok: false, error: "designSystemId is required for suite v2 materialization" };
-  const designSystem = readDesignSystem(designSystemId);
-  if (!designSystem) return { ok: false, error: `unknown or unavailable design system: ${designSystemId}` };
+  // specs/design-md-collection：三源解析（bundled / project DESIGN.md / vendored
+  // 收藏集）。"project" 缺失或不成形要给出可行动的错误（提示放一份 DESIGN.md）。
+  const designSystem = resolveDesignSystem(designSystemId, ctx.projectRoot);
+  if (!designSystem) {
+    return {
+      ok: false,
+      error:
+        designSystemId === PROJECT_DESIGN_SYSTEM_ID
+          ? "design system 'project' requires a DESIGN.md at the workspace root " +
+            "(Google Stitch format — copy one from VoltAgent/awesome-design-md or write your own; needs a # title and ≥3 ## sections)"
+          : `unknown or unavailable design system: ${designSystemId}`,
+    };
+  }
   if (!ctx.runSubagent) return { ok: false, error: "runSubagent not available" };
 
   let prototypeContent: string | null = null;
@@ -273,7 +265,9 @@ export const designMaterializeRun: ActionRun<DesignMaterializeInput, DesignMater
       ? `Create a complete Leafer scene-tree JSON document for this requirement: ${effectiveRequirement}`
       : "Create a complete Leafer scene-tree JSON document elevating the selected prototype.",
     LEAFER_CREATE_CONTRACT,
-    `Use this bundled design system exactly. Its complete source is included below:\n\n${designSystem}`,
+    designSystem.source === "bundled"
+      ? `Use this bundled design system exactly. Its complete source is included below:\n\n${designSystem.content}`
+      : `Use this DESIGN.md design system exactly (source: ${designSystem.source}). Its complete source is included below:\n\n${designSystem.content}`,
   ];
   if (uiDesign) {
     // specs/prompt-doc-chain：ui-design.md 主驱动——画布从视觉翻译文档出发，

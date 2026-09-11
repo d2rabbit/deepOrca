@@ -528,6 +528,10 @@ async function run() {
   // browser binary is vendored; core points PLAYWRIGHT_BROWSERS_PATH at an
   // offline-provisioned directory instead (see common/dembrandt.ts).
   ensureVendored("dembrandt", [".vendored-dembrandt-version"], "npx -y --package dembrandt@0.28.0 (online fallback)");
+  // awesome-design-md (specs/design-md-collection): VoltAgent's DESIGN.md
+  // collection (Google Stitch format, MIT) — 70+ brand design systems the
+  // UI-design stack can pick as designSystemId. Markdown only, nothing executes.
+  ensureVendored("design-md", [".vendored-head"], "bundled 9 design systems only (vendored brands unavailable)");
   if (isDev) {
     await cleanRendererChunks();
     const contexts = await Promise.all([

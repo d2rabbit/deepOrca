@@ -40,6 +40,13 @@ const MANIFEST = [
     notes: "npm dependency (@colbymchenry/codegraph) with platform-specific optionalDependencies.",
   },
   {
+    name: "awesome-design-md",
+    upstream: "https://github.com/VoltAgent/awesome-design-md",
+    license: "MIT",
+    notes:
+      "DESIGN.md collection (Google Stitch format, brand design systems) — markdown only, git-tracked main with hash marker.",
+  },
+  {
     name: "OpenWiki",
     upstream: "https://github.com/langchain-ai/openwiki",
     license: "MIT",

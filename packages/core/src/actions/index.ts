@@ -122,6 +122,18 @@ export {
   designDriftDefinition,
   designDriftRun,
 } from "./design";
+// specs/design-md-collection：设计系统三源解析（bundled / project / vendored）。
+export {
+  BUNDLED_DESIGN_SYSTEM_IDS,
+  PROJECT_DESIGN_SYSTEM_ID,
+  configureDesignSystemsVendorRoot,
+  getDesignSystemsVendorRoot,
+  listVendoredDesignSystems,
+  looksLikeDesignSystemDoc,
+  readProjectDesignSystem,
+  resolveDesignSystem,
+} from "./design-systems";
+export type { DesignSystemSource, ResolvedDesignSystem } from "./design-systems";
 // specs/design-stage-gates：共享 stage-gate 引擎 + 审计器/深度门/稳定 seam 公共面。
 export {
   archSectionsAudit,

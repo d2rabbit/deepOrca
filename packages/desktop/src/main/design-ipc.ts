@@ -3,7 +3,13 @@ import { writeFile } from "node:fs/promises";
 import { dirname, extname, join, parse } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { getExtensionRoot, lintLeaferDocument } from "@deeporca/core";
+import {
+  getExtensionRoot,
+  lintLeaferDocument,
+  getDesignSystemsVendorRoot,
+  listVendoredDesignSystems,
+  PROJECT_DESIGN_SYSTEM_ID,
+} from "@deeporca/core";
 
 import { compileDdToHtml } from "../renderer/dd/compiler.js";
 import { parseDdFile } from "../renderer/dd/parser.js";
@@ -148,23 +154,59 @@ function catalogDescription(content: string): string {
   return quoted.join(" ").trim();
 }
 
-/** Read the bundled design-system templates through core's stable extension root. */
+/** The host-injected vendored collection dir (core owns the path knowledge). */
+function vendorDirOf(): string {
+  // resolveDesignSystem 注入根由 main/index.ts 设置；此处只列目录内容。
+  const root = getDesignSystemsVendorRoot();
+  if (!root) throw new Error("no vendored design-md root configured");
+  return join(root, "design-md");
+}
+
+/** Read the design-system catalog: bundled templates (core extension root) +
+ *  vendored DESIGN.md collection (specs/design-md-collection) + the "project"
+ *  pseudo-entry (workspace DESIGN.md — picked without the file, the
+ *  design.materialize action returns an actionable error). */
 export function readDesignSystemCatalog(extensionRoot: string = getExtensionRoot()): DesignSystemCatalogItem[] {
   const systemsDir = join(extensionRoot, "templates", "design", "systems");
+  const bundled: DesignSystemCatalogItem[] = [];
   try {
-    return readdirSync(systemsDir, { withFileTypes: true })
-      .filter((entry) => entry.isFile() && extname(entry.name) === ".md")
-      .map((entry) => {
-        const id = parse(entry.name).name;
-        const content = readFileSync(join(systemsDir, entry.name), "utf8");
-        const firstLine = content.split(/\r?\n/, 1)[0] ?? "";
-        const title = firstLine.replace(/^#\s+(?:Design System:\s*)?/, "").trim() || id;
-        return { id, title, description: catalogDescription(content), content };
-      })
-      .sort((left, right) => left.id.localeCompare(right.id));
+    bundled.push(
+      ...readdirSync(systemsDir, { withFileTypes: true })
+        .filter((entry) => entry.isFile() && extname(entry.name) === ".md")
+        .map((entry) => {
+          const id = parse(entry.name).name;
+          const content = readFileSync(join(systemsDir, entry.name), "utf8");
+          const firstLine = content.split(/\r?\n/, 1)[0] ?? "";
+          const title = firstLine.replace(/^#\s+(?:Design System:\s*)?/, "").trim() || id;
+          return { id, title, description: catalogDescription(content), content };
+        })
+        .sort((left, right) => left.id.localeCompare(right.id))
+    );
   } catch {
-    return [];
+    // bundled 目录不可读 → 空，vendored 仍可用。
   }
+  const vendored: DesignSystemCatalogItem[] = [];
+  try {
+    for (const id of listVendoredDesignSystems()) {
+      const file = join(vendorDirOf(), id, "DESIGN.md");
+      const content = readFileSync(file, "utf8");
+      const firstLine = content.split(/\r?\n/, 1)[0] ?? "";
+      const title = firstLine.replace(/^#\s+(?:Design System:\s*)?/, "").trim() || id;
+      vendored.push({ id, title: `${title} (${id})`, description: catalogDescription(content), content });
+    }
+  } catch {
+    // 单个 vendored 文件损坏 → 跳过该条，不拖垮目录。
+  }
+  return [
+    ...bundled,
+    ...vendored,
+    {
+      id: PROJECT_DESIGN_SYSTEM_ID,
+      title: "Project DESIGN.md",
+      description: "Workspace-root DESIGN.md (Google Stitch format)",
+      content: "",
+    },
+  ];
 }
 
 function safePackageTitle(title: string): string {

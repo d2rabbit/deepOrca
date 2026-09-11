@@ -43,6 +43,7 @@ import {
   configureVisionServerBuilder,
   configureKbServerBuilder,
   configureA2uiServerBuilder,
+  configureDesignSystemsVendorRoot,
   configureActivityFramesServerBuilder,
   configureGitmcpConfigBuilder,
   buildGitmcpMcpServerConfig,
@@ -378,6 +379,17 @@ configureVisionServerBuilder(buildVisionServer);
 // A2UI MCP: built-in in-process MCP server for interactive prototypes/designs.
 // The builder + surface lifecycle are injected here; core connects via seam.
 configureA2uiServerBuilder(a2uiServerBuilder);
+
+// specs/design-md-collection: vendored DESIGN.md 收藏集根注入（与所有 vendor
+// 根同纪律——只有宿主知道跑在 repo checkout 还是打包应用）。缺失（未
+// vendor/离线）时 core 的三源解析自然只剩 bundled + project。
+{
+  const designMdVendor = join(__dirname, "..", "vendor", "design-md");
+  if (existsSync(designMdVendor)) {
+    configureDesignSystemsVendorRoot(designMdVendor);
+    console.log("[boot] design-md collection: vendored systems available");
+  }
+}
 
 // KB MCP: built-in in-process MCP server exposing the generated knowledge base
 // (deepwiki + architecture maps) to every agent session — 知识库不再只是

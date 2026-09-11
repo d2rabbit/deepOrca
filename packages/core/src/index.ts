@@ -308,6 +308,18 @@ export {
   type KbServerLike,
 } from "./mcp/kb-seam";
 export { findDeadButtons, prototypeMaterializeRun } from "./actions/prototype";
+// specs/design-md-collection：设计系统三源解析（bundled / project DESIGN.md / vendored 收藏集）。
+export {
+  BUNDLED_DESIGN_SYSTEM_IDS,
+  PROJECT_DESIGN_SYSTEM_ID,
+  configureDesignSystemsVendorRoot,
+  getDesignSystemsVendorRoot,
+  listVendoredDesignSystems,
+  looksLikeDesignSystemDoc,
+  readProjectDesignSystem,
+  resolveDesignSystem,
+} from "./actions/design-systems";
+export type { DesignSystemSource, ResolvedDesignSystem } from "./actions/design-systems";
 export {
   kbOverview,
   listWikiPages,
