@@ -156,15 +156,19 @@
   opacity: 1;
 }
 .ui-taskhub-tracks .node.running .pulse {
-  animation: ui-taskhub-pulse 1.8s ease-out infinite;
+  /* ease-in-out: a symmetric throb, and the 0%/100% stops match so the loop
+     closes seamlessly (the former 0.55 → 0 fade snapped back to 0.55 every
+     1.8s cycle, which read as a blink rather than a pulse). */
+  animation: ui-taskhub-pulse 1.8s ease-in-out infinite;
   transform-origin: center;
   transform-box: fill-box;
 }
 @keyframes ui-taskhub-pulse {
-  0% {
+  0%,
+  100% {
     opacity: 0.55;
   }
-  100% {
+  50% {
     opacity: 0;
   }
 }
