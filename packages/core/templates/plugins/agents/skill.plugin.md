@@ -1,6 +1,6 @@
 ---
 name: agents
-description: "数字体 — 编辑器智能体与专用执行体（随 DeepOrca 出厂，不可卸载）"
+description: "Agent 技能组 — 智能体相关技能合集（随 DeepOrca 出厂，不可卸载）"
 category: agents
 icon: agents
 skills:
@@ -8,6 +8,7 @@ skills:
     description: "Editor-resident digital entity for selection-scoped code work in the DeepOrca editor. Use when an editor selection is submitted with an instruction — explain, refactor, fix, document, or translate the selected code. Diff-first output; never touch files outside the submitted selection context."
 ---
 
-# 数字体插件
+# Agent 技能组
 
-编辑器智能体与专用执行体——随 DeepOrca 出厂的内置数字体。
+智能体相关技能合集——随 DeepOrca 出厂，当前包含编辑数字体（editor-agent）；
+后续同类技能统一收进本组。

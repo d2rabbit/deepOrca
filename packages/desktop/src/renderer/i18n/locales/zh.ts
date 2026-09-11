@@ -374,9 +374,9 @@ export const zh: Record<MessageKey, string> = {
   "builtin-plugin.memory.desc": "跨会话长期记忆（TencentDB）+ 行为记忆（activity-frames）。",
   "builtin-plugin.work.name": "工作",
   "builtin-plugin.work.desc": "单文件 HTML 幻灯片生成（Bento）。",
-  "builtin-plugin.agents.name": "数字体",
+  "builtin-plugin.agents.name": "Agent 技能组",
 
-  "builtin-plugin.agents.desc": "编辑器智能体与专用执行体（随 DeepOrca 出厂）。",
+  "builtin-plugin.agents.desc": "智能体相关技能合集（随 DeepOrca 出厂，持续扩充）。",
 
   "builtin-plugin.other.name": "其他",
   "builtin-plugin.other.desc": "未归属任何插件包的内置项。",

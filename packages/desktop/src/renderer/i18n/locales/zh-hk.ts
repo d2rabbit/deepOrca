@@ -373,9 +373,9 @@ export const zhHK: Record<MessageKey, string> = {
   "builtin-plugin.design.desc": "DeepDesign + PM-Designer + taste 設計紀律。",
   "builtin-plugin.browser.name": "瀏覽器與聯網",
   "builtin-plugin.browser.desc": "真實 Chrome 操控 + WebSearch + 智慧聯網策略。",
-  "builtin-plugin.agents.name": "數字體",
+  "builtin-plugin.agents.name": "Agent 技能組",
 
-  "builtin-plugin.agents.desc": "編輯器智能體與專用執行體（隨 DeepOrca 出廠）。",
+  "builtin-plugin.agents.desc": "智能體相關技能合集（隨 DeepOrca 出廠，持續擴充）。",
 
   "builtin-plugin.other.name": "其他",
   "builtin-plugin.other.desc": "未歸屬任何插件分組的內建項。",
