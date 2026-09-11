@@ -498,28 +498,28 @@ button.ui-tool-head:hover {
   background: color-mix(in srgb, var(--ui-accent) 6%, transparent);
 }
 .ui-tool-card.write .ui-tool-result {
-  border-left-color: #6366f1;
-  background: color-mix(in srgb, #6366f1 6%, transparent);
+  border-left-color: var(--ui-tool-hue-indigo);
+  background: color-mix(in srgb, var(--ui-tool-hue-indigo) 6%, transparent);
 }
 .ui-tool-card.edit .ui-tool-result {
-  border-left-color: #f59e0b;
-  background: color-mix(in srgb, #f59e0b 6%, transparent);
+  border-left-color: var(--ui-tool-hue-amber);
+  background: color-mix(in srgb, var(--ui-tool-hue-amber) 6%, transparent);
 }
 .ui-tool-card.ask .ui-tool-result {
-  border-left-color: #a855f7;
-  background: color-mix(in srgb, #a855f7 6%, transparent);
+  border-left-color: var(--ui-tool-hue-purple);
+  background: color-mix(in srgb, var(--ui-tool-hue-purple) 6%, transparent);
 }
 .ui-tool-card.plan .ui-tool-result {
-  border-left-color: #0ea5e9;
-  background: color-mix(in srgb, #0ea5e9 6%, transparent);
+  border-left-color: var(--ui-tool-hue-sky);
+  background: color-mix(in srgb, var(--ui-tool-hue-sky) 6%, transparent);
 }
 .ui-tool-card.search .ui-tool-result {
-  border-left-color: #14b8a6;
-  background: color-mix(in srgb, #14b8a6 6%, transparent);
+  border-left-color: var(--ui-tool-hue-teal);
+  background: color-mix(in srgb, var(--ui-tool-hue-teal) 6%, transparent);
 }
 .ui-tool-card.mcp .ui-tool-result {
-  border-left-color: #a855f7;
-  background: color-mix(in srgb, #a855f7 6%, transparent);
+  border-left-color: var(--ui-tool-hue-purple);
+  background: color-mix(in srgb, var(--ui-tool-hue-purple) 6%, transparent);
 }
 
 /* Tool-type accent bars (left border color) */
@@ -530,24 +530,24 @@ button.ui-tool-head:hover {
   border-left: 3px solid var(--ui-accent);
 }
 .ui-tool-card.write {
-  border-left: 3px solid #6366f1;
+  border-left: 3px solid var(--ui-tool-hue-indigo);
 }
 .ui-tool-card.edit {
-  border-left: 3px solid #f59e0b;
+  border-left: 3px solid var(--ui-tool-hue-amber);
 }
 .ui-tool-card.ask {
-  border-left: 3px solid #a855f7;
+  border-left: 3px solid var(--ui-tool-hue-purple);
 }
 .ui-tool-card.plan {
-  border-left: 3px solid #0ea5e9;
+  border-left: 3px solid var(--ui-tool-hue-sky);
 }
 .ui-tool-card.search {
-  border-left: 3px solid #14b8a6;
+  border-left: 3px solid var(--ui-tool-hue-teal);
 }
 .ui-tool-card.mcp {
-  border-left: 3px solid #a855f7;
-  border-color: color-mix(in srgb, #a855f7 30%, var(--ui-border-soft));
-  border-left-color: #a855f7;
+  border-left: 3px solid var(--ui-tool-hue-purple);
+  border-color: color-mix(in srgb, var(--ui-tool-hue-purple) 30%, var(--ui-border-soft));
+  border-left-color: var(--ui-tool-hue-purple);
 }
 .ui-tool-card.generic {
   border-left: 3px solid var(--ui-border-soft);
@@ -556,7 +556,7 @@ button.ui-tool-head:hover {
 /* ── Plan block ───────────────────────────────────────────────────────────── */
 .ui-tool-plan {
   margin-top: var(--ui-space-2);
-  border: 1px solid color-mix(in srgb, #0ea5e9 30%, var(--ui-border-soft));
+  border: 1px solid color-mix(in srgb, var(--ui-tool-hue-sky) 30%, var(--ui-border-soft));
   border-radius: var(--ui-radius-sm);
   overflow: hidden;
 }
@@ -564,7 +564,7 @@ button.ui-tool-head:hover {
   padding: var(--ui-space-1) var(--ui-space-3);
   font-size: 11.5px;
   font-weight: 600;
-  background: color-mix(in srgb, #0ea5e9 8%, transparent);
+  background: color-mix(in srgb, var(--ui-tool-hue-sky) 8%, transparent);
   color: var(--ui-text-dim);
   display: flex;
   align-items: center;
@@ -575,7 +575,7 @@ button.ui-tool-head:hover {
   font-size: 10px;
   font-weight: 500;
   color: var(--ui-text-faint);
-  background: color-mix(in srgb, #0ea5e9 12%, transparent);
+  background: color-mix(in srgb, var(--ui-tool-hue-sky) 12%, transparent);
   padding: 1px 6px;
   border-radius: var(--ui-radius-pill, 999px);
 }
@@ -1186,8 +1186,8 @@ button.ui-tool-head:hover {
    top now come from the shiki plugin (rules above). */
 .ui-md [data-streamdown="code-block"][data-language="json"] pre,
 .ui-md [data-streamdown="code-block"][data-language="jsonc"] pre {
-  border-left: 3px solid #f59e0b;
-  background: color-mix(in srgb, #f59e0b 5%, var(--ui-surface-sunken));
+  border-left: 3px solid var(--ui-tool-hue-amber);
+  background: color-mix(in srgb, var(--ui-tool-hue-amber) 5%, var(--ui-surface-sunken));
 }
 .ui-md [data-streamdown="code-block"][data-language="html"] pre,
 .ui-md [data-streamdown="code-block"][data-language="xml"] pre,
@@ -1214,8 +1214,8 @@ button.ui-tool-head:hover {
 }
 .ui-md [data-streamdown="code-block"][data-language="python"] pre,
 .ui-md [data-streamdown="code-block"][data-language="py"] pre {
-  border-left: 3px solid #14b8a6;
-  background: color-mix(in srgb, #14b8a6 5%, var(--ui-surface-sunken));
+  border-left: 3px solid var(--ui-tool-hue-teal);
+  background: color-mix(in srgb, var(--ui-tool-hue-teal) 5%, var(--ui-surface-sunken));
 }
 .ui-md [data-streamdown="code-block"][data-language="css"] pre,
 .ui-md [data-streamdown="code-block"][data-language="scss"] pre,
@@ -1226,8 +1226,8 @@ button.ui-tool-head:hover {
 .ui-md [data-streamdown="code-block"][data-language="yaml"] pre,
 .ui-md [data-streamdown="code-block"][data-language="yml"] pre,
 .ui-md [data-streamdown="code-block"][data-language="toml"] pre {
-  border-left: 3px solid #a855f7;
-  background: color-mix(in srgb, #a855f7 5%, var(--ui-surface-sunken));
+  border-left: 3px solid var(--ui-tool-hue-purple);
+  background: color-mix(in srgb, var(--ui-tool-hue-purple) 5%, var(--ui-surface-sunken));
 }
 .ui-md [data-streamdown="code-block"][data-language="markdown"] pre,
 .ui-md [data-streamdown="code-block"][data-language="md"] pre {

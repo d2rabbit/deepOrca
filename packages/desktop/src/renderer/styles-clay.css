@@ -50,10 +50,10 @@
   --ui-text-faint: #626d94;
   --ui-text-on-accent: #ffffff;
 
-  --ui-accent: #5b4bd0;
+  --ui-accent: #4e3fbe;
   --ui-accent-strong: #4a3bb5;
-  --ui-accent-soft: rgba(91, 75, 208, 0.16);
-  --ui-accent-fill: #5b4bd0;
+  --ui-accent-soft: rgba(78, 63, 190, 0.12);
+  --ui-accent-fill: #4e3fbe;
   --ui-focus-ring: #4a3bb5;
 
   --ui-border: rgba(90, 110, 160, 0.22);
@@ -61,6 +61,7 @@
 
   --ui-success: #1f7a4d;
   --ui-danger: #c2334d;
+  --ui-danger-fill: #8f2338;
   --ui-warning: #8a5a00;
   --ui-info: #3f5fd0;
 
@@ -76,14 +77,14 @@
   /* The recipe: soft outer drop + two inner shadows. `lg` carries the pair too
      — it is consumed as a card shadow (editor-panel.css:33), and an outer-only
      value there would drop the material. */
-  --ui-shadow-sm: 0 10px 18px var(--cl-drop), inset 0 -4px 8px var(--cl-inset-dark),
-    inset 0 4px 8px var(--cl-inset-light);
-  --ui-shadow-card: 0 24px 40px var(--cl-drop), inset 0 -8px 16px var(--cl-inset-dark),
-    inset 0 8px 16px var(--cl-inset-light);
-  --ui-shadow-modal: 0 32px 64px var(--cl-drop-strong), inset 0 -10px 22px var(--cl-inset-dark),
-    inset 0 10px 22px var(--cl-inset-light);
-  --ui-shadow-lg: 0 32px 64px var(--cl-drop-strong), inset 0 -10px 22px var(--cl-inset-dark),
-    inset 0 10px 22px var(--cl-inset-light);
+  --ui-shadow-sm:
+    0 10px 18px var(--cl-drop), inset 0 -4px 8px var(--cl-inset-dark), inset 0 4px 8px var(--cl-inset-light);
+  --ui-shadow-card:
+    0 24px 40px var(--cl-drop), inset 0 -8px 16px var(--cl-inset-dark), inset 0 8px 16px var(--cl-inset-light);
+  --ui-shadow-modal:
+    0 32px 64px var(--cl-drop-strong), inset 0 -10px 22px var(--cl-inset-dark), inset 0 10px 22px var(--cl-inset-light);
+  --ui-shadow-lg:
+    0 32px 64px var(--cl-drop-strong), inset 0 -10px 22px var(--cl-inset-dark), inset 0 10px 22px var(--cl-inset-light);
 
   /* Chunky friendly type: rounded-ish stack, heavier weights below. */
   --ui-font-sans: "Nunito", "Quicksand", "Varela Round", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
@@ -118,10 +119,10 @@
   --ui-text-faint: #98a1c6;
   --ui-text-on-accent: #12142a;
 
-  --ui-accent: #a79bff;
+  --ui-accent: #cdc6ff;
   --ui-accent-strong: #c0b6ff;
-  --ui-accent-soft: rgba(167, 155, 255, 0.2);
-  --ui-accent-fill: #a79bff;
+  --ui-accent-soft: rgba(205, 198, 255, 0.15);
+  --ui-accent-fill: #cdc6ff;
   --ui-focus-ring: #c0b6ff;
 
   --ui-border: rgba(255, 255, 255, 0.14);
@@ -129,17 +130,19 @@
 
   --ui-success: #66d9a0;
   --ui-danger: #ff9aac;
+  /* Filled danger (white label) needs a deeper red than the text-safe value. */
+  --ui-danger-fill: #a12840;
   --ui-warning: #ffd166;
   --ui-info: #a3b8ff;
 
-  --ui-shadow-sm: 0 10px 18px var(--cl-drop), inset 0 -4px 8px var(--cl-inset-dark),
-    inset 0 4px 8px var(--cl-inset-light);
-  --ui-shadow-card: 0 24px 40px var(--cl-drop), inset 0 -8px 16px var(--cl-inset-dark),
-    inset 0 8px 16px var(--cl-inset-light);
-  --ui-shadow-modal: 0 32px 64px var(--cl-drop-strong), inset 0 -10px 22px var(--cl-inset-dark),
-    inset 0 10px 22px var(--cl-inset-light);
-  --ui-shadow-lg: 0 32px 64px var(--cl-drop-strong), inset 0 -10px 22px var(--cl-inset-dark),
-    inset 0 10px 22px var(--cl-inset-light);
+  --ui-shadow-sm:
+    0 10px 18px var(--cl-drop), inset 0 -4px 8px var(--cl-inset-dark), inset 0 4px 8px var(--cl-inset-light);
+  --ui-shadow-card:
+    0 24px 40px var(--cl-drop), inset 0 -8px 16px var(--cl-inset-dark), inset 0 8px 16px var(--cl-inset-light);
+  --ui-shadow-modal:
+    0 32px 64px var(--cl-drop-strong), inset 0 -10px 22px var(--cl-inset-dark), inset 0 10px 22px var(--cl-inset-light);
+  --ui-shadow-lg:
+    0 32px 64px var(--cl-drop-strong), inset 0 -10px 22px var(--cl-inset-dark), inset 0 10px 22px var(--cl-inset-light);
 }
 
 /* ===========================================================================
@@ -208,9 +211,6 @@ body,
 .ui-composer-card {
   background: var(--cl-mint);
 }
-.ui-rail {
-  background: var(--cl-sky);
-}
 
 /* ===========================================================================
    State layer + class-qualified fields.
@@ -236,7 +236,9 @@ body,
 }
 .ui-card:hover,
 .ui-panel:hover {
-  box-shadow: 0 28px 46px var(--cl-drop-strong), inset 0 -10px 20px var(--cl-inset-dark),
+  box-shadow:
+    0 28px 46px var(--cl-drop-strong),
+    inset 0 -10px 20px var(--cl-inset-dark),
     inset 0 10px 20px var(--cl-inset-light);
 }
 .ui-btn--primary:hover:not(:disabled) {
@@ -246,7 +248,8 @@ body,
   transform: none;
 }
 .ui-btn--danger:hover:not(:disabled) {
-  background: var(--ui-danger);
+  background: var(--ui-danger-fill);
+  background-image: none;
   color: var(--ui-text-on-accent);
 }
 
@@ -281,7 +284,6 @@ select {
 }
 
 /* Selected states stay clay: an inset well plus the accent as text. */
-.ui-rail-btn.active,
 .ui-tab.active,
 .ui-session-item.active,
 .ui-lang-chip.active {
@@ -332,7 +334,9 @@ select {
 ::-webkit-scrollbar-thumb {
   background: var(--ui-surface-sunken);
   border-radius: 999px;
-  box-shadow: inset 0 -3px 6px var(--cl-inset-dark), inset 0 3px 6px var(--cl-inset-light);
+  box-shadow:
+    inset 0 -3px 6px var(--cl-inset-dark),
+    inset 0 3px 6px var(--cl-inset-light);
 }
 
 /* ── Reduced motion ────────────────────────────────────────────────────────── */
@@ -388,4 +392,19 @@ select {
   --editor-canvas-bg: #232842;
   --editor-gutter-bg: #1e2338;
   --editor-canvas-num: #8d97bd;
+}
+
+/* ── Danger fill ─────────────────────────────────────────────────────────────
+   The opaque red state always takes a WHITE label: in our dark tones
+   `--ui-text-on-accent` is ink (built for the bright accent fills), which is
+   unreadable on the deep red, and the button sheen washed it out further. */
+:root .ui-btn--danger:hover:not(:disabled) {
+  background-color: var(--ui-danger-fill);
+  background-image: none;
+  color: #ffffff;
+  /* Clay's 0.55-white inner glow washes the label out over the red — keep the
+     drop shadow and the dark inner shade, drop the light one. */
+  box-shadow:
+    0 12px 22px var(--cl-drop),
+    inset 0 -6px 12px var(--cl-inset-dark);
 }

@@ -41,7 +41,10 @@
   --ui-border-soft: #c3cdd9;
 
   --ui-success: #2f9e44;
-  --ui-danger: #d1453b;
+  --ui-danger: #b92c24;
+  /* Opaque danger FILL (white text on top). Themes whose --ui-danger is tuned
+     for text readability on dark grounds re-bind this to a deeper red. */
+  --ui-danger-fill: var(--ui-danger);
   --ui-warning: #cf9310;
   --ui-info: #7b4fe0;
 

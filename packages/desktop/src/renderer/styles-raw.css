@@ -98,6 +98,8 @@
 
   --ui-success: #7bd88f;
   --ui-danger: #ff9a94;
+  /* Filled danger (white label) needs a deeper red than the text-safe value. */
+  --ui-danger-fill: #8f0000;
   --ui-warning: #e8c76a;
   --ui-info: #9bb8ff;
 }
@@ -200,7 +202,6 @@ select,
 .ui-welcome-card,
 .ui-composer-card,
 .ui-side-panel,
-.ui-rail,
 .ui-bubble-row,
 .ui-subwin {
   background: var(--raw-ground);
@@ -210,7 +211,6 @@ select,
   box-shadow: none;
 }
 
-.ui-rail-btn,
 .ui-icon-btn,
 .ui-tab,
 .ui-lang-chip,
@@ -225,8 +225,7 @@ select,
    the browser's own way (inset border + bold), never with a designed fill. */
 .ui-tab,
 .ui-tab.active,
-.ui-icon-btn,
-.ui-rail-btn {
+.ui-icon-btn {
   color: var(--raw-button-ink);
   background: var(--raw-button);
   border: 1px solid var(--ui-border);

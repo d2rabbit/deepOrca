@@ -249,11 +249,11 @@
   background: var(--ui-surface-active);
 }
 .ui-win-ctrl.close:hover {
-  background: var(--ui-danger);
+  background: var(--ui-danger-fill);
   color: #fff;
 }
 .ui-win-ctrl.close:active {
-  background: var(--ui-danger);
+  background: var(--ui-danger-fill);
   color: #fff;
 }
 
@@ -961,7 +961,7 @@ button.ui-surface-chip {
     color 0.12s var(--ui-ease);
 }
 .ui-search-clear:hover {
-  background: var(--ui-danger);
+  background: var(--ui-danger-fill);
   color: #fff;
 }
 .ui-search-clear:active {

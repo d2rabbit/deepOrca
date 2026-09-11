@@ -44,10 +44,10 @@
   --ui-text-on-accent: #ffffff;
 
   /* One saturated accent, for the primary action only. */
-  --ui-accent: #3f56c4;
+  --ui-accent: #2f42ae;
   --ui-accent-strong: #3446a8;
   --ui-accent-soft: rgba(63, 86, 196, 0.16);
-  --ui-accent-fill: #3f56c4;
+  --ui-accent-fill: #2f42ae;
   --ui-focus-ring: #26355f;
 
   /* No borders anywhere — edges are shadow, not line. Borders are neutralized at
@@ -76,8 +76,8 @@
   --ui-shadow-lg: -8px -8px 20px var(--nm-light), 8px 8px 20px var(--nm-dark);
 
   /* Neutral matte type — the material carries the character, not the font. */
-  --ui-font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans", "PingFang SC", "Microsoft YaHei",
-    sans-serif;
+  --ui-font-sans:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans", "PingFang SC", "Microsoft YaHei", sans-serif;
   --ui-font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
 }
 
@@ -96,14 +96,16 @@
   --ui-text-faint: #93a0ae;
   --ui-text-on-accent: #0d1220;
 
-  --ui-accent: #8fa2ff;
+  --ui-accent: #b0bcff;
   --ui-accent-strong: #a9b8ff;
   --ui-accent-soft: rgba(143, 162, 255, 0.18);
-  --ui-accent-fill: #8fa2ff;
+  --ui-accent-fill: #b0bcff;
   --ui-focus-ring: #b9c6ff;
 
   --ui-success: #4ec27e;
   --ui-danger: #ff8a80;
+  /* Filled danger (white label) needs a deeper red than the text-safe value. */
+  --ui-danger-fill: #9e2a24;
   --ui-warning: #ffc247;
   --ui-info: #9fb4ff;
 }
@@ -142,7 +144,9 @@ body,
 
 /* Pressed inverts the pair — the surface is pushed into the material. */
 .ui-btn:active {
-  box-shadow: inset 4px 4px 8px var(--nm-dark), inset -4px -4px 8px var(--nm-light);
+  box-shadow:
+    inset 4px 4px 8px var(--nm-dark),
+    inset -4px -4px 8px var(--nm-light);
 }
 
 /* Inputs and the composer are recessed wells, never outlined boxes. */
@@ -152,14 +156,18 @@ textarea,
 select {
   background: var(--nm-bg);
   border-color: transparent;
-  box-shadow: inset 3px 3px 6px var(--nm-dark), inset -3px -3px 6px var(--nm-light);
+  box-shadow:
+    inset 3px 3px 6px var(--nm-dark),
+    inset -3px -3px 6px var(--nm-light);
 }
 
 .ui-prompt:focus,
 input:focus,
 textarea:focus,
 select:focus {
-  box-shadow: inset 3px 3px 6px var(--nm-dark), inset -3px -3px 6px var(--nm-light);
+  box-shadow:
+    inset 3px 3px 6px var(--nm-dark),
+    inset -3px -3px 6px var(--nm-light);
 }
 
 /* ── Non-shadow state cues (the brief requires these) ─────────────────────── */
@@ -178,7 +186,9 @@ select:focus {
 .ui-tab.active,
 .ui-session-item.active {
   color: var(--ui-accent);
-  box-shadow: inset 3px 3px 6px var(--nm-dark), inset -3px -3px 6px var(--nm-light);
+  box-shadow:
+    inset 3px 3px 6px var(--nm-dark),
+    inset -3px -3px 6px var(--nm-light);
 }
 
 /* The chip pairs its own accent fill with the accent ink — accent-on-accent
@@ -186,19 +196,17 @@ select:focus {
 .ui-lang-chip.active {
   background: var(--ui-accent-fill);
   color: var(--ui-text-on-accent);
-  box-shadow: inset 3px 3px 6px var(--nm-dark), inset -3px -3px 6px var(--nm-light);
-}
-
-.ui-rail-btn.active {
-  /* The accent bar: the non-shadow state cue the brief requires (the inset pair
-     is invisible in glare and on low-contrast displays). */
-  box-shadow: inset 3px 3px 6px var(--nm-dark), inset -3px -3px 6px var(--nm-light), inset 3px 0 0 var(--ui-accent);
+  box-shadow:
+    inset 3px 3px 6px var(--nm-dark),
+    inset -3px -3px 6px var(--nm-light);
 }
 
 .ui-btn--primary {
   color: var(--ui-text-on-accent);
   background: var(--ui-accent-fill);
-  box-shadow: -4px -4px 10px var(--nm-light), 5px 5px 12px var(--nm-dark);
+  box-shadow:
+    -4px -4px 10px var(--nm-light),
+    5px 5px 12px var(--nm-dark);
 }
 .ui-btn--primary:active {
   box-shadow: inset 4px 4px 10px rgba(0, 0, 0, 0.35);
@@ -241,11 +249,15 @@ select:focus {
 
 .ui-btn:hover:not(:disabled) {
   background: var(--nm-raised);
-  box-shadow: -5px -5px 10px var(--nm-light), 6px 6px 12px var(--nm-dark);
+  box-shadow:
+    -5px -5px 10px var(--nm-light),
+    6px 6px 12px var(--nm-dark);
 }
 .ui-btn:active:not(:disabled) {
   background: var(--nm-raised);
-  box-shadow: inset 4px 4px 8px var(--nm-dark), inset -4px -4px 8px var(--nm-light);
+  box-shadow:
+    inset 4px 4px 8px var(--nm-dark),
+    inset -4px -4px 8px var(--nm-light);
   transform: none;
 }
 .ui-btn--primary:hover:not(:disabled) {
@@ -259,7 +271,9 @@ select:focus {
   color: var(--ui-text-on-accent);
 }
 .ui-card:hover {
-  box-shadow: -6px -6px 12px var(--nm-light), 7px 7px 14px var(--nm-dark);
+  box-shadow:
+    -6px -6px 12px var(--nm-light),
+    7px 7px 14px var(--nm-dark);
 }
 
 .ui-input,
@@ -269,7 +283,9 @@ select:focus {
   border: none;
   border-radius: var(--ui-radius-md);
   color: var(--ui-text);
-  box-shadow: inset 3px 3px 6px var(--nm-dark), inset -3px -3px 6px var(--nm-light);
+  box-shadow:
+    inset 3px 3px 6px var(--nm-dark),
+    inset -3px -3px 6px var(--nm-light);
 }
 .ui-input:focus,
 .ui-textarea:focus,
@@ -277,7 +293,9 @@ select:focus {
   border: none;
   outline: 2px solid var(--ui-focus-ring);
   outline-offset: 2px;
-  box-shadow: inset 3px 3px 6px var(--nm-dark), inset -3px -3px 6px var(--nm-light);
+  box-shadow:
+    inset 3px 3px 6px var(--nm-dark),
+    inset -3px -3px 6px var(--nm-light);
 }
 .ui-composer-card:focus-within,
 .ui-welcome-card:hover {

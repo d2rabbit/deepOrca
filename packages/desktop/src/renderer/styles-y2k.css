@@ -38,15 +38,7 @@
   /* Liquid chrome: alternating light/dark stops with a bright mirror band. The
      darkest stop stays light enough for black text on the header strip (a
      deeper mid band measured ~4:1). */
-  --y2k-chrome: linear-gradient(
-    180deg,
-    #f8fbff 0%,
-    #ccd8ea 22%,
-    #7d8ea8 46%,
-    #e9f2ff 54%,
-    #b3c1d6 68%,
-    #ffffff 100%
-  );
+  --y2k-chrome: linear-gradient(180deg, #f8fbff 0%, #ccd8ea 22%, #7d8ea8 46%, #e9f2ff 54%, #b3c1d6 68%, #ffffff 100%);
 
   /* ── Semantic token bindings (dark/default) ── */
   --ui-bg: var(--y2k-ground);
@@ -71,7 +63,9 @@
   --ui-border-soft: rgba(160, 190, 255, 0.18);
 
   --ui-success: #22e6a5;
-  --ui-danger: #ff2e88;
+  --ui-danger: #ff9ec8;
+  /* Filled danger (white label) needs a deeper red than the text-safe value. */
+  --ui-danger-fill: #a8004f;
   --ui-warning: #ffd166;
   --ui-info: #7aa2ff;
 
@@ -87,8 +81,9 @@
   --ui-shadow-lg: 0 24px 64px rgba(0, 0, 0, 0.65);
 
   /* Wide techno display stack (no webfonts offline — metallic fallbacks). */
-  --ui-font-sans: "Eurostile", "Bank Gothic", "Michroma", "Arial Narrow", "Helvetica Neue", "PingFang SC",
-    "Microsoft YaHei", system-ui, sans-serif;
+  --ui-font-sans:
+    "Eurostile", "Bank Gothic", "Michroma", "Arial Narrow", "Helvetica Neue", "PingFang SC", "Microsoft YaHei",
+    system-ui, sans-serif;
   --ui-font-mono: "OCR A Std", ui-monospace, "JetBrains Mono", Menlo, Consolas, monospace;
 }
 
@@ -173,7 +168,9 @@ body,
     radial-gradient(circle at 34% 28%, #ffffff 0 12%, rgba(255, 255, 255, 0.5) 18%, transparent 42%),
     radial-gradient(circle at 62% 72%, var(--y2k-magenta) 0 18%, transparent 55%),
     linear-gradient(160deg, #9fd8ff 0%, #4a6ea8 55%, #1b2a52 100%);
-  box-shadow: inset -6px -8px 18px rgba(0, 0, 0, 0.45), 0 6px 18px rgba(0, 0, 0, 0.4);
+  box-shadow:
+    inset -6px -8px 18px rgba(0, 0, 0, 0.45),
+    0 6px 18px rgba(0, 0, 0, 0.4);
   opacity: 0.55;
 }
 .ui-welcome-card {

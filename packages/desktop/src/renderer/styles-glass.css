@@ -103,14 +103,14 @@
   --ui-text-dim: #4a5270;
   --ui-text-faint: #8890a8;
 
-  --ui-accent: #4f6ef2;
+  --ui-accent: #4560e0;
   --ui-accent-strong: #3b56d4;
   --ui-accent-soft: rgba(79, 110, 242, 0.1);
-  --ui-accent-fill: linear-gradient(135deg, #4f6ef2 0%, #6d5cf5 100%);
-  --ui-focus-ring: rgba(79, 110, 242, 0.5);
+  --ui-accent-fill: linear-gradient(135deg, #4560e0 0%, #6d5cf5 100%);
+  --ui-focus-ring: rgba(69, 96, 224, 0.9);
 
   --ui-success: #059669;
-  --ui-danger: #dc2626;
+  --ui-danger: #c2201f;
   --ui-warning: #d97706;
   --ui-info: #7c3aed;
 
@@ -504,6 +504,8 @@ textarea:focus {
   --ui-text: #eef1fb;
   --ui-text-dim: #b9c1d6;
   --ui-text-faint: #7f8aa6;
+  /* The dark-tone accent is luminous: ink labels, not white (white = 2.78:1). */
+  --ui-text-on-accent: #101828;
 
   --ui-accent: #7d94ff;
   --ui-accent-strong: #5d78ff;
@@ -513,6 +515,8 @@ textarea:focus {
 
   --ui-success: #4cc266;
   --ui-danger: #ff6a5f;
+  /* Filled danger (white label) needs a deeper red than the text-safe value. */
+  --ui-danger-fill: #c02a20;
   --ui-warning: #e6b23a;
   --ui-info: #a583f0;
 
@@ -596,9 +600,11 @@ textarea:focus {
 .ui-btn--primary::before {
   content: "";
   position: absolute;
-  inset: 0 0 55% 0;
+  /* Sheen stops above the label: at 55% it overlapped the glyph tops and white
+     labels dropped to 4.3:1. */
+  inset: 0 0 68% 0;
   border-radius: inherit;
-  background: linear-gradient(rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0));
+  background: linear-gradient(rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0));
   pointer-events: none;
 }
 

@@ -84,8 +84,8 @@
   --ui-shadow-lg: 8px 8px 0 var(--nb-ink);
 
   /* Chunky display type; CJK falls back to the heavy system faces. */
-  --ui-font-sans: "Arial Black", "Archivo Black", "Helvetica Neue", Impact, "PingFang SC", "Microsoft YaHei",
-    system-ui, sans-serif;
+  --ui-font-sans:
+    "Arial Black", "Archivo Black", "Helvetica Neue", Impact, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
   --ui-font-mono: ui-monospace, "JetBrains Mono", "Cascadia Code", Menlo, Consolas, monospace;
 }
 
@@ -115,6 +115,8 @@
 
   --ui-success: #6fe39a;
   --ui-danger: #ff8fa3;
+  /* Filled danger (white label) needs a deeper red than the text-safe value. */
+  --ui-danger-fill: #a3122c;
   --ui-warning: #ffd166;
   --ui-info: #8fb4ff;
 
@@ -145,7 +147,6 @@ body,
 .ui-subwin,
 .ui-btn,
 .ui-prompt,
-.ui-rail-btn,
 .ui-icon-btn,
 .ui-tab,
 .ui-lang-chip,
@@ -197,7 +198,6 @@ body,
 
 /* Press: the block lands in its own shadow. */
 .ui-btn:active,
-.ui-rail-btn:active,
 .ui-icon-btn:active,
 .ui-tab:active,
 .ui-lang-chip:active {
@@ -223,10 +223,6 @@ body,
 .ui-tab.active {
   background: var(--ui-accent-fill);
   color: var(--ui-text-on-accent);
-}
-.ui-rail-btn.active {
-  background: var(--ui-surface-sunken);
-  color: var(--ui-text);
 }
 
 .ui-side-panel-head,
@@ -336,7 +332,6 @@ body,
 
 @media (prefers-reduced-motion: reduce) {
   .ui-btn,
-  .ui-rail-btn,
   .ui-icon-btn,
   .ui-tab,
   .ui-lang-chip {

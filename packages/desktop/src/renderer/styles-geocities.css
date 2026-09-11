@@ -64,6 +64,8 @@
 
   --ui-success: var(--gc-led);
   --ui-danger: #ff4d6d;
+  /* Filled danger (white label) needs a deeper red than the text-safe value. */
+  --ui-danger-fill: #8f1230;
   --ui-warning: #ffd166;
   --ui-info: #6ec6ff;
 
@@ -382,7 +384,8 @@ hr,
   transform: none;
 }
 .ui-btn--danger:hover:not(:disabled) {
-  background: var(--ui-danger);
+  background: var(--ui-danger-fill);
+  background-image: none;
   color: var(--ui-text-on-accent);
 }
 .ui-card:hover,
@@ -445,4 +448,14 @@ hr,
   --editor-canvas-bg: #ffffff;
   --editor-gutter-bg: #e3eefc;
   --editor-canvas-num: #4d5c7c;
+}
+
+/* ── Danger fill ─────────────────────────────────────────────────────────────
+   The opaque red state always takes a WHITE label: in our dark tones
+   `--ui-text-on-accent` is ink (built for the bright accent fills), which is
+   unreadable on the deep red, and the button sheen washed it out further. */
+:root .ui-btn--danger:hover:not(:disabled) {
+  background-color: var(--ui-danger-fill);
+  background-image: none;
+  color: #ffffff;
 }

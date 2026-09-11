@@ -323,7 +323,7 @@ button > svg {
   background: transparent;
 }
 .ui-btn--danger:hover:not(:disabled) {
-  background: var(--ui-danger);
+  background: var(--ui-danger-fill);
   color: #fff;
 }
 

@@ -60,6 +60,8 @@
 
   --ui-success: #00f0a0;
   --ui-danger: var(--orca-magenta);
+  /* Filled danger (white label) needs a deeper red than the text-safe value. */
+  --ui-danger-fill: #b30059;
   --ui-warning: #ffb020;
   --ui-info: #7b9dff;
 

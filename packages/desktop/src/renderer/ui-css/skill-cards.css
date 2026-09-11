@@ -164,7 +164,7 @@
 /* Danger fill + slight grow on hover — the affordance reads "removes this
    skill" and the scale confirms the click target is live. */
 .ui-composer-skill-card-remove:hover {
-  background: var(--ui-danger);
+  background: var(--ui-danger-fill);
   color: #fff;
   transform: scale(1.15);
 }

@@ -47,7 +47,9 @@
   --ui-border-soft: rgba(255, 255, 255, 0.08);
 
   --ui-success: var(--metro-green);
-  --ui-danger: var(--metro-red);
+  /* Win8 saturated red is a good FILL but only 3.6:1 as text on #2b2b2b cards. */
+  --ui-danger: #ff6f61;
+  --ui-danger-fill: #d92b1c;
   --ui-warning: var(--metro-orange);
   --ui-info: var(--metro-teal);
 

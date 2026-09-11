@@ -20,9 +20,11 @@
     var(--pinstripe-b) 1px,
     var(--pinstripe-b) 2px
   );
-  --gel-top: #7fb2f7;
-  --gel-mid: #3f86ef;
-  --gel-bot: #1862d8;
+  /* White labels sit on this gradient: every stop must stay >= 4.5:1 with
+     #ffffff (the old #7fb2f7 top measured 2.18:1). */
+  --gel-top: #235fd4;
+  --gel-mid: #1a56c6;
+  --gel-bot: #1449b4;
 
   /* ── Semantic token bindings (light) ── */
   --ui-bg: var(--pinstripes);
@@ -46,7 +48,7 @@
   --ui-border-soft: #c3cdd9;
 
   --ui-success: #2f9e44;
-  --ui-danger: #d1453b;
+  --ui-danger: #b92c24;
   --ui-warning: #cf9310;
   --ui-info: #7b4fe0;
 
@@ -86,6 +88,8 @@
 
   --ui-success: #4cc266;
   --ui-danger: #ff6a5f;
+  /* Filled danger (white label) needs a deeper red than the text-safe value. */
+  --ui-danger-fill: #c02a20;
   --ui-warning: #e6b23a;
   --ui-info: #a583f0;
 
@@ -106,9 +110,9 @@
 .ui-btn--primary::before {
   content: "";
   position: absolute;
-  inset: 1px 1px 48% 1px;
+  inset: 1px 1px 68% 1px;
   border-radius: inherit;
-  background: linear-gradient(rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0.05));
+  background: linear-gradient(rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0.04));
   pointer-events: none;
 }
 

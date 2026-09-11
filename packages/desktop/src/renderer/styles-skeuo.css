@@ -77,8 +77,8 @@
   --ui-shadow-modal: 0 24px 60px rgba(40, 28, 12, 0.45);
   --ui-shadow-lg: 0 24px 60px rgba(40, 28, 12, 0.45);
 
-  --ui-font-sans: "Segoe UI", -apple-system, BlinkMacSystemFont, "Helvetica Neue", "PingFang SC", "Microsoft YaHei",
-    sans-serif;
+  --ui-font-sans:
+    "Segoe UI", -apple-system, BlinkMacSystemFont, "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif;
   --ui-font-mono: "Courier New", ui-monospace, Menlo, Consolas, monospace;
 }
 
@@ -114,6 +114,7 @@
 
   --ui-success: #7fc79a;
   --ui-danger: #ef9a90;
+  --ui-danger-fill: #8f2b22;
   --ui-warning: #e0be76;
   --ui-info: #a8bdf0;
 
@@ -214,8 +215,10 @@ body,
   border: 1px solid var(--ui-border);
   border-radius: var(--ui-radius-md);
   background-color: var(--ui-surface-raised);
-  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0) 46%);
-  box-shadow: var(--sk-gloss), 0 1px 2px rgba(60, 45, 25, 0.3);
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0) 40%);
+  box-shadow:
+    var(--sk-gloss),
+    0 1px 2px rgba(60, 45, 25, 0.3);
   font-weight: 600;
 }
 .ui-btn:active {
@@ -224,7 +227,7 @@ body,
 }
 .ui-btn--primary {
   background-color: var(--ui-accent-fill);
-  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.3), rgba(0, 0, 0, 0.06));
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(0, 0, 0, 0.06));
   color: var(--ui-text-on-accent);
   border-color: var(--ui-accent-strong);
 }
@@ -252,11 +255,7 @@ select:focus {
   line-height: 28px;
   padding-left: 14px;
   border-left: 1px solid rgba(190, 60, 50, 0.35);
-  background-image: repeating-linear-gradient(
-    180deg,
-    transparent 0 27px,
-    rgba(90, 120, 180, 0.22) 27px 28px
-  );
+  background-image: repeating-linear-gradient(180deg, transparent 0 27px, rgba(90, 120, 180, 0.22) 27px 28px);
 }
 
 /* Embossed headings — pressed into the paper. */
@@ -266,7 +265,9 @@ select:focus {
 .ui-welcome-card h1,
 .ui-welcome-card h2 {
   font-family: Georgia, "Times New Roman", "Songti SC", SimSun, serif;
-  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.75), 0 -1px 0 rgba(0, 0, 0, 0.12);
+  text-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.75),
+    0 -1px 0 rgba(0, 0, 0, 0.12);
 }
 
 .ui-badge,
@@ -278,7 +279,9 @@ select:focus {
 }
 
 .ui-status-dot {
-  box-shadow: var(--sk-gloss), 0 0 4px currentColor;
+  box-shadow:
+    var(--sk-gloss),
+    0 0 4px currentColor;
 }
 
 /* Focus: an explicit ring above the material (never a shadow-only cue). */
@@ -318,7 +321,9 @@ select:focus {
 .ui-btn:hover:not(:disabled) {
   background-color: var(--ui-surface-raised);
   background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.05) 46%);
-  box-shadow: var(--sk-gloss), 0 2px 5px var(--sk-contact);
+  box-shadow:
+    var(--sk-gloss),
+    0 2px 5px var(--sk-contact);
   color: var(--ui-text);
 }
 .ui-btn:active:not(:disabled) {
@@ -334,7 +339,7 @@ select:focus {
   transform: none;
 }
 .ui-btn--danger:hover:not(:disabled) {
-  background-color: var(--ui-danger);
+  background-color: var(--ui-danger-fill);
   background-image: none;
   color: var(--ui-text-on-accent);
 }
@@ -412,4 +417,14 @@ select:focus {
   --editor-canvas-bg: #2e261d;
   --editor-gutter-bg: #241d16;
   --editor-canvas-num: #9c8d76;
+}
+
+/* ── Danger fill ─────────────────────────────────────────────────────────────
+   The opaque red state always takes a WHITE label: in our dark tones
+   `--ui-text-on-accent` is ink (built for the bright accent fills), which is
+   unreadable on the deep red, and the button sheen washed it out further. */
+:root .ui-btn--danger:hover:not(:disabled) {
+  background-color: var(--ui-danger-fill);
+  background-image: none;
+  color: #ffffff;
 }

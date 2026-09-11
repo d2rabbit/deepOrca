@@ -47,7 +47,8 @@
   --ui-text: #ececee;
   --ui-text-dim: #a0a0a8;
   --ui-text-faint: #68686f;
-  --ui-text-on-accent: #ffffff;
+  /* The dark-tone accent is a LIGHT blue — white on it measures 3.6:1, ink measures 5.3:1. */
+  --ui-text-on-accent: #0b0b0d;
 
   --ui-accent: var(--line-accent);
   --ui-accent-strong: var(--line-accent-strong);
@@ -60,6 +61,8 @@
 
   --ui-success: #3dd68c;
   --ui-danger: #f06565;
+  /* Filled danger (white label) needs a deeper red than the text-safe value. */
+  --ui-danger-fill: #c02a20;
   --ui-warning: #f5b73d;
   --ui-info: #7c8cf8;
 
@@ -103,6 +106,8 @@
   --ui-text: #1a1a1e;
   --ui-text-dim: #55555c;
   --ui-text-faint: #8c8c94;
+  /* Light accent is deep enough for white labels (ink would be 3.9:1). */
+  --ui-text-on-accent: #ffffff;
 
   --ui-accent: var(--line-accent);
   --ui-accent-strong: var(--line-accent-strong);
@@ -114,7 +119,8 @@
   --ui-border-soft: var(--line-stroke-soft);
 
   --ui-success: #1a9e5c;
-  --ui-danger: #d63c3c;
+  /* #d63c3c measured 4.4:1 as danger text on the light ground — one notch deeper. */
+  --ui-danger: #c93030;
   --ui-warning: #c08a12;
   --ui-info: #5566cc;
 
