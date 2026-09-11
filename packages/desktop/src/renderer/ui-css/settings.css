@@ -834,6 +834,31 @@
   opacity: 0.55;
 }
 
+/* ── Settings › entities (agent/skill rows) ────────────────────────────────
+   The markup shipped with no rules at all, so the name/description hierarchy and
+   row spacing fell back to UA defaults while the rest of the panel is laid out.
+   Only existing tokens/vocabulary are used here. */
+.ui-settings-entity-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.ui-settings-entity-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.ui-settings-entity-name {
+  font-weight: 600;
+}
+.ui-settings-entity-desc {
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--ui-text-dim);
+}
+
 /* prefers-reduced-motion: turn off non-essential motion for users who opt out
    (specs/depth-lane 邻项 — 动画调研 P0 无依赖先行项, 2026-09-04). */
 @media (prefers-reduced-motion: reduce) {

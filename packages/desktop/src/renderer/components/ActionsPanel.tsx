@@ -72,7 +72,7 @@ export function ActionsPanel(): JSX.Element {
 
   return (
     <div className="ui-side-panel" style={{ gap: 8, padding: 12 }}>
-      <div className="ui-side-panel-header">
+      <div className="ui-side-panel-head">
         <h3>{t("actions.title")}</h3>
         <span className="ui-muted">{actions.length}</span>
       </div>

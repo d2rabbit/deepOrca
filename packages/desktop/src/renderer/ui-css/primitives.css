@@ -568,6 +568,11 @@ button > svg {
 .ui-field-hint.warn {
   color: var(--ui-warning);
 }
+/* "Muted" text helper: used by the side panels (actions, code review) but never
+   defined, so those labels rendered at full body strength. */
+.ui-muted {
+  color: var(--ui-text-dim);
+}
 
 .ui-input,
 .ui-textarea,
