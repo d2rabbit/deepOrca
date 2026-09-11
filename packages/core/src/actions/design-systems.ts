@@ -86,12 +86,21 @@ function readBundled(id: string): ResolvedDesignSystem | null {
   return content ? { content, source: "bundled" } : null;
 }
 
-/** 工作区 DESIGN.md（project id 专用）。缺失/不成形返回 null。 */
+/**
+ * 工作区 DESIGN.md（project id 专用），双路径读取（specs/design-md-collection
+ * S5 复刻整合）：根 `DESIGN.md`（Google Stitch 约定/收藏集复制）优先，回退
+ * `.deeporca/DESIGN.md`（design.extract 复刻落盘位——代理经 write 工具门控
+ * 写入，deep-design 技能 Step 0 的既有读点）。缺失/不成形返回 null。
+ */
 export function readProjectDesignSystem(projectRoot: string): ResolvedDesignSystem | null {
-  const file = path.resolve(projectRoot, "DESIGN.md");
-  const content = readTrimmed(file);
-  if (!content || !looksLikeDesignSystemDoc(content)) return null;
-  return { content: content.slice(0, DESIGN_SYSTEM_MAX_CHARS), source: "project" };
+  const candidates = [path.resolve(projectRoot, "DESIGN.md"), path.resolve(projectRoot, ".deeporca", "DESIGN.md")];
+  for (const file of candidates) {
+    const content = readTrimmed(file);
+    if (content && looksLikeDesignSystemDoc(content)) {
+      return { content: content.slice(0, DESIGN_SYSTEM_MAX_CHARS), source: "project" };
+    }
+  }
+  return null;
 }
 
 function readVendored(id: string): ResolvedDesignSystem | null {

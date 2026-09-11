@@ -36,7 +36,13 @@ resolveDesignSystem(id, projectRoot)
 - boot 注入：main/index.ts 在 a2ui 注入点后 `configureDesignSystemsVendorRoot(dist/../vendor/design-md)`，existsSync 守卫（未 vendor/离线退化）。
 - 目录：`readDesignSystemCatalog` = bundled（目录列举，原逻辑）+ vendored（core `listVendoredDesignSystems()` + 注入根读文件，单文件损坏跳过）+ `"project"` 伪条目（无内容；选中而文件缺失时动作给可行动错误）。渲染层选择器目录驱动，零 UI 改动；palettes.ts 对未知 id 已有 null 回退。
 
-## 5. 测试策略
+## 5. 复刻整合（S5）
+
+- `readProjectDesignSystem` 双路径：根 `DESIGN.md` 优先 → `.deeporca/DESIGN.md`（design.extract 复刻落盘位；deep-design 技能 Step 0 的既有读点）——复刻链 `URL → dembrandt tokens → 代理写 .deeporca/DESIGN.md（Stitch 形态）` 由此直接接进三源解析。
+- design.extract 持久化指示升级：蒸馏目标从"一个 brand 节"改为 Stitch DESIGN.md 全形态 + 结构下限 + 后续链路说明（designSystemId "project" → ui-design tokens 映射 → 画布）；写入位不变（.deeporca——write 工具权限门控是刻意设计）。
+- design.drift（既有）继续做复刻保真的持续比对（URL vs baseline tokens）。
+
+## 6. 测试策略
 
 - 纯函数：三源解析优先级/project 校验（成节 vs 散文）/截断/路径安全（大写、`../`、点开头拒绝）。
 - 动作级：`designSystemId: "project"` 缺文件 → 可行动错误文案；vendored id 经注入根走通 materialize（mock ctx）。

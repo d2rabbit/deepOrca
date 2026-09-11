@@ -121,6 +121,23 @@ test("project DESIGN.md resolves at the workspace root and rejects malformed doc
   assert.equal(resolved.content, STITCH_DOC);
 });
 
+test("project source falls back to .deeporca/DESIGN.md (design.extract replication output)", () => {
+  const root = tempDir();
+  configureDesignSystemsVendorRoot(null);
+  // 只有复刻落盘位（.deeporca/DESIGN.md）→ 解析得到它。
+  fs.mkdirSync(path.join(root, ".deeporca"), { recursive: true });
+  fs.writeFileSync(path.join(root, ".deeporca", "DESIGN.md"), STITCH_DOC, "utf8");
+  const fromExtract = resolveDesignSystem(PROJECT_DESIGN_SYSTEM_ID, root);
+  assert.ok(fromExtract);
+  assert.equal(fromExtract.source, "project");
+  assert.equal(fromExtract.content, STITCH_DOC);
+  // 两处都有 → 根 DESIGN.md（Stitch 约定）优先。
+  fs.writeFileSync(path.join(root, "DESIGN.md"), `${STITCH_DOC}\nroot-wins`, "utf8");
+  const resolved = resolveDesignSystem(PROJECT_DESIGN_SYSTEM_ID, root);
+  assert.ok(resolved);
+  assert.match(resolved.content, /root-wins/);
+});
+
 test("vendored ids resolve through the injected root; unsafe ids are rejected", () => {
   const root = tempDir();
   const vendored = tempDir();

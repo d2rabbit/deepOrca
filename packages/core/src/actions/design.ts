@@ -151,7 +151,8 @@ export const designMaterializeRun: ActionRun<DesignMaterializeInput, DesignMater
       error:
         designSystemId === PROJECT_DESIGN_SYSTEM_ID
           ? "design system 'project' requires a DESIGN.md at the workspace root " +
-            "(Google Stitch format — copy one from VoltAgent/awesome-design-md or write your own; needs a # title and ≥3 ## sections)"
+            "(Google Stitch format — copy one from VoltAgent/awesome-design-md or write your own; needs ≥3 ## sections) " +
+            "or a brand contract at .deeporca/DESIGN.md (design.extract writes it there when replicating a website)"
           : `unknown or unavailable design system: ${designSystemId}`,
     };
   }
@@ -1072,13 +1073,20 @@ export const designExtractRun: ActionRun<DesignExtractInput, DesignExtractOutput
   // file-history tracking). A direct fs write here would bypass that gate;
   // routing through the agent keeps one privileged writer for project files.
   const instruction = [
-    "Persist this brand contract:",
-    "1. Distill tokensJson into a brand section (colors with semantic roles, typography scale, spacing/radius/shadows, motion).",
-    "2. Use the built-in `write` tool to create or update `.deeporca/DESIGN.md` at the project root with that section",
+    "Persist this brand contract (Stitch DESIGN.md shape — it doubles as the designSystemId 'project' source):",
+    "1. Distill tokensJson into a DESIGN.md with these ## sections: Overview (mood/density in 2-3 sentences),",
+    "   Colors (GFM table: token | hex | role — semantic names like accent/ink/surface),",
+    "   Typography (hierarchy table: level | font | weight | size | line-height),",
+    "   Spacing & Radius (scale table), Components (buttons/cards/inputs with hover/active/disabled where extractable),",
+    "   Do's and Don'ts (3-5 guardrails from the audit), and Provenance.",
+    "   STRUCTURAL FLOOR: ≥3 `##` sections — a thinner file fails the 'project' design-system gate.",
+    "2. Use the built-in `write` tool to create or update `.deeporca/DESIGN.md` at the project root with that document",
     "   (the write is permission-gated — that is intentional; this action never writes project files itself).",
-    "3. Include a `## Provenance` block in DESIGN.md: source URL, extraction date, tool (dembrandt, pinned vendored version),",
+    "3. In the `## Provenance` block: source URL, extraction date, tool (dembrandt, pinned vendored version),",
     '   and the note "extracted tokens are for internal design reference only — do not replicate copyrighted visual assets".',
-    "4. The deep-design skill's Step 0 reads `.deeporca/DESIGN.md` as the token source for subsequent generation.",
+    "4. The deep-design skill's Step 0 reads `.deeporca/DESIGN.md`, and design.materialize picks it up via " +
+      "designSystemId 'project' (root DESIGN.md takes precedence when both exist) — the replicated visual language " +
+      "then flows into the ui-design tokens-mapping stage and the canvas.",
     truncated
       ? `5. tokensJson was truncated — read the full extraction from the files under ${outputDir}.`
       : `5. Full CLI artifacts were also saved under ${outputDir}.`,

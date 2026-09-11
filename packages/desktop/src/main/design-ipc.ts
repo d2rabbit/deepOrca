@@ -237,7 +237,8 @@ export function readDesignSystemCatalog(extensionRoot: string = getExtensionRoot
     {
       id: PROJECT_DESIGN_SYSTEM_ID,
       title: "Project DESIGN.md",
-      description: "Workspace-root DESIGN.md (Google Stitch format)",
+      description:
+        "Project DESIGN.md — workspace root (Google Stitch format) or .deeporca/DESIGN.md (design.extract replication output)",
       content: "",
     },
   ];

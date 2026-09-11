@@ -22,6 +22,12 @@
 - [x] main/index.ts boot 注入 vendored 根（existsSync 守卫）；
 - [x] design-ipc 目录扩展（bundled + vendored + project 伪条目）。
 
+## WP5 复刻整合（S5，user ask 2026-09-11）
+
+- [x] readProjectDesignSystem 双路径（根优先 → .deeporca/DESIGN.md）+ 测试；
+- [x] design.extract 指示升级（Stitch 形态 + 结构下限 + 链路说明）；
+- [x] project 错误文案/catalog 描述/deep-design Step 0 双读点说明。
+
 ## WP4 测试与收尾
 
 - [x] `design-md-collection.test.ts`（7 项：三源优先级/project 校验/路径安全/截断/动作错误文案/vendored 端到端）；

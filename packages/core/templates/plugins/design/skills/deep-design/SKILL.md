@@ -134,8 +134,12 @@ sections:
 
 ### Step 0 — Read the brand contract
 
-Check for a project-level `.deeporca/DESIGN.md`. If it exists, read it — its
-colors, fonts, spacing become the tokens in the YAML front-matter.
+Check for a project-level design contract — root `DESIGN.md` (Google Stitch
+convention; takes precedence) or `.deeporca/DESIGN.md` (where design.extract
+writes the replicated-website brand contract). If one exists, read it — its
+colors, fonts, spacing become the tokens in the YAML front-matter. The same
+files back the `designSystemId: "project"` three-source resolution in
+design.materialize (specs/design-md-collection).
 
 If no project DESIGN.md exists, pick a built-in system. Full token presets
 (typography pairing, motion, components) live in `templates/design/systems/<name>.md`;

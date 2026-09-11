@@ -42,6 +42,11 @@ designSystemId 从闭合枚举升级为**三源解析**：
 9. When 旧调用传入 bundled id, the system shall 行为与升级前完全一致（提示词注入措辞按来源区分，bundled 分支字节不变）。
 10. When designSystemId 传入未知值, the system shall 返回既有 `unknown or unavailable design system` 错误语义。
 
+### S5 — 复刻整合（design.extract ↔ project 源，2026-09-11 追加）
+
+11. When designSystemId 为 `"project"` 且根 DESIGN.md 缺失, the system shall 回退读 `.deeporca/DESIGN.md`（design.extract 复刻网站的落盘位，代理经 write 工具门控写入）；两处都有时根（Stitch 约定）优先。
+12. When design.extract 产出持久化指示, the system shall 指示代理按 Stitch DESIGN.md 形态蒸馏（Overview/Colors token 表/Typography 层级表/Spacing & Radius/Components 状态/Do's and Don'ts/Provenance），并写明结构下限（≥3 个 `##` 节——否则 project 门拒绝）与后续用法（designSystemId "project" → ui-design tokens 映射 → 画布）。
+
 ## 非目标
 
 - 收藏集内容审校/精简（上游 MIT 原样）；
