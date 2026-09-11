@@ -138,7 +138,8 @@ body {
   --ui-accent-soft: rgba(31, 111, 199, 0.12);
 
   --ui-success: #0f7b0f;
-  --ui-danger: #c42b1c;
+  /* #c42b1c measured 4.36:1 on the darker card strip — one notch deeper. */
+  --ui-danger: #b92618;
   --ui-warning: #9d5d00;
   --ui-info: #0e7490;
 

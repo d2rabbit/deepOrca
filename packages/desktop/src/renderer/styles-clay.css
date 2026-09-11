@@ -60,7 +60,8 @@
   --ui-border-soft: rgba(90, 110, 160, 0.12);
 
   --ui-success: #1f7a4d;
-  --ui-danger: #c2334d;
+  /* #c2334d measured 4.39:1 on the clay ground — one notch deeper. */
+  --ui-danger: #b02b45;
   --ui-danger-fill: #8f2338;
   --ui-warning: #8a5a00;
   --ui-info: #3f5fd0;

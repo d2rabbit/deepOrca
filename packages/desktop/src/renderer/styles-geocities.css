@@ -450,6 +450,15 @@ hr,
   --editor-canvas-num: #4d5c7c;
 }
 
+/* The bevel ground is a light→purple gradient: no single label colour clears
+   4.5:1 on both ends (dark red 1.9:1, light red 1.4:1), so the danger button
+   takes a solid ground of its own. */
+.ui-btn--danger:not(:disabled) {
+  background: var(--ui-danger-fill);
+  background-image: none;
+  color: #ffffff;
+}
+
 /* ── Danger fill ─────────────────────────────────────────────────────────────
    The opaque red state always takes a WHITE label: in our dark tones
    `--ui-text-on-accent` is ink (built for the bright accent fills), which is
