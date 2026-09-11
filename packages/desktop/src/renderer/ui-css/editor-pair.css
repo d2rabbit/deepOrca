@@ -1118,7 +1118,7 @@ button.ui-edpair-cp:disabled {
   font-size: 11.5px;
 }
 .ui-edlane-followup-input::placeholder {
-  color: var(--ui-text-faint);
+  color: var(--ui-text-dim);
 }
 .ui-edlane-followup-go {
   flex: none;

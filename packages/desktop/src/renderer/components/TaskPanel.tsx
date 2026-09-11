@@ -58,10 +58,7 @@ export function TaskPanel({ messages }: Props): JSX.Element {
       </div>
       {progress && progress.total > 0 ? (
         <div className="ui-task-progress-bar">
-          <div
-            className="ui-task-progress-fill"
-            style={{ width: `${Math.round((progress.done / progress.total) * 100)}%` }}
-          />
+          <div className="ui-task-progress-fill" style={{ transform: `scaleX(${progress.done / progress.total})` }} />
         </div>
       ) : null}
       <div className="ui-side-panel-body">

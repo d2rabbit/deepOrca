@@ -591,6 +591,15 @@ button > svg {
 .ui-select {
   height: 32px;
 }
+/* Placeholders are user-visible text, but the fields had no rule at all and fell
+   back to the UA default (~54% of currentColor), which measured 2.43-4.61:1
+   across themes — below the 4.5:1 bar every skin is otherwise held to. The
+   secondary-text step is the contrast-calibrated one in every theme. */
+.ui-input::placeholder,
+.ui-textarea::placeholder,
+.ui-select::placeholder {
+  color: var(--ui-text-dim);
+}
 .ui-input:focus,
 .ui-textarea:focus,
 .ui-select:focus {

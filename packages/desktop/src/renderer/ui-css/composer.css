@@ -350,9 +350,10 @@
   background: color-mix(in srgb, var(--ui-text-faint, #8590a0) 55%, transparent);
   background-clip: padding-box;
 }
+/* Placeholders are user-visible text: the faint token already sits at the
+   contrast floor, and the extra opacity: 0.8 pushed the hint to 2.98-3.61:1. */
 .ui-prompt::placeholder {
-  color: var(--ui-text-faint);
-  opacity: 0.8;
+  color: var(--ui-text-dim);
 }
 .ui-prompt:disabled {
   opacity: 0.5;
