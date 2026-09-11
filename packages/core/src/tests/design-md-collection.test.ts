@@ -15,6 +15,7 @@ import {
   designMaterializeRun,
   listVendoredDesignSystems,
   looksLikeDesignSystemDoc,
+  readVendoredDesignSystem,
   resolveDesignSystem,
 } from "../actions";
 import { NULL_SPAWNER } from "../actions/types";
@@ -188,4 +189,46 @@ test("design.materialize runs end-to-end on a vendored system id", async () => {
   const result = await designMaterializeRun({ requirement: "登录页", designSystemId: "stripe" }, ctx);
   assert.equal(result.ok, true, `materialize on vendored id: ${result.ok ? "" : (result as { error?: string }).error}`);
   assert.ok(BUNDLED_DESIGN_SYSTEM_IDS.includes("dark-tech") as boolean, "bundled set unchanged");
+});
+
+test("vendored docs must pass the structural gate (thin file is unavailable)", () => {
+  const root = tempDir();
+  const vendored = tempDir();
+  fs.mkdirSync(path.join(vendored, "thin"), { recursive: true });
+  fs.writeFileSync(path.join(vendored, "thin", "DESIGN.md"), "## Only\none\n\n## Two\nsections", "utf8");
+  configureDesignSystemsVendorRoot(vendored);
+  assert.equal(resolveDesignSystem("thin", root), null, "two sections → rejected like the project source");
+  fs.writeFileSync(path.join(vendored, "thin", "DESIGN.md"), STITCH_DOC, "utf8");
+  assert.ok(resolveDesignSystem("thin", root), "three sections → resolves");
+});
+
+test(
+  "vendored DESIGN.md symlinks are refused (never read outside the collection)",
+  { skip: process.platform === "win32" },
+  () => {
+    const root = tempDir();
+    const vendored = tempDir();
+    // 上游把 DESIGN.md 提交成 symlink 时，跟随它会读出发动机之外的任意文件，
+    // 而内容会进提示词与目录 IPC——只认常规文件。
+    const secret = path.join(tempDir(), "secret.md");
+    fs.writeFileSync(secret, `${STITCH_DOC}\nsecret`, "utf8");
+    fs.mkdirSync(path.join(vendored, "linked"), { recursive: true });
+    fs.symlinkSync(secret, path.join(vendored, "linked", "DESIGN.md"));
+    configureDesignSystemsVendorRoot(vendored);
+    assert.equal(resolveDesignSystem("linked", root), null);
+    assert.ok(!readVendoredDesignSystem("linked"), "core's public vendored reader applies the same rule");
+  }
+);
+
+test("oversized vendored DESIGN.md is read bounded and truncated", () => {
+  const root = tempDir();
+  const vendored = tempDir();
+  fs.mkdirSync(path.join(vendored, "huge"), { recursive: true });
+  // 1.6MB > 读取上限（800K 字节）：只读头部即够，截断语义不变。
+  fs.writeFileSync(path.join(vendored, "huge", "DESIGN.md"), `${STITCH_DOC}\n${"padding ".repeat(200_000)}`, "utf8");
+  configureDesignSystemsVendorRoot(vendored);
+  const resolved = resolveDesignSystem("huge", root);
+  assert.ok(resolved);
+  assert.ok(resolved.content.length <= 200_000 + 100, "truncated near the cap");
+  assert.match(resolved.content, /## Overview/, "head kept");
 });

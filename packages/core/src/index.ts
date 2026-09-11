@@ -317,6 +317,7 @@ export {
   listVendoredDesignSystems,
   looksLikeDesignSystemDoc,
   readProjectDesignSystem,
+  readVendoredDesignSystem,
   resolveDesignSystem,
 } from "./actions/design-systems";
 export type { DesignSystemSource, ResolvedDesignSystem } from "./actions/design-systems";

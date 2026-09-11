@@ -131,6 +131,7 @@ export {
   listVendoredDesignSystems,
   looksLikeDesignSystemDoc,
   readProjectDesignSystem,
+  readVendoredDesignSystem,
   resolveDesignSystem,
 } from "./design-systems";
 export type { DesignSystemSource, ResolvedDesignSystem } from "./design-systems";
