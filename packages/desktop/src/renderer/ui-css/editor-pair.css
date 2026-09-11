@@ -1067,6 +1067,13 @@ button.ui-edpair-cp:disabled {
   gap: 8px;
   color: var(--ui-text-dim);
 }
+/* Errors keep their newlines: the container's pre-wrap went away when the
+   success branch moved to markdown (.ui-md owns its own whitespace), and this
+   class has no styling of its own anywhere — without this a multi-line agent
+   error collapses into one line. */
+.ui-edexplain-body .ui-error {
+  white-space: pre-wrap;
+}
 /* Compact-card scoping over the shared .ui-md pipeline: tighter heading
    rhythm and hard width caps so wide code/tables scroll instead of blowing
    out the 400px card. */

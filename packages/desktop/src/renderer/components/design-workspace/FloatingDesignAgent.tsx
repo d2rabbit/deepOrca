@@ -20,6 +20,12 @@ type Props = {
  * silent subagent — nothing lands in the main session (silent invariant).
  * Agent bubbles render through the shared Streamdown markdown pipeline; user
  * bubbles stay plain pre-wrapped text.
+ *
+ * Note the pipeline is currently equivalent to plain text *for this surface*:
+ * onSubmit only reports completion, so every agent bubble is a fixed
+ * single-line i18n string (welcome / revised / failed). It is wired anyway so a
+ * future reply that carries formatting renders as markdown instead of showing
+ * its source — which is the whole point of the 2026-09-10 ask.
  */
 export function FloatingDesignAgent({ tabLabel, quickItems, disabled, busy, onSubmit }: Props): JSX.Element {
   const { t } = useI18n();

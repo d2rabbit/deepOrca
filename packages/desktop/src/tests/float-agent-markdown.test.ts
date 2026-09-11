@@ -6,7 +6,9 @@
  *     emphasis, fences and sanitized HTML must render as elements.
  *   - FloatingDesignAgent (design workspace): agent bubbles render markdown;
  *     user bubbles stay plain pre-wrapped text (no markdown interpretation
- *     of what the user typed).
+ *     of what the user typed). Its bubble texts are fixed single-line i18n
+ *     strings, so this half pins that replies route through the pipeline
+ *     (streamdown-produced nodes, not source text) rather than formatting.
  *
  * Harness: dom-harness + createApiStub before the component imports (api.ts
  * binds window.deeporca at module load). Both components portal/mount under
@@ -134,10 +136,14 @@ test("FloatingDesignAgent: agent bubbles go through markdown, user bubbles stay 
       })
     )
   );
-  // Welcome bubble renders on expand through the markdown pipeline.
+  // Welcome bubble renders on expand through the markdown pipeline. The inner
+  // <p> is the load-bearing half: streamdown builds it out of the markdown AST,
+  // so the raw-source rendering the report was about would have no <p> at all.
+  // (FloatingDesignAgent's texts are fixed single-line i18n strings today, so
+  // this pins pipeline routing — not markdown formatting.)
   await rtl.waitFor(() => {
     assert.ok(
-      utils.container.querySelector(".ui-floating-design-agent-msg.agent .ui-streamdown.ui-md"),
+      utils.container.querySelector(".ui-floating-design-agent-msg.agent .ui-streamdown.ui-md p"),
       "welcome bubble must render through the markdown pipeline"
     );
   });
@@ -160,6 +166,6 @@ test("FloatingDesignAgent: agent bubbles go through markdown, user bubbles stay 
   assert.ok(userMsg, "user bubble missing");
   assert.equal(userMsg.querySelector(".ui-md"), null, "user bubble must stay plain text");
   assert.ok((userMsg.textContent ?? "").includes("把标题改成"), "user text lost");
-  const replies = utils.container.querySelectorAll(".ui-floating-design-agent-msg.agent .ui-streamdown.ui-md");
+  const replies = utils.container.querySelectorAll(".ui-floating-design-agent-msg.agent .ui-streamdown.ui-md p");
   assert.ok(replies.length >= 2, "agent reply must render through the markdown pipeline");
 });
