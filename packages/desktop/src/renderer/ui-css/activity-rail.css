@@ -731,9 +731,13 @@
 .ui-pinned-plan .bar .pbar i {
   display: block;
   height: 100%;
-  width: 0%;
+  /* Full width + scaleX (see PinnedPlan.tsx): animating a transform is
+     composited, animating width re-laid-out the row on every frame. */
+  width: 100%;
+  transform: scaleX(0);
+  transform-origin: left center;
   background: var(--ui-accent);
-  transition: width 0.4s;
+  transition: transform 0.4s var(--ui-ease);
 }
 .ui-pinned-plan .bar .pct {
   font-weight: 700;

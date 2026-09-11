@@ -64,9 +64,12 @@
   --ui-warning: #8a5a00;
   --ui-info: #3f5fd0;
 
-  /* Oversized, clay-round corners (26px reads right on a 56px control). */
-  --ui-radius-sm: 14px;
-  --ui-radius-md: 18px;
+  /* Radii scale to the control, not one blob size: the base button is 32px tall
+     and the small icon button 24px, so ~46% of the height keeps them rounded
+     clay instead of collapsing into stadium pills (a radius >= half the height
+     is clamped by the browser, which silently loses the intended shape). */
+  --ui-radius-sm: 10px;
+  --ui-radius-md: 15px;
   --ui-radius-lg: 26px;
   --ui-radius-pill: 999px;
 

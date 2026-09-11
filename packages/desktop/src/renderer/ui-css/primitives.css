@@ -265,6 +265,9 @@ button > svg {
   transition:
     background 0.14s var(--ui-ease),
     border-color 0.14s var(--ui-ease),
+    color 0.14s var(--ui-ease),
+    box-shadow 0.14s var(--ui-ease),
+    filter 0.14s var(--ui-ease),
     transform 0.06s var(--ui-ease);
 }
 .ui-btn:hover:not(:disabled) {
@@ -356,7 +359,15 @@ button > svg {
   border-radius: var(--ui-radius-md);
   color: var(--ui-text-dim);
   font-size: 15px;
-  transition: background 0.14s var(--ui-ease);
+  /* Same property set as `--sm`: hover repaints `color` too, and the skins put a
+     real border on icon buttons, so `border-color` animates as well — without it
+     the ring snapped while the background eased. */
+  transition:
+    background 0.14s var(--ui-ease),
+    border-color 0.14s var(--ui-ease),
+    color 0.14s var(--ui-ease),
+    box-shadow 0.14s var(--ui-ease),
+    transform 0.14s var(--ui-ease);
 }
 .ui-icon-btn:hover:not(:disabled) {
   background: var(--ui-surface-hover);
@@ -571,6 +582,14 @@ button > svg {
   transition:
     border-color 0.14s var(--ui-ease),
     box-shadow 0.14s var(--ui-ease);
+}
+/* Inputs and selects follow the 32px control rhythm (.ui-btn). A native select
+   box otherwise measures ~2px taller than an input, so a form row with the two
+   side by side was visibly misaligned. Textarea is deliberately excluded: it
+   auto-grows and keeps its own min-height. */
+.ui-input,
+.ui-select {
+  height: 32px;
 }
 .ui-input:focus,
 .ui-textarea:focus,

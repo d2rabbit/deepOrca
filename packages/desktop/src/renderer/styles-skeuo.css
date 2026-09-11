@@ -165,9 +165,11 @@ body,
   box-shadow: var(--ui-shadow-card);
 }
 
+/* Stitched seam on the paper surfaces. `.ui-subwin` is excluded on purpose: the
+   component frames it with its own border and clips descendants, so the seam was
+   drawn half-cut at the window edges. */
 .ui-card::after,
-.ui-panel::after,
-.ui-subwin::after {
+.ui-panel::after {
   content: "";
   position: absolute;
   inset: 4px;

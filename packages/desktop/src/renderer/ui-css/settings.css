@@ -11,7 +11,11 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: var(--ui-space-2) var(--ui-space-3);
+  /* One control rhythm: the same 32px height as .ui-btn / .ui-icon-btn, so a
+     mixed nav row (tabs + chips + buttons) shares a single baseline instead of
+     the tab sitting 2px proud of its neighbours. */
+  height: 32px;
+  padding: 0 var(--ui-space-3);
   color: var(--ui-text-dim);
   font-size: 13px;
   border-bottom: 2px solid transparent;

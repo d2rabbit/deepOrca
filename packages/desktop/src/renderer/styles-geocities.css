@@ -225,10 +225,17 @@ select {
   outline-offset: 2px;
 }
 
-/* The rainbow-gradient rule between sections — the era's signature divider. */
+/* The rainbow-gradient rule between sections — the era's signature divider.
+   The under-construction stripe rides as a background band INSIDE the header's
+   own box: as an in-flow ::after it added 10px of height to every panel header,
+   so these headers stood taller than in every other skin. */
 .ui-side-panel-head,
 .ui-settings-section-title {
-  background: var(--ui-surface-raised);
+  background-color: var(--ui-surface-raised);
+  background-image: repeating-linear-gradient(45deg, #ffd700 0 6px, #000000 6px 12px);
+  background-size: 100% 5px;
+  background-position: left bottom;
+  background-repeat: no-repeat;
   border-bottom: 3px solid;
   border-image: linear-gradient(90deg, #ff0000, #ff8000, #ffff00, #00c000, #0080ff, #8000ff) 1;
 }
@@ -258,13 +265,6 @@ hr,
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-}
-.ui-side-panel-head::after {
-  content: "";
-  display: block;
-  height: 6px;
-  margin-top: 4px;
-  background: repeating-linear-gradient(45deg, #ffd700 0 6px, #000000 6px 12px);
 }
 
 /* The LED readout: green digits on black, as the visitor counter had. */

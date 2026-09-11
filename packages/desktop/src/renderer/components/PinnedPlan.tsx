@@ -25,7 +25,9 @@ export function PinnedPlan({ lines, done, total }: Props): JSX.Element {
         </span>
         <span className="label">{t("plan.pinnedTitle")}</span>
         <span className="pbar">
-          <i style={{ width: `${pct}%` }} />
+          {/* scaleX instead of width: the fill grows on the compositor, so a
+              plan advancing never re-lays-out the bar mid-animation. */}
+          <i style={{ transform: `scaleX(${pct / 100})` }} />
         </span>
         <span className="pct">
           {done}/{total}
