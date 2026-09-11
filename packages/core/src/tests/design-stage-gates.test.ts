@@ -42,6 +42,8 @@ function makeCtx(
     mcpCalls?: McpCall[];
     subagentCalls?: RunSubagentOptions[];
     emits?: Array<{ data?: unknown; message?: string }>;
+    /** 模拟"报成功却无 ArtifactRef"的 a2ui 异常（真机走查加固回归）。 */
+    stripRefOn?: string;
   } = {}
 ): ActionContext {
   const mcpCalls = options.mcpCalls ?? [];
@@ -76,6 +78,9 @@ function makeCtx(
             content: suite.content,
           }),
         };
+      }
+      if (options.stripRefOn && name.endsWith(options.stripRefOn)) {
+        return { ok: true, output: "saved (no parseable artifact ref)" };
       }
       return {
         ok: true,
@@ -309,6 +314,39 @@ test("design.materialize degrades ui-design after failed repair and still render
     !canvasPrompt.includes("## ui-design（视觉意图——主驱动）"),
     "canvas prompt is prototype/requirement driven"
   );
+});
+
+// ── 真机走查加固：报成功却无落盘事实必须大声失败 ───────────────────────────
+
+test("materialize fails loudly when render_openui succeeds without an artifact ref", async () => {
+  const mcpCalls: McpCall[] = [];
+  const ctx = makeCtx(
+    { proto: { kind: "prototype", title: "P", content: { spec: SPEC_FOR_DEGRADE, requirement: "登录" } } },
+    { generatedQueue: [OPENUI_OK], mcpCalls, stripRefOn: "render_openui" }
+  );
+  const result = await prototypeMaterializeRun({ suiteId: "proto", versionId: "head-1" }, ctx);
+  assert.equal(result.ok, false);
+  assert.match(result.ok ? "" : (result as { error?: string }).error, /without a persisted artifact ref/);
+});
+
+test("design.materialize fails loudly when render_leafer succeeds without an artifact ref", async () => {
+  const mcpCalls: McpCall[] = [];
+  const ctx = makeCtx(
+    {
+      proto: {
+        kind: "prototype",
+        title: "P",
+        content: { spec: SPEC_FOR_DEGRADE, openui: "root = Column([])", requirement: "登录" },
+      },
+    },
+    { generatedQueue: ["```json\n" + LEAFER_PLAIN + "\n```"], mcpCalls, stripRefOn: "render_leafer" }
+  );
+  const result = await designMaterializeRun(
+    { prototypeSuiteId: "proto", prototypeVersionId: "head-1", designSystemId: "dark-tech" },
+    ctx
+  );
+  assert.equal(result.ok, false);
+  assert.match(result.ok ? "" : (result as { error?: string }).error, /without a persisted artifact ref/);
 });
 
 // ── S4 OpenUI 交互密度门 ─────────────────────────────────────────────────────

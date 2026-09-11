@@ -1099,7 +1099,16 @@ export const prototypeMaterializeRun: ActionRun<PrototypeMaterializeInput, Proto
         if (!savedPd.ok) return savedPd;
         pmDesign = distilled.document;
         // head 前移：save_pm_design 追加了新版本，设备循环以新 head 为基线。
-        if (savedPd.artifactRef) baseVersionId = savedPd.artifactRef.versionId;
+        // 真机走查加固：无 ref = 落盘事实缺失，大声失败（静默继续会在设备
+        // 循环里以过期 base 撞 head-moved 守卫或无声丢版本）。
+        if (!savedPd.artifactRef) {
+          return {
+            ok: false,
+            error:
+              "save_pm_design reported success without a persisted artifact ref — stage0 cannot thread the new head",
+          };
+        }
+        baseVersionId = savedPd.artifactRef.versionId;
         // 交叉审查修复：自动路径同样发射 saved 终态码（此前只有手动动作发）。
         ctx.emit({
           message: "pm-design document saved",
@@ -1215,10 +1224,17 @@ export const prototypeMaterializeRun: ActionRun<PrototypeMaterializeInput, Proto
         ...(input.note?.trim() ? { note: input.note.trim() } : {}),
       });
       if (!saved.ok) return saved;
-      if (saved.artifactRef) {
-        artifactRef = saved.artifactRef;
-        baseVersionId = saved.artifactRef.versionId;
+      // p-core 真机走查加固：render_openui 报成功却解析不到 ArtifactRef =
+      // 没有可验证的落盘事实——大声失败，绝不静默"成功"（refreshStore 路径
+      // 会把无声丢失伪装成"只需刷新"）。suite 路径必有 ref。
+      if (!saved.artifactRef) {
+        return {
+          ok: false,
+          error: `render_openui reported success without a persisted artifact ref (device ${device}) — suite persistence did not happen`,
+        };
       }
+      artifactRef = saved.artifactRef;
+      baseVersionId = saved.artifactRef.versionId;
     }
     ctx.emit({
       message: "OpenUI prototype saved with verification pending",

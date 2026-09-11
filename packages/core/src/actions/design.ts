@@ -395,6 +395,15 @@ export const designMaterializeRun: ActionRun<DesignMaterializeInput, DesignMater
       ...(input.note?.trim() ? { note: input.note.trim() } : {}),
     });
     if (!saved.ok) return saved;
+    // p-core 真机走查加固：render_leafer 报成功却解析不到 ArtifactRef = 没有
+    // 可验证的落盘事实——大声失败（refreshStore 路径会把无声丢失伪装成
+    // "只需刷新"，UI 套件实际不存在）。
+    if (!saved.artifactRef) {
+      return {
+        ok: false,
+        error: "render_leafer reported success without a persisted artifact ref — the UI suite was not created",
+      };
+    }
     // specs/prompt-doc-chain：ui-design 与画布同调用落盘成功——终态码在此。
     if (uiDesign) {
       ctx.emit({
