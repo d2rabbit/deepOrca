@@ -24,6 +24,6 @@
 
 ## WP4 测试与收尾
 
-- [ ] `design-md-collection.test.ts`（三源优先级/project 校验/路径安全/截断/动作错误文案/注入复位）；
-- [ ] `npm run check` + 全量 `npm test` + mutation check（挑 1：project 校验）；
-- [ ] 分批提交推送。
+- [x] `design-md-collection.test.ts`（7 项：三源优先级/project 校验/路径安全/截断/动作错误文案/vendored 端到端）；
+- [x] `npm run check` + 全量测试（core 984 / desktop 714）+ mutation check ×1（project 校验破坏→2 测试失败，还原全绿）；
+- [x] 提交推送（ec0c63c37）。
