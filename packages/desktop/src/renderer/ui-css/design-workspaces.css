@@ -133,18 +133,20 @@
   font-style: normal;
 }
 
-/* 目录导航行（工作区标题 / 主题 / 套件标题）：点击打开对应设计工作台。 */
+/* 目录导航行（工作区标题 / 主题 / 套件标题）：点击打开对应设计工作台，
+   三类入口 hover/focus 反馈一致。 */
 .ui-design-directory-open {
   cursor: pointer;
   border-radius: var(--ui-radius-sm);
 }
 
-.ui-design-directory-workspace.ui-design-directory-open:hover,
-.ui-design-directory-item.ui-design-directory-open:hover {
+.ui-design-directory-open:hover,
+.ui-design-directory-theme-head:hover {
   background: var(--ui-surface-hover);
 }
 
-.ui-design-directory-open:focus-visible {
+.ui-design-directory-open:focus-visible,
+.ui-design-directory-theme-head:focus-visible {
   outline: 1px solid var(--ui-accent);
   outline-offset: -1px;
 }

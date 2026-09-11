@@ -1,4 +1,14 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type JSX } from "react";
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type JSX,
+  type MouseEvent,
+} from "react";
 import { useI18n } from "../../i18n";
 import { subscribeToSuiteChanges, suiteApi } from "./api";
 import {
@@ -39,7 +49,15 @@ type Props = {
 /** 未分组组的激活 key（与主题 key 同一命名空间）。 */
 const UNGROUPED_KEY = "__ungrouped__";
 
-export function WorkspaceDirectory({
+/** 分组/激活共用的复合 key 拼法（theme id、UNGROUPED_KEY 同一命名空间）。 */
+const groupKey = (root: string, id: string): string => `${root}:${id}`;
+
+/** 套件归属的主题 id；未分组（或主题已删）返回 null。分组过滤与激活推导
+ *  共用同一谓词——两处口径漂移会让激活展开指错组。 */
+const themeIdOf = (group: DirectoryGroup, suite: DesignSuiteSummary): string | null =>
+  suite.themeId && group.themes.some((theme) => theme.id === suite.themeId) ? suite.themeId : null;
+
+function WorkspaceDirectoryImpl({
   activeRoot,
   kind,
   title,
@@ -60,6 +78,12 @@ export function WorkspaceDirectory({
   const [assigningId, setAssigningId] = useState<string | null>(null);
   const [assignThemeId, setAssignThemeId] = useState("");
   const [assignStage, setAssignStage] = useState("");
+  // 重命名输入用 ref 聚焦（effect 只在 renamingId 变化时跑一次）而非
+  // autoFocus——details 因激活位翻转重挂载时不得重新抢走焦点。
+  const renameInputRef = useRef<HTMLInputElement | null>(null);
+  useEffect(() => {
+    if (renamingId) renameInputRef.current?.focus();
+  }, [renamingId]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -242,37 +266,53 @@ export function WorkspaceDirectory({
     group.titleSource.find((candidate) => candidate.id === suiteId)?.title ??
     suiteId;
 
+  /** 导航行公共句柄：role=button + Enter/Space 激活——点击与键盘同走一个
+   *  回调，键盘契约单点维护。 */
+  const navHandle = (run: () => void) => ({
+    role: "button" as const,
+    tabIndex: 0,
+    onClick: run,
+    onKeyDown: (event: KeyboardEvent<HTMLDivElement>): void => {
+      if (event.target !== event.currentTarget) return;
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        run();
+      }
+    },
+  });
+
+  /** 主题/未分组标题点击：组内按钮/表单不导航；空组只原生折叠不导航
+   *  （导航会把用户带到别的主题的默认套件，激活高亮与点击对象脱节）；
+   *  已激活组再点标题 = 仅导航，不顺手折叠组。 */
+  const headNav =
+    (group: DirectoryGroup, seedOpen: boolean, target: DesignSuiteSummary | undefined) =>
+    (event: MouseEvent<HTMLElement>): void => {
+      if ((event.target as HTMLElement).closest("button, input, form")) return;
+      if (!target) return;
+      if (seedOpen) event.preventDefault();
+      onOpenWorkspace(group.root, target.id);
+    };
+
   /** 激活分组 = 设计工作台正在查看的套件的主题归属（未分组套件落到未分组
-   *  组）。suiteId 缺省时回退该工作区的默认套件（与工作台的 summaries[0]
-   *  选择一致）。仅激活分组默认展开，其余折叠。 */
+   *  组）。suiteId 缺省或已失效（套件被删）时回退该工作区的默认套件——与
+   *  两个工作台的 summaries[0] 口径一致，目录激活态不得与实际显示脱节。
+   *  仅激活分组默认展开，其余折叠。 */
   const activeGroupKey = useMemo(() => {
     if (!surfaceActive) return null;
-    for (const group of groups) {
-      if (group.root !== activeRoot) continue;
-      const active = activeSuiteId ? group.suites.find((item) => item.id === activeSuiteId) : group.suites[0];
-      if (!active) return null;
-      if (!active.themeId || !group.themes.some((theme) => theme.id === active.themeId)) {
-        return `${group.root}:${UNGROUPED_KEY}`;
-      }
-      return `${group.root}:${active.themeId}`;
-    }
-    return null;
+    const group = groups.find((item) => item.root === activeRoot);
+    if (!group) return null;
+    const active = activeSuiteId
+      ? (group.suites.find((item) => item.id === activeSuiteId) ?? group.suites[0])
+      : group.suites[0];
+    if (!active) return null;
+    return groupKey(group.root, themeIdOf(group, active) ?? UNGROUPED_KEY);
   }, [surfaceActive, activeSuiteId, activeRoot, groups]);
 
   const suiteCard = (group: DirectoryGroup, suite: DesignSuiteSummary): JSX.Element => (
     <div className="ui-design-directory-suite" key={suite.id} data-suite-id={suite.id}>
       <div
         className="ui-design-directory-item ui-design-directory-open"
-        role="button"
-        tabIndex={0}
-        onClick={() => onOpenWorkspace(group.root, suite.id)}
-        onKeyDown={(event) => {
-          if (event.target !== event.currentTarget) return;
-          if (event.key === "Enter" || event.key === " ") {
-            event.preventDefault();
-            onOpenWorkspace(group.root, suite.id);
-          }
-        }}
+        {...navHandle(() => onOpenWorkspace(group.root, suite.id))}
       >
         <span>{suite.title}</span>
         {suite.stage ? <em className="ui-design-directory-stage">{suite.stage}</em> : null}
@@ -356,14 +396,10 @@ export function WorkspaceDirectory({
         {!loading && !error
           ? groups.map((group) => {
               // 主题分组视图（specs/prd-theme-layer）：有主题才分组；旧工作区
-              // 零主题时维持既有平铺（EARS 14 零回归）。
-              const themed = group.suites.filter(
-                (suite) => suite.themeId && group.themes.some((theme) => theme.id === suite.themeId)
-              );
-              const ungrouped = group.suites.filter(
-                (suite) => !suite.themeId || !group.themes.some((theme) => theme.id === suite.themeId)
-              );
-              const ungroupedKey = `${group.root}:${UNGROUPED_KEY}`;
+              // 零主题时维持既有平铺（EARS 14 零回归）。归属判定走共享谓词。
+              const themed = group.suites.filter((suite) => themeIdOf(group, suite) !== null);
+              const ungrouped = group.suites.filter((suite) => themeIdOf(group, suite) === null);
+              const ungroupedKey = groupKey(group.root, UNGROUPED_KEY);
               const ungroupedOpen = activeGroupKey === ungroupedKey;
               return (
                 <section
@@ -373,16 +409,7 @@ export function WorkspaceDirectory({
                 >
                   <div
                     className="ui-design-directory-workspace ui-design-directory-open"
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => onOpenWorkspace(group.root)}
-                    onKeyDown={(event) => {
-                      if (event.target !== event.currentTarget) return;
-                      if (event.key === "Enter" || event.key === " ") {
-                        event.preventDefault();
-                        onOpenWorkspace(group.root);
-                      }
-                    }}
+                    {...navHandle(() => onOpenWorkspace(group.root))}
                   >
                     <span className="ui-design-directory-dot" />
                     <strong>{group.label}</strong>
@@ -393,7 +420,7 @@ export function WorkspaceDirectory({
                     <div className="ui-design-directory-themes">
                       {group.themes.map((theme) => {
                         const themeSuites = themed.filter((suite) => suite.themeId === theme.id);
-                        const themeKey = `${group.root}:${theme.id}`;
+                        const themeKey = groupKey(group.root, theme.id);
                         // 激活位进 key：激活主题切换时重挂载 <details> 播种
                         // open 属性——原生点击折叠不受重渲染回写干扰；非激活
                         // 组默认折叠（仅激活主题展开）。
@@ -409,13 +436,7 @@ export function WorkspaceDirectory({
                           >
                             <summary
                               className="ui-design-directory-theme-head"
-                              onClick={(event) => {
-                                const target = event.target as HTMLElement;
-                                if (target.closest("button, input, form")) return;
-                                // 已激活主题再点标题 = 仅导航，不顺手折叠组。
-                                if (seedOpen) event.preventDefault();
-                                onOpenWorkspace(group.root, themeSuites[0]?.id);
-                              }}
+                              onClick={headNav(group, seedOpen, themeSuites[0])}
                             >
                               {renamingId === theme.id ? (
                                 <form
@@ -426,8 +447,8 @@ export function WorkspaceDirectory({
                                   }}
                                 >
                                   <input
+                                    ref={renameInputRef}
                                     value={renameTitle}
-                                    autoFocus
                                     onChange={(event) => setRenameTitle(event.target.value)}
                                     onKeyDown={(event) => {
                                       if (event.key === "Escape") setRenamingId(null);
@@ -495,12 +516,7 @@ export function WorkspaceDirectory({
                       >
                         <summary
                           className="ui-design-directory-theme-head"
-                          onClick={(event) => {
-                            const target = event.target as HTMLElement;
-                            if (target.closest("button, input, form")) return;
-                            if (ungroupedOpen) event.preventDefault();
-                            onOpenWorkspace(group.root, ungrouped[0]?.id);
-                          }}
+                          onClick={headNav(group, ungroupedOpen, ungrouped[0])}
                         >
                           <span className="ui-design-directory-dot" />
                           <strong>{t("designTheme.ungrouped")}</strong>
@@ -567,6 +583,10 @@ export function WorkspaceDirectory({
     </section>
   );
 }
+
+/** props 全为原始值/稳定回调（onOpenWorkspace 即 hook 的 useCallback 产物）
+ *  ——包 memo：App 流式期间的高频重渲染不再穿透进目录全量重渲染。 */
+export const WorkspaceDirectory = memo(WorkspaceDirectoryImpl);
 
 function DirectorySegments({ suite, kind }: { suite: DesignSuite | null; kind: DesignSuiteKind }): JSX.Element | null {
   const { t } = useI18n();

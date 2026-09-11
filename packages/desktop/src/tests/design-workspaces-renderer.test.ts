@@ -117,7 +117,7 @@ after(() => {
   dom.cleanup();
 });
 
-test("directory forwards workspace/theme/suite clicks to open the matching design surface", async () => {
+test("directory forwards workspace and suite clicks (click + keyboard) to open the matching surface", async () => {
   const proto = suite("prototype", [version("latest", { spec: "# Scope", openui: "root = Text('ok')" })]);
   const ui = suite("ui", [
     version("latest", { openui: 'root = Screen("UI")\nhero = Card(data-sem="hero") { Text("Hero") }' }),
@@ -159,6 +159,11 @@ test("directory forwards workspace/theme/suite clicks to open the matching desig
   ) as HTMLElement;
   assert.equal(otherHeader.getAttribute("role"), "button", "workspace header is the navigation entry");
   rtl.fireEvent.click(otherHeader);
+  assert.deepEqual(opened.at(-1), ["/work/other", undefined]);
+  // 键盘等价：Enter 激活同一回调（与 TaskHubPanel 行为对齐）。
+  const beforeKeyboard = opened.length;
+  rtl.fireEvent.keyDown(otherHeader, { key: "Enter" });
+  assert.equal(opened.length, beforeKeyboard + 1, "Enter must activate the nav row");
   assert.deepEqual(opened.at(-1), ["/work/other", undefined]);
   // 套件标题行 → (root, suiteId)；三段状态行保持不可点。
   const protoRow = out.container.querySelector(
@@ -782,13 +787,20 @@ test("theme groups default collapsed; only the active theme opens; theme titles 
     createdAt: "2026-09-10T00:00:00.000Z",
     updatedAt: "2026-09-10T00:00:00.000Z",
   };
+  // 零套件主题：标题点击不得导航（导航会把激活位带到别的主题的默认套件）。
+  const themeC = {
+    id: "t-c",
+    title: "空主题",
+    createdAt: "2026-09-10T00:00:00.000Z",
+    updatedAt: "2026-09-10T00:00:00.000Z",
+  };
   const sumA = { ...summary(uiA), id: "ui-a", themeId: themeA.id };
   const sumB = { ...summary(uiB), id: "ui-b", themeId: themeB.id };
   overrides.listWorkspaceSessions = async () => ({ workspaces: [{ root: "/work/current", label: "current" }] });
   overrides.designSuiteList = async (_root: string, kind?: string) =>
     kind === "ui" ? [sumA, sumB] : [summary(prototype)];
   overrides.designSuiteRead = async (_root: string, id: string) => (id === "ui-a" ? uiA : uiB);
-  overrides.designThemeList = async () => [themeA, themeB];
+  overrides.designThemeList = async () => [themeA, themeB, themeC];
   const opened: Array<[string, string | undefined]> = [];
   const renderPanel = (props: { surfaceActive?: boolean; activeSuiteId?: string }) =>
     renderWithI18n(
@@ -802,7 +814,7 @@ test("theme groups default collapsed; only the active theme opens; theme titles 
   let out = renderPanel({});
   await settle();
   const groups = [...out.container.querySelectorAll(".ui-design-directory-theme")] as HTMLDetailsElement[];
-  assert.equal(groups.length, 3, "theme A + theme B + ungrouped");
+  assert.equal(groups.length, 4, "theme A + theme B + empty theme C + ungrouped");
   assert.ok(
     groups.every((details) => !details.open),
     "all theme groups default collapsed"
@@ -814,6 +826,12 @@ test("theme groups default collapsed; only the active theme opens; theme titles 
   assert.equal((out.container.querySelector('[data-theme-id="t-b"]') as HTMLDetailsElement).open, true);
   assert.equal((out.container.querySelector('[data-theme-id="t-a"]') as HTMLDetailsElement).open, false);
   assert.equal((out.container.querySelector(".ui-design-directory-theme.ungrouped") as HTMLDetailsElement).open, false);
+  // 点击空主题标题：不导航，仅原生折叠/展开（与已激活组点击行为解耦）。
+  const beforeEmptyClick = opened.length;
+  const emptyGroup = out.container.querySelector('[data-theme-id="t-c"]') as HTMLDetailsElement;
+  rtl.fireEvent.click(emptyGroup.querySelector("summary") as Element);
+  assert.equal(opened.length, beforeEmptyClick, "empty theme title must not navigate");
+  assert.equal(emptyGroup.open, true, "empty theme title still toggles natively");
   // 点击主题 A 标题 → 打开 (root, 主题 A 首个套件)；点击主题内 ✎ 不导航。
   rtl.fireEvent.click(out.container.querySelector('[data-theme-id="t-a"] summary') as Element);
   assert.deepEqual(opened.at(-1), ["/work/current", "ui-a"]);

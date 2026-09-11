@@ -1627,7 +1627,7 @@ export const ja: Record<MessageKey, string> = {
   "designWorkspace.readOnly": "この旧バージョンは読み取り専用です。",
   "designWorkspace.backToLatest": "最新版に戻る",
   "designWorkspace.empty": "利用可能なワークスペース成果物はありません。",
-  "designWorkspace.directoryOnly": "読み取り専用ディレクトリ",
+  "designWorkspace.directoryOnly": "ディレクトリ · クリックで開く",
   "designWorkspace.current": "現在",
   "designWorkspace.noArtifacts": "成果物なし",
   "designWorkspace.versionCount": "{count} バージョン",

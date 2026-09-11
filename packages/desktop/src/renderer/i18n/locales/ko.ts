@@ -1616,7 +1616,7 @@ export const ko: Record<MessageKey, string> = {
   "designWorkspace.readOnly": "이전 버전은 읽기 전용입니다.",
   "designWorkspace.backToLatest": "최신 버전으로 돌아가기",
   "designWorkspace.empty": "사용 가능한 워크스페이스 결과물이 없습니다.",
-  "designWorkspace.directoryOnly": "읽기 전용 디렉터리",
+  "designWorkspace.directoryOnly": "디렉터리 · 클릭하여 열기",
   "designWorkspace.current": "현재",
   "designWorkspace.noArtifacts": "결과물 없음",
   "designWorkspace.versionCount": "버전 {count}개",

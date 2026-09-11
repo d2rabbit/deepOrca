@@ -1583,7 +1583,7 @@ export const zhTW: Record<MessageKey, string> = {
   "designWorkspace.readOnly": "目前是舊版本，僅供檢視。",
   "designWorkspace.backToLatest": "回到最新版本",
   "designWorkspace.empty": "尚無可用的工作區產物。",
-  "designWorkspace.directoryOnly": "唯讀目錄",
+  "designWorkspace.directoryOnly": "目錄 · 點擊開啟",
   "designWorkspace.current": "目前",
   "designWorkspace.noArtifacts": "尚無產物",
   "designWorkspace.versionCount": "{count} 個版本",

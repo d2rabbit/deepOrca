@@ -1626,7 +1626,7 @@ export const en = {
   "designWorkspace.readOnly": "This older version is read-only.",
   "designWorkspace.backToLatest": "Back to latest",
   "designWorkspace.empty": "No workspace artifact is available yet.",
-  "designWorkspace.directoryOnly": "Read-only directory",
+  "designWorkspace.directoryOnly": "Directory · click to open",
   "designWorkspace.current": "Current",
   "designWorkspace.noArtifacts": "No artifacts",
   "designWorkspace.versionCount": "{count} versions",

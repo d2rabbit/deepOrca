@@ -1580,7 +1580,7 @@ export const zh: Record<MessageKey, string> = {
   "designWorkspace.readOnly": "当前为旧版本，只读。",
   "designWorkspace.backToLatest": "回到最新版本",
   "designWorkspace.empty": "暂无可用的工作区产物。",
-  "designWorkspace.directoryOnly": "只读目录",
+  "designWorkspace.directoryOnly": "目录 · 点击打开",
   "designWorkspace.current": "当前",
   "designWorkspace.noArtifacts": "暂无产物",
   "designWorkspace.versionCount": "{count} 个版本",
