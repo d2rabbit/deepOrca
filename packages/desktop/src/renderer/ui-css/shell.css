@@ -1010,9 +1010,14 @@ button.ui-surface-chip {
   background: color-mix(in srgb, var(--ui-accent) 30%, transparent);
   transition: opacity 0.18s var(--ui-ease);
 }
-/* Focus-visible ring for keyboard navigation (accessibility). */
+/* Focus-visible ring for keyboard navigation (accessibility). The SOLID
+   outline is what guarantees a usable cue in every theme: the 2px
+   `--ui-accent-soft` tint alone measured 1.3-1.5:1 against the row in the pastel
+   skins (clay, neumorph) and varied wildly per theme (1.3 → 16.7). The inner
+   accent line stays as a secondary hint. */
 .ui-session-item:focus-visible {
-  outline: none;
+  outline: 2px solid var(--ui-focus-ring);
+  outline-offset: -2px;
   box-shadow:
     0 0 0 2px var(--ui-accent-soft),
     inset 0 0 0 1px var(--ui-accent);

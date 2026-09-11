@@ -53,7 +53,7 @@
   --ui-accent-strong: var(--line-accent-strong);
   --ui-accent-soft: var(--line-accent-soft);
   --ui-accent-fill: var(--line-accent);
-  --ui-focus-ring: rgba(91, 127, 245, 0.6);
+  --ui-focus-ring: rgba(91, 127, 245, 0.85);
 
   --ui-border: var(--line-stroke);
   --ui-border-soft: var(--line-stroke-soft);
@@ -108,7 +108,7 @@
   --ui-accent-strong: var(--line-accent-strong);
   --ui-accent-soft: var(--line-accent-soft);
   --ui-accent-fill: var(--line-accent);
-  --ui-focus-ring: rgba(68, 102, 221, 0.45);
+  --ui-focus-ring: rgba(68, 102, 221, 0.85);
 
   --ui-border: var(--line-stroke);
   --ui-border-soft: var(--line-stroke-soft);
@@ -339,7 +339,7 @@
   --ui-text-faint: #74746a;
   --ui-text-on-accent: #0b0b0d;
 
-  --ui-focus-ring: rgba(0, 240, 255, 0.55);
+  --ui-focus-ring: rgba(0, 240, 255, 0.85);
 
   --ui-success: #00f0a0;
   --ui-danger: #ff003c;
@@ -377,7 +377,7 @@
   --ui-text-faint: #84847a;
   --ui-text-on-accent: #14140c;
 
-  --ui-focus-ring: rgba(0, 160, 175, 0.5);
+  --ui-focus-ring: rgba(0, 125, 136, 0.9);
 
   --ui-success: #0a8f60;
   --ui-danger: #d40031;

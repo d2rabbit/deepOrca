@@ -185,8 +185,18 @@
   font-weight: 600;
 }
 .ui-lang-chip:focus-visible {
+  /* Ring sits just outside the chip, on the panel ground. */
   outline: 2px solid var(--ui-focus-ring);
   outline-offset: 1px;
+}
+/* The ACTIVE chip is accent-filled and the ring token is accent-derived, so the
+   two measured 1.0-1.9:1 in every theme (identical colour in minimal/raw/
+   geocities/y2k — an invisible focus cue). The active state switches to the ink
+   designed to sit on that fill (>=4.5:1 by the same contract the text uses) and
+   draws the ring inside, where the fill is. */
+.ui-lang-chip.active:focus-visible {
+  outline-color: var(--ui-text-on-accent);
+  outline-offset: -2px;
 }
 
 /* ── Endpoint configurator (Settings › Connection) ──────────────────────── */
