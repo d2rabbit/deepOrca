@@ -1,0 +1,448 @@
+/* ===========================================================================
+   Geocities — Vernacular Web (a sincere 90s personal homepage, not a parody).
+
+   Defining signals:
+     · A TILED repeating background — a starry night sky, drawn as CSS gradient
+       tiles (no image files ship with the app).
+     · Animated-GIF-style ornaments: twinkling sparkles, a striped "under
+       construction" band, a blinking status LED.
+     · A centered single column of system serif type, with a rainbow-gradient
+       horizontal rule between sections.
+     · The collected-participation look: a green-on-black LED readout (the
+       visitor counter's visual grammar), gold badge plates, a corner 88×31 web
+       badge, beveled ridges.
+     · Loud colored / blinking emphasis is period-correct.
+
+   Do NOT confuse with Web Brutalism (styles-raw.css): this page is ornamented
+   with love. Nothing here is stripped bare as a statement.
+
+   Accessibility (brief): every text panel is a SOLID opaque surface over the
+   busy wallpaper (never translucent), the LED/gold treatments are decorative
+   rather than functional claims, and prefers-reduced-motion pauses the blink,
+   the twinkle and the drift.
+
+   Deliberate deviation: prose stays left-aligned. The brief asks for a centered
+   column, but centering chat/code would fight the legibility it also requires —
+   so headings and the welcome card center, body text does not.
+
+   `--ui-code-well*` stays untouched (hard product rule).
+   =========================================================================== */
+
+:root {
+  /* ── Night-sky palette ── */
+  --gc-sky: #050a2e;
+  --gc-panel: #0d1240;
+  --gc-panel-2: #141a55;
+  --gc-star: #ffffff;
+  --gc-star-dim: #cfe3ff;
+  --gc-purple: #8a7dff;
+  --gc-gold: #ffd700;
+  --gc-led: #39ff14;
+
+  /* ── Semantic token bindings (night/default) ── */
+  --ui-bg: var(--gc-sky);
+  --ui-surface: var(--gc-panel);
+  --ui-surface-raised: var(--gc-panel-2);
+  --ui-surface-sunken: #060a26;
+  --ui-surface-hover: rgba(138, 125, 255, 0.18);
+
+  --ui-text: #eaf0ff;
+  --ui-text-dim: #b9c4f0;
+  --ui-text-faint: #93a0d6;
+  /* Gold is bright on this ground, so it works as text AND as a fill that
+     carries black — the two roles `--ui-accent` has to serve. */
+  --ui-text-on-accent: #000000;
+
+  --ui-accent: var(--gc-gold);
+  --ui-accent-strong: #ffea80;
+  --ui-accent-soft: rgba(255, 215, 0, 0.2);
+  --ui-accent-fill: var(--gc-gold);
+  --ui-focus-ring: var(--gc-gold);
+
+  --ui-border: var(--gc-purple);
+  --ui-border-soft: #5a4fbf;
+
+  --ui-success: var(--gc-led);
+  --ui-danger: #ff4d6d;
+  --ui-warning: #ffd166;
+  --ui-info: #6ec6ff;
+
+  /* Square. This era had no rounded corners. */
+  --ui-radius-sm: 0;
+  --ui-radius-md: 0;
+  --ui-radius-lg: 0;
+  --ui-radius-pill: 0;
+
+  /* Hard little offsets — the drop-shadow of the era. */
+  --ui-shadow-sm: 1px 1px 0 #000000;
+  --ui-shadow-card: 2px 2px 0 #000000;
+  --ui-shadow-modal: 3px 3px 0 #000000;
+  --ui-shadow-lg: 3px 3px 0 #000000;
+
+  /* System serif, as the brief asks; CJK keeps its serif faces. */
+  --ui-font-sans: Georgia, "Times New Roman", "Songti SC", SimSun, "Noto Serif CJK SC", serif;
+  --ui-font-mono: "Courier New", Courier, ui-monospace, monospace;
+}
+
+/* Day version of the same page: a pale tiled sky instead of the star field.
+   Gold is unreadable as text on white, so the accent turns dark gold while the
+   fills keep the bright gold with black text. */
+:root[data-appearance="light"] {
+  --gc-sky: #cfe8ff;
+  --gc-panel: #ffffff;
+  --gc-panel-2: #f2f7ff;
+
+  --ui-bg: var(--gc-sky);
+  --ui-surface: var(--gc-panel);
+  --ui-surface-raised: var(--gc-panel-2);
+  --ui-surface-sunken: #e3eefc;
+  --ui-surface-hover: rgba(138, 125, 255, 0.14);
+
+  --ui-text: #1a2340;
+  --ui-text-dim: #43506e;
+  --ui-text-faint: #4d5c7c;
+  --ui-text-on-accent: #ffffff;
+
+  --ui-accent: #7a5c00;
+  --ui-accent-strong: #8f6c00;
+  --ui-accent-soft: rgba(255, 215, 0, 0.35);
+  --ui-accent-fill: #7a5c00;
+  --ui-focus-ring: #7a5c00;
+
+  --ui-border: #7b6ee0;
+  --ui-border-soft: #a9a0ee;
+
+  --ui-success: #0f7a2e;
+  --ui-danger: #b01836;
+  --ui-warning: #7a5200;
+  --ui-info: #1f5fbf;
+
+  --ui-shadow-sm: 1px 1px 0 #4a4a6a;
+  --ui-shadow-card: 2px 2px 0 #4a4a6a;
+  --ui-shadow-modal: 3px 3px 0 #4a4a6a;
+  --ui-shadow-lg: 3px 3px 0 #4a4a6a;
+}
+
+/* ===========================================================================
+   Flourishes — the scrapbook.
+   =========================================================================== */
+
+/* The tiled star field. Two layers of radial-gradient dots tile forever; a third
+   slow layer twinkles. Text never sits directly on it — see the panel rule. */
+body,
+.ui-shell {
+  background-color: var(--ui-bg);
+  background-image:
+    radial-gradient(1.5px 1.5px at 24px 32px, var(--gc-star), transparent),
+    radial-gradient(1.5px 1.5px at 96px 74px, var(--gc-star-dim), transparent),
+    radial-gradient(1px 1px at 150px 26px, var(--gc-star), transparent),
+    radial-gradient(1.5px 1.5px at 60px 140px, var(--gc-star-dim), transparent);
+  background-size: 180px 180px;
+  background-repeat: repeat;
+}
+
+:root[data-appearance="light"] body,
+:root[data-appearance="light"] .ui-shell {
+  /* Daytime: a lighter, sparser speckle so the tiled ground stays quiet. */
+  background-image:
+    radial-gradient(2px 2px at 30px 40px, rgba(255, 255, 255, 0.9), transparent),
+    radial-gradient(2px 2px at 110px 90px, rgba(255, 255, 255, 0.7), transparent);
+  background-size: 160px 160px;
+}
+
+/* Twinkling sparkles layer (paused under reduced motion). */
+.ui-shell::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image:
+    radial-gradient(1.5px 1.5px at 40px 60px, var(--gc-star), transparent),
+    radial-gradient(1.5px 1.5px at 130px 110px, var(--gc-star), transparent);
+  background-size: 200px 200px;
+  animation: gc-twinkle 2.4s steps(2, end) infinite;
+}
+
+@keyframes gc-twinkle {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+
+/* SOLID panels over the wallpaper (brief: legibility first). Beveled edges are
+   the period's `ridge`/`outset` grammar. */
+.ui-card,
+.ui-panel,
+.ui-welcome-card,
+.ui-composer-card,
+.ui-side-panel,
+.ui-subwin,
+.ui-modal,
+.ui-command {
+  background: var(--ui-surface);
+  border: 2px ridge var(--ui-border);
+  border-radius: 0;
+  box-shadow: var(--ui-shadow-card);
+}
+
+.ui-btn {
+  background: var(--ui-surface-raised);
+  color: var(--ui-text);
+  border: 2px outset var(--ui-border);
+  border-radius: 0;
+  box-shadow: var(--ui-shadow-sm);
+}
+.ui-btn:active {
+  border-style: inset;
+}
+.ui-btn--primary {
+  background: var(--ui-accent-fill);
+  color: var(--ui-text-on-accent);
+  border-color: var(--ui-accent-strong);
+}
+
+.ui-prompt,
+.ui-input,
+.ui-textarea,
+.ui-select,
+input,
+textarea,
+select {
+  background: var(--ui-surface-raised);
+  color: var(--ui-text);
+  border: 2px inset var(--ui-border);
+  border-radius: 0;
+}
+.ui-input:focus,
+.ui-textarea:focus,
+.ui-select:focus {
+  outline: 3px solid var(--ui-focus-ring);
+  outline-offset: 2px;
+}
+
+/* The rainbow-gradient rule between sections — the era's signature divider. */
+.ui-side-panel-head,
+.ui-settings-section-title {
+  background: var(--ui-surface-raised);
+  border-bottom: 3px solid;
+  border-image: linear-gradient(90deg, #ff0000, #ff8000, #ffff00, #00c000, #0080ff, #8000ff) 1;
+}
+/* The rainbow rule, on section heads AND in prose (`.ui-md hr` is (0,1,1) and
+   would otherwise beat the bare `hr` selector, leaving markdown rules plain). */
+hr,
+.ui-md hr {
+  border: 0;
+  border-top: 3px solid;
+  border-image: linear-gradient(90deg, #ff0000, #ff8000, #ffff00, #00c000, #0080ff, #8000ff) 1;
+}
+
+/* Assistant prose gets a solid panel: the wallpaper is busy, and the brief puts
+   legibility first (the base leaves this bubble transparent). */
+.ui-bubble.assistant {
+  background: var(--ui-surface);
+  border: 2px ridge var(--ui-border);
+  border-radius: 0;
+}
+
+/* Under-construction band: gold with a diagonal stripe, on a beveled plate. */
+.ui-badge {
+  background: var(--gc-gold);
+  color: #000000;
+  border: 2px outset #b8860b;
+  border-radius: 0;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.ui-side-panel-head::after {
+  content: "";
+  display: block;
+  height: 6px;
+  margin-top: 4px;
+  background: repeating-linear-gradient(45deg, #ffd700 0 6px, #000000 6px 12px);
+}
+
+/* The LED readout: green digits on black, as the visitor counter had. */
+.ui-session-tokens-badge {
+  background: #000000;
+  color: var(--gc-led);
+  border: 2px inset #333333;
+  border-radius: 0;
+  font-family: var(--ui-font-mono);
+  letter-spacing: 0.1em;
+  text-shadow: 0 0 6px var(--gc-led);
+}
+
+/* Blinking LED — period-correct, but scoped to the RUNNING state only. The
+   variant selectors are single-class (`.ui-status-dot--running`, 0,1,0), so a
+   bare `.ui-status-dot` animation here would out-rank all of them and flatten
+   every state into the same blink. */
+.ui-status-dot--running {
+  animation: gc-blink 1.2s steps(2, end) infinite;
+}
+
+@keyframes gc-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.2;
+  }
+}
+
+/* A tiny 88x31 web-badge block pinned to the composer corner — the era's
+   collected-participation ornament, with no text to localize. */
+.ui-composer-card {
+  position: relative;
+}
+.ui-composer-card::after {
+  content: "";
+  position: absolute;
+  right: 8px;
+  bottom: 6px;
+  width: 88px;
+  height: 31px;
+  pointer-events: none;
+  border: 1px solid #000000;
+  background: linear-gradient(135deg, #0080ff 0 50%, #00c000 50% 100%);
+  opacity: 0.85;
+}
+
+/* Centered serif headings; prose stays left-aligned for legibility. */
+.ui-welcome-card {
+  text-align: center;
+}
+.ui-md h1,
+.ui-md h2 {
+  text-align: center;
+  letter-spacing: 0.02em;
+}
+
+/* Loud emphasis text in prose is period-correct. */
+.ui-md strong {
+  color: var(--gc-gold);
+}
+:root[data-appearance="light"] .ui-md strong {
+  color: #7a5c00;
+}
+
+/* Focus: gold, thick, offset — visible over the bevels and the wallpaper. */
+:focus-visible {
+  outline: 3px solid var(--ui-focus-ring);
+  outline-offset: 2px;
+  box-shadow: none;
+}
+
+::selection {
+  background: var(--gc-gold);
+  color: #000000;
+}
+
+::-webkit-scrollbar {
+  width: 16px;
+  height: 16px;
+}
+::-webkit-scrollbar-track {
+  background: var(--gc-panel);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--gc-purple);
+  border: 2px outset var(--gc-purple);
+}
+
+/* ===========================================================================
+   State layer.
+
+   The base owns hover/active at (0,3,0) (`primitives.css:270-325`), so a
+   single-class skin rule never reached a hover state — the beveled plate would
+   have flipped to a flat designed tint mid-interaction. The danger hover is the
+   one that matters for contrast: the base hardcodes `#fff` there, which fails on
+   the dark tone's light pink fill.
+   =========================================================================== */
+
+.ui-btn:hover:not(:disabled) {
+  background: var(--ui-surface-raised);
+  color: var(--ui-text);
+  border-style: outset;
+}
+.ui-btn:active:not(:disabled) {
+  border-style: inset;
+  transform: none;
+}
+.ui-btn--primary:hover:not(:disabled) {
+  background: var(--ui-accent-strong);
+  color: var(--ui-text-on-accent);
+  filter: none;
+  transform: none;
+}
+.ui-btn--danger:hover:not(:disabled) {
+  background: var(--ui-danger);
+  color: var(--ui-text-on-accent);
+}
+.ui-card:hover,
+.ui-panel:hover {
+  box-shadow: var(--ui-shadow-card);
+}
+
+/* ── Reduced motion: stop the twinkle and the blink ───────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-shell::before,
+  .ui-status-dot--running {
+    animation: none !important;
+  }
+  .ui-shell::before {
+    opacity: 0.5;
+  }
+  .ui-btn,
+  .ui-card,
+  .ui-panel {
+    transition: none !important;
+  }
+}
+
+/* ===========================================================================
+   Skin coverage — families a skin does not bind by default.
+
+   Without these the CodeMirror canvas, folder affordances, per-tool hues and
+   Mermaid/knowledge-graph ramps kept the app defaults inside this skin.
+   Tool/diagram hues are DERIVED from this skin' accent with color-mix, so they
+   follow both the palette and the tone, inside the accent' contrast-safe
+   lightness band. `--dot-*` / `--line-fork` are deliberately NOT re-bound
+   (semantic status indicators, not decoration).
+   =========================================================================== */
+
+:root {
+  --ui-folder-icon: var(--ui-accent);
+  --ui-folder-fill: color-mix(in srgb, var(--ui-accent) 18%, transparent);
+  --editor-canvas-bg: #0d1240;
+  --editor-gutter-bg: #060a26;
+  --editor-canvas-num: #93a0d6;
+
+  --ui-tool-hue-think: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 68%, #b45309) 70%, var(--ui-text) 30%);
+  --ui-tool-hue-amber: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 68%, #a16207) 70%, var(--ui-text) 30%);
+  --ui-tool-hue-purple: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 68%, #7c3aed) 70%, var(--ui-text) 30%);
+  --ui-tool-hue-indigo: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 68%, #4f46e5) 70%, var(--ui-text) 30%);
+  --ui-tool-hue-sky: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 68%, #0369a1) 70%, var(--ui-text) 30%);
+  --ui-tool-hue-teal: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 68%, #0f766e) 70%, var(--ui-text) 30%);
+  --ui-diagram-hue-0: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 45%, #2563eb) 80%, var(--ui-text) 20%);
+  --ui-diagram-hue-1: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 45%, #7c3aed) 80%, var(--ui-text) 20%);
+  --ui-diagram-hue-2: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 45%, #0d9488) 80%, var(--ui-text) 20%);
+  --ui-diagram-hue-3: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 45%, #d97706) 80%, var(--ui-text) 20%);
+  --ui-diagram-hue-4: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 45%, #e11d48) 80%, var(--ui-text) 20%);
+  --ui-diagram-hue-5: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 45%, #0891b2) 80%, var(--ui-text) 20%);
+  --ui-diagram-hue-6: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 45%, #4f46e5) 80%, var(--ui-text) 20%);
+  --ui-diagram-hue-7: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 45%, #65a30d) 80%, var(--ui-text) 20%);
+}
+
+:root[data-appearance="light"] {
+  --editor-canvas-bg: #ffffff;
+  --editor-gutter-bg: #e3eefc;
+  --editor-canvas-num: #4d5c7c;
+}

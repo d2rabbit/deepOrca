@@ -1,0 +1,361 @@
+/* ===========================================================================
+   Raw — strict Web Brutalism.
+
+   The decisive choice: the browser's own default rendering IS the design. This
+   file does not style a look, it UNDOES the app's reset so default materials
+   come back:
+     · UA system colors (Canvas / CanvasText / LinkText / ButtonFace /
+       ButtonBorder / Field) instead of a designed palette — so the skin also
+       follows the OS light/dark mode for free via `color-scheme`.
+     · Times/system serif for text, browser-default monospace for code.
+     · Exposed document structure: headings, lists, tables, rules in source
+       order; links stay underlined and default-blue/visited-purple.
+     · Zero decoration: no shadows, no gradients, no rounded corners; at most
+       1px solid borders on a plain ground.
+
+   Do NOT confuse with Neobrutalism (styles-neobrutal.css): nothing here is
+   styled to LOOK raw. Saturated blocks, thick designed borders and offset
+   shadows would make that a graphic costume; brutalism proper is unstyled.
+
+   Accessibility: text sizes follow UA defaults (never shrunk), links keep their
+   honest underline affordance, and focus uses the browser's own outline ring.
+
+   `--ui-code-well*` stays untouched (hard product rule).
+   =========================================================================== */
+
+:root {
+  /* ── Default materials ── */
+  --raw-ground: Canvas;
+  --raw-ink: CanvasText;
+  --raw-field: Field;
+  --raw-field-ink: FieldText;
+  --raw-button: ButtonFace;
+  --raw-button-ink: ButtonText;
+
+  /* ── Semantic token bindings (light/default; system colors follow OS mode) ── */
+  --ui-bg: var(--raw-ground);
+  --ui-surface: var(--raw-ground);
+  --ui-surface-raised: var(--raw-ground);
+  --ui-surface-sunken: #ececec;
+  --ui-surface-hover: rgba(0, 0, 0, 0.08);
+
+  --ui-text: var(--raw-ink);
+  --ui-text-dim: #2f2f2f;
+  --ui-text-faint: #4f4f4f;
+  --ui-text-on-accent: #ffffff;
+
+  /* The default link blue — the honest affordance, not a brand accent. */
+  --ui-accent: #0000ee;
+  --ui-accent-strong: #0000aa;
+  --ui-accent-soft: rgba(0, 0, 238, 0.1);
+  --ui-accent-fill: #0000ee;
+  --ui-focus-ring: #0000ee;
+
+  --ui-border: ButtonBorder;
+  --ui-border-soft: #767676;
+
+  --ui-success: #006400;
+  --ui-danger: #b00000;
+  --ui-warning: #6b4e00;
+  --ui-info: #0000ee;
+
+  /* Square. Nothing is rounded, nothing is floating. */
+  --ui-radius-sm: 0;
+  --ui-radius-md: 0;
+  --ui-radius-lg: 0;
+  --ui-radius-pill: 0;
+
+  --ui-shadow-sm: none;
+  --ui-shadow-card: none;
+  /* No shadow at all, not even on overlays: a 4px offset here would be exactly
+     neobrutalism's hard shadow (the neighbour this skin must not drift into). */
+  --ui-shadow-modal: none;
+  --ui-shadow-lg: none;
+
+  /* System serif for prose, plain monospace for code. CJK falls back to the
+     period-correct system serif faces so the app stays readable in zh/ja/ko. */
+  --ui-font-sans: "Times New Roman", Times, "Songti SC", SimSun, "Noto Serif CJK SC", "Hiragino Mincho ProN", serif;
+  --ui-font-mono: ui-monospace, "Courier New", Courier, monospace;
+}
+
+/* Dark: system colors already follow `color-scheme: dark` (set by tokens.css),
+   so only the values that are not system-mapped need re-binding. */
+:root[data-appearance="dark"] {
+  --ui-surface-sunken: #1c1c1c;
+  --ui-surface-hover: rgba(255, 255, 255, 0.12);
+  --ui-text-dim: #d6d6d6;
+  --ui-text-faint: #ababab;
+  /* The dark accent is a LIGHT blue, so ink on an accent fill must be dark —
+     white on #9bb8ff measures 2:1. */
+  --ui-text-on-accent: #10131a;
+
+  /* #0000ee is unreadable on black; this is the UA-ish light blue instead. */
+  --ui-accent: #9bb8ff;
+  --ui-accent-strong: #c3d4ff;
+  --ui-accent-soft: rgba(155, 184, 255, 0.16);
+  --ui-accent-fill: #9bb8ff;
+  --ui-focus-ring: #9bb8ff;
+
+  --ui-success: #7bd88f;
+  --ui-danger: #ff9a94;
+  --ui-warning: #e8c76a;
+  --ui-info: #9bb8ff;
+}
+
+/* ===========================================================================
+   Flourishes — restoring what the reset removed, not inventing a style.
+   =========================================================================== */
+
+/* Plain ground, no paint. */
+body,
+.ui-shell {
+  background: var(--raw-ground);
+  background-image: none;
+  font-family: var(--ui-font-sans);
+}
+
+/* Document structure back on the page: rules are rules, tables have cells. */
+hr {
+  border: 0;
+  border-top: 1px solid var(--ui-border);
+}
+
+table {
+  border-collapse: collapse;
+}
+th,
+td {
+  border: 1px solid var(--ui-border-soft);
+  padding: 2px 6px;
+}
+
+/* Headings are browser-sized serif, in source order — not a display system.
+   The class-qualified markdown rules (`ui-css/chat.css:1254`) shrink headings to
+   1.3em, so the UA size has to be reclaimed explicitly. */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+.ui-md h1,
+.ui-md h2,
+.ui-md h3,
+.ui-md h4,
+.ui-md h5,
+.ui-md h6 {
+  font-family: var(--ui-font-sans);
+  font-size: revert;
+  font-weight: bold;
+  margin: 1em 0;
+}
+
+/* Links stay honestly underlined in both states (brief requirement). The
+   markdown rule `.ui-md a` is (0,1,1) and out-ranks bare `a`, so the UA link
+   colours have to be restated at that specificity. */
+a,
+a:visited,
+.ui-md a,
+.ui-md a:visited {
+  text-decoration: underline;
+}
+a,
+.ui-md a {
+  color: LinkText;
+}
+a:visited,
+.ui-md a:visited {
+  color: VisitedText;
+}
+
+/* Buttons/fields go back to UA materials: a real border, real fill, no radius. */
+button,
+.ui-btn {
+  background: var(--raw-button);
+  color: var(--raw-button-ink);
+  border: 1px solid var(--ui-border);
+  border-radius: 0;
+  padding: 2px 6px;
+  font: inherit;
+  box-shadow: none;
+}
+
+input,
+textarea,
+select,
+.ui-prompt {
+  background: var(--raw-field);
+  color: var(--raw-field-ink);
+  border: 1px solid var(--ui-border);
+  border-radius: 0;
+  box-shadow: none;
+}
+
+/* Nothing is decorated: strip designed gradients, glows and offsets from the
+   chrome surfaces (component-internal markers keep their own paint). */
+.ui-card,
+.ui-panel,
+.ui-modal,
+.ui-command,
+.ui-welcome-card,
+.ui-composer-card,
+.ui-side-panel,
+.ui-rail,
+.ui-bubble-row,
+.ui-subwin {
+  background: var(--raw-ground);
+  background-image: none;
+  border: 1px solid var(--ui-border);
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.ui-rail-btn,
+.ui-icon-btn,
+.ui-tab,
+.ui-lang-chip,
+.ui-badge,
+.ui-session-item {
+  border-radius: 0;
+  box-shadow: none;
+}
+
+/* UA-material buttons keep UA ink: a component that paints its label with the
+   accent would measure 2.7 on the system button face. Active state is signalled
+   the browser's own way (inset border + bold), never with a designed fill. */
+.ui-tab,
+.ui-tab.active,
+.ui-icon-btn,
+.ui-rail-btn {
+  color: var(--raw-button-ink);
+  background: var(--raw-button);
+  border: 1px solid var(--ui-border);
+  border-radius: 0;
+}
+.ui-tab.active {
+  border-style: inset;
+  font-weight: bold;
+}
+
+/* Lists in prose keep their markers (source structure stays visible). Defensive:
+   no current rule strips them, but the reset habit is what this skin exists to
+   refuse. */
+.ui-md ul,
+.ui-md ol {
+  list-style: revert;
+  padding-left: 2em;
+}
+
+/* Focus: the browser's own outline, offset so it never collides with a 1px
+   border. No box-shadow ring — brutalism does not draw glows. */
+:focus-visible {
+  outline: 2px solid var(--ui-focus-ring);
+  outline-offset: 1px;
+  box-shadow: none;
+}
+
+::selection {
+  background: Highlight;
+  color: HighlightText;
+}
+
+::-webkit-scrollbar {
+  width: 14px;
+  height: 14px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--raw-button);
+  border: 1px solid var(--ui-border);
+}
+
+/* ===========================================================================
+   State layer + class-qualified fields.
+
+   Cascade facts (verified in ui-css): the base owns hover/active at (0,3,0)
+   (`primitives.css:270-325`), and `.ui-input/.ui-textarea/.ui-select` are
+   class-qualified with a (0,2,0) `:focus` (`primitives.css:561-583`). Bare
+   element rules are not enough — and in brutalism that matters more than usual,
+   because the base hover paints a DESIGNED tint over the UA button face, which
+   is exactly the styling this skin exists to refuse.
+   =========================================================================== */
+
+.ui-btn:hover:not(:disabled) {
+  background: var(--raw-button);
+  color: var(--raw-button-ink);
+}
+.ui-btn:active:not(:disabled) {
+  background: var(--raw-button);
+  color: var(--raw-button-ink);
+  transform: none;
+}
+.ui-btn--primary:hover:not(:disabled) {
+  background: var(--ui-accent-fill);
+  color: var(--ui-text-on-accent);
+  filter: none;
+  transform: none;
+}
+.ui-btn--danger:hover:not(:disabled) {
+  background: var(--ui-danger);
+  color: var(--ui-text-on-accent);
+}
+.ui-btn--ghost:hover:not(:disabled) {
+  background: var(--raw-button);
+  color: var(--raw-button-ink);
+}
+.ui-card:hover {
+  box-shadow: none;
+}
+
+/* Class-qualified fields: UA material, UA size (the bare-element rule above
+   could not restore either). */
+.ui-input,
+.ui-textarea,
+.ui-select {
+  background: var(--raw-field);
+  color: var(--raw-field-ink);
+  border: 1px solid var(--ui-border);
+  border-radius: 0;
+  box-shadow: none;
+  font-size: inherit;
+  padding: 2px 4px;
+}
+.ui-input:focus,
+.ui-textarea:focus,
+.ui-select:focus {
+  border-color: var(--raw-ink);
+  outline: 2px solid var(--ui-focus-ring);
+  outline-offset: 0;
+  box-shadow: none;
+}
+
+/* ── Reduced motion ────────────────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-btn,
+  .ui-card,
+  .ui-panel,
+  .ui-modal,
+  .ui-command {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+/* ===========================================================================
+   Skin coverage — families a skin does not bind by default.
+
+   The editor adopts the UA materials too (Canvas / ButtonFace / GrayText follow
+   `color-scheme`, so both tones are covered with no tone block); folders take the
+   default link blue. Tool and diagram hues are deliberately NOT re-bound:
+   brutalism does not art-direct chart colour, and the browser-adjacent defaults
+   are the honest ramp. `--dot-*` / `--line-fork` likewise stay put — they are
+   status indicators, not decoration.
+   =========================================================================== */
+
+:root {
+  --ui-folder-icon: var(--ui-accent);
+  --ui-folder-fill: color-mix(in srgb, var(--ui-accent) 18%, transparent);
+  --editor-canvas-bg: Canvas;
+  --editor-gutter-bg: ButtonFace;
+  --editor-canvas-num: GrayText;
+}

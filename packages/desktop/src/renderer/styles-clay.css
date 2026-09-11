@@ -1,0 +1,388 @@
+/* ===========================================================================
+   Clay — Claymorphism.
+
+   Defining signals:
+     · The clay recipe on cards and buttons: TWO inner shadows (light at the top,
+       darker at the bottom) plus ONE soft outer drop shadow.
+     · Oversized corner radii (~26px on a 56px control).
+     · Every element independently colored in light pastels, clearly floating
+       above a soft tinted background.
+     · Chunky, friendly type.
+
+   Do NOT confuse with Neumorphism (styles-neumorph.css): clay objects have
+   their OWN color and a visible drop shadow; neumorphism is the background's
+   color with shadows alone implying shape. The twin insets are shared, the
+   material is not.
+
+   Accessibility (brief): ≥4.5:1 text on every pastel fill, pressed/hover states
+   DEEPEN the inner shadows rather than removing them, and focus is a visible
+   ring (not a shadow).
+
+   `--ui-code-well*` stays untouched (hard product rule).
+   =========================================================================== */
+
+:root {
+  /* ── Pastel clay (each surface independently colored) ── */
+  --cl-pink: #ffd9e3;
+  --cl-mint: #cdf3e1;
+  --cl-sky: #d6e8ff;
+  --cl-lilac: #e4dcff;
+  --cl-butter: #fff0c9;
+  --cl-tint: #eef2fb;
+
+  /* Inset pair shared by every clay recipe (light from the top, dark below). */
+  --cl-inset-dark: rgba(90, 110, 160, 0.15);
+  --cl-inset-light: rgba(255, 255, 255, 0.55);
+  /* Outer drops, tone-aware: the hover/press states reuse them, so a dark-tone
+     press does not cast a light-mode blue shadow. */
+  --cl-drop: rgba(90, 110, 160, 0.18);
+  --cl-drop-strong: rgba(90, 110, 160, 0.26);
+
+  /* ── Semantic token bindings (light/default) ── */
+  --ui-bg: var(--cl-tint);
+  --ui-surface: #ffffff;
+  --ui-surface-raised: #ffffff;
+  --ui-surface-sunken: var(--cl-sky);
+  --ui-surface-hover: var(--cl-butter);
+
+  --ui-text: #2c3350;
+  --ui-text-dim: #4c5677;
+  --ui-text-faint: #626d94;
+  --ui-text-on-accent: #ffffff;
+
+  --ui-accent: #5b4bd0;
+  --ui-accent-strong: #4a3bb5;
+  --ui-accent-soft: rgba(91, 75, 208, 0.16);
+  --ui-accent-fill: #5b4bd0;
+  --ui-focus-ring: #4a3bb5;
+
+  --ui-border: rgba(90, 110, 160, 0.22);
+  --ui-border-soft: rgba(90, 110, 160, 0.12);
+
+  --ui-success: #1f7a4d;
+  --ui-danger: #c2334d;
+  --ui-warning: #8a5a00;
+  --ui-info: #3f5fd0;
+
+  /* Oversized, clay-round corners (26px reads right on a 56px control). */
+  --ui-radius-sm: 14px;
+  --ui-radius-md: 18px;
+  --ui-radius-lg: 26px;
+  --ui-radius-pill: 999px;
+
+  /* The recipe: soft outer drop + two inner shadows. `lg` carries the pair too
+     — it is consumed as a card shadow (editor-panel.css:33), and an outer-only
+     value there would drop the material. */
+  --ui-shadow-sm: 0 10px 18px var(--cl-drop), inset 0 -4px 8px var(--cl-inset-dark),
+    inset 0 4px 8px var(--cl-inset-light);
+  --ui-shadow-card: 0 24px 40px var(--cl-drop), inset 0 -8px 16px var(--cl-inset-dark),
+    inset 0 8px 16px var(--cl-inset-light);
+  --ui-shadow-modal: 0 32px 64px var(--cl-drop-strong), inset 0 -10px 22px var(--cl-inset-dark),
+    inset 0 10px 22px var(--cl-inset-light);
+  --ui-shadow-lg: 0 32px 64px var(--cl-drop-strong), inset 0 -10px 22px var(--cl-inset-dark),
+    inset 0 10px 22px var(--cl-inset-light);
+
+  /* Chunky friendly type: rounded-ish stack, heavier weights below. */
+  --ui-font-sans: "Nunito", "Quicksand", "Varela Round", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  --ui-font-mono: ui-monospace, "JetBrains Mono", Menlo, Consolas, monospace;
+}
+
+/* Dark clay: the same recipe on a deep tinted ground. The inset pair flips to a
+   whisper of white over black so the material still reads as pressed clay. */
+:root[data-appearance="dark"] {
+  --cl-tint: #232842;
+  /* The pastels must flip too: an object keeps its own color in dark clay, but
+     a LIGHT pastel under light ink measured 1:1. These are the dark-clay
+     equivalents of pink/mint/sky/lilac/butter. */
+  --cl-pink: #4a2b39;
+  --cl-mint: #24463c;
+  --cl-sky: #26364f;
+  --cl-lilac: #3a3358;
+  --cl-butter: #4a4028;
+  --cl-inset-dark: rgba(0, 0, 0, 0.45);
+  --cl-inset-light: rgba(255, 255, 255, 0.07);
+  --cl-drop: rgba(0, 0, 0, 0.34);
+  --cl-drop-strong: rgba(0, 0, 0, 0.5);
+
+  --ui-bg: var(--cl-tint);
+  --ui-surface: #2b3152;
+  --ui-surface-raised: #2b3152;
+  --ui-surface-sunken: #1c2036;
+  --ui-surface-hover: #353c62;
+
+  --ui-text: #eaeefb;
+  --ui-text-dim: #b3bcdc;
+  --ui-text-faint: #98a1c6;
+  --ui-text-on-accent: #12142a;
+
+  --ui-accent: #a79bff;
+  --ui-accent-strong: #c0b6ff;
+  --ui-accent-soft: rgba(167, 155, 255, 0.2);
+  --ui-accent-fill: #a79bff;
+  --ui-focus-ring: #c0b6ff;
+
+  --ui-border: rgba(255, 255, 255, 0.14);
+  --ui-border-soft: rgba(255, 255, 255, 0.08);
+
+  --ui-success: #66d9a0;
+  --ui-danger: #ff9aac;
+  --ui-warning: #ffd166;
+  --ui-info: #a3b8ff;
+
+  --ui-shadow-sm: 0 10px 18px var(--cl-drop), inset 0 -4px 8px var(--cl-inset-dark),
+    inset 0 4px 8px var(--cl-inset-light);
+  --ui-shadow-card: 0 24px 40px var(--cl-drop), inset 0 -8px 16px var(--cl-inset-dark),
+    inset 0 8px 16px var(--cl-inset-light);
+  --ui-shadow-modal: 0 32px 64px var(--cl-drop-strong), inset 0 -10px 22px var(--cl-inset-dark),
+    inset 0 10px 22px var(--cl-inset-light);
+  --ui-shadow-lg: 0 32px 64px var(--cl-drop-strong), inset 0 -10px 22px var(--cl-inset-dark),
+    inset 0 10px 22px var(--cl-inset-light);
+}
+
+/* ===========================================================================
+   Flourishes — independently colored clay objects floating on a tinted ground.
+   =========================================================================== */
+
+body,
+.ui-shell {
+  background: var(--ui-bg);
+  background-image: none;
+}
+
+.ui-card,
+.ui-panel,
+.ui-welcome-card,
+.ui-composer-card,
+.ui-side-panel,
+.ui-subwin,
+.ui-modal,
+.ui-command {
+  border: none;
+  border-radius: var(--ui-radius-lg);
+  box-shadow: var(--ui-shadow-card);
+}
+
+.ui-btn {
+  border: none;
+  border-radius: var(--ui-radius-md);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  box-shadow: var(--ui-shadow-sm);
+}
+
+/* Independent pastel per object — the collection reads as a tray of clay. Cards
+   and panels rotate too: "each element independently colored" is also what makes
+   the twin insets visible at all (a white inset on a white card is invisible). */
+.ui-card,
+.ui-panel {
+  color: var(--ui-text);
+}
+.ui-card:not(.ui-card--warn):nth-child(4n + 1),
+.ui-panel:nth-child(4n + 1) {
+  background: var(--cl-pink);
+}
+.ui-card:not(.ui-card--warn):nth-child(4n + 2),
+.ui-panel:nth-child(4n + 2) {
+  background: var(--cl-mint);
+}
+.ui-card:not(.ui-card--warn):nth-child(4n + 3),
+.ui-panel:nth-child(4n + 3) {
+  background: var(--cl-sky);
+}
+.ui-card:not(.ui-card--warn):nth-child(4n + 4),
+.ui-panel:nth-child(4n + 4) {
+  background: var(--cl-lilac);
+}
+.ui-welcome-card {
+  background: var(--cl-butter);
+}
+.ui-side-panel {
+  background: var(--cl-lilac);
+}
+.ui-side-panel-head {
+  background: var(--cl-butter);
+}
+.ui-composer-card {
+  background: var(--cl-mint);
+}
+.ui-rail {
+  background: var(--cl-sky);
+}
+
+/* ===========================================================================
+   State layer + class-qualified fields.
+
+   The base owns hover/active at (0,3,0) (`primitives.css:270-325`) and the
+   fields are class-qualified with a (0,2,0) `:focus` (`primitives.css:561-583`).
+   Per the brief the states DEEPEN the inner shadows — the clay is squeezed,
+   never flattened — so the material survives the interaction.
+   =========================================================================== */
+
+.ui-btn:hover:not(:disabled) {
+  box-shadow:
+    0 12px 22px var(--cl-drop),
+    inset 0 -6px 12px var(--cl-inset-dark),
+    inset 0 6px 12px var(--cl-inset-light);
+}
+.ui-btn:active:not(:disabled) {
+  box-shadow:
+    0 6px 12px var(--cl-drop),
+    inset 0 -10px 18px var(--cl-inset-dark),
+    inset 0 10px 18px var(--cl-inset-light);
+  transform: none;
+}
+.ui-card:hover,
+.ui-panel:hover {
+  box-shadow: 0 28px 46px var(--cl-drop-strong), inset 0 -10px 20px var(--cl-inset-dark),
+    inset 0 10px 20px var(--cl-inset-light);
+}
+.ui-btn--primary:hover:not(:disabled) {
+  background: var(--ui-accent-strong);
+  color: var(--ui-text-on-accent);
+  filter: none;
+  transform: none;
+}
+.ui-btn--danger:hover:not(:disabled) {
+  background: var(--ui-danger);
+  color: var(--ui-text-on-accent);
+}
+
+.ui-btn--primary {
+  background: var(--ui-accent-fill);
+  color: var(--ui-text-on-accent);
+}
+
+.ui-prompt,
+.ui-input,
+.ui-textarea,
+.ui-select,
+input:not([type="checkbox"]):not([type="radio"]),
+textarea,
+select {
+  border: none;
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-surface);
+  color: var(--ui-text);
+  box-shadow:
+    inset 0 -5px 10px var(--cl-inset-dark),
+    inset 0 5px 10px var(--cl-inset-light);
+}
+.ui-input:focus,
+.ui-textarea:focus,
+.ui-select:focus {
+  outline: 3px solid var(--ui-focus-ring);
+  outline-offset: 2px;
+  box-shadow:
+    inset 0 -5px 10px var(--cl-inset-dark),
+    inset 0 5px 10px var(--cl-inset-light);
+}
+
+/* Selected states stay clay: an inset well plus the accent as text. */
+.ui-rail-btn.active,
+.ui-tab.active,
+.ui-session-item.active,
+.ui-lang-chip.active {
+  border-radius: var(--ui-radius-md);
+  color: var(--ui-accent);
+  box-shadow:
+    inset 0 -6px 12px var(--cl-inset-dark),
+    inset 0 6px 12px var(--cl-inset-light);
+}
+.ui-lang-chip.active {
+  background: var(--ui-accent-fill);
+  color: var(--ui-text-on-accent);
+}
+
+.ui-side-panel-head,
+.ui-settings-section-title {
+  font-weight: 800;
+  letter-spacing: 0.01em;
+}
+
+.ui-md h1,
+.ui-md h2,
+.ui-md h3,
+.ui-welcome-card h1,
+.ui-welcome-card h2 {
+  font-weight: 800;
+}
+
+.ui-badge,
+.ui-session-item {
+  border-radius: var(--ui-radius-pill);
+}
+
+/* Focus: a real ring on top of the clay, not another shadow. */
+:focus-visible {
+  outline: 3px solid var(--ui-focus-ring);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: var(--ui-accent-soft);
+}
+
+::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--ui-surface-sunken);
+  border-radius: 999px;
+  box-shadow: inset 0 -3px 6px var(--cl-inset-dark), inset 0 3px 6px var(--cl-inset-light);
+}
+
+/* ── Reduced motion ────────────────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-btn,
+  .ui-card,
+  .ui-panel,
+  .ui-modal,
+  .ui-command,
+  .ui-welcome-card,
+  .ui-composer-card {
+    transition: none !important;
+  }
+}
+
+/* ===========================================================================
+   Skin coverage — families a skin does not bind by default.
+
+   Without these the CodeMirror canvas, folder affordances, per-tool hues
+   and Mermaid/knowledge-graph ramps kept the app defaults inside this skin.
+   Tool/diagram hues are DERIVED from this skin' accent with color-mix, so
+   they follow both the palette and the tone (the tone blocks rebind
+   `--ui-accent`), inside the accent' contrast-safe lightness band.
+   `--dot-*` / `--line-fork` are deliberately NOT re-bound (status
+   indicators, not decoration).
+   =========================================================================== */
+
+:root {
+  --ui-folder-icon: var(--ui-accent);
+  --ui-folder-fill: color-mix(in srgb, var(--ui-accent) 18%, transparent);
+  --editor-canvas-bg: #f2f5fd;
+  --editor-gutter-bg: #e8eefb;
+  --editor-canvas-num: #6f7a9c;
+
+  --ui-tool-hue-think: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 68%, #b45309) 70%, var(--ui-text) 30%);
+  --ui-tool-hue-amber: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 68%, #a16207) 70%, var(--ui-text) 30%);
+  --ui-tool-hue-purple: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 68%, #7c3aed) 70%, var(--ui-text) 30%);
+  --ui-tool-hue-indigo: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 68%, #4f46e5) 70%, var(--ui-text) 30%);
+  --ui-tool-hue-sky: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 68%, #0369a1) 70%, var(--ui-text) 30%);
+  --ui-tool-hue-teal: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 68%, #0f766e) 70%, var(--ui-text) 30%);
+  --ui-diagram-hue-0: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 45%, #2563eb) 80%, var(--ui-text) 20%);
+  --ui-diagram-hue-1: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 45%, #7c3aed) 80%, var(--ui-text) 20%);
+  --ui-diagram-hue-2: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 45%, #0d9488) 80%, var(--ui-text) 20%);
+  --ui-diagram-hue-3: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 45%, #d97706) 80%, var(--ui-text) 20%);
+  --ui-diagram-hue-4: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 45%, #e11d48) 80%, var(--ui-text) 20%);
+  --ui-diagram-hue-5: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 45%, #0891b2) 80%, var(--ui-text) 20%);
+  --ui-diagram-hue-6: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 45%, #4f46e5) 80%, var(--ui-text) 20%);
+  --ui-diagram-hue-7: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 45%, #65a30d) 80%, var(--ui-text) 20%);
+}
+
+:root[data-appearance="dark"] {
+  --editor-canvas-bg: #232842;
+  --editor-gutter-bg: #1e2338;
+  --editor-canvas-num: #8d97bd;
+}

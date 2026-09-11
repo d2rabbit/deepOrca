@@ -17,7 +17,32 @@ export type ReasoningMode = "normal" | "expanded" | "hidden";
 // blending Win8 tile colors with Win11 glassy breath. The user's explicit
 // choice is persisted and wins over the platform default. Orca is the
 // dark-only Cyber HUD theme derived from the official site, offered everywhere.
-export type Theme = "aqua" | "metro" | "glass" | "fusion" | "line" | "orca";
+//
+// STYLE_SKINS (below) are the platform-agnostic looks — one CSS file per style
+// family, each binding the same ~28 core tokens and adding its own flourishes:
+//   neumorph   Soft UI — one matte material, dual soft shadows, inset fields
+//   raw        Web Brutalism — browser/UA defaults ARE the design; no styling
+//   neobrutal  Neobrutalism — 2-3px black borders + hard offset shadows + flats
+//   minimal    Minimalism — near-monochrome, one accent, generous negative space
+//   clay       Claymorphism — pastel clay: twin insets + soft outer drop
+//   geocities  Vernacular Web — sincere 90s personal homepage (starry, beveled)
+//   y2k        Y2K — liquid chrome, gel buttons, iridescent techno type
+//   skeuo      Skeuomorphism — nameable materials (paper, leather) + stitching
+export type Theme =
+  | "aqua"
+  | "metro"
+  | "glass"
+  | "fusion"
+  | "line"
+  | "orca"
+  | "neumorph"
+  | "raw"
+  | "neobrutal"
+  | "minimal"
+  | "clay"
+  | "geocities"
+  | "y2k"
+  | "skeuo";
 
 // The Line theme ships two flavours: the original "stroke" drafting look and a
 // cyberpunk 2077-inspired "punk" recolor, toggled via `data-line-variant`.
@@ -38,12 +63,23 @@ const THEME_STYLESHEETS: Record<Theme, string> = {
   fusion: "./styles-fusion.css",
   line: "./styles-line.css",
   orca: "./styles-orca.css",
+  neumorph: "./styles-neumorph.css",
+  raw: "./styles-raw.css",
+  neobrutal: "./styles-neobrutal.css",
+  minimal: "./styles-minimal.css",
+  clay: "./styles-clay.css",
+  geocities: "./styles-geocities.css",
+  y2k: "./styles-y2k.css",
+  skeuo: "./styles-skeuo.css",
 };
 
 /** The stylesheet href that binds `--ui-*` tokens for a theme. */
 export function themeStylesheet(theme: Theme): string {
   return THEME_STYLESHEETS[theme];
 }
+
+/** Every registered theme id (the registry is the single source of truth). */
+export const THEME_IDS = Object.keys(THEME_STYLESHEETS) as Theme[];
 
 /** The default theme (before any persisted user override): Line everywhere. */
 export function defaultTheme(_platform: string): Theme {
@@ -55,28 +91,27 @@ export function baseTheme(platform: string): Theme {
   return platform === "win32" ? "metro" : "aqua";
 }
 
+/** Platform-agnostic style skins, offered everywhere. Order = chip order. */
+const STYLE_SKINS: readonly Theme[] = ["neumorph", "raw", "neobrutal", "minimal", "clay", "geocities", "y2k", "skeuo"];
+
 /**
  * The themes offered to a platform in the settings panel. Themes are
  * platform-scoped — Windows exposes Metro + Fusion, macOS exposes Aqua + Glass,
- * Linux only Glass. Defaults are NOT changed by this map.
+ * Linux only Glass. The style skins are look-alikes with no platform tie, so
+ * they are appended for every platform. Defaults are NOT changed by this map.
  */
 export function availableThemes(platform: string): Theme[] {
-  if (platform === "win32") return ["line", "orca", "metro", "fusion"];
-  if (platform === "darwin") return ["line", "orca", "aqua", "glass"];
-  return ["line", "orca", "glass"];
+  if (platform === "win32") return ["line", "orca", "metro", "fusion", ...STYLE_SKINS];
+  if (platform === "darwin") return ["line", "orca", "aqua", "glass", ...STYLE_SKINS];
+  return ["line", "orca", "glass", ...STYLE_SKINS];
 }
 
 export function getStoredTheme(): Theme | null {
   try {
     const stored = localStorage.getItem(THEME_KEY);
-    return stored === "aqua" ||
-      stored === "metro" ||
-      stored === "glass" ||
-      stored === "fusion" ||
-      stored === "line" ||
-      stored === "orca"
-      ? stored
-      : null;
+    // Membership in the registry, not a hand-kept OR-chain: adding a skin must
+    // never require remembering this function too.
+    return stored && Object.prototype.hasOwnProperty.call(THEME_STYLESHEETS, stored) ? (stored as Theme) : null;
   } catch {
     return null;
   }
@@ -130,11 +165,20 @@ export function setLineVariant(variant: LineVariant): void {
   }
 }
 
-/** The native tone for a platform's default stylesheet.
- *  Glass (Prism) and Line are dark-first; Orca is dark-ONLY (it ships no
- *  light palette at all — the appearance toggle is hidden while active). */
+/** Skins whose own palette reads dark, so the toggle starts there. */
+const DARK_FIRST_THEMES: readonly Theme[] = ["glass", "line", "orca", "geocities", "y2k"];
+
+/** Skins whose own palette reads light (their dark variant is the opt-in). */
+const LIGHT_FIRST_THEMES: readonly Theme[] = ["neumorph", "raw", "neobrutal", "minimal", "clay", "skeuo"];
+
+/** The native tone for a platform's default stylesheet: the theme's own
+ *  baseline tone when it has one (Line/Glass/orca are dark; the light-first
+ *  style skins bind their light palette on :root), else the platform default.
+ *  Every registered theme ships both tones, so this only picks the starting
+ *  point — the toggle stays usable. */
 export function defaultAppearance(platform: string, theme?: Theme): Appearance {
-  if (theme === "glass" || theme === "line" || theme === "orca") return "dark";
+  if (theme && DARK_FIRST_THEMES.includes(theme)) return "dark";
+  if (theme && LIGHT_FIRST_THEMES.includes(theme)) return "light";
   return platform === "win32" ? "dark" : "light";
 }
 

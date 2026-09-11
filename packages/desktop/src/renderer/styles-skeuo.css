@@ -1,0 +1,413 @@
+/* ===========================================================================
+   Skeuo — Skeuomorphism.
+
+   Defining signals:
+     · Controls rendered as simulated PHYSICAL MATERIALS — cream paper, tan
+       leather, brushed aluminium — with visible texture.
+     · A consistent lighting model: gloss highlights on raised elements, inner
+       shadows on recessed fields, everywhere.
+     · Real-object metaphors for whole surfaces: prose is drawn as a ruled
+       notepad with a red margin line.
+     · Crafted details: stitched seams, embossed text.
+
+   Do NOT confuse with Neumorphism (styles-neumorph.css): skeuomorphic surfaces
+   imitate nameable materials; neumorphism is one uniform soft-extruded surface
+   with no material identity at all.
+
+   Materials stay LIGHT (cream paper, tan leather, silver metal) on purpose: the
+   brief requires readable text on textured backgrounds, and inherited dark ink
+   keeps passing on light material without overriding every component's colour.
+   The material identity comes from texture, bevel and stitching — not from
+   flooding panels with dark brown.
+
+   `--ui-code-well*` stays untouched (hard product rule).
+   =========================================================================== */
+
+:root {
+  /* ── Materials ── */
+  --sk-paper: #f5efe1;
+  --sk-paper-bright: #fffdf7;
+  --sk-leather: #6f4e2e;
+  --sk-leather-light: #d9c7a6;
+  --sk-metal: #d7d7d2;
+  --sk-ink: #3b2f22;
+
+  /* The lighting model, shared by every surface. */
+  --sk-gloss: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  --sk-recess: inset 0 2px 4px rgba(60, 45, 25, 0.28), inset 0 -1px 0 rgba(255, 255, 255, 0.6);
+  /* Contact shadow under a raised object — tone-aware so the hover state does
+     not cast a warm daylight shadow on the night desk. */
+  --sk-contact: rgba(60, 45, 25, 0.32);
+
+  /* ── Semantic token bindings (light/default) ── */
+  --ui-bg: var(--sk-paper);
+  --ui-surface: var(--sk-paper-bright);
+  --ui-surface-raised: var(--sk-paper-bright);
+  --ui-surface-sunken: #e7dcc6;
+  --ui-surface-hover: rgba(111, 78, 46, 0.09);
+
+  --ui-text: var(--sk-ink);
+  --ui-text-dim: #6b5b47;
+  --ui-text-faint: #78694d;
+  --ui-text-on-accent: #ffffff;
+
+  --ui-accent: var(--sk-leather);
+  --ui-accent-strong: #573b21;
+  --ui-accent-soft: rgba(111, 78, 46, 0.14);
+  --ui-accent-fill: var(--sk-leather);
+  --ui-focus-ring: #573b21;
+
+  /* Paper edges, not hairlines from a flat design system. */
+  --ui-border: #c9b995;
+  --ui-border-soft: #ded2b4;
+
+  --ui-success: #2c6b3f;
+  --ui-danger: #9e2b22;
+  --ui-warning: #6b4a00;
+  --ui-info: #2a4a8f;
+
+  --ui-radius-sm: 6px;
+  --ui-radius-md: 9px;
+  --ui-radius-lg: 12px;
+  --ui-radius-pill: 999px;
+
+  /* Raised objects: gloss on top, contact shadow below. */
+  --ui-shadow-sm: var(--sk-gloss), 0 1px 2px rgba(60, 45, 25, 0.3);
+  --ui-shadow-card: var(--sk-gloss), 0 2px 6px rgba(60, 45, 25, 0.22), 0 12px 28px rgba(60, 45, 25, 0.18);
+  --ui-shadow-modal: 0 24px 60px rgba(40, 28, 12, 0.45);
+  --ui-shadow-lg: 0 24px 60px rgba(40, 28, 12, 0.45);
+
+  --ui-font-sans: "Segoe UI", -apple-system, BlinkMacSystemFont, "Helvetica Neue", "PingFang SC", "Microsoft YaHei",
+    sans-serif;
+  --ui-font-mono: "Courier New", ui-monospace, Menlo, Consolas, monospace;
+}
+
+/* Dark leather: the same lighting model on a night desk. The materials stay
+   nameable (dark hide + slate paper) and the beams stay consistent. */
+:root[data-appearance="dark"] {
+  --sk-paper: #241d16;
+  --sk-paper-bright: #2e261d;
+  --sk-ink: #efe4d2;
+  --sk-gloss: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  --sk-recess: inset 0 2px 4px rgba(0, 0, 0, 0.5), inset 0 -1px 0 rgba(255, 255, 255, 0.07);
+  --sk-contact: rgba(0, 0, 0, 0.5);
+
+  --ui-bg: var(--sk-paper);
+  --ui-surface: var(--sk-paper-bright);
+  --ui-surface-raised: #382e23;
+  --ui-surface-sunken: #1b1510;
+  --ui-surface-hover: rgba(217, 199, 166, 0.12);
+
+  --ui-text: var(--sk-ink);
+  --ui-text-dim: #c2b39a;
+  --ui-text-faint: #ab9c84;
+  --ui-text-on-accent: #1b1510;
+
+  --ui-accent: #d9b98a;
+  --ui-accent-strong: #efd6ae;
+  --ui-accent-soft: rgba(217, 185, 138, 0.18);
+  --ui-accent-fill: #d9b98a;
+  --ui-focus-ring: #efd6ae;
+
+  --ui-border: #514232;
+  --ui-border-soft: #3f3428;
+
+  --ui-success: #7fc79a;
+  --ui-danger: #ef9a90;
+  --ui-warning: #e0be76;
+  --ui-info: #a8bdf0;
+
+  --ui-shadow-sm: var(--sk-gloss), 0 1px 2px rgba(0, 0, 0, 0.5);
+  --ui-shadow-card: var(--sk-gloss), 0 2px 6px rgba(0, 0, 0, 0.45), 0 12px 28px rgba(0, 0, 0, 0.4);
+  --ui-shadow-modal: 0 24px 60px rgba(0, 0, 0, 0.7);
+  --ui-shadow-lg: 0 24px 60px rgba(0, 0, 0, 0.7);
+}
+
+/* ===========================================================================
+   Flourishes — textures, bevels, stitching, embossing.
+   =========================================================================== */
+
+/* Paper grain: a fine two-axis weave at very low alpha (no image files). */
+body,
+.ui-shell {
+  background-color: var(--ui-bg);
+  background-image:
+    repeating-linear-gradient(0deg, rgba(120, 95, 60, 0.045) 0 1px, transparent 1px 3px),
+    repeating-linear-gradient(90deg, rgba(120, 95, 60, 0.035) 0 1px, transparent 1px 4px),
+    radial-gradient(ellipse 120% 80% at 50% 0%, rgba(255, 255, 255, 0.5), transparent 70%);
+}
+
+/* Dark desk: the grain has to flip to a light weave or the material disappears
+   and the skin collapses to "dark cards". */
+:root[data-appearance="dark"] body,
+:root[data-appearance="dark"] .ui-shell {
+  background-image:
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.035) 0 1px, transparent 1px 3px),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.028) 0 1px, transparent 1px 4px),
+    radial-gradient(ellipse 120% 80% at 50% 0%, rgba(255, 255, 255, 0.06), transparent 70%);
+}
+
+/* Raised paper cards with a stitched seam. NOTE: `.ui-subwin` is deliberately
+   NOT in this group — the component floats it with `position: absolute`
+   (activity-rail.css:592) and a `position: relative` here flattened the
+   sub-window stack into the page flow. */
+.ui-card,
+.ui-panel,
+.ui-welcome-card,
+.ui-composer-card,
+.ui-modal,
+.ui-command {
+  position: relative;
+  background-color: var(--ui-surface);
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0) 42%);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-lg);
+  box-shadow: var(--ui-shadow-card);
+}
+
+.ui-card::after,
+.ui-panel::after,
+.ui-subwin::after {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  pointer-events: none;
+  border: 1px dashed rgba(140, 110, 70, 0.45);
+  border-radius: calc(var(--ui-radius-lg) - 3px);
+}
+
+/* Leather binding down the panel edge — the material stays light so the ink on
+   it keeps its contrast. */
+.ui-side-panel {
+  border-left: 6px solid var(--sk-leather);
+  background-image:
+    repeating-linear-gradient(115deg, rgba(111, 78, 46, 0.05) 0 2px, transparent 2px 5px),
+    repeating-linear-gradient(65deg, rgba(111, 78, 46, 0.05) 0 2px, transparent 2px 5px);
+}
+
+/* Panel headers: a leather spine with a stitched top edge. Only the side-panel
+   head is leather — the settings title below is brushed metal, and keeping both
+   selectors in one group made the leather half of it dead code. */
+.ui-side-panel-head {
+  background-color: var(--sk-leather-light);
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.5), rgba(111, 78, 46, 0.08));
+  border-bottom: 1px solid #b8a482;
+  border-top: 1px dashed rgba(90, 65, 35, 0.5);
+  box-shadow: var(--sk-gloss);
+  color: #4a361f;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+/* Brushed aluminium strip — fine horizontal grain. */
+.ui-settings-section-title {
+  background-color: var(--sk-metal);
+  background-image: repeating-linear-gradient(0deg, rgba(90, 90, 85, 0.09) 0 1px, transparent 1px 2px);
+  color: #35322c;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+/* Gel/gloss buttons: raised, lit from above. */
+.ui-btn {
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-md);
+  background-color: var(--ui-surface-raised);
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0) 46%);
+  box-shadow: var(--sk-gloss), 0 1px 2px rgba(60, 45, 25, 0.3);
+  font-weight: 600;
+}
+.ui-btn:active {
+  background-image: none;
+  box-shadow: var(--sk-recess);
+}
+.ui-btn--primary {
+  background-color: var(--ui-accent-fill);
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.3), rgba(0, 0, 0, 0.06));
+  color: var(--ui-text-on-accent);
+  border-color: var(--ui-accent-strong);
+}
+
+/* Recessed fields: the light comes from above, so the top edge goes dark. */
+.ui-prompt,
+input:not([type="checkbox"]):not([type="radio"]),
+textarea,
+select {
+  background-color: var(--ui-surface-raised);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-sm);
+  box-shadow: var(--sk-recess);
+}
+.ui-prompt:focus,
+input:focus,
+textarea:focus,
+select:focus {
+  box-shadow: var(--sk-recess);
+}
+
+/* The notepad metaphor: prose is ruled paper with a red margin line. The stripe
+   period matches the line-height so the rules track the text. */
+.ui-md p {
+  line-height: 28px;
+  padding-left: 14px;
+  border-left: 1px solid rgba(190, 60, 50, 0.35);
+  background-image: repeating-linear-gradient(
+    180deg,
+    transparent 0 27px,
+    rgba(90, 120, 180, 0.22) 27px 28px
+  );
+}
+
+/* Embossed headings — pressed into the paper. */
+.ui-md h1,
+.ui-md h2,
+.ui-md h3,
+.ui-welcome-card h1,
+.ui-welcome-card h2 {
+  font-family: Georgia, "Times New Roman", "Songti SC", SimSun, serif;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.75), 0 -1px 0 rgba(0, 0, 0, 0.12);
+}
+
+.ui-badge,
+.ui-session-tokens-badge {
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-pill);
+  box-shadow: var(--sk-gloss);
+  font-weight: 700;
+}
+
+.ui-status-dot {
+  box-shadow: var(--sk-gloss), 0 0 4px currentColor;
+}
+
+/* Focus: an explicit ring above the material (never a shadow-only cue). */
+:focus-visible {
+  outline: 2px solid var(--ui-focus-ring);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: rgba(111, 78, 46, 0.22);
+}
+
+::-webkit-scrollbar {
+  width: 14px;
+  height: 14px;
+}
+::-webkit-scrollbar-track {
+  background: var(--ui-surface-sunken);
+  box-shadow: var(--sk-recess);
+}
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, var(--sk-leather-light), var(--sk-leather));
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-sm);
+}
+
+/* ===========================================================================
+   State layer + class-qualified fields.
+
+   The base owns hover/active at (0,3,0) (`primitives.css:270-325`), and it
+   replaces `background` — which wipes a gradient. Without restating the gloss
+   per state the lighting model broke exactly where the brief says it must hold
+   (raised stays lit, recessed stays pressed), and the settings fields never
+   picked up the recess at all (`primitives.css:561-583` is class-qualified).
+   =========================================================================== */
+
+.ui-btn:hover:not(:disabled) {
+  background-color: var(--ui-surface-raised);
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.05) 46%);
+  box-shadow: var(--sk-gloss), 0 2px 5px var(--sk-contact);
+  color: var(--ui-text);
+}
+.ui-btn:active:not(:disabled) {
+  background-image: none;
+  box-shadow: var(--sk-recess);
+  transform: none;
+}
+.ui-btn--primary:hover:not(:disabled) {
+  background-color: var(--ui-accent-strong);
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.34), rgba(0, 0, 0, 0.06));
+  color: var(--ui-text-on-accent);
+  filter: none;
+  transform: none;
+}
+.ui-btn--danger:hover:not(:disabled) {
+  background-color: var(--ui-danger);
+  background-image: none;
+  color: var(--ui-text-on-accent);
+}
+.ui-card:hover,
+.ui-panel:hover {
+  box-shadow: var(--ui-shadow-card);
+}
+
+.ui-input,
+.ui-textarea,
+.ui-select {
+  background: var(--ui-surface-raised);
+  color: var(--ui-text);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-sm);
+  box-shadow: var(--sk-recess);
+}
+.ui-input:focus,
+.ui-textarea:focus,
+.ui-select:focus {
+  outline: 2px solid var(--ui-focus-ring);
+  outline-offset: 2px;
+  box-shadow: var(--sk-recess);
+}
+
+/* ── Reduced motion ────────────────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-btn,
+  .ui-card,
+  .ui-panel,
+  .ui-modal,
+  .ui-command,
+  .ui-side-panel {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+/* ===========================================================================
+   Skin coverage — families a skin does not bind by default.
+
+   Without these the CodeMirror canvas, folder affordances, per-tool hues and
+   Mermaid/knowledge-graph ramps kept the app defaults inside this skin.
+   Tool/diagram hues are DERIVED from this skin' accent with color-mix, so they
+   follow both the palette and the tone, inside the accent' contrast-safe
+   lightness band. `--dot-*` / `--line-fork` are deliberately NOT re-bound
+   (semantic status indicators, not decoration).
+   =========================================================================== */
+
+:root {
+  --ui-folder-icon: var(--ui-accent);
+  --ui-folder-fill: color-mix(in srgb, var(--ui-accent) 18%, transparent);
+  --editor-canvas-bg: #fffdf7;
+  --editor-gutter-bg: #ece1c9;
+  --editor-canvas-num: #857659;
+
+  --ui-tool-hue-think: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 68%, #b45309) 70%, var(--ui-text) 30%);
+  --ui-tool-hue-amber: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 68%, #a16207) 70%, var(--ui-text) 30%);
+  --ui-tool-hue-purple: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 68%, #7c3aed) 70%, var(--ui-text) 30%);
+  --ui-tool-hue-indigo: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 68%, #4f46e5) 70%, var(--ui-text) 30%);
+  --ui-tool-hue-sky: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 68%, #0369a1) 70%, var(--ui-text) 30%);
+  --ui-tool-hue-teal: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 68%, #0f766e) 70%, var(--ui-text) 30%);
+  --ui-diagram-hue-0: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 45%, #2563eb) 80%, var(--ui-text) 20%);
+  --ui-diagram-hue-1: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 45%, #7c3aed) 80%, var(--ui-text) 20%);
+  --ui-diagram-hue-2: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 45%, #0d9488) 80%, var(--ui-text) 20%);
+  --ui-diagram-hue-3: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 45%, #d97706) 80%, var(--ui-text) 20%);
+  --ui-diagram-hue-4: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 45%, #e11d48) 80%, var(--ui-text) 20%);
+  --ui-diagram-hue-5: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 45%, #0891b2) 80%, var(--ui-text) 20%);
+  --ui-diagram-hue-6: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 45%, #4f46e5) 80%, var(--ui-text) 20%);
+  --ui-diagram-hue-7: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 45%, #65a30d) 80%, var(--ui-text) 20%);
+}
+
+:root[data-appearance="dark"] {
+  --editor-canvas-bg: #2e261d;
+  --editor-gutter-bg: #241d16;
+  --editor-canvas-num: #9c8d76;
+}

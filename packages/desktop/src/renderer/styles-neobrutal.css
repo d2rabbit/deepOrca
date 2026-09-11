@@ -1,0 +1,386 @@
+/* ===========================================================================
+   Neobrutal — Neobrutalism.
+
+   Defining signals:
+     · A uniform 2-3px solid ink border on every element.
+     · Hard offset shadows: solid ink, displaced down-right, ZERO blur.
+     · Flat saturated color blocks on a cream ground, no gradients.
+     · Bold chunky display type for headings.
+     · Active states translate the element INTO its shadow (the press lands).
+
+   Do NOT confuse with Web Brutalism (styles-raw.css): this look is HEAVILY
+   styled. Stripping the borders, shadows and saturated color in favour of
+   browser defaults would make it brutalist proper; the costume is the point.
+
+   ACCENT CONTRACT (learned the hard way): `--ui-accent` is used BOTH as a text
+   color across the app AND as a background fill under `--ui-text-on-accent`, so
+   it has to pass ≥4.5:1 in both roles. Yellow/lime can never do that — they are
+   therefore SURFACE blocks (`--ui-surface-sunken`/`-hover` and the per-card
+   rotation below), where black text passes comfortably, and the accent is the
+   mid-dark blue.
+
+   Accessibility (brief): every colored block carries ≥4.5:1 text; focus is a
+   DASHED blue ring so it is never mistaken for the decorative solid ink border;
+   the press transform is reduced-motion guarded.
+
+   `--ui-code-well*` stays untouched (hard product rule).
+   =========================================================================== */
+
+:root {
+  /* ── Flat saturated blocks on cream ── */
+  --nb-cream: #fdf6e3;
+  --nb-yellow: #ffd93d;
+  --nb-pink: #ff5c8a;
+  --nb-lime: #b8f35a;
+  --nb-blue: #4d8bff;
+  --nb-ink: #000000;
+  /* Text that sits ON a saturated flat — always black, in both tones, because
+     the flats themselves never change tone (all four pass with black). */
+  --nb-on-flat: #000000;
+  /* Ink for the danger fill: white on the light red (light tone) vs black on
+     the light pink (dark tone) — a fixed white would measure 2.2 in dark. */
+  --nb-danger-ink: #ffffff;
+
+  /* ── Semantic token bindings (light/default) ── */
+  --ui-bg: var(--nb-cream);
+  --ui-surface: #ffffff;
+  --ui-surface-raised: #ffffff;
+  --ui-surface-sunken: var(--nb-lime);
+  --ui-surface-hover: var(--nb-yellow);
+
+  --ui-text: var(--nb-ink);
+  --ui-text-dim: #2b2b2b;
+  --ui-text-faint: #4a4a4a;
+  --ui-text-on-accent: #ffffff;
+
+  --ui-accent: #2b5fd9;
+  --ui-accent-strong: #1f47a8;
+  --ui-accent-soft: rgba(43, 95, 217, 0.28);
+  --ui-accent-fill: #2b5fd9;
+  /* Blue ring: distinct from every decorative ink border. */
+  --ui-focus-ring: var(--nb-blue);
+
+  --ui-border: var(--nb-ink);
+  --ui-border-soft: var(--nb-ink);
+
+  /* Dark-on-cream semantics, each ≥4.5:1 as TEXT and dark enough to carry
+     white text when used as a fill. */
+  --ui-success: #157f3c;
+  --ui-danger: #c81e3c;
+  --ui-warning: #7a5200;
+  --ui-info: #2b5fd9;
+
+  /* Stark edges (a 2px radius keeps it off brutalism's square corners). */
+  --ui-radius-sm: 2px;
+  --ui-radius-md: 3px;
+  --ui-radius-lg: 4px;
+  --ui-radius-pill: 999px;
+
+  /* Hard offset, zero blur. The small shadow is 4px on purpose: the press
+     below translates by exactly that much, so the block lands IN its shadow. */
+  --ui-shadow-sm: 4px 4px 0 var(--nb-ink);
+  --ui-shadow-card: 4px 4px 0 var(--nb-ink);
+  --ui-shadow-modal: 8px 8px 0 var(--nb-ink);
+  --ui-shadow-lg: 8px 8px 0 var(--nb-ink);
+
+  /* Chunky display type; CJK falls back to the heavy system faces. */
+  --ui-font-sans: "Arial Black", "Archivo Black", "Helvetica Neue", Impact, "PingFang SC", "Microsoft YaHei",
+    system-ui, sans-serif;
+  --ui-font-mono: ui-monospace, "JetBrains Mono", "Cascadia Code", Menlo, Consolas, monospace;
+}
+
+/* Dark: the paper flips to charcoal and the ink to white — the same costume on
+   a night ground (ink borders/shadows would vanish into it). */
+:root[data-appearance="dark"] {
+  --nb-cream: #17171a;
+  --nb-ink: #ffffff;
+  --nb-danger-ink: #10131a;
+
+  --ui-bg: var(--nb-cream);
+  --ui-surface: #1f1f24;
+  --ui-surface-raised: #1f1f24;
+  --ui-surface-sunken: #2a2a31;
+  --ui-surface-hover: #34343c;
+
+  --ui-text: #f5f5f5;
+  --ui-text-dim: #d0d0d0;
+  --ui-text-faint: #a8a8a8;
+  --ui-text-on-accent: #10131a;
+
+  --ui-accent: #8fb4ff;
+  --ui-accent-strong: #b3ccff;
+  --ui-accent-soft: rgba(143, 180, 255, 0.24);
+  --ui-accent-fill: #8fb4ff;
+  --ui-focus-ring: #7aa8ff;
+
+  --ui-success: #6fe39a;
+  --ui-danger: #ff8fa3;
+  --ui-warning: #ffd166;
+  --ui-info: #8fb4ff;
+
+  --ui-shadow-sm: 4px 4px 0 #ffffff;
+  --ui-shadow-card: 4px 4px 0 #ffffff;
+  --ui-shadow-modal: 8px 8px 0 #ffffff;
+  --ui-shadow-lg: 8px 8px 0 #ffffff;
+}
+
+/* ===========================================================================
+   Flourishes — thick borders, hard shadows, saturated blocks, and a press.
+   =========================================================================== */
+
+body,
+.ui-shell {
+  background: var(--ui-bg);
+  background-image: none;
+}
+
+/* Every chrome surface wears the 2px ink border and the hard offset shadow. */
+.ui-card,
+.ui-panel,
+.ui-modal,
+.ui-command,
+.ui-welcome-card,
+.ui-composer-card,
+.ui-side-panel,
+.ui-subwin,
+.ui-btn,
+.ui-prompt,
+.ui-rail-btn,
+.ui-icon-btn,
+.ui-tab,
+.ui-lang-chip,
+.ui-badge,
+.ui-session-item {
+  border: 2px solid var(--ui-border);
+  box-shadow: var(--ui-shadow-sm);
+}
+
+.ui-card,
+.ui-panel,
+.ui-welcome-card,
+.ui-composer-card,
+.ui-modal,
+.ui-command,
+.ui-subwin {
+  box-shadow: var(--ui-shadow-card);
+}
+
+.ui-modal,
+.ui-command {
+  box-shadow: var(--ui-shadow-modal);
+}
+
+/* Flat saturated blocks — the costume's colour. Black text on all four passes
+   ≥4.5:1, in both tones (see ACCENT CONTRACT above). The warn variant is
+   excluded from BOTH the rotation and the black ink: its own background is a
+   warning tint (dark in the dark tone), where black text measures 1.2:1. */
+.ui-card:not(.ui-card--warn) {
+  color: var(--nb-on-flat);
+}
+.ui-card:not(.ui-card--warn):nth-child(4n + 1) {
+  background: var(--nb-yellow);
+}
+.ui-card:not(.ui-card--warn):nth-child(4n + 2) {
+  background: var(--nb-pink);
+}
+.ui-card:not(.ui-card--warn):nth-child(4n + 3) {
+  background: var(--nb-lime);
+}
+.ui-card:not(.ui-card--warn):nth-child(4n + 4) {
+  background: var(--nb-blue);
+}
+
+.ui-welcome-card {
+  color: var(--nb-on-flat);
+  background: var(--nb-yellow);
+}
+
+/* Press: the block lands in its own shadow. */
+.ui-btn:active,
+.ui-rail-btn:active,
+.ui-icon-btn:active,
+.ui-tab:active,
+.ui-lang-chip:active {
+  transform: translate(4px, 4px);
+  box-shadow: none;
+}
+
+.ui-btn--primary {
+  background: var(--ui-accent-fill);
+  color: var(--ui-text-on-accent);
+}
+.ui-btn--primary:hover {
+  background: var(--ui-accent-strong);
+}
+/* Dark-enough fills opt into white text (black would fail here). */
+.ui-btn--danger {
+  background: var(--ui-danger);
+  color: var(--nb-danger-ink);
+}
+
+/* Selected chips/rows: a saturated block, not a tint. */
+.ui-lang-chip.active,
+.ui-tab.active {
+  background: var(--ui-accent-fill);
+  color: var(--ui-text-on-accent);
+}
+.ui-rail-btn.active {
+  background: var(--ui-surface-sunken);
+  color: var(--ui-text);
+}
+
+.ui-side-panel-head,
+.ui-settings-section-title {
+  font-weight: 900;
+  letter-spacing: -0.01em;
+  text-transform: uppercase;
+  border-bottom: 2px solid var(--ui-border);
+}
+
+/* Chunky headings — the loudest type in the app. */
+.ui-md h1,
+.ui-md h2,
+.ui-md h3,
+.ui-welcome-card h1,
+.ui-welcome-card h2 {
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+}
+
+.ui-btn {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+/* Focus: dashed and blue so it can never be confused with the decorative 2px
+   solid ink border sitting right next to it. */
+:focus-visible {
+  outline: 2px dashed var(--ui-focus-ring);
+  outline-offset: 3px;
+  box-shadow: var(--ui-shadow-sm);
+}
+
+::selection {
+  background: var(--nb-yellow);
+  color: var(--nb-on-flat);
+}
+
+::-webkit-scrollbar {
+  width: 16px;
+  height: 16px;
+}
+::-webkit-scrollbar-track {
+  background: var(--ui-bg);
+  border-left: 2px solid var(--ui-border);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--nb-yellow);
+  border: 2px solid var(--ui-border);
+}
+
+/* ===========================================================================
+   State layer + class-qualified fields.
+
+   The base owns hover/active at (0,3,0) (`primitives.css:270-325`) and
+   `.ui-input/.ui-textarea/.ui-select` are class-qualified with a (0,2,0)
+   `:focus` (`primitives.css:561-583`). Without this section the press never
+   landed (the base only nudges 1px) and the fields wore no ink border. The
+   danger hover is the important one: the base hardcodes `color: #fff` there,
+   which measures ~2.2:1 on the dark tone's light pink fill.
+   =========================================================================== */
+
+.ui-btn:hover:not(:disabled) {
+  background: var(--ui-surface);
+  box-shadow: var(--ui-shadow-sm);
+}
+.ui-btn:active:not(:disabled) {
+  transform: translate(4px, 4px);
+  box-shadow: none;
+}
+.ui-btn--primary:hover:not(:disabled) {
+  background: var(--ui-accent-strong);
+  color: var(--ui-text-on-accent);
+  filter: none;
+  transform: none;
+  box-shadow: var(--ui-shadow-card);
+}
+.ui-btn--danger:hover:not(:disabled) {
+  background: var(--ui-danger);
+  color: var(--nb-danger-ink);
+}
+.ui-card:hover {
+  box-shadow: var(--ui-shadow-card);
+}
+
+.ui-input,
+.ui-textarea,
+.ui-select {
+  background: var(--ui-surface);
+  color: var(--ui-text);
+  border: 2px solid var(--ui-border);
+  border-radius: var(--ui-radius-md);
+  box-shadow: var(--ui-shadow-sm);
+}
+.ui-input:focus,
+.ui-textarea:focus,
+.ui-select:focus {
+  border-color: var(--ui-border);
+  outline: 2px dashed var(--ui-focus-ring);
+  outline-offset: 3px;
+  box-shadow: var(--ui-shadow-sm);
+}
+
+/* ── Reduced motion: the press lands instantly instead of sliding in ───────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-btn,
+  .ui-rail-btn,
+  .ui-icon-btn,
+  .ui-tab,
+  .ui-lang-chip {
+    transition: none !important;
+  }
+}
+
+/* ===========================================================================
+   Skin coverage — families a skin does not bind by default.
+
+   Without these the CodeMirror canvas, folder affordances, per-tool hues
+   and Mermaid/knowledge-graph ramps kept the app defaults inside this skin.
+   Tool/diagram hues are DERIVED from this skin' accent with color-mix, so
+   they follow both the palette and the tone (the tone blocks rebind
+   `--ui-accent`), inside the accent' contrast-safe lightness band.
+   `--dot-*` / `--line-fork` are deliberately NOT re-bound (status
+   indicators, not decoration).
+   =========================================================================== */
+
+:root {
+  --ui-folder-icon: var(--ui-accent);
+  --ui-folder-fill: color-mix(in srgb, var(--ui-accent) 18%, transparent);
+  --editor-canvas-bg: #fffdf5;
+  --editor-gutter-bg: #f5edd8;
+  --editor-canvas-num: #4a4a4a;
+
+  --ui-tool-hue-think: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 68%, #b45309) 70%, var(--ui-text) 30%);
+  --ui-tool-hue-amber: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 68%, #a16207) 70%, var(--ui-text) 30%);
+  --ui-tool-hue-purple: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 68%, #7c3aed) 70%, var(--ui-text) 30%);
+  --ui-tool-hue-indigo: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 68%, #4f46e5) 70%, var(--ui-text) 30%);
+  --ui-tool-hue-sky: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 68%, #0369a1) 70%, var(--ui-text) 30%);
+  --ui-tool-hue-teal: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 68%, #0f766e) 70%, var(--ui-text) 30%);
+  --ui-diagram-hue-0: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 45%, #2563eb) 80%, var(--ui-text) 20%);
+  --ui-diagram-hue-1: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 45%, #7c3aed) 80%, var(--ui-text) 20%);
+  --ui-diagram-hue-2: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 45%, #0d9488) 80%, var(--ui-text) 20%);
+  --ui-diagram-hue-3: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 45%, #d97706) 80%, var(--ui-text) 20%);
+  --ui-diagram-hue-4: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 45%, #e11d48) 80%, var(--ui-text) 20%);
+  --ui-diagram-hue-5: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 45%, #0891b2) 80%, var(--ui-text) 20%);
+  --ui-diagram-hue-6: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 45%, #4f46e5) 80%, var(--ui-text) 20%);
+  --ui-diagram-hue-7: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 45%, #65a30d) 80%, var(--ui-text) 20%);
+}
+
+:root[data-appearance="dark"] {
+  --editor-canvas-bg: #1b1b20;
+  --editor-gutter-bg: #141418;
+  --editor-canvas-num: #a8a8a8;
+}

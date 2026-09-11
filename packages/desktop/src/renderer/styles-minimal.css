@@ -1,0 +1,346 @@
+/* ===========================================================================
+   Minimal — Minimalism.
+
+   Defining signals:
+     · The fewest elements that still do the job: one navigation, one message,
+       one primary action, decoration deleted.
+     · Generous negative space (the mid/large spacing steps are widened here).
+     · A limited palette: near-monochrome, with the ink itself as the only
+       "accent" — no chromatic accent at all.
+     · One dramatic typographic moment: an oversized, thin, tightly-tracked
+       headline that is the loudest thing on screen.
+
+   Do NOT confuse with flat design: minimalism constrains CONTENT and LAYOUT,
+   not rendering. Adding content back until the page is busy stops being
+   minimalist no matter how flat it is (which is why this file adds no new
+   surfaces: it only removes paint and opens space — the two hairline rules it
+   does add are a section divider and the ghost-button outline).
+
+   Accessibility (brief): core actions stay visible (nothing is hidden to keep
+   the page empty), links keep an underline affordance, focus is an explicit
+   ring, and the grey ramp holds ≥4.5:1 for every text step, faint included.
+
+   `--ui-code-well*` stays untouched (hard product rule).
+   =========================================================================== */
+
+:root {
+  /* ── Near-monochrome ramp (all steps ≥4.5:1 on the ground) ── */
+  --mn-ground: #fafafa;
+  --mn-ink: #1a1a1a;
+
+  /* ── Semantic token bindings (light/default) ── */
+  --ui-bg: var(--mn-ground);
+  --ui-surface: #ffffff;
+  --ui-surface-raised: #ffffff;
+  --ui-surface-sunken: #f2f2f2;
+  --ui-surface-hover: rgba(0, 0, 0, 0.04);
+
+  --ui-text: var(--mn-ink);
+  --ui-text-dim: #4a4a4a;
+  --ui-text-faint: #6b6b6b;
+  --ui-text-on-accent: var(--mn-ground);
+
+  /* The ink is the accent — one voice, no hue. */
+  --ui-accent: var(--mn-ink);
+  --ui-accent-strong: #000000;
+  --ui-accent-soft: rgba(0, 0, 0, 0.06);
+  --ui-accent-fill: var(--mn-ink);
+  --ui-focus-ring: var(--mn-ink);
+
+  /* Hairlines, not frames. */
+  --ui-border: #e2e2e2;
+  --ui-border-soft: #ededed;
+
+  --ui-success: #1f6b3a;
+  --ui-danger: #a3241c;
+  --ui-warning: #6b4a00;
+  --ui-info: #1f3f8b;
+
+  /* Quiet geometry — chrome is barely rounded. `pill` stays 999 on purpose:
+     it is only consumed by badges/status dots, which are round by nature. */
+  --ui-radius-sm: 4px;
+  --ui-radius-md: 6px;
+  --ui-radius-lg: 8px;
+  --ui-radius-pill: 999px;
+
+  /* Decoration deleted: surfaces are flat. Only overlays float, because they
+     must read as being above the page. */
+  --ui-shadow-sm: none;
+  --ui-shadow-card: none;
+  --ui-shadow-modal: 0 20px 60px rgba(0, 0, 0, 0.1);
+  --ui-shadow-lg: 0 20px 60px rgba(0, 0, 0, 0.1);
+
+  --ui-font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans", "PingFang SC", "Microsoft YaHei",
+    sans-serif;
+  --ui-font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+
+  /* Negative space: the mid/large steps open up, the dense chrome steps stay
+     put so toolbars and rails keep fitting. */
+  --ui-space-4: 20px;
+  --ui-space-5: 32px;
+  --ui-space-6: 44px;
+}
+
+:root[data-appearance="dark"] {
+  --mn-ground: #0e0e10;
+
+  --ui-bg: var(--mn-ground);
+  --ui-surface: #17171a;
+  --ui-surface-raised: #17171a;
+  --ui-surface-sunken: #0a0a0c;
+  --ui-surface-hover: rgba(255, 255, 255, 0.06);
+
+  --ui-text: #f2f2f2;
+  --ui-text-dim: #c9c9c9;
+  --ui-text-faint: #9e9e9e;
+  --ui-text-on-accent: #0e0e10;
+
+  --ui-accent: #f2f2f2;
+  --ui-accent-strong: #ffffff;
+  --ui-accent-soft: rgba(255, 255, 255, 0.08);
+  --ui-accent-fill: #f2f2f2;
+  --ui-focus-ring: #f2f2f2;
+
+  --ui-border: #262629;
+  --ui-border-soft: #1e1e21;
+
+  --ui-success: #7fd39b;
+  --ui-danger: #ff9a92;
+  --ui-warning: #e8c76a;
+  --ui-info: #9fb4ff;
+
+  --ui-shadow-modal: 0 20px 60px rgba(0, 0, 0, 0.55);
+  --ui-shadow-lg: 0 20px 60px rgba(0, 0, 0, 0.55);
+}
+
+/* ===========================================================================
+   Flourishes — remove paint, open space, and let one headline speak.
+   =========================================================================== */
+
+/* Flat ground, flat surfaces: no paint to look at, only content. */
+body,
+.ui-shell {
+  background: var(--ui-bg);
+  background-image: none;
+}
+
+.ui-card,
+.ui-panel,
+.ui-welcome-card,
+.ui-composer-card,
+.ui-side-panel,
+.ui-subwin,
+.ui-rail {
+  background-image: none;
+  box-shadow: none;
+  border-color: var(--ui-border-soft);
+}
+
+.ui-side-panel-head,
+.ui-settings-section-title {
+  border-bottom: 1px solid var(--ui-border);
+  background-image: none;
+  letter-spacing: 0.01em;
+}
+
+/* Buttons: one solid ink block for the primary action, hairlines elsewhere. */
+.ui-btn {
+  box-shadow: none;
+  border-radius: var(--ui-radius-md);
+}
+.ui-btn--primary {
+  background: var(--ui-accent-fill);
+  color: var(--ui-text-on-accent);
+}
+.ui-btn--subtle,
+.ui-btn--ghost {
+  border: 1px solid var(--ui-border);
+  background: transparent;
+}
+
+/* The one dramatic typographic moment. */
+.ui-welcome-card h1,
+.ui-welcome-card h2,
+.ui-md h1 {
+  font-size: 44px;
+  font-weight: 300;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+}
+
+/* Reading comfort in prose: fewer rules, more air, honest links. */
+.ui-md {
+  line-height: 1.75;
+}
+.ui-md a {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.ui-md h1,
+.ui-md h2,
+.ui-md h3 {
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+/* Selected states speak with weight and a hairline rule, not with a fill. */
+.ui-rail-btn.active,
+.ui-tab.active,
+.ui-session-item.active {
+  background: transparent;
+  color: var(--ui-text);
+  font-weight: 600;
+}
+.ui-rail-btn.active {
+  box-shadow: inset 2px 0 0 var(--ui-accent);
+}
+.ui-tab.active {
+  box-shadow: inset 0 -2px 0 var(--ui-accent);
+}
+
+/* Focus stays explicit (never a mystery): a thin ink ring, offset. */
+:focus-visible {
+  outline: 2px solid var(--ui-focus-ring);
+  outline-offset: 2px;
+  box-shadow: none;
+}
+
+::selection {
+  background: rgba(0, 0, 0, 0.12);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--ui-border);
+  border-radius: 999px;
+}
+
+/* ===========================================================================
+   State layer + class-qualified fields.
+
+   The base owns hover/active at (0,3,0) (`primitives.css:270-325`) and the
+   fields are class-qualified with a (0,2,0) `:focus` (`primitives.css:561-583`).
+   Minimalism answers state with value and position, never with a designed fill:
+   hover deepens the ink/dim step, press is a 1px settle, and focus is a thin
+   ink ring.
+   =========================================================================== */
+
+.ui-btn:hover:not(:disabled) {
+  background: var(--ui-surface-sunken);
+  color: var(--ui-text);
+}
+.ui-btn:active:not(:disabled) {
+  background: var(--ui-surface-sunken);
+  transform: none;
+}
+.ui-btn--primary:hover:not(:disabled) {
+  background: var(--ui-accent-strong);
+  color: var(--ui-text-on-accent);
+  filter: none;
+  transform: none;
+}
+.ui-btn--danger:hover:not(:disabled) {
+  background: var(--ui-danger);
+  color: var(--ui-text-on-accent);
+}
+.ui-btn--ghost:hover:not(:disabled) {
+  background: transparent;
+  border-color: var(--ui-text);
+  color: var(--ui-text);
+}
+.ui-card:hover {
+  box-shadow: none;
+}
+
+.ui-input,
+.ui-textarea,
+.ui-select {
+  background: var(--ui-surface);
+  color: var(--ui-text);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-md);
+  box-shadow: none;
+}
+.ui-input:focus,
+.ui-textarea:focus,
+.ui-select:focus {
+  border-color: var(--ui-focus-ring);
+  outline: 2px solid var(--ui-focus-ring);
+  outline-offset: 1px;
+  box-shadow: none;
+}
+
+/* ── Reduced motion ────────────────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-btn,
+  .ui-card,
+  .ui-panel,
+  .ui-modal,
+  .ui-command,
+  .ui-welcome-card {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+/* ===========================================================================
+   Skin coverage — families a skin does not bind by default.
+
+   Without these the CodeMirror canvas, folder affordances, tool hues and
+   Mermaid/knowledge-graph ramps kept the app defaults inside this skin. A
+   monochrome skin gets a MONOCHROME ramp: tool names and diagram strokes become
+   ink washes distinguished by LIGHTNESS (every light-tone step stays ≥4.5:1 as
+   text, every dark-tone step likewise), which is also what keeps the palette
+   inside "at most one accent".
+   `--dot-*` / `--line-fork` are deliberately NOT re-bound (status indicators).
+   =========================================================================== */
+
+:root {
+  --ui-folder-icon: var(--ui-accent);
+  --ui-folder-fill: color-mix(in srgb, var(--ui-accent) 14%, transparent);
+  --editor-canvas-bg: #fafafa;
+  --editor-gutter-bg: #f2f2f2;
+  --editor-canvas-num: #6b6b6b;
+
+  --ui-tool-hue-think: #1a1a1a;
+  --ui-tool-hue-amber: #3a3a3a;
+  --ui-tool-hue-purple: #4d4d4d;
+  --ui-tool-hue-indigo: #5c5c5c;
+  --ui-tool-hue-sky: #6b6b6b;
+  --ui-tool-hue-teal: #2b2b2b;
+
+  --ui-diagram-hue-0: #1a1a1a;
+  --ui-diagram-hue-1: #333333;
+  --ui-diagram-hue-2: #4a4a4a;
+  --ui-diagram-hue-3: #5c5c5c;
+  --ui-diagram-hue-4: #6b6b6b;
+  --ui-diagram-hue-5: #2b2b2b;
+  --ui-diagram-hue-6: #404040;
+  --ui-diagram-hue-7: #565656;
+}
+
+:root[data-appearance="dark"] {
+  --editor-canvas-bg: #0e0e10;
+  --editor-gutter-bg: #0a0a0c;
+  --editor-canvas-num: #9e9e9e;
+
+  --ui-tool-hue-think: #f2f2f2;
+  --ui-tool-hue-amber: #d0d0d0;
+  --ui-tool-hue-purple: #b8b8b8;
+  --ui-tool-hue-indigo: #a0a0a0;
+  --ui-tool-hue-sky: #8f8f8f;
+  --ui-tool-hue-teal: #e0e0e0;
+
+  --ui-diagram-hue-0: #f2f2f2;
+  --ui-diagram-hue-1: #d8d8d8;
+  --ui-diagram-hue-2: #c0c0c0;
+  --ui-diagram-hue-3: #a8a8a8;
+  --ui-diagram-hue-4: #909090;
+  --ui-diagram-hue-5: #e4e4e4;
+  --ui-diagram-hue-6: #cccccc;
+  --ui-diagram-hue-7: #b4b4b4;
+}

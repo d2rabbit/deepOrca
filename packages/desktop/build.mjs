@@ -425,26 +425,29 @@ async function copyStaticAssets() {
     await cp(orcaSvg, resolve(outdir, "orca-icon.svg"));
     await cp(orcaSvg, resolve(outdir, "renderer/orca-icon.svg"));
   }
-  // styles-metro.css / styles-glass.css 为新建文件,构建时若不存在则跳过(不报错)
-  const metroCss = resolve(__dirname, "src/renderer/styles-metro.css");
-  if (existsSync(metroCss)) {
-    await cp(metroCss, resolve(outdir, "renderer/styles-metro.css"));
-  }
-  const glassCss = resolve(__dirname, "src/renderer/styles-glass.css");
-  if (existsSync(glassCss)) {
-    await cp(glassCss, resolve(outdir, "renderer/styles-glass.css"));
-  }
-  const fusionCss = resolve(__dirname, "src/renderer/styles-fusion.css");
-  if (existsSync(fusionCss)) {
-    await cp(fusionCss, resolve(outdir, "renderer/styles-fusion.css"));
-  }
-  const lineCss = resolve(__dirname, "src/renderer/styles-line.css");
-  if (existsSync(lineCss)) {
-    await cp(lineCss, resolve(outdir, "renderer/styles-line.css"));
-  }
-  const orcaCss = resolve(__dirname, "src/renderer/styles-orca.css");
-  if (existsSync(orcaCss)) {
-    await cp(orcaCss, resolve(outdir, "renderer/styles-orca.css"));
+  // Theme stylesheets. styles.css (Aqua) above is the base and always ships;
+  // every other skin is copied when present, so a missing file never fails the
+  // build. Adding a skin = an entry here + lib/appearance.ts + its i18n label
+  // (the appearance test pins that all three stay in step).
+  for (const skin of [
+    "metro",
+    "glass",
+    "fusion",
+    "line",
+    "orca",
+    "neumorph",
+    "raw",
+    "neobrutal",
+    "minimal",
+    "clay",
+    "geocities",
+    "y2k",
+    "skeuo",
+  ]) {
+    const skinCss = resolve(__dirname, `src/renderer/styles-${skin}.css`);
+    if (existsSync(skinCss)) {
+      await cp(skinCss, resolve(outdir, `renderer/styles-${skin}.css`));
+    }
   }
 }
 

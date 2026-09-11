@@ -1,0 +1,410 @@
+/* ===========================================================================
+   Y2K — the millennial digital aesthetic.
+
+   Defining signals:
+     · Liquid-chrome / metallic surfaces: silver gradients with mirror highlights.
+     · Glossy translucent gel buttons and blobs with strong specular TOP
+       highlights.
+     · An iridescent electric-blue / silver / white palette with occasional
+       holographic cyan→magenta shifts.
+     · Wide techno display type (Eurostile-flavored, italic or chromed).
+     · Garnish, used sparingly: a rendered orb, a wireframe horizon grid, a lens
+       flare, tiny pixel-font labels.
+
+   Do NOT confuse with Frutiger Aero: Y2K's optimism is SYNTHETIC. No grass,
+   water, sky or nature photography anywhere in here — only chrome, gel and grid.
+
+   Accessibility (brief): chrome type is scoped to the DARK tone, where the light
+   outline keeps every gradient band ≥4.5:1 against the ground (the dark chrome
+   stops would otherwise fail). The light tone uses solid ink with the chrome as
+   a strip, because the same gradient cannot carry its own text on white; body
+   text stays plain; focus is a visible ring; shine sweeps are reduced-motion
+   guarded.
+
+   `--ui-code-well*` stays untouched (hard product rule).
+   =========================================================================== */
+
+:root {
+  /* ── Chrome + gel materials ── */
+  --y2k-ground: #060b24;
+  --y2k-panel: #0d1533;
+  --y2k-panel-2: #121b45;
+  --y2k-cyan: #00e0ff;
+  --y2k-magenta: #ff3df0;
+  /* Ink for the gel primary button. It is tone-independent on purpose: the gel
+     gradient below is fixed, so its ink must be too (white on the light gel
+     bands measures ~1.3). */
+  --y2k-gel-ink: #00131a;
+  /* Liquid chrome: alternating light/dark stops with a bright mirror band. The
+     darkest stop stays light enough for black text on the header strip (a
+     deeper mid band measured ~4:1). */
+  --y2k-chrome: linear-gradient(
+    180deg,
+    #f8fbff 0%,
+    #ccd8ea 22%,
+    #7d8ea8 46%,
+    #e9f2ff 54%,
+    #b3c1d6 68%,
+    #ffffff 100%
+  );
+
+  /* ── Semantic token bindings (dark/default) ── */
+  --ui-bg: var(--y2k-ground);
+  --ui-surface: var(--y2k-panel);
+  --ui-surface-raised: var(--y2k-panel-2);
+  --ui-surface-sunken: #04081a;
+  --ui-surface-hover: rgba(0, 224, 255, 0.12);
+
+  --ui-text: #e9f1ff;
+  --ui-text-dim: #a8bcd8;
+  --ui-text-faint: #7f93b8;
+  /* Dark ink on the cyan gel — the fill is bright, so black text is the pass. */
+  --ui-text-on-accent: #00131a;
+
+  --ui-accent: var(--y2k-cyan);
+  --ui-accent-strong: #7df9ff;
+  --ui-accent-soft: rgba(0, 224, 255, 0.18);
+  --ui-accent-fill: var(--y2k-cyan);
+  --ui-focus-ring: var(--y2k-cyan);
+
+  --ui-border: rgba(160, 190, 255, 0.35);
+  --ui-border-soft: rgba(160, 190, 255, 0.18);
+
+  --ui-success: #22e6a5;
+  --ui-danger: #ff2e88;
+  --ui-warning: #ffd166;
+  --ui-info: #7aa2ff;
+
+  --ui-radius-sm: 8px;
+  --ui-radius-md: 12px;
+  --ui-radius-lg: 16px;
+  --ui-radius-pill: 999px;
+
+  /* Chrome depth: drop shadow for the object, inset gloss for the mirror band. */
+  --ui-shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  --ui-shadow-card: 0 8px 24px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  --ui-shadow-modal: 0 24px 64px rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  --ui-shadow-lg: 0 24px 64px rgba(0, 0, 0, 0.65);
+
+  /* Wide techno display stack (no webfonts offline — metallic fallbacks). */
+  --ui-font-sans: "Eurostile", "Bank Gothic", "Michroma", "Arial Narrow", "Helvetica Neue", "PingFang SC",
+    "Microsoft YaHei", system-ui, sans-serif;
+  --ui-font-mono: "OCR A Std", ui-monospace, "JetBrains Mono", Menlo, Consolas, monospace;
+}
+
+/* Light: silver chrome on a pale ground — the same materials, sunlit. The chrome
+   gradient is shared; only the grounds and inks flip. */
+:root[data-appearance="light"] {
+  --y2k-ground: #eef2f8;
+  --y2k-panel: #ffffff;
+  --y2k-panel-2: #f6f9ff;
+
+  --ui-bg: var(--y2k-ground);
+  --ui-surface: var(--y2k-panel);
+  --ui-surface-raised: var(--y2k-panel-2);
+  --ui-surface-sunken: #dde5f2;
+  --ui-surface-hover: rgba(0, 130, 190, 0.1);
+
+  --ui-text: #16203a;
+  --ui-text-dim: #47557a;
+  --ui-text-faint: #59657f;
+  /* `--ui-accent` serves BOTH as text on light grounds AND as a fill under
+     `--ui-text-on-accent` (31 component sites), so the ink is white and the
+     accent/fill are one dark teal — a bright fill with dark ink would measure
+     3.1. */
+  --ui-text-on-accent: #ffffff;
+
+  --ui-accent: #006b8c;
+  --ui-accent-strong: #005a76;
+  --ui-accent-soft: rgba(0, 107, 140, 0.14);
+  --ui-accent-fill: #006b8c;
+  --ui-focus-ring: #006b8c;
+
+  --ui-border: rgba(70, 95, 140, 0.35);
+  --ui-border-soft: rgba(70, 95, 140, 0.18);
+
+  --ui-success: #0f7a4d;
+  --ui-danger: #c01a5e;
+  --ui-warning: #7a5200;
+  --ui-info: #1f4fbf;
+
+  --ui-shadow-sm: 0 2px 6px rgba(40, 60, 100, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  --ui-shadow-card: 0 8px 24px rgba(40, 60, 100, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  --ui-shadow-modal: 0 24px 64px rgba(40, 60, 100, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  --ui-shadow-lg: 0 24px 64px rgba(40, 60, 100, 0.3);
+}
+
+/* ===========================================================================
+   Flourishes — chrome strips, gel buttons, holographic seams, one orb.
+   =========================================================================== */
+
+body,
+.ui-shell {
+  background: var(--ui-bg);
+  background-image: none;
+}
+
+/* Wireframe horizon grid (garnish, very low alpha — it must never fight text). */
+.ui-shell::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.35;
+  background-image:
+    linear-gradient(rgba(0, 224, 255, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 224, 255, 0.06) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: linear-gradient(180deg, transparent 55%, #000 100%);
+}
+
+/* One rendered orb with a specular highlight — the era's favourite garnish. */
+.ui-welcome-card::after {
+  content: "";
+  position: absolute;
+  top: -18px;
+  right: -18px;
+  width: 86px;
+  height: 86px;
+  border-radius: 50%;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 34% 28%, #ffffff 0 12%, rgba(255, 255, 255, 0.5) 18%, transparent 42%),
+    radial-gradient(circle at 62% 72%, var(--y2k-magenta) 0 18%, transparent 55%),
+    linear-gradient(160deg, #9fd8ff 0%, #4a6ea8 55%, #1b2a52 100%);
+  box-shadow: inset -6px -8px 18px rgba(0, 0, 0, 0.45), 0 6px 18px rgba(0, 0, 0, 0.4);
+  opacity: 0.55;
+}
+.ui-welcome-card {
+  position: relative;
+}
+
+/* Panels get the chrome strip and a holographic seam. */
+.ui-side-panel-head,
+.ui-settings-section-title {
+  background: var(--y2k-chrome);
+  color: #000000;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.5);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+}
+
+.ui-side-panel,
+.ui-card,
+.ui-panel,
+.ui-modal,
+.ui-command,
+.ui-composer-card,
+.ui-subwin {
+  border: 1px solid;
+  border-image: linear-gradient(120deg, var(--y2k-cyan), var(--y2k-magenta)) 1;
+}
+
+/* Gel buttons: vertical gel body + specular top highlight + a shine sweep. */
+.ui-btn {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--ui-radius-pill);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.04) 46%, transparent);
+  box-shadow: var(--ui-shadow-sm);
+}
+.ui-btn::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.45), transparent);
+  transform: translateX(-100%);
+  transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.ui-btn:hover::before {
+  transform: translateX(100%);
+}
+
+.ui-btn--primary {
+  background-color: transparent;
+  /* The gel's darkest band must still carry dark ink (a deeper #007b9c stop
+     measured 3.7:1). */
+  background-image:
+    radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.75), transparent 58%),
+    linear-gradient(180deg, #5ff0ff 0%, #00b8db 55%, #0090b5 100%);
+  color: var(--y2k-gel-ink);
+  border-color: rgba(255, 255, 255, 0.6);
+}
+.ui-btn--subtle,
+.ui-btn--ghost {
+  border-radius: var(--ui-radius-pill);
+  border: 1px solid var(--ui-border);
+}
+
+/* Pixel-font labels — tiny, tracked-out, uppercase. */
+.ui-badge {
+  font-family: var(--ui-font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  border-radius: var(--ui-radius-sm);
+}
+
+/* Chromed display type — dark ground only. The same chrome cannot carry its own
+   text on white (the darkest band is ~3.3:1), so a light-stroke "outline" does
+   not save it there; the light tone gets solid ink with the chrome as a strip. */
+@supports ((background-clip: text) or (-webkit-background-clip: text)) {
+  :root[data-appearance="dark"] .ui-md h1,
+  :root[data-appearance="dark"] .ui-md h2,
+  :root[data-appearance="dark"] .ui-welcome-card h1,
+  :root[data-appearance="dark"] .ui-welcome-card h2 {
+    background-image: var(--y2k-chrome);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    /* The outline is what keeps every chrome band ≥4.5:1 on the dark ground. */
+    -webkit-text-stroke: 1px rgba(255, 255, 255, 0.55);
+    font-style: italic;
+    letter-spacing: 0.02em;
+  }
+}
+:root[data-appearance="light"] .ui-md h1,
+:root[data-appearance="light"] .ui-md h2,
+:root[data-appearance="light"] .ui-welcome-card h1,
+:root[data-appearance="light"] .ui-welcome-card h2 {
+  color: var(--ui-text);
+  border-bottom: 3px solid;
+  border-image: var(--y2k-chrome) 1;
+  font-style: italic;
+  letter-spacing: 0.02em;
+}
+.ui-md h1,
+.ui-md h2 {
+  letter-spacing: 0.02em;
+}
+
+:focus-visible {
+  outline: 2px solid var(--ui-focus-ring);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgba(0, 224, 255, 0.2);
+}
+
+::selection {
+  background: rgba(255, 61, 240, 0.35);
+  color: #ffffff;
+}
+
+::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--y2k-chrome);
+  border-radius: 999px;
+}
+
+/* ===========================================================================
+   State layer + class-qualified fields.
+
+   The base owns hover/active at (0,3,0) (`primitives.css:270-325`) — and it
+   resets `background`, which kills a gradient body. The gel therefore has to be
+   re-stated per state or the signature material only exists at rest.
+   =========================================================================== */
+
+.ui-btn:hover:not(:disabled) {
+  background-color: var(--ui-surface-raised);
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0.06) 46%, transparent);
+  color: var(--ui-text);
+}
+.ui-btn:active:not(:disabled) {
+  transform: none;
+}
+.ui-btn--primary:hover:not(:disabled) {
+  background-color: transparent;
+  background-image:
+    radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.85), transparent 58%),
+    linear-gradient(180deg, #7ff5ff 0%, #00cbe8 55%, #009fc7 100%);
+  color: var(--y2k-gel-ink);
+  filter: none;
+  transform: none;
+}
+.ui-btn--danger:hover:not(:disabled) {
+  background-color: var(--ui-danger);
+  background-image: none;
+  color: var(--ui-text-on-accent);
+}
+.ui-card:hover,
+.ui-panel:hover {
+  box-shadow: var(--ui-shadow-card);
+}
+
+.ui-input,
+.ui-textarea,
+.ui-select {
+  background: var(--ui-surface-raised);
+  color: var(--ui-text);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-md);
+  box-shadow: var(--ui-shadow-sm);
+}
+.ui-input:focus,
+.ui-textarea:focus,
+.ui-select:focus {
+  outline: 2px solid var(--ui-focus-ring);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgba(0, 224, 255, 0.2);
+}
+
+/* ── Reduced motion: the shine sweep stops travelling ─────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-btn::before {
+    display: none;
+  }
+  .ui-btn,
+  .ui-card,
+  .ui-panel,
+  .ui-modal,
+  .ui-command {
+    transition: none !important;
+  }
+}
+
+/* ===========================================================================
+   Skin coverage — families a skin does not bind by default.
+
+   Without these the CodeMirror canvas, folder affordances, per-tool hues and
+   Mermaid/knowledge-graph ramps kept the app defaults inside this skin.
+   Tool/diagram hues are DERIVED from this skin' accent with color-mix, so they
+   follow both the palette and the tone, inside the accent' contrast-safe
+   lightness band. `--dot-*` / `--line-fork` are deliberately NOT re-bound
+   (semantic status indicators, not decoration).
+   =========================================================================== */
+
+:root {
+  --ui-folder-icon: var(--ui-accent);
+  --ui-folder-fill: color-mix(in srgb, var(--ui-accent) 18%, transparent);
+  --editor-canvas-bg: #0a1129;
+  --editor-gutter-bg: #060b1d;
+  --editor-canvas-num: #7f93b8;
+
+  --ui-tool-hue-think: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 68%, #b45309) 70%, var(--ui-text) 30%);
+  --ui-tool-hue-amber: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 68%, #a16207) 70%, var(--ui-text) 30%);
+  --ui-tool-hue-purple: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 68%, #7c3aed) 70%, var(--ui-text) 30%);
+  --ui-tool-hue-indigo: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 68%, #4f46e5) 70%, var(--ui-text) 30%);
+  --ui-tool-hue-sky: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 68%, #0369a1) 70%, var(--ui-text) 30%);
+  --ui-tool-hue-teal: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 68%, #0f766e) 70%, var(--ui-text) 30%);
+  --ui-diagram-hue-0: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 45%, #2563eb) 80%, var(--ui-text) 20%);
+  --ui-diagram-hue-1: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 45%, #7c3aed) 80%, var(--ui-text) 20%);
+  --ui-diagram-hue-2: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 45%, #0d9488) 80%, var(--ui-text) 20%);
+  --ui-diagram-hue-3: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 45%, #d97706) 80%, var(--ui-text) 20%);
+  --ui-diagram-hue-4: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 45%, #e11d48) 80%, var(--ui-text) 20%);
+  --ui-diagram-hue-5: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 45%, #0891b2) 80%, var(--ui-text) 20%);
+  --ui-diagram-hue-6: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 45%, #4f46e5) 80%, var(--ui-text) 20%);
+  --ui-diagram-hue-7: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 45%, #65a30d) 80%, var(--ui-text) 20%);
+}
+
+:root[data-appearance="light"] {
+  --editor-canvas-bg: #f6f9ff;
+  --editor-gutter-bg: #e6ecf7;
+  --editor-canvas-num: #59657f;
+}

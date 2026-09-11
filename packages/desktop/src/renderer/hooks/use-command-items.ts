@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { api } from "../api";
 import type { CommandItem } from "../ui/index";
 import type { SidebarView } from "./use-panel-layout";
-import type { Theme } from "../lib/appearance";
+import { THEME_IDS, type Theme } from "../lib/appearance";
 import type { useI18n } from "../i18n";
 import type { useToasts } from "../components/Toast";
 import type { MainTab } from "../lib/app-models";
@@ -15,6 +15,27 @@ import type { MainTab } from "../lib/app-models";
  * handlers keep their App-side identities, so memoization behavior is
  * unchanged.
  */
+/** Search aliases beyond the id — the platform-native looks are known by other
+ *  words than their own id. Everything else is covered by `theme appearance <id>`.
+ *  Kept next to the registry so a new skin only needs an entry when its id is
+ *  not already searchable. */
+const THEME_KEYWORDS: Partial<Record<Theme, string>> = {
+  aqua: "native macos",
+  metro: "native windows",
+  glass: "glassmorphism prism",
+  fusion: "tile win8 win11",
+  line: "stroke drafting",
+  orca: "cyber hud neon",
+  neumorph: "soft ui matte shadow",
+  raw: "brutalism default serif underline",
+  neobrutal: "brutalism border hard shadow flat",
+  minimal: "monochrome quiet space",
+  clay: "pastel soft rounded",
+  geocities: "vernacular 90s starry blink homepage",
+  y2k: "chrome gel metallic iridescent",
+  skeuo: "skeuomorph paper leather texture",
+};
+
 export interface CommandItemsDeps {
   t: ReturnType<typeof useI18n>["t"];
   modKey: string;
@@ -212,43 +233,16 @@ export function useCommandItems({
           else pushToast("info", t("topbar.pickFolderHint"));
         },
       },
-      // ── Themes (all 6, via the same handler the settings panel uses) ──
-      {
-        id: "theme.aqua",
-        label: t("theme.aqua"),
-        keywords: "theme appearance aqua native",
-        run: () => handleSelectTheme("aqua"),
-      },
-      {
-        id: "theme.metro",
-        label: t("theme.metro"),
-        keywords: "theme appearance metro native",
-        run: () => handleSelectTheme("metro"),
-      },
-      {
-        id: "theme.glass",
-        label: t("theme.glass"),
-        keywords: "theme appearance glass",
-        run: () => handleSelectTheme("glass"),
-      },
-      {
-        id: "theme.fusion",
-        label: t("theme.fusion"),
-        keywords: "theme appearance fusion tile",
-        run: () => handleSelectTheme("fusion"),
-      },
-      {
-        id: "theme.line",
-        label: t("theme.line"),
-        keywords: "theme appearance line stroke",
-        run: () => handleSelectTheme("line"),
-      },
-      {
-        id: "theme.orca",
-        label: t("theme.orca"),
-        keywords: "theme appearance orca cyber hud",
-        run: () => handleSelectTheme("orca"),
-      },
+      // ── Themes (every registered skin, via the same handler the settings
+      //    panel uses). Derived from THEME_IDS so a new skin can never be
+      //    forgotten here; THEME_KEYWORDS only adds the search aliases not
+      //    already covered by `theme appearance <id>`.
+      ...THEME_IDS.map((id) => ({
+        id: `theme.${id}`,
+        label: t(`theme.${id}`),
+        keywords: `theme appearance ${id} ${THEME_KEYWORDS[id] ?? ""}`.trim(),
+        run: () => handleSelectTheme(id),
+      })),
       // ── Appearance / panel toggles ──
       {
         id: "appearance.toggle",

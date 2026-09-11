@@ -1,0 +1,341 @@
+/* ===========================================================================
+   Neumorph — Soft UI (neumorphism).
+
+   Defining signals:
+     · Controls share the background's EXACT matte color — there is one material,
+       no borders anywhere, and shape is implied by shadow alone.
+     · Raised elements carry a dual soft shadow pair: light from the top-left,
+       dark to the bottom-right.
+     · Pressed and input states INVERT that pair inward (inset).
+     · Generous rounding; one saturated accent reserved for the primary action.
+
+   Do NOT confuse with Skeuomorphism (styles-skeuo.css): the decisive difference
+   is that neumorphic surfaces are one uniform, material-less matte. Skeuo
+   imitates nameable materials (paper, leather) with textures and stitching.
+
+   Accessibility (required by the brief): shadows alone cannot carry state, so
+   focus and the selected/active state get NON-shadow cues (an outline ring and
+   an accent text/bar), and reduced-motion is honoured.
+
+   Like the other theme files this ships NO layout: ui.css owns structure via the
+   semantic `--ui-*` vocabulary, and `--ui-code-well*` is deliberately NOT
+   re-bound (hard product rule: code wells stay light-gray/dark-gray).
+   =========================================================================== */
+
+:root {
+  /* ── Soft UI palette (classic pale grey-blue) ── */
+  --nm-bg: #e0e5ec;
+  --nm-raised: #e0e5ec;
+  --nm-sunken: #d6dce6;
+  --nm-light: rgba(255, 255, 255, 0.85);
+  --nm-dark: rgba(163, 177, 198, 0.6);
+  --nm-dark-soft: rgba(163, 177, 198, 0.32);
+
+  /* ── Semantic token bindings (light/default) ── */
+  --ui-bg: var(--nm-bg);
+  --ui-surface: var(--nm-raised);
+  --ui-surface-raised: var(--nm-raised);
+  --ui-surface-sunken: var(--nm-sunken);
+  --ui-surface-hover: var(--nm-dark-soft);
+
+  --ui-text: #2f3a47;
+  --ui-text-dim: #47535f;
+  --ui-text-faint: #545f6b;
+  --ui-text-on-accent: #ffffff;
+
+  /* One saturated accent, for the primary action only. */
+  --ui-accent: #3f56c4;
+  --ui-accent-strong: #3446a8;
+  --ui-accent-soft: rgba(63, 86, 196, 0.16);
+  --ui-accent-fill: #3f56c4;
+  --ui-focus-ring: #26355f;
+
+  /* No borders anywhere — edges are shadow, not line. Borders are neutralized at
+     the token level below, plus the two component rules that hardcode one on
+     hover/focus-within (see the state layer). The active-tab underline the base
+     draws is deliberately kept: it is a STATE cue, and this skin's brief requires
+     state cues that are not shadows. */
+  --ui-border: transparent;
+  --ui-border-soft: transparent;
+
+  --ui-success: #1f6b41;
+  --ui-danger: #b8352f;
+  --ui-warning: #7d5600;
+  --ui-info: #3f5fd0;
+
+  /* Generous rounding: a soft extrusion has no hard corner. */
+  --ui-radius-sm: 10px;
+  --ui-radius-md: 14px;
+  --ui-radius-lg: 18px;
+  --ui-radius-pill: 999px;
+
+  /* The dual soft-shadow pair — the entire design language. */
+  --ui-shadow-sm: -4px -4px 8px var(--nm-light), 4px 4px 8px var(--nm-dark);
+  --ui-shadow-card: -6px -6px 12px var(--nm-light), 6px 6px 12px var(--nm-dark);
+  --ui-shadow-modal: -8px -8px 20px var(--nm-light), 8px 8px 20px var(--nm-dark);
+  --ui-shadow-lg: -8px -8px 20px var(--nm-light), 8px 8px 20px var(--nm-dark);
+
+  /* Neutral matte type — the material carries the character, not the font. */
+  --ui-font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans", "PingFang SC", "Microsoft YaHei",
+    sans-serif;
+  --ui-font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+}
+
+/* Dark matte: the same recipe on charcoal. The light half of the pair becomes a
+   whisper of white instead of a highlight, or the "raised" illusion inverts. */
+:root[data-appearance="dark"] {
+  --nm-bg: #2b2f36;
+  --nm-raised: #2b2f36;
+  --nm-sunken: #23262c;
+  --nm-light: rgba(255, 255, 255, 0.06);
+  --nm-dark: rgba(0, 0, 0, 0.55);
+  --nm-dark-soft: rgba(0, 0, 0, 0.3);
+
+  --ui-text: #e3e8ee;
+  --ui-text-dim: #a8b3c0;
+  --ui-text-faint: #93a0ae;
+  --ui-text-on-accent: #0d1220;
+
+  --ui-accent: #8fa2ff;
+  --ui-accent-strong: #a9b8ff;
+  --ui-accent-soft: rgba(143, 162, 255, 0.18);
+  --ui-accent-fill: #8fa2ff;
+  --ui-focus-ring: #b9c6ff;
+
+  --ui-success: #4ec27e;
+  --ui-danger: #ff8a80;
+  --ui-warning: #ffc247;
+  --ui-info: #9fb4ff;
+}
+
+/* ===========================================================================
+   Flourishes — one matte material, extruded or pressed.
+   =========================================================================== */
+
+/* The ground is the material; every surface is carved from it. */
+body,
+.ui-shell {
+  background: var(--nm-bg);
+  background-image: none;
+}
+
+/* Raised: cards, panels, popovers, and the primary controls. */
+.ui-card,
+.ui-panel,
+.ui-modal,
+.ui-command,
+.ui-welcome-card,
+.ui-composer-card,
+.ui-side-panel,
+.ui-subwin {
+  background: var(--nm-raised);
+  border-color: transparent;
+  box-shadow: var(--ui-shadow-card);
+}
+
+.ui-btn {
+  background: var(--nm-raised);
+  border-color: transparent;
+  box-shadow: var(--ui-shadow-sm);
+  border-radius: var(--ui-radius-md);
+}
+
+/* Pressed inverts the pair — the surface is pushed into the material. */
+.ui-btn:active {
+  box-shadow: inset 4px 4px 8px var(--nm-dark), inset -4px -4px 8px var(--nm-light);
+}
+
+/* Inputs and the composer are recessed wells, never outlined boxes. */
+.ui-prompt,
+input:not([type="checkbox"]):not([type="radio"]),
+textarea,
+select {
+  background: var(--nm-bg);
+  border-color: transparent;
+  box-shadow: inset 3px 3px 6px var(--nm-dark), inset -3px -3px 6px var(--nm-light);
+}
+
+.ui-prompt:focus,
+input:focus,
+textarea:focus,
+select:focus {
+  box-shadow: inset 3px 3px 6px var(--nm-dark), inset -3px -3px 6px var(--nm-light);
+}
+
+/* ── Non-shadow state cues (the brief requires these) ─────────────────────── */
+
+/* Focus is an outline ring, not a glow: WCAG non-text contrast cannot be met by
+   shadows alone, and this material has no borders to lean on. */
+:focus-visible {
+  outline: 2px solid var(--ui-focus-ring);
+  outline-offset: 2px;
+  box-shadow: none;
+}
+
+/* Selected/active reads through the accent (color + weight), so the state is
+   legible even where the shadow pair is invisible (high ambient light, low
+   contrast displays, forced-colors). */
+.ui-tab.active,
+.ui-session-item.active {
+  color: var(--ui-accent);
+  box-shadow: inset 3px 3px 6px var(--nm-dark), inset -3px -3px 6px var(--nm-light);
+}
+
+/* The chip pairs its own accent fill with the accent ink — accent-on-accent
+   would measure 1:1. */
+.ui-lang-chip.active {
+  background: var(--ui-accent-fill);
+  color: var(--ui-text-on-accent);
+  box-shadow: inset 3px 3px 6px var(--nm-dark), inset -3px -3px 6px var(--nm-light);
+}
+
+.ui-rail-btn.active {
+  /* The accent bar: the non-shadow state cue the brief requires (the inset pair
+     is invisible in glare and on low-contrast displays). */
+  box-shadow: inset 3px 3px 6px var(--nm-dark), inset -3px -3px 6px var(--nm-light), inset 3px 0 0 var(--ui-accent);
+}
+
+.ui-btn--primary {
+  color: var(--ui-text-on-accent);
+  background: var(--ui-accent-fill);
+  box-shadow: -4px -4px 10px var(--nm-light), 5px 5px 12px var(--nm-dark);
+}
+.ui-btn--primary:active {
+  box-shadow: inset 4px 4px 10px rgba(0, 0, 0, 0.35);
+}
+
+::selection {
+  background: var(--ui-accent-soft);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: var(--nm-bg);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--nm-sunken);
+  border-radius: 999px;
+  box-shadow:
+    inset 1px 1px 2px var(--nm-dark),
+    inset -1px -1px 2px var(--nm-light);
+}
+
+/* ===========================================================================
+   State layer + class-qualified fields.
+
+   Two cascade facts force this section (both verified in ui-css):
+     · `.ui-btn:hover:not(:disabled)` and its :active / --primary:hover /
+       --danger:hover siblings (primitives.css:270-325) are (0,3,0) — a
+       single-class skin rule loses, so a designed tint replaced the matte in
+       every hover state.
+     · `.ui-input / .ui-textarea / .ui-select` (primitives.css:561-583) are
+       class-qualified with a (0,2,0) `:focus` that sets `outline: none`, so
+       bare-element rules never reached the settings fields.
+
+   Here the pressed state is the inset pair (the brief's cue) rather than the
+   base's 1px translate — soft UI does not move.
+   =========================================================================== */
+
+.ui-btn:hover:not(:disabled) {
+  background: var(--nm-raised);
+  box-shadow: -5px -5px 10px var(--nm-light), 6px 6px 12px var(--nm-dark);
+}
+.ui-btn:active:not(:disabled) {
+  background: var(--nm-raised);
+  box-shadow: inset 4px 4px 8px var(--nm-dark), inset -4px -4px 8px var(--nm-light);
+  transform: none;
+}
+.ui-btn--primary:hover:not(:disabled) {
+  background: var(--ui-accent-strong);
+  color: var(--ui-text-on-accent);
+  filter: none;
+  transform: none;
+}
+.ui-btn--danger:hover:not(:disabled) {
+  background: var(--ui-danger);
+  color: var(--ui-text-on-accent);
+}
+.ui-card:hover {
+  box-shadow: -6px -6px 12px var(--nm-light), 7px 7px 14px var(--nm-dark);
+}
+
+.ui-input,
+.ui-textarea,
+.ui-select {
+  background: var(--nm-bg);
+  border: none;
+  border-radius: var(--ui-radius-md);
+  color: var(--ui-text);
+  box-shadow: inset 3px 3px 6px var(--nm-dark), inset -3px -3px 6px var(--nm-light);
+}
+.ui-input:focus,
+.ui-textarea:focus,
+.ui-select:focus {
+  border: none;
+  outline: 2px solid var(--ui-focus-ring);
+  outline-offset: 2px;
+  box-shadow: inset 3px 3px 6px var(--nm-dark), inset -3px -3px 6px var(--nm-light);
+}
+.ui-composer-card:focus-within,
+.ui-welcome-card:hover {
+  border-color: transparent;
+}
+
+/* ── Reduced motion ────────────────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-btn,
+  .ui-card,
+  .ui-panel,
+  .ui-modal,
+  .ui-command,
+  .ui-prompt {
+    transition: none !important;
+  }
+}
+
+/* ===========================================================================
+   Skin coverage — families a skin does not bind by default.
+
+   Without these the CodeMirror canvas, folder affordances, per-tool hues and
+   Mermaid/knowledge-graph ramps kept the app defaults inside this skin (the
+   editor stayed warm paper gray next to the matte). Tool/diagram hues are
+   DERIVED from this skin's accent with color-mix, so they follow both the
+   palette and the tone (the tone blocks already rebind `--ui-accent`) and stay
+   inside the accent's contrast-safe lightness band.
+   `--dot-*` / `--line-fork` are deliberately NOT re-bound: those are semantic
+   status indicators whose meaning users learn, not decoration.
+   =========================================================================== */
+
+:root {
+  --ui-folder-icon: var(--ui-accent);
+  --ui-folder-fill: color-mix(in srgb, var(--ui-accent) 18%, transparent);
+  --editor-canvas-bg: #e3e8ee;
+  --editor-gutter-bg: #dae0e8;
+  --editor-canvas-num: #7b8896;
+
+  --ui-tool-hue-think: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 68%, #b45309) 70%, var(--ui-text) 30%);
+  --ui-tool-hue-amber: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 68%, #a16207) 70%, var(--ui-text) 30%);
+  --ui-tool-hue-purple: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 68%, #7c3aed) 70%, var(--ui-text) 30%);
+  --ui-tool-hue-indigo: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 68%, #4f46e5) 70%, var(--ui-text) 30%);
+  --ui-tool-hue-sky: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 68%, #0369a1) 70%, var(--ui-text) 30%);
+  --ui-tool-hue-teal: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 68%, #0f766e) 70%, var(--ui-text) 30%);
+
+  --ui-diagram-hue-0: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 45%, #2563eb) 80%, var(--ui-text) 20%);
+  --ui-diagram-hue-1: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 45%, #7c3aed) 80%, var(--ui-text) 20%);
+  --ui-diagram-hue-2: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 45%, #0d9488) 80%, var(--ui-text) 20%);
+  --ui-diagram-hue-3: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 45%, #d97706) 80%, var(--ui-text) 20%);
+  --ui-diagram-hue-4: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 45%, #e11d48) 80%, var(--ui-text) 20%);
+  --ui-diagram-hue-5: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 45%, #0891b2) 80%, var(--ui-text) 20%);
+  --ui-diagram-hue-6: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 45%, #4f46e5) 80%, var(--ui-text) 20%);
+  --ui-diagram-hue-7: color-mix(in srgb, color-mix(in srgb, var(--ui-accent) 45%, #65a30d) 80%, var(--ui-text) 20%);
+}
+
+:root[data-appearance="dark"] {
+  --editor-canvas-bg: #2a2e35;
+  --editor-gutter-bg: #25292f;
+  --editor-canvas-num: #8a95a3;
+}
