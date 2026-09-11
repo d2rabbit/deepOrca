@@ -3,7 +3,7 @@
  *
  * 弱模型（step-3.7 级）的产出质量不可控——提示词写得再严，模型也可能漏页、
  * 漏节、漏三态。此模块把"生成→机械审计→带 findings 修复→分层失败"做成
- * 共享管道，五个生成 stage（spec / pd-design / prototype / ui-design / arch）
+ * 共享管道，五个生成 stage（spec / pm-design / prototype / ui-design / arch）
  * 全部走同一循环，稳定性不再依赖模型自觉。
  *
  * specs/design-stage-gates（借鉴 alibaba/open-code-review 垂直 agent 模式）：
@@ -117,7 +117,7 @@ export async function callSubagentStable(
 // ── 共享 stage-gate 管道 ─────────────────────────────────────────────────────
 
 export interface DesignStageConfig<T> {
-  /** Stage 标识（错误信息前缀，如 "pd-design"）。 */
+  /** Stage 标识（错误信息前缀，如 "pm-design"）。 */
   stage: string;
   /** 子代理技能 id。 */
   skill: string;
@@ -189,14 +189,14 @@ export async function runDesignStage<T>(
   };
 }
 
-// ── pd-design.md 审计（六节逐节点名）────────────────────────────────────────
+// ── pm-design.md 审计（六节逐节点名）────────────────────────────────────────
 
-const PD_SECTIONS = ["页面结构", "交互叙事", "信息架构", "视觉基调", "平台策略", "继承要点"] as const;
+const PM_SECTIONS = ["页面结构", "交互叙事", "信息架构", "视觉基调", "平台策略", "继承要点"] as const;
 
-/** pd-design.md 六节齐全 + 每节有实质内容（≥3 个非空白字符）。 */
-export function pdSectionsAudit(markdown: string): string[] {
+/** pm-design.md 六节齐全 + 每节有实质内容（≥3 个非空白字符）。 */
+export function pmSectionsAudit(markdown: string): string[] {
   const findings: string[] = [];
-  for (const section of PD_SECTIONS) {
+  for (const section of PM_SECTIONS) {
     if (!markdown.match(new RegExp(`^##\\s+.*${section}`, "m"))) {
       findings.push(`缺少「${section}」节`);
       continue;

@@ -7,7 +7,7 @@
 | Stage | 落盘门现状 | 缺口 |
 | --- | --- | --- |
 | spec（PRD） | `specSectionsAudit` 七节 + 表深 + 修复轮 | 表格行检测不容缩进/占位（p-core 真机 0 行误判类） |
-| pd-design | `pdSectionsAudit` 六节 + 修复轮（generatePdDesignDocument） | stage0 蒸馏失败**硬失败整个 materialize**（增强阶段应为 fail-open） |
+| pm-design | `pmSectionsAudit` 六节 + 修复轮（generatePmDesignDocument） | stage0 蒸馏失败**硬失败整个 materialize**（增强阶段应为 fail-open） |
 | ui-design | 仅"有 # 标题 + ≥2 个 ## 节"轻检查 | `uiSectionsAudit` 定义了**没接**；无修复轮；失败硬错误 |
 | arch | `looksLikeArchDoc`（有标题+有 mermaid 即过） | `archSectionsAudit` 定义了**没接**；无骨架内联；无修复轮 |
 | OpenUI 程序 | `pageCoverageFindings`（页面清单覆盖） | 无交互密度门（死按钮/空壳可通过） |
@@ -30,7 +30,7 @@ Go 项目（npm 包是二进制启动器）。`internal/agent`（diff 编排）+
 - `normalizeGeneratedMarkdown(md)`：表格行去前导空白（仅当去空白后以 `|` 开头且 ≥2 个 `|`）；审计与落盘共用同一归一化产物。
 - `countTableDataRows(section)`：`^[ \t]*\|` 行，排除分隔行（`:?-{2,}`）与纯占位行（每格皆 `<…>` 或 `[TODO…`）；spec/arch 审计共用。
 - `callSubagentStable(ctx, opts)`：子代理稳定调用 seam——抛错经 `classifyLlmError` 分类（RATE_LIMIT/SERVER/TRANSIENT/TIMEOUT）重试一次（1s）；内容 null/空同样重试一次；其余语义交还调用方。
-- `runDesignStage<T>` v2：补 emit（progressCode + basePercent）、错误携带 findings 明细、内部走 `callSubagentStable`。pd-design / ui-design / arch 三个文档 stage 全部迁入该引擎（各自 buildPrompt/audit/extract 保持可测纯函数）。
+- `runDesignStage<T>` v2：补 emit（progressCode + basePercent）、错误携带 findings 明细、内部走 `callSubagentStable`。pm-design / ui-design / arch 三个文档 stage 全部迁入该引擎（各自 buildPrompt/audit/extract 保持可测纯函数）。
 - `openuiInteractivityFindings(spec, program)`：页面清单已知时——组件调用总数 ≥10；`Action(` ≥ max(2, 页数)；每个声明页可达（初始页或存在 `@Set($page,…)` 导航边）。返回 findings 句列，注入 repairOpenuiProgram 契约（fail-open 层）。
 - `archSectionsAudit` 强化：七节（技术选型/系统架构/数据模型/核心流程/模块拆分/非功能/风险）+ Mermaid ≥2 且含 erDiagram + 技术选型表/模块拆分表 ≥3 数据行 + 风险表 ≥2 数据行。
 - `leaferCanvasFindings(text, requiredPageCount?)`：解析 JSON（失败返回 finding）→ 顶层 Frame 数 < requiredPageCount → 缺页 finding（硬门）；总节点数 < 4×Frame → 密度提示（软门，只进契约）。
@@ -39,7 +39,7 @@ Go 项目（npm 包是二进制启动器）。`internal/agent`（diff 编排）+
 
 - `SPEC_SKELETON`：功能需求/数据与字段/页面清单各补**具体 GFM 行模板**（占位符行）——弱模型"填空到行"，占位行不计数据行（模板抄也过不了门）。
 - `specSectionsAudit` 行计数改用 `countTableDataRows`；spec 产物先 `normalizeGeneratedMarkdown` 再审计/落盘。
-- materialize stage0 蒸馏失败 → **fail-open 降级**：发射降级事件、按无 pd-design 的既有提示词生成（spec 直驱）；手动 `prototype.pddesign` 保持 fail-closed（显式重算必须成功或明确报错）。
+- materialize stage0 蒸馏失败 → **fail-open 降级**：发射降级事件、按无 pm-design 的既有提示词生成（spec 直驱）；手动 `prototype.pmdesign` 保持 fail-closed（显式重算必须成功或明确报错）。
 - materialize 的覆盖门拼接处并入 `openuiInteractivityFindings`（同一 coverageNote 通道进修复环契约）。
 - `prototypeArchRun`：ARCH_SKELETON 内联 + `runDesignStage`（audit=强化 archSectionsAudit，maxRepairs=1，fail-closed）。
 - `ARCH_SKELETON`：七节 + 三表行模板 + mermaid 占位（`graph TD`/`erDiagram`/`sequenceDiagram` 各一），风格与 SPEC_SKELETON 一致。
@@ -54,8 +54,8 @@ Go 项目（npm 包是二进制启动器）。`internal/agent`（diff 编排）+
 | 位置 | 语义 | 依据 |
 | --- | --- | --- |
 | spec 深度门 | fail-closed | 契约源，薄 PRD 毒化全链 |
-| pd-design 手动重算 | fail-closed | 显式动作产物即契约 |
-| pd-design stage0（自动） | **fail-open 降级 spec 直驱** | OCR plan-failure 分层 |
+| pm-design 手动重算 | fail-closed | 显式动作产物即契约 |
+| pm-design stage0（自动） | **fail-open 降级 spec 直驱** | OCR plan-failure 分层 |
 | ui-design stage（自动） | **fail-open 降级原型直驱** | 同上 |
 | arch 深度门 | fail-closed | 显式动作 |
 | OpenUI 交互密度 | fail-open（契约注入 + verify 兜底） | 与页面覆盖门同层 |

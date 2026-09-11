@@ -800,7 +800,7 @@ test("spec page exposes the prompt-doc view and the regenerate entry (specs/prom
   const prototype = suite("prototype", [
     version("latest", {
       spec: "# Scope",
-      pdDesign: "# 登录原型设计提示\n\n## 页面结构\n- 登录页：账号密码表单",
+      pmDesign: "# 登录原型设计提示\n\n## 页面结构\n- 登录页：账号密码表单",
       openui: "root = Text('v1')",
     }),
   ]);
@@ -814,13 +814,13 @@ test("spec page exposes the prompt-doc view and the regenerate entry (specs/prom
   // 提示词视图切换（en locale）。
   rtl.fireEvent.click(out.getByText("Prompt doc"));
   await settle();
-  const pdView = out.container.querySelector('[data-testid="pd-design-view"]');
-  assert.ok(pdView, "pd-design view renders");
-  assert.ok((pdView?.textContent ?? "").includes("登录原型设计提示"), "pd-design body rendered");
-  // 手动重算入口 → prototype.pddesign 动作。
-  rtl.fireEvent.click(out.getByText("Regenerate pd-design"));
+  const pdView = out.container.querySelector('[data-testid="pm-design-view"]');
+  assert.ok(pdView, "pm-design view renders");
+  assert.ok((pdView?.textContent ?? "").includes("登录原型设计提示"), "pm-design body rendered");
+  // 手动重算入口 → prototype.pmdesign 动作。
+  rtl.fireEvent.click(out.getByText("Regenerate pm-design"));
   await settle();
-  const call = stub.calls.find((item) => item.method === "actionRun" && item.args[0] === "prototype.pddesign");
+  const call = stub.calls.find((item) => item.method === "actionRun" && item.args[0] === "prototype.pmdesign");
   assert.deepEqual(call?.args[1], {
     root: "/work/current",
     suiteId: prototype.id,

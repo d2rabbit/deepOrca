@@ -75,9 +75,9 @@ async function makeCtx(): Promise<ActionContext> {
     },
     spawner: NULL_SPAWNER,
     runSubagent: async (opts: { prompt?: string }) => {
-      // specs/prompt-doc-chain：stage0（pd-design 蒸馏）先于设备循环——返回
+      // specs/prompt-doc-chain：stage0（pm-design 蒸馏）先于设备循环——返回
       // 合规的提示词文档，让本测试真跑完整链。
-      if (opts.prompt?.includes("pd-design prompt document")) {
+      if (opts.prompt?.includes("pm-design prompt document")) {
         return {
           sessionId: "sub",
           content: [

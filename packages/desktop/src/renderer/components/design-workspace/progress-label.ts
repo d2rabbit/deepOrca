@@ -17,16 +17,16 @@ const PROGRESS_KEYS: Record<string, MessageKey> = {
   "design.materialize.repairing": "prototypeWorkspace.progressRepair",
   "design.revise.repairing": "prototypeWorkspace.progressRepair",
   // specs/prompt-doc-chain：提示词文档两级 stage。
-  "prototype.pddesign.generating": "prototypeWorkspace.progressPdDesign",
-  "prototype.pddesign.saved": "prototypeWorkspace.progressPdDesignSaved",
-  "prototype.pddesign.repairing": "prototypeWorkspace.progressRepair",
+  "prototype.pmdesign.generating": "prototypeWorkspace.progressPmDesign",
+  "prototype.pmdesign.saved": "prototypeWorkspace.progressPmDesignSaved",
+  "prototype.pmdesign.repairing": "prototypeWorkspace.progressRepair",
   "design.uidesign.generating": "designWorkspace.progressUiDesign",
   "design.uidesign.saved": "designWorkspace.progressUiDesignSaved",
   // specs/design-stage-gates：ui-design 修复轮 + arch 门修复轮 + 两级降级
   // （增强阶段 fail-open——OCR plan-failure 分层，降级也要让用户看见）。
   "design.uidesign.repairing": "prototypeWorkspace.progressRepair",
   "prototype.arch.repairing": "prototypeWorkspace.progressRepair",
-  "prototype.materialize.degraded": "prototypeWorkspace.progressPdDesignDegraded",
+  "prototype.materialize.degraded": "prototypeWorkspace.progressPmDesignDegraded",
   "design.uidesign.degraded": "designWorkspace.progressUiDesignDegraded",
   "prototype.materialize.generating": "prototypeWorkspace.progressMaterialize",
   "prototype.materialize.saved": "prototypeWorkspace.progressMaterializeSaved",

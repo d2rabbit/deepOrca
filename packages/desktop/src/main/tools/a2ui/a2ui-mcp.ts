@@ -1075,8 +1075,8 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
             ...((base ?? {}) as PrototypeSuiteContent),
             ...(requirement ? { requirement } : {}),
             spec: document,
-            // specs/prompt-doc-chain:spec 重写 → pd-design 派生链失效。
-            pdDesign: undefined,
+            // specs/prompt-doc-chain:spec 重写 → pm-design 派生链失效。
+            pmDesign: undefined,
             openui: undefined,
             // spec 重写后旧架构文档随之失效,与 openui 同等重置(否则新版本
             // 会带着与当前 PRD 不符的"已批准架构")。
@@ -1278,19 +1278,19 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
     }
   );
 
-  // Tool: save_pd_design — persist the pd-design prompt document (specs/
-  // prompt-doc-chain). Called by prototype.pddesign (manual recompute) and
+  // Tool: save_pm_design — persist the pm-design prompt document (specs/
+  // prompt-doc-chain). Called by prototype.pmdesign (manual recompute) and
   // prototype.materialize stage0 (auto). Upstream design intent changed →
   // derived artifacts reset (same discipline as render_spec).
   registerTool(
-    "save_pd_design",
+    "save_pm_design",
     {
       description:
-        "Persist a pd-design prompt document (原型提示词文档) as a prototype suite version. " +
-        "Called by the prototype.pddesign action; resets the derived prototype artifacts " +
+        "Persist a pm-design prompt document (原型提示词文档) as a prototype suite version. " +
+        "Called by the prototype.pmdesign action; resets the derived prototype artifacts " +
         "(openui/variants/verification/arch) because the upstream design intent changed.",
       inputSchema: {
-        document: z.string().describe("The complete pd-design markdown document (PD_DESIGN_CONTRACT shape)."),
+        document: z.string().describe("The complete pm-design markdown document (PM_DESIGN_CONTRACT shape)."),
         preserveDerived: z
           .boolean()
           .optional()
@@ -1305,12 +1305,12 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
     async (args) => {
       const document = String(args.document ?? "");
       if (!document.trim()) {
-        return { content: [{ type: "text", text: "Error: empty pd-design document." }], isError: true };
+        return { content: [{ type: "text", text: "Error: empty pm-design document." }], isError: true };
       }
       // 交叉审查修复：严格 lineage 守卫——note 不再隐含套件意图（否则
       // {document, note} 直调会铸出无 spec 的孤儿套件）。
       if (!stringArg(args, "suiteId")) {
-        return suiteError("save_pd_design appends suite versions — pass suiteId/versionId lineage");
+        return suiteError("save_pm_design appends suite versions — pass suiteId/versionId lineage");
       }
       if (stringArg(args, "versionId") && !stringArg(args, "suiteId")) {
         return suiteError("versionId requires suiteId");
@@ -1326,7 +1326,7 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
         deriveTitle(document),
         (base) => ({
           ...((base ?? {}) as PrototypeSuiteContent),
-          pdDesign: document,
+          pmDesign: document,
           // 手动重算 = 上游意图变更 → 派生物失效（与 render_spec 同规）；
           // stage0（preserveDerived）→ 保留：同一动作内 render_openui 将重建。
           ...(preserveDerived
@@ -1344,9 +1344,9 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
       return artifactResult(
         persisted.ref,
         preserveDerived
-          ? "pd-design document saved as a prototype suite version (derived artifacts preserved for the in-action regeneration)."
-          : "pd-design document saved as a prototype suite version. OpenUI/verification/arch were reset.",
-        { pdDesign: document }
+          ? "pm-design document saved as a prototype suite version (derived artifacts preserved for the in-action regeneration)."
+          : "pm-design document saved as a prototype suite version. OpenUI/verification/arch were reset.",
+        { pmDesign: document }
       );
     }
   );
@@ -1394,7 +1394,7 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
           .optional()
           .describe(
             "ui-design.md — the visual-strengthened prompt document distilled from the basis " +
-              "prototype's pd-design (specs/prompt-doc-chain)"
+              "prototype's pm-design (specs/prompt-doc-chain)"
           ),
       },
     },

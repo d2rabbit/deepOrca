@@ -89,7 +89,7 @@ export function PrototypeWorkspace({
    *  the main process; the DOCUMENT view is the default (user ask 2026-09-08:
    *  标准 markdown 展示优先于演示形态),「幻灯片」是切换项。Keyed cache per
    *  versionId. */
-  const [specView, setSpecView] = useState<"doc" | "slides" | "pd">("doc");
+  const [specView, setSpecView] = useState<"doc" | "slides" | "pm">("doc");
   const [slides, setSlides] = useState<{
     html: string;
     css: string;
@@ -601,12 +601,12 @@ export function PrototypeWorkspace({
     }
   };
 
-  /** 手动重算 pd-design.md（specs/prompt-doc-chain）：与 materialize stage0
+  /** 手动重算 pm-design.md（specs/prompt-doc-chain）：与 materialize stage0
    *  同一生成路径；保存即重置派生物（openui/variants/verification/arch）。 */
-  const runPdDesign = () => {
+  const runPmDesign = () => {
     if (!suite || !selectedVersion) return;
     void (async () => {
-      const ref = await runAction("prototype.pddesign", {
+      const ref = await runAction("prototype.pmdesign", {
         suiteId: suite.id,
         versionId: selectedVersion.versionId,
       });
@@ -841,10 +841,10 @@ export function PrototypeWorkspace({
                   >
                     {t("prototypeWorkspace.specViewSlides")}
                   </button>
-                  {/* specs/prompt-doc-chain：pd-design.md 存在时提供提示词视图。 */}
-                  {content.pdDesign ? (
-                    <button type="button" className={specView === "pd" ? "on" : ""} onClick={() => setSpecView("pd")}>
-                      {t("prototypeWorkspace.specViewPd")}
+                  {/* specs/prompt-doc-chain：pm-design.md 存在时提供提示词视图。 */}
+                  {content.pmDesign ? (
+                    <button type="button" className={specView === "pm" ? "on" : ""} onClick={() => setSpecView("pm")}>
+                      {t("prototypeWorkspace.specViewPm")}
                     </button>
                   ) : null}
                 </div>
@@ -855,7 +855,7 @@ export function PrototypeWorkspace({
                   className="ui-design-pd-regen"
                   disabled={busy !== null || readOnly}
                   title={t("prototypeWorkspace.pdRegenHint")}
-                  onClick={runPdDesign}
+                  onClick={runPmDesign}
                 >
                   {t("prototypeWorkspace.pdRegen")}
                 </button>
@@ -1045,10 +1045,10 @@ export function PrototypeWorkspace({
                   <div className="ui-design-slides-state">{t("prototypeWorkspace.noSpec")}</div>
                 )}
               </div>
-            ) : specView === "pd" && content.pdDesign ? (
-              // specs/prompt-doc-chain：pd-design.md 提示词文档阅读视图。
-              <div className="ui-design-spec-pd" data-testid="pd-design-view">
-                <StreamdownView markdown={content.pdDesign} />
+            ) : specView === "pm" && content.pmDesign ? (
+              // specs/prompt-doc-chain：pm-design.md 提示词文档阅读视图。
+              <div className="ui-design-spec-pd" data-testid="pm-design-view">
+                <StreamdownView markdown={content.pmDesign} />
               </div>
             ) : content.spec ? (
               // 结构化文档视图(user ask 2026-09-09:不是 markdown 平铺)——

@@ -251,13 +251,13 @@ test("materialize stage0 distill failure degrades to spec-driven generation (fai
     genPrompt.startsWith("Create the complete OpenUI Lang prototype for the requirements document below. "),
     "spec-driven legacy prompt"
   );
-  assert.ok(!genPrompt.includes("## pd-design"), "no pd-design block on the degraded path");
+  assert.ok(!genPrompt.includes("## pm-design"), "no pm-design block on the degraded path");
   assert.ok(
     emits.some((event) => (event.data as { code?: string } | undefined)?.code === "prototype.materialize.degraded"),
     "degrade event emitted"
   );
   assert.ok(
-    !mcpCalls.some((call) => call.name.endsWith("save_pd_design")),
+    !mcpCalls.some((call) => call.name.endsWith("save_pm_design")),
     "nothing persisted from the failed distill"
   );
 });
@@ -283,7 +283,7 @@ test("design.materialize degrades ui-design after failed repair and still render
       proto: {
         kind: "prototype",
         title: "P",
-        content: { spec: SPEC_FOR_DEGRADE, openui: "root = Column([])", pdDesign: PD_BASIS, requirement: "登录" },
+        content: { spec: SPEC_FOR_DEGRADE, openui: "root = Column([])", pmDesign: PD_BASIS, requirement: "登录" },
       },
     },
     { generatedQueue: [UI_THIN, UI_THIN, "```json\n" + LEAFER_PLAIN + "\n```"], mcpCalls, subagentCalls, emits }

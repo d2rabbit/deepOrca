@@ -47,6 +47,27 @@ function protoSuite(root: string, title: string, extra?: Partial<Parameters<type
   return created.id;
 }
 
+test("legacy pdDesign field reads back as pmDesign and re-projects under the new name", () => {
+  const root = tempRoot();
+  const id = protoSuite(root, "旧字段套件");
+  const suite = readDesignSuite(root, id);
+  assert.ok(suite);
+  const dir = path.join(root, ".deeporca", "designs", id);
+  const versionFile = path.join(dir, "versions", `${suite.currentVersion.versionId}.json`);
+  // 手工把版本内容写成旧字段形态（模拟更名前落盘的数据）。
+  const raw = JSON.parse(fs.readFileSync(versionFile, "utf8")) as { content: Record<string, unknown> };
+  raw.content.pdDesign = "# 旧提示词\n\n## 页面结构\n- x";
+  delete raw.content.pmDesign;
+  fs.writeFileSync(versionFile, JSON.stringify(raw), "utf8");
+  fs.writeFileSync(path.join(dir, "pd-design.md"), "# 旧提示词", "utf8");
+
+  const reread = readDesignSuite(root, id);
+  assert.ok(reread);
+  const content = reread.currentVersion.content as PrototypeSuiteContent;
+  assert.equal(content.pmDesign, "# 旧提示词\n\n## 页面结构\n- x", "legacy field normalized to pmDesign");
+  assert.equal((content as Record<string, unknown>).pdDesign, undefined, "old key stripped on read");
+});
+
 test("theme CRUD round-trips through index.json with oldest-first listing", () => {
   const root = tempRoot();
   const first = createDesignTheme(root, { title: "人员管理", note: "基础模块" });

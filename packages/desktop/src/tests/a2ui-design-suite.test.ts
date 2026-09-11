@@ -597,8 +597,8 @@ test("render_spec append with theme args overwrites the suite's theme meta witho
   }
 });
 
-test("save_pd_design persists the prompt doc, resets derived artifacts, and projects pd-design.md", async () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "a2ui-suite-pddesign-"));
+test("save_pm_design persists the prompt doc, resets derived artifacts, and projects pm-design.md", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "a2ui-suite-pmdesign-"));
   roots.push(root);
   const client = await clientFor(root);
   try {
@@ -611,7 +611,7 @@ test("save_pd_design persists the prompt doc, resets derived artifacts, and proj
       versionId: string;
     };
     const pd = await client.callTool({
-      name: "save_pd_design",
+      name: "save_pm_design",
       arguments: {
         document: "# 登录原型设计提示\n\n## 页面结构\n- 登录页\n\n## 交互叙事\n- 提交→校验",
         suiteId: ref.suiteId,
@@ -621,18 +621,18 @@ test("save_pd_design persists the prompt doc, resets derived artifacts, and proj
     assert.ok(!pd.isError, text(pd));
     const suite = readDesignSuite(root, ref.suiteId);
     const content = suite?.currentContent as PrototypeSuiteContent;
-    assert.match(content.pdDesign ?? "", /# 登录原型设计提示/);
+    assert.match(content.pmDesign ?? "", /# 登录原型设计提示/);
     // 派生物失效（与 render_spec 同规）。
     assert.equal(content.openui, undefined);
     assert.equal(content.verification?.status, "pending");
     assert.equal(content.arch, undefined);
     // 投影文件。
     assert.ok(
-      fs.existsSync(path.join(root, ".deeporca", "designs", ref.suiteId, "pd-design.md")),
-      "pd-design.md projection written"
+      fs.existsSync(path.join(root, ".deeporca", "designs", ref.suiteId, "pm-design.md")),
+      "pm-design.md projection written"
     );
 
-    // render_spec 重写 PRD → pdDesign 派生链失效（save_pd_design 已前移
+    // render_spec 重写 PRD → pmDesign 派生链失效（save_pm_design 已前移
     // head——按 head 追加，不沿用旧 versionId）。
     const revised = await client.callTool({
       name: "render_spec",
@@ -641,17 +641,17 @@ test("save_pd_design persists the prompt doc, resets derived artifacts, and proj
     assert.ok(!revised.isError, text(revised));
     const afterSpec = readDesignSuite(root, ref.suiteId);
     assert.equal(
-      (afterSpec?.currentContent as PrototypeSuiteContent).pdDesign,
+      (afterSpec?.currentContent as PrototypeSuiteContent).pmDesign,
       undefined,
-      "spec rewrite invalidates pdDesign"
+      "spec rewrite invalidates pmDesign"
     );
   } finally {
     await client.close();
   }
 });
 
-test("save_pd_design cross-review hardening: preserveDerived keeps derived artifacts; clamps and strict lineage (specs/prompt-doc-chain)", async () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "a2ui-suite-pddesign-hard-"));
+test("save_pm_design cross-review hardening: preserveDerived keeps derived artifacts; clamps and strict lineage (specs/prompt-doc-chain)", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "a2ui-suite-pmdesign-hard-"));
   roots.push(root);
   const client = await clientFor(root);
   try {
@@ -673,7 +673,7 @@ test("save_pd_design cross-review hardening: preserveDerived keeps derived artif
       versionId: string;
     };
     const preserved = await client.callTool({
-      name: "save_pd_design",
+      name: "save_pm_design",
       arguments: {
         document: "# 登录原型设计提示\n\n## 页面结构\n- 登录页",
         preserveDerived: true,
@@ -684,11 +684,11 @@ test("save_pd_design cross-review hardening: preserveDerived keeps derived artif
     assert.ok(!preserved.isError, text(preserved));
     const firstSuite = readDesignSuite(root, ref.suiteId);
     let content = firstSuite?.currentContent as PrototypeSuiteContent;
-    assert.match(content.pdDesign ?? "", /# 登录原型设计提示/);
+    assert.match(content.pmDesign ?? "", /# 登录原型设计提示/);
     assert.ok(content.openui, "preserveDerived keeps the derived openui on the head version");
 
     const reset = await client.callTool({
-      name: "save_pd_design",
+      name: "save_pm_design",
       arguments: { document: "# 登录原型设计提示 v2\n\n## 页面结构\n- 登录页", suiteId: ref.suiteId },
     });
     assert.ok(!reset.isError, text(reset));
@@ -699,15 +699,15 @@ test("save_pd_design cross-review hardening: preserveDerived keeps derived artif
 
     // 载荷钳制：超限文档拒绝。
     const oversized = await client.callTool({
-      name: "save_pd_design",
+      name: "save_pm_design",
       arguments: { document: `# x\n\n## a\n${"y".repeat(513 * 1024)}`, suiteId: ref.suiteId },
     });
-    assert.equal(oversized.isError, true, "oversized pd-design document must be clamped");
+    assert.equal(oversized.isError, true, "oversized pm-design document must be clamped");
     assert.match(text(oversized), /too large|too deep/);
 
     // 严格 lineage：仅 note 不再隐含套件意图（孤儿套件防护）。
     const orphan = await client.callTool({
-      name: "save_pd_design",
+      name: "save_pm_design",
       arguments: { document: "# 孤儿\n\n## a\n- b", note: "no lineage" },
     });
     assert.equal(orphan.isError, true, "note-only call must not mint an orphan suite");

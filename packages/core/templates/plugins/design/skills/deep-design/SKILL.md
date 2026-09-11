@@ -11,10 +11,10 @@ description: >-
 
 # Deep Design
 
-> **pd-design / ui-design 文档模式**（specs/prompt-doc-chain）：当提示词要求
-> 产出 pd-design 或 ui-design 提示词文档时，按提示词内嵌的契约节逐节填充——
+> **pm-design / ui-design 文档模式**（specs/prompt-doc-chain）：当提示词要求
+> 产出 pm-design 或 ui-design 提示词文档时，按提示词内嵌的契约节逐节填充——
 > 每节写给下游生成器的指令（非 PRD 复述、非散文）；页面集合严格来自
-> pd-design 的页面结构，不得发明页面。
+> pm-design 的页面结构，不得发明页面。
 
 # DeepDesign — Generate Design-Grade Web Artifacts
 

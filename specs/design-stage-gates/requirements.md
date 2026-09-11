@@ -2,15 +2,15 @@
 
 > Phase 1 of spec-workflow。技术方案见 [design.md](./design.md)；任务分解见 [tasks.md](./tasks.md)。
 > 立项依据：user 2026-09-11——"原型设计和 UI 设计，架构图设计这两个部分也这么强化一下……去看看 opencodereview（OCR，`@alibaba-group/open-code-review`）的源码是怎么做的，我们也参考一下，甚至可以引入专属的这几个模块的 agent 体系。我只有一个要求：**一定要稳定**。"
-> 前置：specs/prompt-doc-chain 已落地 PRD 深度门（`specSectionsAudit` + 修复轮）与 pd-design 六节门；本规格把同一待遇补齐到**其余全部生成 stage**，并引入 OCR 的垂直 agent 稳定性分层。
+> 前置：specs/prompt-doc-chain 已落地 PRD 深度门（`specSectionsAudit` + 修复轮）与 pm-design 六节门；本规格把同一待遇补齐到**其余全部生成 stage**，并引入 OCR 的垂直 agent 稳定性分层。
 
 ## 范围
 
-四个生成 stage 的机械深度门与稳定性分层：**ui-design.md**（design.materialize 强化 stage）、**技术架构文档**（prototype.arch）、**OpenUI 原型程序**（materialize 产物）、**Leafer 场景 JSON**（design.materialize 产物）。同时把子代理调用 seam 补上瞬态重试。**不含**：PRD 深度门（已有）、pd-design 门（已有）、对话侧链路、渲染层 UI 变更（进度码回退英文原文，零 i18n 强制）。
+四个生成 stage 的机械深度门与稳定性分层：**ui-design.md**（design.materialize 强化 stage）、**技术架构文档**（prototype.arch）、**OpenUI 原型程序**（materialize 产物）、**Leafer 场景 JSON**（design.materialize 产物）。同时把子代理调用 seam 补上瞬态重试。**不含**：PRD 深度门（已有）、pm-design 门（已有）、对话侧链路、渲染层 UI 变更（进度码回退英文原文，零 i18n 强制）。
 
 ## OCR 源码调研结论（借鉴依据，详见 design.md §2）
 
-1. **多阶段模板管线**：MAIN_TASK → PLAN_TASK → RE_LOCATION，每阶段专属提示词模板 + 专属预算——对应我们的 spec→pd-design→原型→ui-design 链；
+1. **多阶段模板管线**：MAIN_TASK → PLAN_TASK → RE_LOCATION，每阶段专属提示词模板 + 专属预算——对应我们的 spec→pm-design→原型→ui-design 链；
 2. **增强阶段 fail-open**："Plan failure never blocks the main review" / "LLM grouping failed → falling back to per-file dispatch"——增强产物失败回退基线行为，永不阻塞主管线；
 3. **落盘验证 fail-closed**：行号越界/JSON 结构机械校验，不达标不入结果集；
 4. **确定性优先于 LLM**：RE_LOCATION 三级解析（同文件启发式 → 跨文件启发式 → LLM 兜底）——修复先走确定性归一化，再花 LLM 轮。
@@ -19,12 +19,12 @@
 
 ### S1 — 确定性归一化层（OCR 借鉴 #4）
 
-1. When 任一文档 stage（spec / pd-design / ui-design / arch）的子代理产物进入审计, the system shall 先做确定性归一化：表格行去前导空白（LLM 常把 GFM 表缩进，行首 `|` 检测全失效）、并按占位符感知规则计数数据行（纯 `<占位>` / `[TODO` 单元格的行不计）——归一化后的文档才是审计与落盘对象。
+1. When 任一文档 stage（spec / pm-design / ui-design / arch）的子代理产物进入审计, the system shall 先做确定性归一化：表格行去前导空白（LLM 常把 GFM 表缩进，行首 `|` 检测全失效）、并按占位符感知规则计数数据行（纯 `<占位>` / `[TODO` 单元格的行不计）——归一化后的文档才是审计与落盘对象。
 
 ### S2 — ui-design.md 深度门 + fail-open 降级
 
 2. When design.materialize 的 ui-design stage 产出文档, the system shall 以 `uiSectionsAudit`（四节逐节点名）审计，findings 非空时带 findings 修复一轮，复审通过才作为画布主驱动。
-3. When ui-design 修复轮后仍未达标（弱模型极限）, the system shall **fail-open 降级**：ui-design 置空、画布按既有原型驱动提示词生成（与无 pd-design 的旧路径同构），发射降级进度事件——OCR "plan failure never blocks" 同款分层，绝不因提示词文档失败杀死 UI 生成。
+3. When ui-design 修复轮后仍未达标（弱模型极限）, the system shall **fail-open 降级**：ui-design 置空、画布按既有原型驱动提示词生成（与无 pm-design 的旧路径同构），发射降级进度事件——OCR "plan failure never blocks" 同款分层，绝不因提示词文档失败杀死 UI 生成。
 
 ### S3 — 架构文档深度门
 

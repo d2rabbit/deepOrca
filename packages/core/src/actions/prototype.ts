@@ -23,7 +23,7 @@ import {
   normalizeGeneratedMarkdown,
   openuiInteractivityFindings,
   pageCoverageFindings,
-  pdSectionsAudit,
+  pmSectionsAudit,
   runDesignStage,
   sectionBody,
   subagentContentOf,
@@ -64,10 +64,10 @@ export type PrototypeDevice = "desktop" | "mobile" | "tablet";
 export interface PrototypeSuiteContent {
   requirement?: string;
   spec?: string;
-  /** specs/prompt-doc-chain：pd-design.md——从 PRD 蒸馏的原型提示词文档
+  /** specs/prompt-doc-chain：pm-design.md——从 PRD 蒸馏的原型提示词文档
    *  （页面结构/交互叙事/信息架构/视觉基调/平台策略/继承要点）。原型生成的
    *  主驱动；spec 重写后失效（render_spec 重置）。 */
-  pdDesign?: string;
+  pmDesign?: string;
   openui?: string;
   /** 平台变体(user ask 2026-09-09:三端是平台化适配,不是同一程序挤宽度)。
    *  desktop 桌面版即 openui 本体;mobile/tablet 是结构性不同的独立程序,
@@ -86,7 +86,7 @@ export interface UiSuiteContent {
    *  同一 suite 版本不混写两种字段（guard 测试锁定）。 */
   leafer?: string;
   /** specs/prompt-doc-chain：ui-design.md——原型转 UI 时的视觉强化提示词
-   *  （pd-design 的视觉翻译：画布构图/tokens 映射/视觉层级）。随
+   *  （pm-design 的视觉翻译：画布构图/tokens 映射/视觉层级）。随
    *  design.materialize 生成并落盘。 */
   uiDesign?: string;
   tokens?: unknown;
@@ -719,10 +719,10 @@ export function specSectionsAudit(markdown: string): string[] {
   return findings;
 }
 
-// ── 提示词文档链（specs/prompt-doc-chain）：pd-design.md ─────────────────────
-/** pd-design.md 的产出契约：可执行的提示词文档（写给原型生成器的指令），
+// ── 提示词文档链（specs/prompt-doc-chain）：pm-design.md ─────────────────────
+/** pm-design.md 的产出契约：可执行的提示词文档（写给原型生成器的指令），
  *  不是 PRD 复述。 */
-export const PD_DESIGN_CONTRACT =
+export const PM_DESIGN_CONTRACT =
   "It must be ONE markdown document: a `# ` title plus these `## ` sections in order — " +
   "`页面结构`（每页：目的 / 核心区块 / 入口与出口）、`交互叙事`（每页关键流：状态 / 跳转 / 反馈）、" +
   "`信息架构`（导航模型 / 层级 / 术语表）、`视觉基调`（关键词级基调，不写具体样式值）、" +
@@ -730,10 +730,10 @@ export const PD_DESIGN_CONTRACT =
   "Write every section as DIRECTIVES to a prototype generator (imperative, executable), " +
   "not a restatement of the PRD. Do not invent pages beyond the PRD's 页面清单.";
 
-/** 生成 pd-design.md：spec（契约源）+ 参考 PRD 上下文 → deep-design 子代理 →
+/** 生成 pm-design.md：spec（契约源）+ 参考 PRD 上下文 → deep-design 子代理 →
  *  嵌套围栏感知抽取 + 轻结构门（# 标题 + ≥2 个 ## 节）。供独立动作与
  *  materialize stage0 复用——两条路产出完全一致。 */
-async function generatePdDesignDocument(
+async function generatePmDesignDocument(
   ctx: ActionContext,
   spec: string,
   inheritsFrom: DesignThemeRef | undefined,
@@ -746,9 +746,9 @@ async function generatePdDesignDocument(
   // 装配（契约 + 参考块）与抽取规则（markdown + # 标题 + 归一化）。
   const buildPrompt = (findings: string[] | null): string => {
     const base =
-      "Analyze the requirements document below and distill it into a pd-design prompt document. " +
+      "Analyze the requirements document below and distill it into a pm-design prompt document. " +
       "It drives a prototype generator afterwards — every section must be a directive, not prose. " +
-      PD_DESIGN_CONTRACT +
+      PM_DESIGN_CONTRACT +
       " Do not call tools. " +
       "Return only the complete markdown document in one markdown code fence.\n\n" +
       "## 需求文档（契约源）\n" +
@@ -760,7 +760,7 @@ async function generatePdDesignDocument(
     return base;
   };
   const result = await runDesignStage(ctx, {
-    stage: "pd-design",
+    stage: "pm-design",
     skill: "deep-design",
     buildPrompt,
     extract: (content) => {
@@ -769,9 +769,9 @@ async function generatePdDesignDocument(
       if (!doc || !/^#\s+/m.test(doc)) return null;
       return normalizeGeneratedMarkdown(doc);
     },
-    audit: pdSectionsAudit,
+    audit: pmSectionsAudit,
     maxRepairs: 1,
-    progressCode: "prototype.pddesign.repairing",
+    progressCode: "prototype.pmdesign.repairing",
     basePercent: 40,
   });
   return result.ok
@@ -911,25 +911,25 @@ export const prototypeSpecRun: ActionRun<PrototypeSpecInput, PrototypeSpecOutput
   }
 };
 
-export interface PrototypePdDesignInput {
+export interface PrototypePmDesignInput {
   suiteId: string;
   versionId?: string;
   note?: string;
 }
 
-export interface PrototypePdDesignOutput {
+export interface PrototypePmDesignOutput {
   ok: boolean;
   artifactRef?: ArtifactRef;
   refreshStore?: boolean;
   error?: string;
 }
 
-/** specs/prompt-doc-chain：PRD → pd-design.md（原型提示词文档）。materialize
- *  stage0 的手动重算入口——同一条生成路径（generatePdDesignDocument）。 */
-export const prototypePdDesignDefinition: ActionDefinition<PrototypePdDesignInput> = {
-  id: "prototype.pddesign",
+/** specs/prompt-doc-chain：PRD → pm-design.md（原型提示词文档）。materialize
+ *  stage0 的手动重算入口——同一条生成路径（generatePmDesignDocument）。 */
+export const prototypePmDesignDefinition: ActionDefinition<PrototypePmDesignInput> = {
+  id: "prototype.pmdesign",
   description:
-    "Analyze the requirements document (with inherited/cross-referenced PRD context) into pd-design.md — " +
+    "Analyze the requirements document (with inherited/cross-referenced PRD context) into pm-design.md — " +
     "the distilled prompt document that drives prototype generation.",
   category: "design",
   parameters: {
@@ -945,7 +945,7 @@ export const prototypePdDesignDefinition: ActionDefinition<PrototypePdDesignInpu
   sideEffects: ["write-in-cwd"],
 };
 
-export const prototypePdDesignRun: ActionRun<PrototypePdDesignInput, PrototypePdDesignOutput> = async (input, ctx) => {
+export const prototypePmDesignRun: ActionRun<PrototypePmDesignInput, PrototypePmDesignOutput> = async (input, ctx) => {
   const suiteId = input?.suiteId?.trim();
   if (!suiteId) return { ok: false, error: "suiteId is required" };
   if (!ctx.runSubagent) return { ok: false, error: "runSubagent not available" };
@@ -957,21 +957,21 @@ export const prototypePdDesignRun: ActionRun<PrototypePdDesignInput, PrototypePd
   if (!spec) return { ok: false, error: "requirements document not found; run prototype.spec first" };
 
   ctx.emit({
-    message: "Distilling the pd-design prompt document",
+    message: "Distilling the pm-design prompt document",
     percent: 30,
-    data: { code: "prototype.pddesign.generating" },
+    data: { code: "prototype.pmdesign.generating" },
   });
-  const generated = await generatePdDesignDocument(ctx, spec, read.value.inherits, read.value.references);
+  const generated = await generatePmDesignDocument(ctx, spec, read.value.inherits, read.value.references);
   if (!generated.ok) return { ok: false, error: generated.error };
   if (ctx.signal.aborted) return { ok: false, error: "cancelled" };
-  const saved = await executeA2ui(ctx, "save_pd_design", {
+  const saved = await executeA2ui(ctx, "save_pm_design", {
     document: generated.document,
     suiteId,
     ...(read.value.artifactRef.versionId ? { versionId: read.value.artifactRef.versionId } : {}),
     ...(input?.note?.trim() ? { note: input.note.trim() } : {}),
   });
   if (!saved.ok) return saved;
-  ctx.emit({ message: "pd-design document saved", percent: 100, data: { code: "prototype.pddesign.saved" } });
+  ctx.emit({ message: "pm-design document saved", percent: 100, data: { code: "prototype.pmdesign.saved" } });
   return { ok: true, artifactRef: saved.artifactRef, refreshStore: !saved.artifactRef };
 };
 
@@ -1027,8 +1027,8 @@ export const prototypeMaterializeRun: ActionRun<PrototypeMaterializeInput, Proto
 
   let spec: string | null = null;
   let requirement: string | undefined;
-  // specs/prompt-doc-chain：版本快照里的 pd-design 与主题参考（suite 路径）。
-  let storedPdDesign: string | null = null;
+  // specs/prompt-doc-chain：版本快照里的 pm-design 与主题参考（suite 路径）。
+  let storedPmDesign: string | null = null;
   let themeRefs: { inherits?: DesignThemeRef; references?: DesignThemeRef[] } = {};
   if (suiteId && versionId) {
     const read = await readSuiteVersion(ctx, suiteId, versionId);
@@ -1037,7 +1037,7 @@ export const prototypeMaterializeRun: ActionRun<PrototypeMaterializeInput, Proto
     const content = read.value.content as PrototypeSuiteContent;
     spec = content.spec?.trim() || null;
     requirement = content.requirement;
-    storedPdDesign = content.pdDesign?.trim() || null;
+    storedPmDesign = content.pmDesign?.trim() || null;
     themeRefs = {
       ...(read.value.inherits ? { inherits: read.value.inherits } : {}),
       ...(read.value.references ? { references: read.value.references } : {}),
@@ -1073,23 +1073,23 @@ export const prototypeMaterializeRun: ActionRun<PrototypeMaterializeInput, Proto
     // 必须以最新 head 为基线——循环里沿用输入 versionId 会在第二端撞
     // readSuiteBase 的 head-moved 守卫(fix-all 同款坑,修复同款)。
     let baseVersionId = versionId;
-    // specs/prompt-doc-chain stage0：所选版本无 pd-design 时自动蒸馏（有则
-    // 直接用——手动重算语义由 prototype.pddesign 承载）。交叉审查修复：stage0
+    // specs/prompt-doc-chain stage0：所选版本无 pm-design 时自动蒸馏（有则
+    // 直接用——手动重算语义由 prototype.pmdesign 承载）。交叉审查修复：stage0
     // 保存走 preserveDerived——不清空 openui/variants/verification/arch（同一
     // 动作内紧随的 render_openui 会重建派生物；清空会在生成失败/取消时把
     // 用户既有原型从 head 上抹掉）。重置语义只属于手动重算（意图变更、不伴
     // 随再生成）。
-    let pdDesign: string | null = storedPdDesign;
-    if (suiteId && !pdDesign) {
+    let pmDesign: string | null = storedPmDesign;
+    if (suiteId && !pmDesign) {
       ctx.emit({
-        message: "Distilling the pd-design prompt document",
+        message: "Distilling the pm-design prompt document",
         percent: 10,
-        data: { code: "prototype.pddesign.generating" },
+        data: { code: "prototype.pmdesign.generating" },
       });
-      const distilled = await generatePdDesignDocument(ctx, spec, themeRefs.inherits, themeRefs.references);
+      const distilled = await generatePmDesignDocument(ctx, spec, themeRefs.inherits, themeRefs.references);
       if (distilled.ok) {
         if (ctx.signal.aborted) return { ok: false, error: "cancelled" };
-        const savedPd = await executeA2ui(ctx, "save_pd_design", {
+        const savedPd = await executeA2ui(ctx, "save_pm_design", {
           document: distilled.document,
           preserveDerived: true,
           suiteId,
@@ -1097,26 +1097,26 @@ export const prototypeMaterializeRun: ActionRun<PrototypeMaterializeInput, Proto
           ...(input.note?.trim() ? { note: input.note.trim() } : {}),
         });
         if (!savedPd.ok) return savedPd;
-        pdDesign = distilled.document;
-        // head 前移：save_pd_design 追加了新版本，设备循环以新 head 为基线。
+        pmDesign = distilled.document;
+        // head 前移：save_pm_design 追加了新版本，设备循环以新 head 为基线。
         if (savedPd.artifactRef) baseVersionId = savedPd.artifactRef.versionId;
         // 交叉审查修复：自动路径同样发射 saved 终态码（此前只有手动动作发）。
         ctx.emit({
-          message: "pd-design document saved",
+          message: "pm-design document saved",
           percent: 45,
-          data: { code: "prototype.pddesign.saved" },
+          data: { code: "prototype.pmdesign.saved" },
         });
       } else {
         // specs/design-stage-gates（OCR plan-failure 分层借鉴）：stage0 自动
-        // 蒸馏是增强阶段——失败降级到 spec 直驱的既有提示词（与无 pd-design
+        // 蒸馏是增强阶段——失败降级到 spec 直驱的既有提示词（与无 pm-design
         // 的旧路径字节一致），绝不因提示词文档失败阻塞原型化。手动重算
-        // （prototype.pddesign）保持 fail-closed：显式动作产物即契约。
+        // （prototype.pmdesign）保持 fail-closed：显式动作产物即契约。
         ctx.emit({
-          message: `pd-design distillation failed — falling back to spec-driven generation (${distilled.error})`,
+          message: `pm-design distillation failed — falling back to spec-driven generation (${distilled.error})`,
           percent: 45,
           data: { code: "prototype.materialize.degraded" },
         });
-        pdDesign = null;
+        pmDesign = null;
       }
     }
     for (const [index, device] of renderDevices.entries()) {
@@ -1135,17 +1135,17 @@ export const prototypeMaterializeRun: ActionRun<PrototypeMaterializeInput, Proto
           data: { code: "prototype.materialize.generating" },
         });
       }
-      // specs/prompt-doc-chain：pd-design 存在时为主驱动（spec 降为范围契约
+      // specs/prompt-doc-chain：pm-design 存在时为主驱动（spec 降为范围契约
       // 源）；不存在时提示词与既有行为字节一致（旧数据零回归）。
-      const pdSection = pdDesign
-        ? "\n\n## pd-design（设计意图——主驱动）\n" + pdDesign + "\n\n## 需求文档（范围契约源）\n" + spec
+      const pdSection = pmDesign
+        ? "\n\n## pm-design（设计意图——主驱动）\n" + pmDesign + "\n\n## 需求文档（范围契约源）\n" + spec
         : "\n\n" + spec;
       const generated = await callSubagentStable(
         ctx,
         {
           skill: "pm-designer-openui",
           prompt:
-            (pdDesign
+            (pmDesign
               ? "Create the complete OpenUI Lang prototype from the distilled design intent below. "
               : "Create the complete OpenUI Lang prototype for the requirements document below. ") +
             OPENUI_DEVICE_CONTRACTS[device] +
@@ -1157,7 +1157,7 @@ export const prototypeMaterializeRun: ActionRun<PrototypeMaterializeInput, Proto
             OPENUI_QUALITY_CONTRACT +
             // PRD 遵守契约（p-core 真机走查：遵守声明太抽象，模型会"意思一下"）——
             // 逐页、逐优先级、逐三态点名，生成后 verify 也按页面ID逐页比对。
-            " PRD compliance is non-negotiable: (1) EVERY page in the 页面清单/pd-design " +
+            " PRD compliance is non-negotiable: (1) EVERY page in the 页面清单/pm-design " +
             "页面结构 gets its own view and its page id appears as a $page value, reachable " +
             "in one click; (2) EVERY P0 功能需求 row is visibly implemented — its 交互要点 " +
             "states (empty/loading/error-and-retry) each render a distinct branch; (3) the " +

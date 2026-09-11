@@ -54,14 +54,14 @@ import {
 import { extractProgramPages } from "../common/openui-pages";
 import type { ArtifactRef, DesignThemeRef, UiSuiteContent } from "./prototype";
 
-/** specs/prompt-doc-chain：ui-design.md 的产出契约——pd-design 的视觉翻译
- *  （写给视觉画布生成器的指令），不是 pd-design 复述。 */
+/** specs/prompt-doc-chain：ui-design.md 的产出契约——pm-design 的视觉翻译
+ *  （写给视觉画布生成器的指令），不是 pm-design 复述。 */
 export const UI_DESIGN_CONTRACT =
   "It must be ONE markdown document: a `# ` title plus these `## ` sections in order — " +
   "`画布构图`（每页一帧：区块布局 / 网格 / 留白，落到画布坐标语言）、" +
   "`tokens 映射`（色彩 / 字级 / 圆角 → 设计系统 token 语义）、`视觉层级`（每帧的焦点序）、" +
   "`状态呈现`（空态 / 加载 / 错误的视觉处理）。 " +
-  "The page set MUST come from the pd-design 页面结构 — do not invent pages. " +
+  "The page set MUST come from the pm-design 页面结构 — do not invent pages. " +
   "Write every section as DIRECTIVES to the canvas generator.";
 
 export interface DesignMaterializeInput {
@@ -167,8 +167,8 @@ export const designMaterializeRun: ActionRun<DesignMaterializeInput, DesignMater
 
   let prototypeContent: string | null = null;
   let suiteRequirement: string | undefined;
-  // specs/prompt-doc-chain：基底原型的 pd-design（ui-design 强化阶段的翻译源）。
-  let basisPdDesign: string | null = null;
+  // specs/prompt-doc-chain：基底原型的 pm-design（ui-design 强化阶段的翻译源）。
+  let basisPmDesign: string | null = null;
   let sourcePrototype: { suiteId: string; versionId: string } | undefined;
   // specs/prd-theme-layer：基底原型的主题/关系（read_suite_version 载荷携带
   // 套件 meta 字段），透传给 UI 套件——UI 设计稿自动继承 PRD 主题。
@@ -181,7 +181,7 @@ export const designMaterializeRun: ActionRun<DesignMaterializeInput, DesignMater
     if (read.value.artifactRef.kind !== "prototype")
       return { ok: false, error: "source suite is not a prototype suite" };
     prototypeContent = "openui" in read.value.content ? read.value.content.openui?.trim() || null : null;
-    basisPdDesign = "pdDesign" in read.value.content ? read.value.content.pdDesign?.trim() || null : null;
+    basisPmDesign = "pmDesign" in read.value.content ? read.value.content.pmDesign?.trim() || null : null;
     if (!requirement && "requirement" in read.value.content) {
       suiteRequirement = read.value.content.requirement;
     }
@@ -202,11 +202,11 @@ export const designMaterializeRun: ActionRun<DesignMaterializeInput, DesignMater
   // reaches BOTH the generation prompt and the persisted version (previously
   // the prompt still saw the stale pre-read snapshot).
   const effectiveRequirement = requirement ?? suiteRequirement;
-  // specs/prompt-doc-chain：基底原型携带 pd-design → 先产出 ui-design.md
-  // （视觉强化提示词，随 render_leafer 落盘）再画布生成；无 pd-design（旧
+  // specs/prompt-doc-chain：基底原型携带 pm-design → 先产出 ui-design.md
+  // （视觉强化提示词，随 render_leafer 落盘）再画布生成；无 pm-design（旧
   // 数据）→ 既有提示词字节不变（降级零回归）。
   let uiDesign: string | null = null;
-  if (basisPdDesign) {
+  if (basisPmDesign) {
     ctx.emit({
       message: "Strengthening the design intent into the ui-design prompt document",
       percent: 30,
@@ -214,7 +214,7 @@ export const designMaterializeRun: ActionRun<DesignMaterializeInput, DesignMater
     });
     // specs/design-stage-gates S2：uiSectionsAudit 四节门 + findings 修复一轮；
     // 修复仍败 **fail-open 降级**（uiDesign 置空，画布按既有原型驱动提示词
-    // 生成，与无 pd-design 的旧路径同构）——OCR plan-failure 分层借鉴：增强
+    // 生成，与无 pm-design 的旧路径同构）——OCR plan-failure 分层借鉴：增强
     // 阶段失败不阻塞主管线（此前轻检查失败会硬错误整个 materialize）。
     const uiResult = await runDesignStage(ctx, {
       stage: "ui-design",
@@ -222,12 +222,12 @@ export const designMaterializeRun: ActionRun<DesignMaterializeInput, DesignMater
       buildPrompt: (findings) => {
         const base =
           "Strengthen the interaction design intent below into a ui-design prompt document for a " +
-          "visual-canvas generator — a VISUAL TRANSLATION of the pd-design, not a restatement. " +
+          "visual-canvas generator — a VISUAL TRANSLATION of the pm-design, not a restatement. " +
           UI_DESIGN_CONTRACT +
           " Do not call tools. " +
           "Return only the complete markdown document in one markdown code fence.\n\n" +
-          "## pd-design（交互意图，翻译源）\n" +
-          basisPdDesign +
+          "## pm-design（交互意图，翻译源）\n" +
+          basisPmDesign +
           (prototypeContent ? "\n\n## 原型程序（页面/流的保真参照）\n" + prototypeContent : "") +
           (effectiveRequirement ? "\n\n## 需求\n" + effectiveRequirement : "");
         if (findings && findings.length > 0) {

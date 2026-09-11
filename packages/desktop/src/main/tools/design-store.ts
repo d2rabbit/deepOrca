@@ -110,9 +110,9 @@ export interface PrototypeSuiteContent {
   verification?: PrototypeVerificationResult;
   /** Technical architecture document (user ask 2026-09-08 技术架构模块). */
   arch?: string;
-  /** specs/prompt-doc-chain: pd-design.md——PRD 蒸馏的原型提示词文档（原型
+  /** specs/prompt-doc-chain: pm-design.md——PRD 蒸馏的原型提示词文档（原型
    *  生成的主驱动；render_spec 重写 PRD 时失效）。 */
-  pdDesign?: string;
+  pmDesign?: string;
 }
 
 export interface UiSuiteContent {
@@ -123,7 +123,7 @@ export interface UiSuiteContent {
    *  suite 版本不混写两种字段。与 core 的 UiSuiteContent 镜像（已知）。 */
   leafer?: string;
   /** specs/prompt-doc-chain: ui-design.md——原型转 UI 的视觉强化提示词
-   *  （pd-design 的视觉翻译），随 design.materialize 落盘。 */
+   *  （pm-design 的视觉翻译），随 design.materialize 落盘。 */
   uiDesign?: string;
   tokens?: unknown;
   components?: unknown;
@@ -643,6 +643,14 @@ function readSuiteVersionFile(root: string, suiteId: string, versionId: string):
     ) {
       return null;
     }
+    // specs/prompt-doc-chain 更名（user ask：pd-design → pm-design）：旧版本
+    // 落盘字段是 pdDesign——读取时归一到 pmDesign，所有消费者（IPC/渲染层/
+    // read_suite_version→core 动作）只见新名；写侧只出新名，零迁移。
+    const legacyContent = parsed.content as Record<string, unknown>;
+    if (legacyContent.pdDesign !== undefined && legacyContent.pmDesign === undefined) {
+      legacyContent.pmDesign = legacyContent.pdDesign;
+      delete legacyContent.pdDesign;
+    }
     return parsed as DesignSuiteVersion;
   } catch {
     return null;
@@ -702,8 +710,11 @@ function syncSuiteProjections(dir: string, kind: DesignSuiteKind, content: Desig
     const prototype = content as PrototypeSuiteContent;
     writeProjectionFile(dir, "requirement.md", prototype.requirement);
     writeProjectionFile(dir, "spec.md", prototype.spec);
-    // specs/prompt-doc-chain: pd-design.md 提示词文档投影。
-    writeProjectionFile(dir, "pd-design.md", prototype.pdDesign);
+    // specs/prompt-doc-chain: pm-design.md 提示词文档投影（user ask 更名
+    // pd-design → pm-design）。内容读取已归一到 pmDesign，写侧只出新名；
+    // 旧名投影一并清除，避免双文件漂移（undefined = 删除，与下方 dd 同规）。
+    writeProjectionFile(dir, "pm-design.md", prototype.pmDesign);
+    writeProjectionFile(dir, "pd-design.md", undefined);
     writeProjectionFile(dir, "prototype.openui.txt", prototype.openui);
     // WP4.1:平台变体投影——desktop 即本体文件,变体单独成文件,任何按文件
     // 消费的下游(简报/外部工具)都能拿到每端程序。

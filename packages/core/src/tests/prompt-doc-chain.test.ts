@@ -1,8 +1,8 @@
 /**
  * 提示词文档链（specs/prompt-doc-chain）：
- * - prototype.pddesign（手动重算）与 materialize stage0（自动）共享同一条
- *   pd-design 蒸馏路径；无 pd-design 时原型提示词与既有行为字节一致；
- * - design.materialize 的 ui-design 强化 stage（有 pdDesign 才跑）+
+ * - prototype.pmdesign（手动重算）与 materialize stage0（自动）共享同一条
+ *   pm-design 蒸馏路径；无 pm-design 时原型提示词与既有行为字节一致；
+ * - design.materialize 的 ui-design 强化 stage（有 pmDesign 才跑）+
  *   render_leafer.uiDesign 透传；revise 注入（存在才注入）。
  */
 
@@ -13,7 +13,7 @@ import {
   designReviseRun,
   LEAFER_CREATE_CONTRACT,
   prototypeMaterializeRun,
-  prototypePdDesignRun,
+  prototypePmDesignRun,
   prototypeSpecRun,
   specSectionsAudit,
 } from "../actions";
@@ -87,7 +87,7 @@ function makeCtx(
 }
 
 const SPEC = "# 登录 PRD\n\n## 页面清单\n- 登录页\n\n## 功能需求\n- P0 账号密码登录";
-const PD_DOC = [
+const PM_DOC = [
   "```markdown",
   "# 登录原型设计提示",
   "",
@@ -112,7 +112,7 @@ const PD_DOC = [
   "```",
 ].join("\n");
 const OPENUI = "```\nroot = Column([])\n```";
-const PD_MARKDOWN = "# 登录原型设计提示\n\n## 页面结构\n- 登录页\n\n## 交互叙事\n- 提交→校验";
+const PM_MARKDOWN = "# 登录原型设计提示\n\n## 页面结构\n- 登录页\n\n## 交互叙事\n- 提交→校验";
 const UI_DOC =
   "```markdown\n# 登录视觉稿提示\n\n## 画布构图\n- 登录帧居中卡片\n\n## tokens 映射\n- 主色→accent\n\n## 视觉层级\n- 标题>表单>辅助\n\n## 状态呈现\n- 空态/加载/错误三态齐备\n```";
 const UI_MARKDOWN =
@@ -125,7 +125,7 @@ const LEAFER_DOC = JSON.stringify({
   children: [{ tag: "Rect", x: 24, y: 24, width: 200, height: 64, fill: "#4F46E5" }],
 });
 
-test("prototype.pddesign distills pd-design (with reference context) and persists via save_pd_design", async () => {
+test("prototype.pmdesign distills pm-design (with reference context) and persists via save_pm_design", async () => {
   const mcpCalls: McpCall[] = [];
   const subagentCalls: RunSubagentOptions[] = [];
   const ctx = makeCtx(
@@ -144,66 +144,66 @@ test("prototype.pddesign distills pd-design (with reference context) and persist
       },
       ref: { kind: "prototype", title: "权限 PRD", content: { spec: "# 权限 PRD\n\n## 矩阵\n- 行/列" } },
     },
-    { generatedQueue: [PD_DOC], mcpCalls, subagentCalls }
+    { generatedQueue: [PM_DOC], mcpCalls, subagentCalls }
   );
-  const result = await prototypePdDesignRun({ suiteId: "proto" }, ctx);
-  assert.ok(result.ok, `pddesign must succeed: ${result.ok ? "" : (result as { error?: string }).error}`);
+  const result = await prototypePmDesignRun({ suiteId: "proto" }, ctx);
+  assert.ok(result.ok, `pmdesign must succeed: ${result.ok ? "" : (result as { error?: string }).error}`);
   const prompt = subagentCalls[0]?.prompt ?? "";
-  assert.match(prompt, /pd-design prompt document/);
+  assert.match(prompt, /pm-design prompt document/);
   assert.match(prompt, /## 需求文档（契约源）[\s\S]*# 登录 PRD/);
   // 主题层的继承/交叉参考上下文继续注入（specs/prd-theme-layer 复用）。
   assert.match(prompt, /### 继承：人员管理 PRD（parent @ head）/);
   assert.match(prompt, /### 交叉参考：权限 PRD（ref @ head）/);
-  const save = mcpCalls.find((call) => call.name.endsWith("save_pd_design"));
-  assert.ok(save, "pd-design persists through save_pd_design");
+  const save = mcpCalls.find((call) => call.name.endsWith("save_pm_design"));
+  assert.ok(save, "pm-design persists through save_pm_design");
   assert.match(String(save?.args.document), /# 登录原型设计提示/);
 });
 
-test("prototype.pddesign rejects structure-less output without persisting", async () => {
+test("prototype.pmdesign rejects structure-less output without persisting", async () => {
   const mcpCalls: McpCall[] = [];
   const ctx = makeCtx(
     { proto: { kind: "prototype", title: "登录 PRD", content: { spec: SPEC } } },
     { generatedQueue: ["plain prose without any heading"], mcpCalls }
   );
-  const result = await prototypePdDesignRun({ suiteId: "proto" }, ctx);
+  const result = await prototypePmDesignRun({ suiteId: "proto" }, ctx);
   assert.equal(result.ok, false);
-  assert.match(result.ok ? "" : (result as { error?: string }).error, /pd-design/);
-  assert.ok(!mcpCalls.some((call) => call.name.endsWith("save_pd_design")), "nothing persisted on gate failure");
+  assert.match(result.ok ? "" : (result as { error?: string }).error, /pm-design/);
+  assert.ok(!mcpCalls.some((call) => call.name.endsWith("save_pm_design")), "nothing persisted on gate failure");
 });
 
-test("materialize stage0 auto-distills when pdDesign is absent and threads the new head", async () => {
+test("materialize stage0 auto-distills when pmDesign is absent and threads the new head", async () => {
   const mcpCalls: McpCall[] = [];
   const subagentCalls: RunSubagentOptions[] = [];
   const emits: Array<{ data?: unknown }> = [];
   const ctx = makeCtx(
     { proto: { kind: "prototype", title: "登录 PRD", content: { spec: SPEC, requirement: "登录模块" } } },
-    { generatedQueue: [PD_DOC, OPENUI], mcpCalls, subagentCalls, emits }
+    { generatedQueue: [PM_DOC, OPENUI], mcpCalls, subagentCalls, emits }
   );
   const result = await prototypeMaterializeRun({ suiteId: "proto", versionId: "head-1" }, ctx);
   assert.ok(result.ok, `materialize must succeed: ${result.ok ? "" : (result as { error?: string }).error}`);
   // 子代理顺序：stage0（deep-design 蒸馏）→ pm-designer（原型化）。
   assert.equal(subagentCalls.length, 2);
-  assert.match(subagentCalls[0]?.prompt ?? "", /pd-design prompt document/);
-  const save = mcpCalls.find((call) => call.name.endsWith("save_pd_design"));
-  assert.ok(save, "stage0 persists pd-design before the device loop");
+  assert.match(subagentCalls[0]?.prompt ?? "", /pm-design prompt document/);
+  const save = mcpCalls.find((call) => call.name.endsWith("save_pm_design"));
+  assert.ok(save, "stage0 persists pm-design before the device loop");
   // 交叉审查修复锚点：stage0 保存走 preserveDerived（生成失败/取消不抹既有
   // 原型）；自动路径同样发射 saved 终态码。
   assert.equal(save?.args.preserveDerived, true, "stage0 save must preserve derived artifacts");
   const codes = emits.map((event) => (event.data as { code?: string } | undefined)?.code);
   assert.deepEqual(codes, [
-    "prototype.pddesign.generating",
-    "prototype.pddesign.saved",
+    "prototype.pmdesign.generating",
+    "prototype.pmdesign.saved",
     "prototype.materialize.generating",
     "prototype.materialize.saved",
   ]);
   const render = mcpCalls.find((call) => call.name.endsWith("render_openui"));
-  assert.equal(render?.args.versionId, "v-new", "the device loop threads the NEW head (save_pd_design moved it)");
-  // 原型提示词以 pd-design 为主驱动。
-  assert.match(subagentCalls[1]?.prompt ?? "", /## pd-design（设计意图——主驱动）/);
+  assert.equal(render?.args.versionId, "v-new", "the device loop threads the NEW head (save_pm_design moved it)");
+  // 原型提示词以 pm-design 为主驱动。
+  assert.match(subagentCalls[1]?.prompt ?? "", /## pm-design（设计意图——主驱动）/);
   assert.match(subagentCalls[1]?.prompt ?? "", /## 需求文档（范围契约源）[\s\S]*# 登录 PRD/);
 });
 
-test("materialize skips stage0 when pdDesign already exists (manual recompute stays authoritative)", async () => {
+test("materialize skips stage0 when pmDesign already exists (manual recompute stays authoritative)", async () => {
   const mcpCalls: McpCall[] = [];
   const subagentCalls: RunSubagentOptions[] = [];
   const ctx = makeCtx(
@@ -211,21 +211,21 @@ test("materialize skips stage0 when pdDesign already exists (manual recompute st
       proto: {
         kind: "prototype",
         title: "登录 PRD",
-        content: { spec: SPEC, pdDesign: PD_MARKDOWN },
+        content: { spec: SPEC, pmDesign: PM_MARKDOWN },
       },
     },
     { generatedQueue: [OPENUI], mcpCalls, subagentCalls }
   );
   const result = await prototypeMaterializeRun({ suiteId: "proto", versionId: "head-1" }, ctx);
   assert.ok(result.ok);
-  assert.equal(subagentCalls.length, 1, "no pd-design stage — straight to the prototype generator");
-  assert.ok(!mcpCalls.some((call) => call.name.endsWith("save_pd_design")));
-  assert.match(subagentCalls[0]?.prompt ?? "", /## pd-design（设计意图——主驱动）[\s\S]*# 登录原型设计提示/);
+  assert.equal(subagentCalls.length, 1, "no pm-design stage — straight to the prototype generator");
+  assert.ok(!mcpCalls.some((call) => call.name.endsWith("save_pm_design")));
+  assert.match(subagentCalls[0]?.prompt ?? "", /## pm-design（设计意图——主驱动）[\s\S]*# 登录原型设计提示/);
 });
 
 test("materialize keeps the legacy artifact prompt byte-structure (suite-less path skips stage0)", async () => {
-  // suite 路径无 pdDesign 时必然自动蒸馏（stage0）；字节兼容面只剩 legacy
-  // artifact 路径（无 suite/版本链，无处落 pd-design）。
+  // suite 路径无 pmDesign 时必然自动蒸馏（stage0）；字节兼容面只剩 legacy
+  // artifact 路径（无 suite/版本链，无处落 pm-design）。
   const fs = await import("node:fs");
   const os = await import("node:os");
   const nodePath = await import("node:path");
@@ -248,9 +248,9 @@ test("materialize keeps the legacy artifact prompt byte-structure (suite-less pa
   assert.ok(prompt.includes("PRD compliance is non-negotiable"));
   assert.ok(prompt.includes("EVERY page in the 页面清单"));
   assert.ok(prompt.endsWith(`Return only the OpenUI Lang program in one code fence.\n\n${SPEC}`));
-  // legacy 路径不注入 pd-design 主驱动区块（遵守契约文本提到 页面清单/pd-design
+  // legacy 路径不注入 pm-design 主驱动区块（遵守契约文本提到 页面清单/pm-design
   // 字样属正常——没有文档区块才是 legacy 语义）。
-  assert.ok(!prompt.includes("## pd-design"), "no pd-design document block on the legacy path");
+  assert.ok(!prompt.includes("## pm-design"), "no pm-design document block on the legacy path");
 });
 
 test("design.materialize runs the ui-design stage and passes uiDesign through render_leafer", async () => {
@@ -261,7 +261,7 @@ test("design.materialize runs the ui-design stage and passes uiDesign through re
       proto: {
         kind: "prototype",
         title: "登录 PRD",
-        content: { spec: SPEC, openui: "root = Column([])", pdDesign: PD_MARKDOWN, requirement: "登录模块" },
+        content: { spec: SPEC, openui: "root = Column([])", pmDesign: PM_MARKDOWN, requirement: "登录模块" },
       },
     },
     { generatedQueue: [UI_DOC, LEAFER_DOC], mcpCalls, subagentCalls }
@@ -274,14 +274,14 @@ test("design.materialize runs the ui-design stage and passes uiDesign through re
   // 子代理顺序：ui-design 强化 → leafer 生成。
   assert.equal(subagentCalls.length, 2);
   assert.match(subagentCalls[0]?.prompt ?? "", /ui-design prompt document/);
-  assert.match(subagentCalls[0]?.prompt ?? "", /## pd-design（交互意图，翻译源）[\s\S]*# 登录原型设计提示/);
+  assert.match(subagentCalls[0]?.prompt ?? "", /## pm-design（交互意图，翻译源）[\s\S]*# 登录原型设计提示/);
   const render = mcpCalls.find((call) => call.name.endsWith("render_leafer"));
   assert.ok(render, "UI persists through render_leafer");
   assert.equal(render?.args.uiDesign, UI_MARKDOWN, "ui-design.md rides into the UI version content");
   assert.match(subagentCalls[1]?.prompt ?? "", /## ui-design（视觉意图——主驱动）[\s\S]*# 登录视觉稿提示/);
 });
 
-test("design.materialize keeps the legacy prompt and no uiDesign without pdDesign (zero regression)", async () => {
+test("design.materialize keeps the legacy prompt and no uiDesign without pmDesign (zero regression)", async () => {
   const mcpCalls: McpCall[] = [];
   const subagentCalls: RunSubagentOptions[] = [];
   const protoContent = "root = Column([login])";
@@ -320,7 +320,7 @@ test("design.materialize keeps the legacy prompt and no uiDesign without pdDesig
       "Do not call tools. Return only the complete Leafer scene-tree JSON document in one json code fence."
     )
   );
-  assert.ok(!prompt.includes("pd-design") && !prompt.includes("ui-design"), "no prompt-doc markers");
+  assert.ok(!prompt.includes("pm-design") && !prompt.includes("ui-design"), "no prompt-doc markers");
   const render = mcpCalls.find((call) => call.name.endsWith("render_leafer"));
   assert.equal(render?.args.uiDesign, undefined);
 });
@@ -379,7 +379,7 @@ test("design.materialize emits uidesign.saved only after render_leafer persists 
       proto: {
         kind: "prototype",
         title: "登录 PRD",
-        content: { spec: SPEC, openui: "root = Column([])", pdDesign: PD_MARKDOWN, requirement: "登录模块" },
+        content: { spec: SPEC, openui: "root = Column([])", pmDesign: PM_MARKDOWN, requirement: "登录模块" },
       },
     },
     { generatedQueue: [UI_DOC, '```json\n{"tag": "Broken"}\n```'], mcpCalls, emits }
@@ -395,9 +395,9 @@ test("design.materialize emits uidesign.saved only after render_leafer persists 
   assert.ok(!mcpCalls.some((call) => call.name.endsWith("render_leafer")));
 });
 
-test("basis switch without pdDesign clears the stale uiDesign (explicit empty-string semantics)", async () => {
+test("basis switch without pmDesign clears the stale uiDesign (explicit empty-string semantics)", async () => {
   const mcpCalls: McpCall[] = [];
-  // 新基底无 pdDesign + 追加到既有 UI 套件（suiteId/versionId）→ uiDesign
+  // 新基底无 pmDesign + 追加到既有 UI 套件（suiteId/versionId）→ uiDesign
   // 必须以空串显式清除，旧基底的视觉意图不得残留。
   const ctx = makeCtx(
     {

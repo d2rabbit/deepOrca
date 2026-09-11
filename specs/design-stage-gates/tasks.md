@@ -20,7 +20,7 @@
 
 - [x] SPEC_SKELETON 行级模板（三表 + 验收清单占位行不计数）；
 - [x] specSectionsAudit 换 countTableDataRows + 验收占位不计 + 归一化接入（生成与修复两路）；
-- [x] materialize stage0 fail-open 降级（手动 pddesign 保持 fail-closed）；
+- [x] materialize stage0 fail-open 降级（手动 pmdesign 保持 fail-closed）；
 - [x] materialize 覆盖门并入交互密度 findings；
 - [x] ARCH_SKELETON + prototypeArchRun 迁 runDesignStage（fail-closed）+ arch-writer SKILL 撤模板改单源引用；
 - [x] 修复 callSubagentStable 字符串产物 → {content} 包装（嵌套围栏感知抽取回归）。

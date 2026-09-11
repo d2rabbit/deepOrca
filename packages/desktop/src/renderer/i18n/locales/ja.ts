@@ -7,14 +7,14 @@ export const ja: Record<MessageKey, string> = {
   "common.save": "保存",
   "common.cancel": "キャンセル",
   "designTheme.themeLabel": "要件テーマ",
-  "prototypeWorkspace.specViewPd": "プロンプト",
-  "prototypeWorkspace.pdRegen": "pd-design を再生成",
-  "prototypeWorkspace.pdRegenHint": "現在の PRD から pd-design.md を再蒸留（派生プロトタイプをリセット）",
-  "prototypeWorkspace.pdRegenDone": "pd-design.md を再生成しました",
-  "prototypeWorkspace.progressPdDesign": "pd-design プロンプト文書を蒸留中…",
-  "prototypeWorkspace.progressPdDesignSaved": "pd-design.md を保存しました",
-  "prototypeWorkspace.progressPdDesignDegraded":
-    "pd-design の蒸留に失敗——要件文書からの直接生成にフォールバックしました",
+  "prototypeWorkspace.specViewPm": "プロンプト",
+  "prototypeWorkspace.pdRegen": "pm-design を再生成",
+  "prototypeWorkspace.pdRegenHint": "現在の PRD から pm-design.md を再蒸留（派生プロトタイプをリセット）",
+  "prototypeWorkspace.pdRegenDone": "pm-design.md を再生成しました",
+  "prototypeWorkspace.progressPmDesign": "pm-design プロンプト文書を蒸留中…",
+  "prototypeWorkspace.progressPmDesignSaved": "pm-design.md を保存しました",
+  "prototypeWorkspace.progressPmDesignDegraded":
+    "pm-design の蒸留に失敗——要件文書からの直接生成にフォールバックしました",
   "designWorkspace.progressUiDesign": "ui-design プロンプト文書へ強化中…",
   "designWorkspace.progressUiDesignSaved": "ui-design.md を蒸留しました",
   "designWorkspace.progressUiDesignDegraded":

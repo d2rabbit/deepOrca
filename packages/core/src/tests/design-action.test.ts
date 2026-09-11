@@ -16,7 +16,7 @@ import {
   prototypeReviseDefinition,
   prototypeReviseRun,
   prototypeSpecDefinition,
-  prototypePdDesignRun,
+  prototypePmDesignRun,
   prototypeSpecRun,
   prototypeVerifyDefinition,
   prototypeVerifyRun,
@@ -189,9 +189,9 @@ test("prototype.materialize reads an immutable suite version and resets verifica
       prototype: {
         requirement: "Task board",
         spec: "# Tasks\n\n## Page list\n- Board",
-        // specs/prompt-doc-chain：自带 pd-design → 跳过 stage0（本测试钉的是
+        // specs/prompt-doc-chain：自带 pm-design → 跳过 stage0（本测试钉的是
         // 版本读取/持久化语义，stage0 行为由 prompt-doc-chain.test.ts 覆盖）。
-        pdDesign: "# Task board 原型提示\n\n## 页面结构\n- Board",
+        pmDesign: "# Task board 原型提示\n\n## 页面结构\n- Board",
       },
       generated: "```openui\nroot = Column([board])\nboard = Card([])\n```",
       mcpCalls,
@@ -787,7 +787,7 @@ test("progress emits carry stable machine codes for the renderer i18n seam", asy
   assert.deepEqual(codesOf(specEmits), ["prototype.spec.generating", "prototype.spec.saved"]);
 
   const pdEmits: ActionProgress[] = [];
-  const pd = await prototypePdDesignRun(
+  const pd = await prototypePmDesignRun(
     { suiteId: PROTOTYPE_REF.suiteId, versionId: PROTOTYPE_REF.versionId },
     makeCtx({
       prototype: { requirement: "Task board", spec: "# Tasks\n\n## Page list\n- Board" },
@@ -804,7 +804,7 @@ test("progress emits carry stable machine codes for the renderer i18n seam", asy
     })
   );
   assert.equal(pd.ok, true);
-  assert.deepEqual(codesOf(pdEmits), ["prototype.pddesign.generating", "prototype.pddesign.saved"]);
+  assert.deepEqual(codesOf(pdEmits), ["prototype.pmdesign.generating", "prototype.pmdesign.saved"]);
 
   const materializeEmits: ActionProgress[] = [];
   const materialize = await prototypeMaterializeRun(
@@ -813,7 +813,7 @@ test("progress emits carry stable machine codes for the renderer i18n seam", asy
       prototype: {
         requirement: "Task board",
         spec: "# Tasks\n\n## Page list\n- Board",
-        pdDesign: "# Task board 原型提示\n\n## 页面结构\n- Board",
+        pmDesign: "# Task board 原型提示\n\n## 页面结构\n- Board",
       },
       generated: "```openui\nroot = Column([board])\nboard = Card([])\n```",
       emits: materializeEmits,
@@ -841,8 +841,8 @@ test("progress emits carry stable machine codes for the renderer i18n seam", asy
         requirement: "Task board",
         opuni: undefined,
         openui: "root = Column([board])",
-        // specs/prompt-doc-chain：带 pd-design → ui-design 强化 stage 先行。
-        pdDesign: "# Task board 原型提示\n\n## 页面结构\n- Board",
+        // specs/prompt-doc-chain：带 pm-design → ui-design 强化 stage 先行。
+        pmDesign: "# Task board 原型提示\n\n## 页面结构\n- Board",
       },
       generatedQueue: [
         "```markdown\n# Task board 视觉稿提示\n\n## 画布构图\n- Board 帧\n\n## tokens 映射\n- accent\n\n## 视觉层级\n- 标题>卡片\n\n## 状态呈现\n- 空态/加载/错误\n```",

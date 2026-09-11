@@ -192,8 +192,8 @@ export type {
 export {
   prototypeSpecDefinition,
   prototypeSpecRun,
-  prototypePdDesignDefinition,
-  prototypePdDesignRun,
+  prototypePmDesignDefinition,
+  prototypePmDesignRun,
   specSectionsAudit,
   prototypeMaterializeDefinition,
   prototypeMaterializeRun,

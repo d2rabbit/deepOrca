@@ -1010,8 +1010,8 @@ export type DesignQualityResult = {
 export type PrototypeSuiteContent = {
   requirement?: string;
   spec?: string;
-  /** specs/prompt-doc-chain: pd-design.md——PRD 蒸馏的原型提示词文档。 */
-  pdDesign?: string;
+  /** specs/prompt-doc-chain: pm-design.md——PRD 蒸馏的原型提示词文档。 */
+  pmDesign?: string;
   openui?: string;
   /** 平台变体(user ask 2026-09-09):mobile/tablet 的结构性独立程序。 */
   openuiVariants?: Partial<Record<"desktop" | "mobile" | "tablet", string>>;

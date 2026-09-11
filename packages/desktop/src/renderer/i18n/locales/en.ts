@@ -6,14 +6,14 @@ export const en = {
   "common.save": "Save",
   "common.cancel": "Cancel",
   "designTheme.themeLabel": "Requirement theme",
-  "prototypeWorkspace.specViewPd": "Prompt doc",
-  "prototypeWorkspace.pdRegen": "Regenerate pd-design",
-  "prototypeWorkspace.pdRegenHint": "Re-distill pd-design.md from the current PRD (resets the derived prototype)",
-  "prototypeWorkspace.pdRegenDone": "pd-design.md regenerated",
-  "prototypeWorkspace.progressPdDesign": "Distilling the pd-design prompt document…",
-  "prototypeWorkspace.progressPdDesignSaved": "pd-design.md saved",
-  "prototypeWorkspace.progressPdDesignDegraded":
-    "pd-design distillation failed — generating from the requirements document directly",
+  "prototypeWorkspace.specViewPm": "Prompt doc",
+  "prototypeWorkspace.pdRegen": "Regenerate pm-design",
+  "prototypeWorkspace.pdRegenHint": "Re-distill pm-design.md from the current PRD (resets the derived prototype)",
+  "prototypeWorkspace.pdRegenDone": "pm-design.md regenerated",
+  "prototypeWorkspace.progressPmDesign": "Distilling the pm-design prompt document…",
+  "prototypeWorkspace.progressPmDesignSaved": "pm-design.md saved",
+  "prototypeWorkspace.progressPmDesignDegraded":
+    "pm-design distillation failed — generating from the requirements document directly",
   "designWorkspace.progressUiDesign": "Strengthening into the ui-design prompt document…",
   "designWorkspace.progressUiDesignSaved": "ui-design.md distilled",
   "designWorkspace.progressUiDesignDegraded":
