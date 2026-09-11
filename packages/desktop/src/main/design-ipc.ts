@@ -154,12 +154,43 @@ function catalogDescription(content: string): string {
   return quoted.join(" ").trim();
 }
 
+/** Vendored DESIGN.md 标题：YAML frontmatter 取 name:；markdown 取 H1；兜底 id。 */
+function vendoredTitle(content: string, id: string): string {
+  const lines = content.split(/\r?\n/);
+  if ((lines[0] ?? "").trim() === "---") {
+    for (const line of lines.slice(1, 40)) {
+      if (line.trim() === "---") break;
+      const match = line.match(/^name:\s*(.+)$/);
+      if (match) return match[1].trim().replace(/^["']|["']$/g, "");
+    }
+  }
+  const h1 = lines.find((line) => /^#\s+\S/.test(line));
+  if (h1) return h1.replace(/^#\s+(?:Design System:\s*)?/, "").trim();
+  return id;
+}
+
+/** Vendored DESIGN.md 描述：frontmatter description:（截断）；blockquote 兜底。 */
+function vendoredDescription(content: string): string {
+  const lines = content.split(/\r?\n/);
+  if ((lines[0] ?? "").trim() === "---") {
+    for (const line of lines.slice(1, 40)) {
+      if (line.trim() === "---") break;
+      const match = line.match(/^description:\s*(.+)$/);
+      if (match) {
+        const text = match[1].trim().replace(/^["']|["']$/g, "");
+        return text.length > 160 ? `${text.slice(0, 157)}…` : text;
+      }
+    }
+  }
+  return catalogDescription(content);
+}
+
 /** The host-injected vendored collection dir (core owns the path knowledge). */
 function vendorDirOf(): string {
   // resolveDesignSystem 注入根由 main/index.ts 设置；此处只列目录内容。
   const root = getDesignSystemsVendorRoot();
   if (!root) throw new Error("no vendored design-md root configured");
-  return join(root, "design-md");
+  return root;
 }
 
 /** Read the design-system catalog: bundled templates (core extension root) +
@@ -190,9 +221,12 @@ export function readDesignSystemCatalog(extensionRoot: string = getExtensionRoot
     for (const id of listVendoredDesignSystems()) {
       const file = join(vendorDirOf(), id, "DESIGN.md");
       const content = readFileSync(file, "utf8");
-      const firstLine = content.split(/\r?\n/, 1)[0] ?? "";
-      const title = firstLine.replace(/^#\s+(?:Design System:\s*)?/, "").trim() || id;
-      vendored.push({ id, title: `${title} (${id})`, description: catalogDescription(content), content });
+      vendored.push({
+        id,
+        title: `${vendoredTitle(content, id)} (${id})`,
+        description: vendoredDescription(content),
+        content,
+      });
     }
   } catch {
     // 单个 vendored 文件损坏 → 跳过该条，不拖垮目录。

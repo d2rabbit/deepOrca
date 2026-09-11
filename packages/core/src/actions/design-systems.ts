@@ -6,9 +6,9 @@
  *   2. "project" —— 工作区根的 DESIGN.md（Google Stitch 生态约定：AGENTS.md
  *      管怎么建、DESIGN.md 管长什么样；用户可从 VoltAgent/awesome-design-md
  *      收藏集复制任意一份放进项目，或手写）；
- *   3. vendor —— 宿主注入的 vendored 收藏集目录（desktop 构建期由
+ *   3. vendor —— 宿主注入的 vendored 收藏集目录本身（desktop 构建期由
  *      scripts/vendor-design-md.js 从 VoltAgent/awesome-design-md 落盘到
- *      vendor/design-md/<name>/DESIGN.md，MIT）。
+ *      vendor/design-md/<name>/DESIGN.md，MIT；注入的就是 design-md 这层）。
  *
  * vendored 根是宿主注入而非 core 内推导（与 configureCodegraphVendorRoot
  * 同款纪律：只有宿主知道跑在 repo checkout 还是打包应用里）。
@@ -96,7 +96,7 @@ export function readProjectDesignSystem(projectRoot: string): ResolvedDesignSyst
 
 function readVendored(id: string): ResolvedDesignSystem | null {
   if (!vendorRoot || !VENDORED_ID_RE.test(id)) return null;
-  const dir = path.resolve(vendorRoot, "design-md", id);
+  const dir = path.resolve(vendorRoot, id);
   const target = path.resolve(dir, "DESIGN.md");
   if (!target.startsWith(dir + path.sep)) return null;
   const content = readTrimmed(target);
@@ -115,7 +115,7 @@ export function resolveDesignSystem(id: string, projectRoot: string): ResolvedDe
 /** 列出当前可用的 vendored 系统 id（目录名；无注入/不可读为空）。 */
 export function listVendoredDesignSystems(): string[] {
   if (!vendorRoot) return [];
-  const dir = path.resolve(vendorRoot, "design-md");
+  const dir = vendorRoot;
   try {
     return fs
       .readdirSync(dir, { withFileTypes: true })

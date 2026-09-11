@@ -99,8 +99,8 @@ test("bundled systems still resolve first (contract baseline wins over vendored 
   const root = tempDir();
   const vendored = tempDir();
   // 同名 vendored 干扰项：bundled 必须赢。
-  fs.mkdirSync(path.join(vendored, "design-md", "dark-tech"), { recursive: true });
-  fs.writeFileSync(path.join(vendored, "design-md", "dark-tech", "DESIGN.md"), "## A\nx\n## B\ny\n## C\nz", "utf8");
+  fs.mkdirSync(path.join(vendored, "dark-tech"), { recursive: true });
+  fs.writeFileSync(path.join(vendored, "dark-tech", "DESIGN.md"), "## A\nx\n## B\ny\n## C\nz", "utf8");
   configureDesignSystemsVendorRoot(vendored);
   const resolved = resolveDesignSystem("dark-tech", root);
   assert.ok(resolved);
@@ -126,10 +126,10 @@ test("vendored ids resolve through the injected root; unsafe ids are rejected", 
   const vendored = tempDir();
   configureDesignSystemsVendorRoot(null);
   assert.deepEqual(listVendoredDesignSystems(), [], "no root → no vendored systems");
-  fs.mkdirSync(path.join(vendored, "design-md", "linear.app"), { recursive: true });
-  fs.writeFileSync(path.join(vendored, "design-md", "linear.app", "DESIGN.md"), STITCH_DOC, "utf8");
-  fs.mkdirSync(path.join(vendored, "design-md", "vercel"), { recursive: true });
-  fs.writeFileSync(path.join(vendored, "design-md", "vercel", "DESIGN.md"), STITCH_DOC, "utf8");
+  fs.mkdirSync(path.join(vendored, "linear.app"), { recursive: true });
+  fs.writeFileSync(path.join(vendored, "linear.app", "DESIGN.md"), STITCH_DOC, "utf8");
+  fs.mkdirSync(path.join(vendored, "vercel"), { recursive: true });
+  fs.writeFileSync(path.join(vendored, "vercel", "DESIGN.md"), STITCH_DOC, "utf8");
   configureDesignSystemsVendorRoot(vendored);
   assert.deepEqual(listVendoredDesignSystems(), ["linear.app", "vercel"]);
   const resolved = resolveDesignSystem("linear.app", root);
@@ -164,8 +164,8 @@ test("design.materialize with project id and no file returns an actionable error
 test("design.materialize runs end-to-end on a vendored system id", async () => {
   const root = tempDir();
   const vendored = tempDir();
-  fs.mkdirSync(path.join(vendored, "design-md", "stripe"), { recursive: true });
-  fs.writeFileSync(path.join(vendored, "design-md", "stripe", "DESIGN.md"), STITCH_DOC, "utf8");
+  fs.mkdirSync(path.join(vendored, "stripe"), { recursive: true });
+  fs.writeFileSync(path.join(vendored, "stripe", "DESIGN.md"), STITCH_DOC, "utf8");
   configureDesignSystemsVendorRoot(vendored);
   const ctx = makeCtx(root, [LEAFER_SUBAGENT]);
   const result = await designMaterializeRun({ requirement: "登录页", designSystemId: "stripe" }, ctx);

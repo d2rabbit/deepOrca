@@ -337,8 +337,8 @@ test("design system catalog: nine bundled ids + project pseudo-entry + vendored 
     "project",
   ]);
   const vendored = fs.mkdtempSync(path.join(os.tmpdir(), "design-md-catalog-"));
-  fs.mkdirSync(path.join(vendored, "design-md", "stripe"), { recursive: true });
-  fs.writeFileSync(path.join(vendored, "design-md", "stripe", "DESIGN.md"), "## A\nx\n## B\ny\n## C\nz", "utf8");
+  fs.mkdirSync(path.join(vendored, "stripe"), { recursive: true });
+  fs.writeFileSync(path.join(vendored, "stripe", "DESIGN.md"), "## A\nx\n## B\ny\n## C\nz", "utf8");
   configureDesignSystemsVendorRoot(vendored);
   try {
     const withVendor = readDesignSystemCatalog(getExtensionRoot());
