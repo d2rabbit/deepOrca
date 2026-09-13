@@ -57,6 +57,22 @@ const groupKey = (root: string, id: string): string => `${root}:${id}`;
 const themeIdOf = (group: DirectoryGroup, suite: DesignSuiteSummary): string | null =>
   suite.themeId && group.themes.some((theme) => theme.id === suite.themeId) ? suite.themeId : null;
 
+async function readDirectoryData(root: string, kind: DesignSuiteKind) {
+  const [suites, themes, titleSource] = await Promise.all([
+    suiteApi.designSuiteList(root, kind),
+    suiteApi.designThemeList(root).catch(() => [] as DesignTheme[]),
+    suiteApi.designSuiteList(root, kind === "ui" ? "prototype" : "ui").catch(() => [] as DesignSuiteSummary[]),
+  ]);
+  const detailList = await Promise.all(
+    suites.map((suite) => suiteApi.designSuiteRead(root, suite.id).catch(() => null))
+  );
+  const details: Record<string, DesignSuite | null> = {};
+  suites.forEach((suite, index) => {
+    details[suite.id] = detailList[index] ?? null;
+  });
+  return { suites, themes, titleSource, details };
+}
+
 function WorkspaceDirectoryImpl({
   activeRoot,
   kind,
@@ -85,7 +101,11 @@ function WorkspaceDirectoryImpl({
     if (renamingId) renameInputRef.current?.focus();
   }, [renamingId]);
 
+  const loadGeneration = useRef(0);
+  const rootGenerations = useRef(new Map<string, number>());
   const load = useCallback(async () => {
+    const generation = ++loadGeneration.current;
+    rootGenerations.current.clear();
     setLoading(true);
     setError(null);
     try {
@@ -98,39 +118,29 @@ function WorkspaceDirectoryImpl({
         ? listing.workspaces
         : [fallback, ...listing.workspaces];
       const next = await Promise.all(
-        workspaces.map(async (workspace) => {
-          const [suites, themes, titleSource] = await Promise.all([
-            suiteApi.designSuiteList(workspace.root, kind),
-            suiteApi.designThemeList(workspace.root).catch(() => [] as DesignTheme[]),
-            // 继承/交叉参考常跨面板（UI 设计稿 ← 原型 PRD）——另一侧 kind 的
-            // summaries 是关系 chips 的标题解析源。
-            suiteApi
-              .designSuiteList(workspace.root, kind === "ui" ? "prototype" : "ui")
-              .catch(() => [] as DesignSuiteSummary[]),
-          ]);
-          // Three-segment rows (mockup dir-items) need the CURRENT version's
-          // content — one bounded read per suite (suites per workspace ≈ 1-3).
-          const detailList = await Promise.all(
-            suites.map((suite) => suiteApi.designSuiteRead(workspace.root, suite.id))
-          );
-          const details: Record<string, DesignSuite | null> = {};
-          suites.forEach((suite, index) => {
-            details[suite.id] = detailList[index] ?? null;
-          });
-          return { root: workspace.root, label: workspace.label, suites, themes, titleSource, details };
-        })
+        workspaces.map(async (workspace) => ({
+          root: workspace.root,
+          label: workspace.label,
+          ...(await readDirectoryData(workspace.root, kind)),
+        }))
       );
+      if (generation !== loadGeneration.current) return;
       setGroups(next);
     } catch (cause) {
+      if (generation !== loadGeneration.current) return;
       setGroups([]);
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
-      setLoading(false);
+      if (generation === loadGeneration.current) setLoading(false);
     }
   }, [activeRoot, kind]);
 
   useEffect(() => {
     void load();
+    const generation = loadGeneration.current;
+    return () => {
+      loadGeneration.current = generation + 1;
+    };
   }, [load]);
 
   // Known workspace roots, read inside the subscription without re-subscribing
@@ -142,48 +152,28 @@ function WorkspaceDirectoryImpl({
     knownRootsRef.current = new Set(groups.map((group) => group.root));
   }, [groups]);
 
-  useEffect(() => {
-    return subscribeToSuiteChanges((event) => {
-      if (!knownRootsRef.current.has(event.root)) return;
-      // 主题事件（change:"theme"）同时刷新主题列表与套件列表（分组归属变化
-      // 也反映在 suites summary 上）。
-      void suiteApi
-        .designSuiteList(event.root, kind)
-        .then((suites) => {
-          setGroups((current) => current.map((group) => (group.root === event.root ? { ...group, suites } : group)));
-        })
-        .catch(() => {
-          // re-review L9: an unhandled rejection on a failed refresh must not
-          // surface as a renderer error — the next event retries.
-        });
-      if (event.change === "theme") {
-        void suiteApi
-          .designThemeList(event.root)
-          .then((themes) => {
-            setGroups((current) => current.map((group) => (group.root === event.root ? { ...group, themes } : group)));
-          })
-          .catch(() => {
-            // 下一次事件重试。
-          });
-      }
-    });
-  }, [kind]);
-
-  /** 主题/指派写操作后的兜底刷新（store 事件也会触发增量刷新，双保险）。 */
   const refreshRoot = useCallback(
     async (root: string) => {
+      const generation = loadGeneration.current;
+      const request = (rootGenerations.current.get(root) ?? 0) + 1;
+      rootGenerations.current.set(root, request);
       try {
-        const [suites, themes] = await Promise.all([
-          suiteApi.designSuiteList(root, kind),
-          suiteApi.designThemeList(root).catch(() => [] as DesignTheme[]),
-        ]);
-        setGroups((current) => current.map((group) => (group.root === root ? { ...group, suites, themes } : group)));
+        const data = await readDirectoryData(root, kind);
+        if (generation !== loadGeneration.current || rootGenerations.current.get(root) !== request) return;
+        setGroups((current) => current.map((group) => (group.root === root ? { ...group, ...data } : group)));
       } catch {
-        // 失败留给下一次事件/手动刷新。
+        // Keep the last snapshot until a subsequent event retries.
       }
     },
     [kind]
   );
+
+  useEffect(() => {
+    return subscribeToSuiteChanges((event) => {
+      if (!knownRootsRef.current.has(event.root)) return;
+      void refreshRoot(event.root);
+    });
+  }, [refreshRoot]);
 
   // 交叉审查修复：四个主题写路径统一失败显面——{ok:false} 不再静默吞掉
   // （否则指派/重命名在主题被并发删除时看似成功），IPC 异常不再变成
@@ -393,7 +383,7 @@ function WorkspaceDirectoryImpl({
       <div className="ui-design-directory-body">
         {loading ? <div className="ui-design-directory-state">{t("common.loading")}</div> : null}
         {error ? <div className="ui-design-directory-state error">{error}</div> : null}
-        {!loading && !error
+        {!loading
           ? groups.map((group) => {
               // 主题分组视图（specs/prd-theme-layer）：有主题才分组；旧工作区
               // 零主题时维持既有平铺（EARS 14 零回归）。归属判定走共享谓词。

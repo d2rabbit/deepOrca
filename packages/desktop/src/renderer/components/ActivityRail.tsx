@@ -72,7 +72,7 @@ export function ActivityRail({ messages, busy, collapsed }: Props): JSX.Element 
 
   const windows = useMemo(() => {
     const out: ActivityWindow[] = [];
-    for (let i = 0; i < messages.length; i += 1) {
+    for (let i = messages.length - 1; i >= 0 && out.length < MAX_WINDOWS; i -= 1) {
       const m = messages[i];
       if (!m || m.role !== "tool") continue;
       const summary = buildToolSummary(m);
@@ -87,7 +87,7 @@ export function ActivityRail({ messages, busy, collapsed }: Props): JSX.Element 
         ok: summary.ok,
       });
     }
-    return out.slice(-MAX_WINDOWS).reverse(); // newest first
+    return out; // newest first
   }, [messages]);
 
   // 下拉置顶（screen-chat 交互）：frontId 的活动提到 p0，其余按时间序跟随；
@@ -148,14 +148,21 @@ export function ActivityRail({ messages, busy, collapsed }: Props): JSX.Element 
   }, [messages]);
   const thinkText = lastThinking?.text ?? "";
   const [elapsed, setElapsed] = useState(0);
+  const busyStartedAt = useRef<number | null>(null);
   useEffect(() => {
-    if (!busy) {
-      setElapsed(0);
-      return;
-    }
-    const timer = setInterval(() => setElapsed((s) => s + 0.1), 100);
-    return () => clearInterval(timer);
+    busyStartedAt.current = busy ? Date.now() : null;
+    if (!busy) setElapsed(0);
   }, [busy]);
+  const showThinking = busy && !collapsed && lastThinking !== null;
+  useEffect(() => {
+    if (!showThinking) return;
+    const updateElapsed = (): void => {
+      setElapsed(Math.max(0, Date.now() - (busyStartedAt.current ?? Date.now())) / 1000);
+    };
+    updateElapsed();
+    const timer = setInterval(updateElapsed, 100);
+    return () => clearInterval(timer);
+  }, [showThinking]);
   const thinkChars = thinkText.length;
 
   return (

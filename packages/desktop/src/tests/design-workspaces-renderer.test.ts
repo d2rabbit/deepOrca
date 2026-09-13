@@ -728,6 +728,118 @@ test("hash deep link opens the most-recent workspace root with the tab segment a
 
 // ── PRD 主题层（specs/prd-theme-layer）───────────────────────────────────────
 
+test("directory ignores an old load after switching workspace context", async () => {
+  const current = suite("ui", [version("first", { openui: 'root = Screen("Current")' })]);
+  let release: ((value: DesignSuite) => void) | undefined;
+  overrides.listWorkspaceSessions = async () => ({ workspaces: [] });
+  overrides.designSuiteList = async (_root: string, kind?: string) => (kind === "ui" ? [summary(current)] : []);
+  overrides.designThemeList = async () => [];
+  overrides.designSuiteRead = async (root: string) => {
+    if (root === "/work/old")
+      return new Promise<DesignSuite>((resolve) => {
+        release = resolve;
+      });
+    return current;
+  };
+  const panel = (root: string) =>
+    ReactPkg.createElement(
+      I18nProvider,
+      null,
+      ReactPkg.createElement(DesignPanel, { activeRoot: root, onOpenWorkspace: () => {} })
+    );
+  const out = rtl.render(panel("/work/old"));
+  await settle();
+  assert.ok(release);
+  out.rerender(panel("/work/current"));
+  await settle();
+  assert.ok(out.container.querySelector('[data-root="/work/current"]'));
+  await rtl.act(async () => {
+    release!(current);
+  });
+  await settle();
+  assert.ok(out.container.querySelector('[data-root="/work/current"]'));
+  assert.equal(out.container.querySelector('[data-root="/work/old"]'), null);
+});
+
+test("directory events refresh preview details and reject out-of-order snapshots", async () => {
+  const first = version("first", { openui: 'root = Screen("First")' });
+  let current = suite("ui", [first]);
+  let release: ((value: DesignSuite) => void) | undefined;
+  let deferRead = false;
+  overrides.listWorkspaceSessions = async () => ({ workspaces: [{ root: "/work/current", label: "current" }] });
+  overrides.designSuiteList = async (_root: string, kind?: string) => (kind === "ui" ? [summary(current)] : []);
+  overrides.designThemeList = async () => [];
+  overrides.designSuiteRead = async () => {
+    if (deferRead) {
+      deferRead = false;
+      return new Promise<DesignSuite>((resolve) => {
+        release = resolve;
+      });
+    }
+    return current;
+  };
+  const out = renderWithI18n(
+    ReactPkg.createElement(DesignPanel, { activeRoot: "/work/current", onOpenWorkspace: () => {} })
+  );
+  const preview = () => out.container.querySelector(".ui-design-directory-seg")?.textContent ?? "";
+  const emit = async () => {
+    await rtl.act(async () => {
+      stub.emit("onDesignChanged", { root: "/work/current", suiteId: current.id, change: "update" });
+    });
+    await settle();
+  };
+  await settle();
+  assert.ok(preview().includes("v1"));
+  const second = version("second", { openui: 'root = Screen("Second")' });
+  current = suite("ui", [first, second]);
+  await emit();
+  assert.ok(preview().includes("v2"), "event updates the actual preview version");
+  deferRead = true;
+  await emit();
+  assert.ok(release, "older detail request is pending");
+  const stale = current;
+  current = suite("ui", [first, second, version("third", { openui: 'root = Screen("Third")' })]);
+  await emit();
+  assert.ok(preview().includes("v3"));
+  await rtl.act(async () => {
+    release!(stale);
+  });
+  await settle();
+  assert.ok(preview().includes("v3"), "late response cannot restore an old preview");
+  current = { ...current, id: "replacement", title: "Replacement suite" };
+  await emit();
+  assert.equal(out.container.querySelector('[data-suite-id="ui-suite"]'), null);
+  assert.ok(
+    out.container.querySelector('[data-suite-id="replacement"] .ui-design-directory-seg')?.textContent?.includes("v3")
+  );
+});
+
+test("directory retains suite cards when one detail read fails", async () => {
+  const healthy = suite("ui", [version("healthy-v1", { openui: 'root = Screen("Healthy")' })]);
+  overrides.listWorkspaceSessions = async () => ({ workspaces: [{ root: "/work/current", label: "current" }] });
+  overrides.designSuiteList = async (_root: string, kind?: string) =>
+    kind === "ui" ? [summary(healthy), { ...summary(healthy), id: "unavailable", title: "Unavailable suite" }] : [];
+  overrides.designSuiteRead = async (_root: string, id: string) => {
+    if (id === "unavailable") throw new Error("Detail temporarily unavailable");
+    return healthy;
+  };
+  overrides.designThemeList = async () => [];
+  try {
+    const out = renderWithI18n(
+      ReactPkg.createElement(DesignPanel, { activeRoot: "/work/current", onOpenWorkspace: () => {} })
+    );
+    await settle();
+    assert.equal(out.container.querySelectorAll(".ui-design-directory-suite").length, 2);
+    assert.ok(out.container.textContent?.includes("Unavailable suite"));
+    assert.equal(out.container.querySelector(".ui-design-directory-state.error"), null);
+  } finally {
+    delete overrides.listWorkspaceSessions;
+    delete overrides.designSuiteList;
+    delete overrides.designSuiteRead;
+    delete overrides.designThemeList;
+  }
+});
+
 test("directory groups suites by requirement theme and shows relations", async () => {
   const prototypeSuite = suite("prototype", [version("proto-v1", { spec: "# Scope", openui: "root = Text('v1')" })]);
   const uiSuite = suite("ui", [version("ui-v1", { openui: 'root = Screen("UI v1")', designSystemId: "dark-tech" })]);
@@ -1042,6 +1154,21 @@ test("cross-review: theme CRUD failures surface an error instead of a silent no-
     (out.container.textContent ?? "").includes("theme title too long"),
     "the {ok:false} error surfaces in the directory"
   );
+  assert.ok(out.container.querySelector(".ui-design-directory-suite"), "failure preserves the loaded directory");
+  const input = out.container.querySelector(".ui-design-directory-theme-create input") as HTMLInputElement;
+  assert.ok(input, "failed creation keeps the form available for correction");
+  assert.equal(input.value, "登录", "failed creation preserves the user's input");
+  overrides.designThemeCreate = async () => ({ ok: true });
+  rtl.fireEvent.change(input, { target: { value: "Corrected title" } });
+  rtl.fireEvent.click(
+    out.container.querySelector('.ui-design-directory-theme-create button[type="submit"]') as Element
+  );
+  await settle();
+  assert.equal(out.container.querySelector(".ui-design-directory-state.error"), null);
+  assert.equal(out.container.querySelector(".ui-design-directory-theme-create"), null);
+  const creates = stub.calls.filter((call) => call.method === "designThemeCreate");
+  assert.equal(creates.length, 2);
+  assert.deepEqual(creates[1].args, ["/work/current", { title: "Corrected title" }]);
   delete overrides.listWorkspaceSessions;
   delete overrides.designSuiteList;
   delete overrides.designSuiteRead;
