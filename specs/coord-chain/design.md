@@ -344,6 +344,8 @@ while 队列非空:
 
 ## 14. 体积与性能预算
 
+> 以下为早期估算，未经过现有应用基准验证。预算、跨空间总量约束与测量口径见 [方案强化 §3、§6](./hardening.md)。50 节点全互联的连接数为每节点至多 49 条、全网至多 1225 条无向连接。
+
 - 记录 ≤8KB、区块 ≤256 条 → 日均千条记录 ≈ 数 MB 账本；SQLite 视图查询 <10ms（面板分页）。
 - **链工作区**：tree/commit 对象为 KB 级 JSON，主要成本仍在 blob；内容寻址天然跨 commit 去重（未变文件不重复存储/传输）；两 commit diff 为两 tree 键集对比，毫秒级。
 - blob 层吞吐受磁盘约束；4MB 分块 + 逐块校验在百兆局域网约 10MB/s 级，满足设计稿分发场景。
@@ -406,6 +408,8 @@ space.charter = {
 - 创始人不是永久单点管理员。creator 丢钥、离线、退出或被替换时按 charter 的治理票处理；驱逐不采用单个创始人单签特权。
 
 ### 17.3 observed、provisional 与 confirmed
+
+> 实现前置评审：[方案强化 §2](./hardening.md)。下述同 round 不双签规则不能单独证明跨 round 终局安全；锁、解锁证据、投票持久化及 epoch 生效高度必须先明确。已确认前缀不得通过旧 §6 的签名数量优先规则重选。
 
 记录一经签名 gossip 即为 `observed`；被当前节点验证、但尚未进入 confirmed chain segment 时为 `provisional`；满足当前 epoch 的确认规则后才为 `confirmed`。竞争或被 canonical fork-choice 淘汰的链段标记 `superseded`，签名或协议不合法的记录标记 `rejected`。
 

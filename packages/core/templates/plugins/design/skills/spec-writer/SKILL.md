@@ -50,7 +50,11 @@ be unambiguous about WHAT to build, while leaving HOW it looks to them.
 
 - Concrete over generic: "支持筛选" → bad; "按状态（全部/进行中/已完成）筛选任务列表" → good.
 - 每个页面三态必答：空态显示什么、加载中显示什么、失败显示什么——缺一条就是
-  原型自由发挥的空间。
+  原型自由发挥的空间。失败态应写明是否保留输入与已加载数据、如何纠正或重试，
+  不以隐藏整个页面代替局部操作错误；沿用需求已有的操作入口。
+- 增量修改时，用户明确要求保留的架构、页面层级、导航和交互是边界条件。
+  只补齐本次需求涉及的状态与验收条件，不因模板或通用最佳实践新增页面、
+  调整流程或扩大功能范围；未知性能指标标为待确认，不编造基准或达成结果。
 - 标准化 Markdown:表格用 GFM 管道语法并对齐 `---`;图表一律 ```mermaid
   围栏;不用 ASCII 伪图;代码/命令标注语言。
 - 页面清单 must enumerate every screen the prototype needs — it is the
