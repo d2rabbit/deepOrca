@@ -1,6 +1,7 @@
 # AGENTS.md
 
-This file provides guidance to Qoder (qoder.com) when working with code in this repository.
+This file provides guidance to AI coding agents (ZCode and others) when working
+with code in this repository.
 
 ## What this repo is
 
@@ -25,6 +26,8 @@ runtime dependency (BM25, statically imported and on by default) — don't remov
 `docs/` = user-facing docs. `scripts/` = build/release/packaging JS. `.deeporca/` =
 the product's own config dir (settings, plugins, skills, in-repo AGENTS.md).
 `specs/` = feature specs (requirements/design/tasks). `docs-site/` = static GitHub Pages site.
+`design-lab/`, `designs/`, `issues/` = scratch/working dirs (experiments, review notes) —
+not product code. `resources/` = installer/readme images. `CLAUDE.md` just points back here.
 
 **Branch policy: `master` is the mainline; `dev` is the integration line; `test` is the
 frozen pre-production test line.** Feature work happens on `feat/*` branches, merges into
@@ -40,13 +43,17 @@ on disk from them; `master` does not track it, don't edit or commit it.
   anything terminal/GUI-specific, and must not call `console.*` directly — the host
   injects loggers (`configureSkillSpectorLogger`, `configureRoutingLogger`). The UI
   layer (`desktop`) depends on core, never the reverse.
-- **Vendored tool paths are host-injected, never derived in core.** Only the host
+- **Vendor paths & heavy runtimes are host-injected, never derived in core.** Only the host
   knows whether it runs from a repo checkout or a packaged app
-  (`Resources/app/vendor`), so `main/index.ts` calls
-  `configureCodegraphVendorRoot` / `configureCrgVendorRoot` /
-  `configureSerenaUvResolver` / `configureSkillSpectorVendorRoot` /
-  `configureRoutingModelDir` at boot. Deriving a vendor path from `__dirname`
-  inside core is how semantic routing silently pointed at a nonexistent
+  (`Resources/app/vendor`), so desktop `main/index.ts` wires the `configure*` seams at boot:
+  action controllers (`configureCodegraphController` (backed by `SdkCodegraphController`),
+  `configureCrgController`, `configureSerenaController`, `configureSkillSpectorController`,
+  `configureWikiController`, `configureLspBridgeController`, `configureReviewController`,
+  `configureArchifyPaths`, `configureActionSpawner`, …), vendor-root setters
+  (`configureUvVendorRoot`, `configureDembrandtVendorRoot`, `configureDesignSystemsVendorRoot`,
+  `configureCrgVersionRoot`, `configureRoutingModelDir`), and loggers
+  (`configureRoutingLogger`, `configureSpawnTrackedLogger`). Deriving a vendor path from
+  `__dirname` inside core is how semantic routing silently pointed at a nonexistent
   `packages/packages/desktop/...` and never ran.
 - **Built-in tools are deliberately minimal:** `bash`, `read`, `write`, `edit`,
   `AskUserQuestion`, `UpdatePlan`, `WebSearch`, `WebFetch` (first-party search +
@@ -83,9 +90,10 @@ on disk from them; `master` does not track it, don't edit or commit it.
 | `npm run typecheck`                                       | `tsc --noEmit` across all workspaces                                                                                                                     |
 | `npm run lint` / `npm run lint:fix`                       | ESLint on `packages/*/src/**/*.{ts,tsx}` + `scripts/*.js`                                                                                                |
 | `npm run format` / `npm run format:check`                 | Prettier                                                                                                                                                 |
-| `npm run check`                                           | typecheck + lint + format:check (run before pushing)                                                                                                     |
+| `npm run check`                                           | build + typecheck + lint + format:check + license:check (run before pushing)                                                                             |
+| `npm run license:check`                                   | license compliance gate over the full dependency tree (`scripts/check-licenses.js`; per-package exceptions need a written justification)                 |
 | `npm run build`                                           | all `@deeporca/*` tsc packages in dependency-topological order → rewrite ESM imports (core/dist). `desktop` is excluded — it builds via `desktop:build`. |
-| `npm test`                                                | run every workspace's tests                                                                                                                              |
+| `npm test`                                                | root `scripts/*.test.mjs` + every workspace's tests                                                                                                      |
 | `npm run desktop:build` / `desktop:dev` / `desktop:start` | Electron app build / dev / build+run                                                                                                                     |
 | `npm run desktop:startMac` / `startWin` / `startLx`       | build+run with per-OS setup via `scripts/desktop-start.js`                                                                                               |
 | `npm run release:version`                                 | bump version across all packages                                                                                                                         |
@@ -174,8 +182,9 @@ hunk fallback — were resolved.)
 
 - `dist/`, `out/`, `*.tsbuildinfo` — build artifacts.
 - `vendor-src/`, `packages/desktop/vendor/` — vendored third-party clones,
-  downloaded binaries and compiled builds (CodeGraph, OpenWiki, uv, Serena,
-  SkillSpector, CRG, Granite embedding model, …).
+  downloaded binaries and compiled builds (OpenWiki, uv, Serena, SkillSpector,
+  CRG, Granite embedding model, Archify, dembrandt, design-md, …). CodeGraph is
+  NOT vendored — it ships as the npm package `@colbymchenry/codegraph`.
 - `.deeporca/settings.json`, `.env`, `.env.local` — local secrets/config.
 
 ## Commits
@@ -282,9 +291,10 @@ Conventional Commits (`feat:`, `fix:`, `chore:`, `refactor:`, `style:`, `test:`,
   `main.js` (ESM, main process, node deps + core kept external), `preload.cjs`
   (CJS — required for sandboxed preload), and `renderer/` (browser bundle + html/css).
 - Every desktop build also **vendors its third-party tools** via the
-  `scripts/vendor-*.js` family (13 of them: codegraph, openwiki, uv, serena, crg,
-  skillspector, granite, browser-skill, bento, tailwind, plus the shared
-  `vendor-download.js` / `vendor-fs.js` / `vendor-notice.js` helpers). Git-based
+  `scripts/vendor-*.js` family (15 scripts: archify, bento, browser-skill, crg,
+  dembrandt, design-md, granite, openwiki, serena, skillspector, tailwind, uv,
+  plus the shared `vendor-download.js` / `vendor-fs.js` / `vendor-notice.js`
+  helpers — CodeGraph is npm-installed instead, see below). Git-based
   ones keep persistent clones in `vendor-src/` (gitignored), fetch upstream, and
   recompile into `packages/desktop/vendor/<name>` only when HEAD changed
   (`.vendored-head` marker; `--force` to rebuild); download-based ones use a
@@ -298,8 +308,10 @@ Conventional Commits (`feat:`, `fix:`, `chore:`, `refactor:`, `style:`, `test:`,
   `OPENUI_TELEMETRY_DISABLED=1` + `DO_NOT_TRACK=1` at the job level (ci.yml,
   release.yml); set them in your shell profile too — details in
   `packages/core/templates/plugins/design/skills/openui/README.md`.
-- CodeGraph needs Node 22.5+ at runtime (`node:sqlite`); the desktop client runs the
-  vendored entry through a system Node 22+ binary (see `packages/core/src/common/codegraph.ts`).
+- CodeGraph is installed as the npm package `@colbymchenry/codegraph` and needs
+  Node 22.5+ at runtime (`node:sqlite`); runtime/SQLite resolution lives in
+  `packages/core/src/common/codegraph.ts` + `sqlite-runtime.ts`, and desktop
+  drives it through `SdkCodegraphController`.
 
 ### Semantic routing (`packages/core/src/routing/`)
 
