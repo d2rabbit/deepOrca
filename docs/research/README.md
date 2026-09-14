@@ -12,7 +12,7 @@
 
 ## 总览
 
-53 份文档（含 1 份 EN 孪生 + 08-18 新增 1 份 + 08-19 UI/UX 重设计 4 份 + 08-19 超大版本重构预研 2 份 + 08-21 新增 1 份 + 08-27 新增 1 份 + 09-03 新增 4 份 + 09-04 新增 5 份 + 09-11 新增 1 份；另有 09-01/09-05/09-10 若干份尚未登记，台账滞后待补）：**✅ 21 · 🟡 12 · ⬜ 17 · ❌ 3（作废）**。整体消费率高；作废 3 份均为 2026-08-17 拍板（zread 对比线、MemOS 线、pi-sdk 线），理由见各行备注。
+54 份文档（含 1 份 EN 孪生 + 08-18 新增 1 份 + 08-19 UI/UX 重设计 4 份 + 08-19 超大版本重构预研 2 份 + 08-21 新增 1 份 + 08-27 新增 1 份 + 09-03 新增 4 份 + 09-04 新增 5 份 + 09-11 新增 1 份 + 09-14 新增 1 份；另有 09-01/09-05/09-10 若干份尚未登记，台账滞后待补）：**✅ 21 · 🟡 12 · ⬜ 17 · ❌ 3（作废）**。整体消费率高；作废 3 份均为 2026-08-17 拍板（zread 对比线、MemOS 线、pi-sdk 线），理由见各行备注。
 
 ---
 
@@ -180,12 +180,19 @@
 | --- | --- | --- | --- | --- |
 | [2026-09-11-code2video-remotion-prestudy.md](./2026-09-11-code2video-remotion-prestudy.md) | 「代码→视频」双路线预研：**Code2Video**（NUS Show Lab，arXiv 2510.01174，MIT）三 agent 管线写 Manim 代码生成教学视频——ScopeRefine 行→块→全局分级修复（compile+dry-run 两道机械门）、6×6 Grid 锚点让 VLM 布局反馈可机械执行（占用表 + 按行回写）、MMMC/TeachQuiz 评估（较直接生成 baseline +40%）；**Remotion**（v4.0.52x，双层许可）React 即视频引擎——2026 全面 agent 化（官方 Skills 2.0 十三个 SKILL.md router-first 按需加载 / Studio WebMCP / 弃用官方 MCP 转 skills / skills-evals），渲染走 Rust 合成器 + Lambda/客户端 webcodecs 多路径 | 规划落点（未启动）：remotion-dev/skills 与本仓 skill 发现路径（`.agents/skills`）同构、零适配分发；未来「原型→视频」类 spec 的管线参照（三段式落盘断点续跑 / stage-gate 机械门 / 分级降级 / VLM 评审回写）；Remotion 双层许可（>3 人营利公司需 Company License）为任何集成的前置决策点 | ⬜ | **用户拍板"落地研究文档即可，不急功能化"——纯留档零代码**。三条速记：① Remotion skills 与本仓 SKILL.md 方言完全同构（其 2026-05 自身已迁 `.agents/skills`），理论零适配可分发；② Code2Video ScopeRefine 与 `design-stage-gates` 两级降级跨域同构，可作 stage-gate 泛化的第二佐证（文 §2.3/§5.2）；③ Remotion "弃 MCP 转 skills" 官方决策可作 skill 路线外部印证。红线：任何 Remotion 集成 spec 先过许可证两问（文 §5.4） |
 
+## 2026-09-14 · 记忆触发器 × HTML→视频预研
+
+| 文档 | 主题 | 对应模块 | 消费 | 备注 |
+| --- | --- | --- | --- | --- |
+| [2026-09-14-tmem-hyperframes-prestudy.md](./2026-09-14-tmem-hyperframes-prestudy.md) | 双线预研：**T-Mem**（EMNLP 2026 Main，arXiv 2606.15405，MIT，Python 仓库早期 9★）写入时触发器图记忆——4 族（Entity/Bridge/Scene/Horizon）× 2 粒度（事实/场景）检索线索修「联想性召回」盲区，LoCoMo/LoCoMo-Plus 双 SOTA；**HyperFrames**（HeyGen，Apache-2.0，Node 22+）HTML+`data-*` 即视频——headless Chrome 逐帧 seek + FFmpeg 确定性 MP4，20 个 SKILL.md 技能，`/faceless-explainer` 与「内容→HTML→视频动态讲解」同构 | 规划落点（未启动）：T-Mem 线收敛在 `packages/memory/`（capture 生成触发器 / recall 扩充候选 / `byLayer` 增 trigger-gen / 触发器不进答案上下文，Item 层待对照 `tdai/core/record/` 核实）；HyperFrames 线：`/faceless-explainer` 等 4 技能改写 bundled、`scripts/vendor-hyperframes.js` + FFmpeg/chrome-headless-shell vendor（`configure*` 接缝注入） | ⬜ | 纯调研留档，无代码变更。**两条关键对位**：① T-Mem 补记忆链**召回侧**（memory-audit/cmb 均在写入侧），增量唯一新概念是 Trigger——概念移植进 vendored TDAI，不引 Python sidecar（与 MemOS 线作废同逻辑，@deeporca/memory 单一承接边界不变）；② HyperFrames **直接回应 09-11 Remotion 预研的许可证红线**（Apache-2.0 无商用门槛），视频能力立项时引擎决策应在 Remotion vs HyperFrames 间重开，Code2Video 管线方法论借鉴与引擎选择正交。FFmpeg 全仓缺失需新 vendor；仓库克隆需 `GIT_LFS_SKIP_SMUDGE=1`（240MB 基线不进安装器） |
+
 ## 消费链（文档 → 文档 → 代码）
 
 - **dsh 链**：deep-dive + takeaways → adoption-plan → P0 三项落地（session.ts / llm-error.ts）→ 2026-08-17 整合为 dsh-consolidated 台账 → v3.19 收官 D 线落地候选池四件套（`29801ee`：崩溃合成收尾 / 两段式 compaction / 执行闸门 / 前缀守卫）→ **2026-09-04 封闭**（用户拍板"dsh 不需要了"；S1/S2 已判"不做"、C1 移除，无悬空候选，已吸收项全部在代码）
 - **OpenUI/Designer 链**：a2ui-integration（锁定全域动态 UI）→ openui-deep-dive（三层定位修订）→ full-adoption-plan（Batch 1-10 全落地）→ **opendesign-openpencli 预研**（对比 OpenDesign，确认自有方案为主体）
 - **路由链**：skillweaver-skill-routing-integration（G1/G2/G3）→ routing-closure-plan（R1-R4 闭环）→ 全落地；P2 book-distill + P3 skill-up CI 已于 2026-08-17 收官计划落地（版本 pin 待联网定版为闭环项）
-- **记忆链**：memos 预研（❌ 作废，由腾讯持久化记忆 @deeporca/memory 承接）；trajectory-design-exploration 划定行为记忆 vs 任务轨迹边界 → task-tree P0-P2 落地、P3 待启动
+- **记忆链**：memos 预研（❌ 作废，由腾讯持久化记忆 @deeporca/memory 承接）；trajectory-design-exploration 划定行为记忆 vs 任务轨迹边界 → task-tree P0-P2 落地、P3 待启动；backpass → memory-audit（写入侧审计）→ tmem-hyperframes 预研（召回侧触发器，增量定位于 vendored TDAI 管线内）
+- **视频链**：code2video-remotion 预研（Code2Video 管线方法论 + Remotion 引擎首选 + 许可证红线）→ tmem-hyperframes 预研（HyperFrames 作 Apache-2.0 替代候选，拆红线；立项时重开引擎决策）
 - **模板/CodeGraph**：template-split → 由"工具代码迁 desktop/tools/、模板留 core"方案实现并关闭 → specs/module-system 承接发行版远景
 
 ## 遗留待办汇总（2026-08-17 更新）

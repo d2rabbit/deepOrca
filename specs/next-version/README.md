@@ -19,11 +19,13 @@
 | [cad-3d-generation](./cad-3d-generation/design.md) | text-to-cad / img2threejs 三阶段 | ⬜ 规划中 |
 | [cmb-next](./cmb-next/design.md) | CMB 延伸（premature stop/动态推理档位/stuck 检测/结构债/重组消费侧/L3 晚绑定） | ⬜ 独立任务规划 |
 | [content-translation](./content-translation/design.md) | 第三方内容翻译引擎 | ⬜ 设计定稿待实现 |
+| [content-to-video](./content-to-video/design.md) | 内容→HTML→视频动态讲解（HyperFrames 引擎，Apache-2.0 替代 Remotion；技能先行→vendor 化→程序化三阶段；上游调研 [2026-09-14-tmem-hyperframes-prestudy](../../../docs/research/2026-09-14-tmem-hyperframes-prestudy.md) §3） | ⬜ 方案稿（2026-09-14 立项，启动时 git mv 回活跃区） |
 | [context-menu-interaction](./context-menu-interaction/design.md) | 右键菜单与快捷交互体系（ContextMenu 组件 + 五表面接线 + 废纸篓语义） | ⬜ 方案稿（2026-09-08 移入本区储备，启动时 git mv 回活跃区） |
 | [desktop-pet](./desktop-pet/design.md) | 桌宠小助手 P1–P10 | ⬜ 调研定稿（P1 另立项） |
 | [harmonyos-dev-kit](./harmonyos-dev-kit/design.md) | 鸿蒙开发套件 | ❌ 曾落地后下线；重启属 `next/*` |
 | [in-process-multi-driver](./in-process-multi-driver/design.md) | 进程内多驱动并行（agent-relay） | ⬜ 立稿未实施 |
 | [kb-container](./kb-container/design.md) | 知识库容器格式：wiki+架构图收敛单文件 `.dkb`（SQLite 内容寻址快照，覆盖融合；coord-chain `kb.sync` 落点；CodeGraph/CRG 排除） | ⬜ 设计定稿（2026-09-08 移入本区，当前版本不实施） |
+| [memory-trigger-recall](./memory-trigger-recall/design.md) | 记忆触发器召回强化（T-Mem 写入时触发器概念移植进 vendored TDAI：4 族 × 2 粒度，capture 生成 / recall 扩充 / 永不进答案上下文，补联想性召回盲区；上游调研 [2026-09-14-tmem-hyperframes-prestudy](../../../docs/research/2026-09-14-tmem-hyperframes-prestudy.md) §2） | ⬜ 方案稿（2026-09-14 立项，启动时 git mv 回活跃区） |
 | [model-fleet-adaptation](./model-fleet-adaptation/design.md) | GLM/Kimi/MiniMax/Qwen 收官适配 | 🟡 G0+S0 落地（16/34） |
 | [sandbox-next](./sandbox-next/design.md) | 沙箱延伸（bwrap/WSL2/矩阵/WASI） | ⬜ 独立任务规划 |
 | [ts-native-migration](./ts-native-migration/design.md) | TS 原生化迁移排期（P0 包拓扑拆分 → P5 scriptc；不换语言铁律） | ⬜ 移入本区（2026-09-04，随 8e21b465 调研批次；2026-09-08 补登本表） |
