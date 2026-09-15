@@ -97,7 +97,8 @@ void bind_close(void) {
     Clay__CloseElement();
 }
 
-// wrapMode: 0 = WORDS（默认，按空白分词）· 1 = NONE · 2 = NEWLINES
+// wrapMode: 0 = WORDS（默认，按空白分词）· 1 = NEWLINES（只在换行处断行）· 2 = NONE
+//（与 clay-patched.h 的 Clay_TextElementConfigWrapMode 枚举顺序一致）
 __attribute__((export_name("bind_text")))
 void bind_text(uint32_t charsPtr, uint32_t length,
                float fontSize, uint16_t fontId, uint16_t lineHeight,

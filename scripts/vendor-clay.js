@@ -35,6 +35,7 @@
 //   CLAY_WSL_DISTRO  (default: first `wsl -l -q` entry; WSL clang fallback)
 
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -149,6 +150,11 @@ function probeToolchain() {
   }
 }
 
+/** Fingerprint the bindings source so stale committed artifacts announce themselves. */
+function bindingsFingerprint() {
+  return createHash("sha256").update(readFileSync(bindingsSource)).digest("hex").slice(0, 16);
+}
+
 /** Compile patched header + bindings shim into clay.wasm (single TU). WSL needs /mnt paths. */
 function compileWasm(toolchain, clone, staging) {
   copyFileSync(bindingsSource, join(staging, "clay-bindings.c"));
@@ -184,6 +190,19 @@ async function main() {
   const head = checkoutPinned(clone);
 
   if (!force && currentPinnedHead() === head && existsSync(join(targetDir, "clay.wasm"))) {
+    // .vendored-head only tracks the upstream pin — a bindings-source edit does
+    // NOT bump it. Fingerprint clay-bindings.c so a stale committed artifact
+    // (wasm built before the source changed) announces itself loudly instead
+    // of silently missing exports at runtime (real bug 2026-09-15:
+    // bind_set_floating shipped missing).
+    const versionFile = join(targetDir, "version.json");
+    const built = existsSync(versionFile) ? JSON.parse(readFileSync(versionFile, "utf8")) : null;
+    const current = bindingsFingerprint();
+    if (built?.bindings !== current) {
+      log(
+        `WARNING: clay-bindings.c changed since this wasm was built (fingerprint ${built?.bindings ?? "none"} ≠ current ${current}) — the committed artifact is STALE and may miss exports. Rebuild with --force on a wasm32-capable clang.`
+      );
+    }
     log(`already vendored @ ${head.slice(0, 10)} — up to date (use --force to rebuild)`);
     return;
   }
@@ -211,6 +230,7 @@ async function main() {
             patched: patchApplied,
             patchReason: patchApplied ? "upstream duplicate wasm export name (SetLayoutDimensions)" : "none",
             clang: toolchain.version,
+            bindings: bindingsFingerprint(),
             builtAt: new Date().toISOString(),
           },
           null,
