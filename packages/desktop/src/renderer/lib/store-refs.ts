@@ -210,6 +210,7 @@ export function splitStoreRefSegments(
         const canonical = resolveStoreToken(m[0]);
         if (!canonical) {
           if (fileLike) {
+            if (start > last) segments.push({ kind: "text", text: text.slice(last, start) });
             segments.push({
               kind: "ref",
               ref: { kind: "file", raw: m[0], start, end, label: chipLabel("file", m[0]) },
@@ -220,6 +221,7 @@ export function splitStoreRefSegments(
         }
         if (canonical.length < m[0].length) {
           // 最长前缀命中：芯片只盖键本身，句尾标点/跟打的正文留在外面
+          if (start > last) segments.push({ kind: "text", text: text.slice(last, start) });
           const kind = chipKind("store", canonical.slice(1));
           const label = resolveLabel?.(canonical, kind) || chipLabel(kind, canonical);
           segments.push({
@@ -231,6 +233,7 @@ export function splitStoreRefSegments(
         }
         // canonical === m[0]：落入末尾的通用 push（compact）
       } else if (fileLike) {
+        if (start > last) segments.push({ kind: "text", text: text.slice(last, start) });
         segments.push({
           kind: "ref",
           ref: { kind: "file", raw: m[0], start, end, label: chipLabel("file", m[0]) },
@@ -275,8 +278,14 @@ const COMPLETE_CHIP_RE = new RegExp(`^(?:${COMPLETE_CHIP_SOURCE})$`);
 /** True when the @token is an ALREADY-COMPLETE reference — the composer
  *  suppresses the file-mention menu for it (suggesting files over a finished
  *  reference just produces "no matching files" noise). 命令引用走 $ 前缀，
- *  不经过 @ 菜单，因此不在此列。 */
-export function isCompleteStoreRef(token: string): boolean {
+ *  不经过 @ 菜单，因此不在此列。
+ *  store 组（@wiki/… 紧凑令牌）提供解析器时只认注册命中：敲到一半的
+ *  `@wiki/架` 是查询不是成品——@ 菜单须保持打开承接前缀搜索（与 dir 组
+ *  "查询不得关菜单"的约束对齐）；无解析器时退回纯语法判定（测试用）。 */
+export function isCompleteStoreRef(token: string, resolveStoreToken?: (raw: string) => string | null): boolean {
+  if (resolveStoreToken && /^@(?:wiki|review|design|prototype)\//.test(token)) {
+    return resolveStoreToken(token) !== null;
+  }
   return COMPLETE_CHIP_RE.test(token);
 }
 

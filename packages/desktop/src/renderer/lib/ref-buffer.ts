@@ -59,18 +59,23 @@ export interface RefBlockMeta {
   title: string;
 }
 
-const REF_BLOCK_RE = /<reference kind="([^"]*)" path="((?:[^&]|&(?!quot;))*)" title="([^"]*)">[\s\S]*?<\/reference>/g;
+// 路径组除 quot/amp 外也接受 lt/gt 实体：旧写侧（负向前瞻版）会把字面
+// &lt;/&gt; 原样留在属性里，收紧正则会令这批遗留持久化块整块不折叠；
+// 读侧只还原 quot/amp，lt/gt 字面保留——与旧读侧行为一致。
+const REF_BLOCK_RE =
+  /<reference kind="([^"]*)" path="((?:[^&"]|&(?:quot;|amp;|lt;|gt;))*)" title="([^"]*)">[\s\S]*?<\/reference>/g;
 
 /** 会话回放显示形态：把传输形态里的 <reference> 内容块折叠出去，只留元数据
  *  ——持久化的是传输文本，但指令条不应把整块引用内容重绘进历史气泡。
- *  属性值里的 &quot; 在读取侧还原为引号。 */
+ *  属性值里的 &quot;/&amp; 在读取侧按写入相反顺序还原（先引号后 &，
+ *  保证 &amp;quot; 这类双重形态不被提前解链）。 */
 export function splitReferenceBlocks(text: string): { text: string; blocks: RefBlockMeta[] } {
   const blocks: RefBlockMeta[] = [];
   const stripped = text.replace(REF_BLOCK_RE, (_m, kind: string, path: string, title: string) => {
     blocks.push({
       kind,
-      path: path.replace(/&quot;/g, '"'),
-      title: title.replace(/&quot;/g, '"'),
+      path: path.replace(/&quot;/g, '"').replace(/&amp;/g, "&"),
+      title: title.replace(/&quot;/g, '"').replace(/&amp;/g, "&"),
     });
     return "";
   });
@@ -163,7 +168,9 @@ function withDeadline<T>(promise: Promise<T>, ms: number): Promise<T | null> {
 
 function referenceBlock(entry: RefEntry, content: string, truncated: boolean): string {
   // 属性值转义：路径/标题含引号时不得破坏属性边界（否则回放折叠失配）。
-  const esc = (value: string): string => value.replace(/"/g, "&quot;").replace(/&(?!(?:quot|amp|lt|gt);)/g, "&amp;");
+  // & 无条件先转义（&amp;）、" 再转义（&quot;）——读取侧按相反顺序还原，
+  // 任何字面 &quot;/&amp; 序列都能无损往返。
+  const esc = (value: string): string => value.replace(/&/g, "&amp;").replace(/"/g, "&quot;");
   const title = esc(entry.label);
   const path = esc(entry.path);
   const note = truncated ? "\n…(content truncated)" : "";
@@ -173,7 +180,8 @@ function referenceBlock(entry: RefEntry, content: string, truncated: boolean): s
 /**
  * 展示形态 → 传输形态：把草稿里的紧凑令牌替换为真实绝对路径，并把每个
  * 已登记引用的真实内容（并行读取、单引用截断、总量截断、超时 fail-open）
- * 以 <reference> 块追加在正文之后。未登记的令牌原样保留并列入 unresolved。
+ * 以 <reference> 块追加在正文之后。未登记的令牌降级为纯文本（unresolved
+ * 字段因此恒空，见其注释——保留给未来解析器外置的场景）。
  */
 export async function expandDraftRefs(
   draft: string,

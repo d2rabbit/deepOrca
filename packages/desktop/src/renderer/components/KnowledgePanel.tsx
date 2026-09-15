@@ -349,7 +349,9 @@ export function KnowledgePanel({ root, appearance, onOpenFile, onQuoteToChat }: 
     setWikiContent(null);
     (async () => {
       try {
-        const res = await api.editorReadFile(wikiStorePath(root, wikiSel));
+        // 按面板自身的 root 读取（IPC 侧过 resolveRegisteredRoot 白名单）——
+        // 跨工作区查看 wiki 页不再因激活 root 遏制而静默空白。
+        const res = await api.editorReadFile(wikiStorePath(root, wikiSel), root);
         if (!alive) return;
         setWikiContent(res.ok && !res.binary ? (res.content ?? "") : null);
       } catch {

@@ -182,6 +182,20 @@ test("compact tokens count as COMPLETE for @-menu suppression", () => {
   assert.equal(isCompleteStoreRef("@wiki/"), false, "prefix without slug stays a query");
 });
 
+test("store completeness requires a registry hit when a resolver is given", () => {
+  // 2026-09-15 bug-hunt 回归：语法完整判定曾把敲到一半的 @wiki/架 也当成品
+  // 关掉 @ 菜单，掐死了前缀搜索流；Composer 侧传入注册表解析器后，完整 =
+  // 注册命中（与 dir 组"查询不得关菜单"的约束对齐）。
+  const resolver = (raw: string): string | null => (raw.startsWith("@wiki/架构设计") ? "@wiki/架构设计" : null);
+  assert.equal(isCompleteStoreRef("@wiki/架构设计", resolver), true, "registered token = finished citation");
+  assert.equal(isCompleteStoreRef("@wiki/架构设计。", resolver), true, "trailing punctuation still covers the key");
+  assert.equal(isCompleteStoreRef("@wiki/架", resolver), false, "half-typed prefix is a query, not a citation");
+  assert.equal(isCompleteStoreRef("@wiki/完全未登记", resolver), false);
+  // 无解析器（测试/独立调用面）：语法判定兜底，行为不变
+  assert.equal(isCompleteStoreRef("@wiki/架构设计"), true);
+  assert.equal(isCompleteStoreRef("@wiki/"), false);
+});
+
 test("resolveLabel overrides the slug fallback for compact tokens only", () => {
   const segments = splitStoreRefSegments("见 @wiki/架构设计 与 @README.md", (token, kind) =>
     token === "@wiki/架构设计" && kind === "wiki" ? "真实页面标题" : null
@@ -247,6 +261,24 @@ test("CJK suffix typed without space resolves via longest-prefix resolver", () =
   assert.ok(ref && ref.kind === "ref");
   assert.equal(ref.ref.raw, "@wiki/架构设计");
   assert.ok(segments.some((s) => s.kind === "text" && s.text.includes("。谢谢")));
+});
+
+test("store early-exit paths keep the text preceding the chip (join invariant)", () => {
+  // 2026-09-15 bug-hunt 回归：三条早退路径曾绕过通用 flush，令牌前的正文
+  // （如「看下 」）在镜像层与传输形态里双双丢失。拼接不变量必须还原原文。
+  const join = (segs: ReturnType<typeof splitStoreRefSegments>) =>
+    segs.map((s) => (s.kind === "text" ? s.text : s.ref.raw)).join("");
+  // 1) 注册表 miss + fileLike → file 芯片兜底
+  const missFile = splitStoreRefSegments("看下 @wiki/notes.md 改", undefined, () => null);
+  assert.equal(join(missFile), "看下 @wiki/notes.md 改");
+  // 2) 最长前缀命中（CJK 跟打不空格）
+  const longest = splitStoreRefSegments("看下 @wiki/架构设计。谢谢", undefined, (raw) =>
+    raw.startsWith("@wiki/架构设计") ? "@wiki/架构设计" : null
+  );
+  assert.equal(join(longest), "看下 @wiki/架构设计。谢谢");
+  // 3) 无 resolver + fileLike（回放形态）
+  const noResolver = splitStoreRefSegments("看下 @wiki/notes.md 改");
+  assert.equal(join(noResolver), "看下 @wiki/notes.md 改");
 });
 
 test("unregistered store-like tokens degrade to plain text (no dangling block)", () => {

@@ -137,7 +137,7 @@ const api: DesktopApi = {
   gitmcpReindex: (slug) => ipcRenderer.invoke(IpcRequest.GitmcpReindex, slug),
 
   // ── Editor module ─────────────────────────────────────────────────────
-  editorReadFile: (filePath) => ipcRenderer.invoke(IpcRequest.EditorReadFile, filePath),
+  editorReadFile: (filePath, root) => ipcRenderer.invoke(IpcRequest.EditorReadFile, filePath, root),
   editorReadBinary: (filePath) => ipcRenderer.invoke(IpcRequest.EditorReadBinary, filePath),
   editorOpenSystem: (filePath) => ipcRenderer.invoke(IpcRequest.EditorOpenSystem, filePath),
   editorWriteFile: (filePath, content) => ipcRenderer.invoke(IpcRequest.EditorWriteFile, filePath, content),

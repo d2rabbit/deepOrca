@@ -140,3 +140,27 @@ test("splitReferenceBlocks leaves plain drafts untouched", () => {
   assert.equal(text, "普通提问 @wiki/架构设计");
   assert.equal(blocks.length, 0);
 });
+
+test('attribute escaping round-trips & and " (including literal &quot;/&amp; names)', async () => {
+  // 2026-09-15 bug-hunt 回归：写侧曾按负向前瞻选择性转义 &，读侧只还原
+  // &quot;——路径含 & 显示成 a&amp;b，字面 &quot; 文件名甚至被解链成引号。
+  const registry = new Map([
+    ["@wiki/a-b", entry({ token: "@wiki/a-b", path: "D:/r/a&quot;b&amp;c.md", label: "A & B" })],
+  ]);
+  const res = await expandDraftRefs("看 @wiki/a-b", registry, { resolveContent: async () => "content" });
+  const { text, blocks } = splitReferenceBlocks(res.text);
+  assert.equal(blocks.length, 1, "block folds back despite escaped attributes");
+  assert.equal(blocks[0]?.path, "D:/r/a&quot;b&amp;c.md");
+  assert.equal(blocks[0]?.title, "A & B");
+  assert.ok(text.includes("D:/r/a&quot;b&amp;c.md"), "transport token keeps the raw path");
+});
+
+test("legacy blocks carrying lt/gt entities still fold (old writer left them raw)", () => {
+  // 旧写侧（负向前瞻版）会把字面 &lt;/&gt; 原样留在属性里；读取正则须继续
+  // 认这两种实体（解码侧只还原 quot/amp，lt/gt 字面保留——与旧读侧一致）。
+  const legacy = 'x <reference kind="wiki" path="D:/r/a&lt;b.md" title="t">\nc\n</reference> y';
+  const { text, blocks } = splitReferenceBlocks(legacy);
+  assert.equal(blocks.length, 1, "legacy entity block folds");
+  assert.equal(blocks[0]?.path, "D:/r/a&lt;b.md");
+  assert.equal(text, "x  y");
+});

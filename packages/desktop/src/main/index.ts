@@ -2461,7 +2461,11 @@ function registerGitmcpIpc({ handle, handlePrivileged }: IpcHelpers): void {
 
 function registerEditorIpc({ handle, handlePrivileged }: IpcHelpers): void {
   // ── Editor module ───────────────────────────────────────────────────────
-  handle(IpcRequest.EditorReadFile, (filePath: string) => handleEditorReadFile(getBridge().projectRoot, filePath));
+  // 可选 root（引用缓冲层跨工作区读取）：经 resolveRegisteredRoot 白名单解析，
+  // 未注册 root 回落激活 root 做遏制（fail-closed，与不传 root 等价）。
+  handle(IpcRequest.EditorReadFile, (filePath: string, root?: string) =>
+    handleEditorReadFile(resolveRegisteredRoot(root) ?? getBridge().projectRoot, filePath)
+  );
   handle(IpcRequest.EditorReadBinary, (filePath: string) => handleEditorReadBinary(getBridge().projectRoot, filePath));
   // Extensions whose shell "open" default-handler EXECUTES code instead of
   // rendering content. safePathWithinRoot already bounds the path to the

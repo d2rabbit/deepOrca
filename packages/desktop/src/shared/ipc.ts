@@ -1577,8 +1577,13 @@ export type DesktopApi = {
   gitmcpReindex(slug: string): Promise<{ ok: boolean; error?: string }>;
 
   // ── Editor module ─────────────────────────────────────────────────────
-  /** Read a file's text content from the project root. */
-  editorReadFile(filePath: string): Promise<{ ok: boolean; content?: string; error?: string; binary?: boolean }>;
+  /** Read a file's text content from the project root. Optional `root` selects
+   *  a registered workspace root instead of the active one (ref-buffer reads
+   *  cross-workspace artifacts by their own root; unregistered roots fail closed). */
+  editorReadFile(
+    filePath: string,
+    root?: string
+  ): Promise<{ ok: boolean; content?: string; error?: string; binary?: boolean }>;
   /** Write text content to a file within the project root. */
   editorWriteFile(filePath: string, content: string): Promise<{ ok: boolean; error?: string }>;
   /** List files and directories under a path within the project root. */

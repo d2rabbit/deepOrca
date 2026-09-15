@@ -206,10 +206,30 @@ export const Composer = memo(function Composer(props: Props): JSX.Element {
     () => (currentToken?.token.startsWith("@") ? { token: currentToken.token, start: currentToken.start } : null),
     [currentToken]
   );
-  // A COMPLETED store reference (a quoted wiki page / review report) is not a
-  // file-mention query — keep the @ menu closed over it ("没有匹配的文件" over
-  // a finished reference was pure noise, user report 2026-09-02).
-  const atMentionToken = useMemo(() => (atToken && !isCompleteStoreRef(atToken.token) ? atToken : null), [atToken]);
+  // 注册表解析器（最长前缀）：CJK 跟打/句尾标点不再吃进令牌，未登记的令牌
+  // 直接降级纯文本，不触发悬空拦截；@ 完整性判定（下 atMentionToken）共用
+  // 同一解析器——敲到一半的 @wiki/架 仍是查询，@ 菜单保持打开。
+  const resolveStoreToken = useMemo(
+    () =>
+      (raw: string): string | null => {
+        if (refEntries[raw]) return raw;
+        let best: string | null = null;
+        for (const key of Object.keys(refEntries)) {
+          if (raw.startsWith(key) && (best === null || key.length > best.length)) best = key;
+        }
+        return best;
+      },
+    [refEntries]
+  );
+
+  // A COMPLETED store reference (a registered compact token / quoted wiki page
+  // / review report) is not a file-mention query — keep the @ menu closed over
+  // it ("没有匹配的文件" over a finished reference was pure noise, user report
+  // 2026-09-02). store 组完整 = 注册命中（见 isCompleteStoreRef）。
+  const atMentionToken = useMemo(
+    () => (atToken && !isCompleteStoreRef(atToken.token, resolveStoreToken) ? atToken : null),
+    [atToken, resolveStoreToken]
+  );
 
   // Slash matches
   const slashMatches = useMemo(() => {
@@ -261,24 +281,8 @@ export const Composer = memo(function Composer(props: Props): JSX.Element {
   // fully editable underneath — the pills are pure presentation, so IME
   // composition, undo and the send path are untouched.
   const refSegments = useMemo(
-    () =>
-      value
-        ? splitStoreRefSegments(
-            value,
-            (token) => refEntries[token]?.label ?? null,
-            // 注册表解析器（最长前缀）：CJK 跟打/句尾标点不再吃进令牌，
-            // 未登记的令牌直接降级纯文本，不触发悬空拦截
-            (raw) => {
-              if (refEntries[raw]) return raw;
-              let best: string | null = null;
-              for (const key of Object.keys(refEntries)) {
-                if (raw.startsWith(key) && (best === null || key.length > best.length)) best = key;
-              }
-              return best;
-            }
-          )
-        : [],
-    [value, refEntries]
+    () => (value ? splitStoreRefSegments(value, (token) => refEntries[token]?.label ?? null, resolveStoreToken) : []),
+    [value, refEntries, resolveStoreToken]
   );
   const hasRefChip = useMemo(() => refSegments.some((s) => s.kind === "ref"), [refSegments]);
 
