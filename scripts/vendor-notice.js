@@ -47,6 +47,13 @@ const MANIFEST = [
       "DESIGN.md collection (Google Stitch format, brand design systems) — markdown only, git-tracked main with hash marker.",
   },
   {
+    name: "clay",
+    upstream: "https://github.com/nicbarker/clay",
+    license: "Zlib",
+    notes:
+      "C layout engine compiled to clay.wasm (clay-ui-runtime: UI-Design parallel render/export runtime) — pinned commit; a one-line header patch for an upstream duplicate wasm export name ships alongside (see version.json).",
+  },
+  {
     name: "OpenWiki",
     upstream: "https://github.com/langchain-ai/openwiki",
     license: "MIT",

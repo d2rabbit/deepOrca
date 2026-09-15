@@ -25,6 +25,13 @@ import { readFileSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { compileLeaferToClayTree } from "./clay/compile-leafer-to-clay";
+import { buildClayPreviewHtml } from "./clay/clay-preview-html";
+
+function isDictLike(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null;
+}
+
 /** Files that make up a package, in zip order. */
 export interface PackageEntry {
   name: string;
@@ -387,7 +394,8 @@ export function buildDduLeaferPackage(
   leaferJson: string,
   exportedAt: string,
   runtimes: LeaferRuntimeBundle,
-  extras?: DduExtras
+  extras?: DduExtras,
+  clay?: { wasmBase64: string }
 ): Buffer {
   // Normalize the stored document (pretty-printed entry) — a parse failure
   // here means corrupted suite content and must fail the export loudly.
@@ -399,6 +407,29 @@ export function buildDduLeaferPackage(
   const extraNames: string[] = [];
   if (hasTokens) extraNames.push("tokens.json");
   if (componentList) extraNames.push("components.json");
+
+  // clay-ui-runtime（specs/clay-ui-runtime WP3）：可选 preview.html——wasm 缺失
+  // 时静默跳过（附加形态，不替换 index.html，不改 EARS 17 路由）。
+  let clayPreviewHtml: string | null = null;
+  let canvasSize: { width: number; height: number } | null = null;
+  if (clay?.wasmBase64) {
+    const doc: unknown = JSON.parse(normalized);
+    if (isDictLike(doc)) {
+      const width = typeof doc.width === "number" ? doc.width : 1280;
+      const height = typeof doc.height === "number" ? doc.height : 800;
+      canvasSize = { width, height };
+      const built = buildClayPreviewHtml({
+        title: artifact.title,
+        doc,
+        wasmBase64: clay.wasmBase64,
+        canvasWidth: width,
+        canvasHeight: height,
+      });
+      clayPreviewHtml = built.html;
+      if (built.skipped.length > 0) extraNames.push(`clay-skipped:${built.skipped.length}`);
+    }
+  }
+
   const manifest: DdPackageManifest = {
     format: "ddu",
     formatVersion: 1,
@@ -423,6 +454,11 @@ export function buildDduLeaferPackage(
     { name: runtimes.editor.fileName, data: runtimes.editor.data },
     { name: runtimes.flow.fileName, data: runtimes.flow.data },
   ];
+  if (clayPreviewHtml && canvasSize) {
+    entries.push({ name: "preview.html", data: Buffer.from(clayPreviewHtml, "utf8") });
+    manifest.entries = [...(manifest.entries ?? []), "preview.html"];
+    extraNames.push("preview.html");
+  }
   if (hasTokens) {
     entries.push({ name: "tokens.json", data: Buffer.from(JSON.stringify(tokens, null, 2), "utf8") });
   }

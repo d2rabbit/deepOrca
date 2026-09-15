@@ -297,7 +297,23 @@ function buildPackage(
                     "and dist/leafer-flow.web.min.js exist"
                 );
               }
-              return buildDduLeaferPackage(artifact, content, exportedAt, runtimes, extras);
+              // clay-ui-runtime（specs/clay-ui-runtime）：附加 preview.html（可选——
+              // vendored wasm 缺失时静默跳过，导出主链路不受影响）。
+              let clay: { wasmBase64: string } | undefined;
+              try {
+                const clayWasmPath = join(
+                  dirname(fileURLToPath(import.meta.url)),
+                  "..",
+                  "..",
+                  "vendor",
+                  "clay",
+                  "clay.wasm"
+                );
+                clay = { wasmBase64: readFileSync(clayWasmPath).toString("base64") };
+              } catch {
+                clay = undefined;
+              }
+              return buildDduLeaferPackage(artifact, content, exportedAt, runtimes, extras, clay);
             })()
           : buildDduOpenuiPackage(artifact, content, exportedAt, extras);
   const ext = isDesign ? "ddu" : "ddp";

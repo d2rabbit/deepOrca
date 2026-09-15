@@ -12,7 +12,7 @@
 
 ## 总览
 
-55 份文档（含 1 份 EN 孪生 + 08-18 新增 1 份 + 08-19 UI/UX 重设计 4 份 + 08-19 超大版本重构预研 2 份 + 08-21 新增 1 份 + 08-27 新增 1 份 + 09-03 新增 4 份 + 09-04 新增 5 份 + 09-11 新增 1 份 + 09-14 新增 1 份 + 09-15 新增 1 份；另有 09-01/09-05/09-10 若干份尚未登记，台账滞后待补）：**✅ 21 · 🟡 12 · ⬜ 18 · ❌ 3（作废）**。整体消费率高；作废 3 份均为 2026-08-17 拍板（zread 对比线、MemOS 线、pi-sdk 线），理由见各行备注。
+56 份文档（含 1 份 EN 孪生 + 08-18 新增 1 份 + 08-19 UI/UX 重设计 4 份 + 08-19 超大版本重构预研 2 份 + 08-21 新增 1 份 + 08-27 新增 1 份 + 09-03 新增 4 份 + 09-04 新增 5 份 + 09-11 新增 1 份 + 09-14 新增 1 份 + 09-15 新增 2 份；另有 09-01/09-05/09-10 若干份尚未登记，台账滞后待补）：**✅ 21 · 🟡 12 · ⬜ 19 · ❌ 3（作废）**。整体消费率高；作废 3 份均为 2026-08-17 拍板（zread 对比线、MemOS 线、pi-sdk 线），理由见各行备注。
 
 ---
 
@@ -192,10 +192,17 @@
 | --- | --- | --- | --- | --- |
 | [2026-09-15-aseprite-asset-pipeline-prestudy.md](./2026-09-15-aseprite-asset-pipeline-prestudy.md) | Aseprite（Igara Studio，源码可用 + 自定义 EULA，$19.99，活跃至 v1.3.17-beta 2025-12）对「游戏层第一步：素材自动化流水线」的补齐度：CLI `-b` 无头批处理全景（图集+JSON 元数据 / 按标签·图层·切片拆分 / 换色·缩放·trim·tileset / `--list-*` 结构探查 / `--script` Lua 参数化脚本）、无头 CI 实践与参数顺序坑、Lua 脚本 API、三方格式库与 MCP 生态（diivi/aseprite-mcp 104 工具） | 规划落点（未启动）：技能层一份 SKILL.md（教 agent CLI 调用模板 + 已装副本探测顺序）+ bash 直调；**vendor 红线：EULA 禁止再分发编译二进制（2016-08 v1.1.8 起），不可捆绑进 `packages/desktop/vendor/`** | ⬜ | 纯调研留档，无代码变更。**核心判定：不能完整补齐，能补齐「加工→导出」段**（业界事实标准；若第一步定义为「.aseprite 源文件 → 引擎就绪图集/动画元数据/批量变换」则 100% 补齐）。三缺口：①素材生产段——编辑器≠生成器，LLM Lua 程序化绘制质量有限（"Draw me a swordsman" 实验佐证），需另立「图像生成+像素化后处理」调研且后处理端点恰为 Aseprite CLI；②分发红线——合规路径=探测用户已装副本（默认）/引导自编译/LibreSprite（GPL-2.0 但停留 1.1.7 基线）/三方只读解析库；③引擎导入胶水自写（可控）。承接 vibegame 预研（其 Python 美术管线为同一问题另一路线，生产段对账时合并） |
 
+
+## 2026-09-15 · Clay 布局引擎调研（UI 设计并行渲染运行时）
+
+| 文档 | 主题 | 对应模块 | 消费 | 备注 |
+| --- | --- | --- | --- | --- |
+| [2026-09-15-clay-ui-engine-prestudy.md](./2026-09-15-clay-ui-engine-prestudy.md) | Clay（nicbarker/clay，Zlib，18.1k★，单头文件 4.8k LOC 零依赖，wasm 15KB）对 UI 设计模块的补齐度：立即式声明宏 + flexbox 式布局 + 渲染命令数组（RECTANGLE/BORDER/TEXT/IMAGE/SCISSOR/OVERLAY/CUSTOM）+ 官方 HTML 渲染器（retained 模式逐帧 diff）+ raylib 渲染器；hover/click + 滚动交互；无编辑器、无拖拽/变换、空白分词换行（CJK 弱）、无官方 JS 绑定（自写 wasm wrapper）、无 1.0 定版 | 规划落点（未启动）：定位为 UI-Design 的**渲染/导出运行时候选**，与 LeaferJS 创作引擎互补并行（第三栈 `content.clay` + EARS 17 扩展）；先决 spike = CJK 断行 + wasm wrapper 原型，不达标即作废；vendor 走 scripts/vendor-clay.js（pin commit，Zlib 无再分发红线） | ⬜ | 纯调研留档，无代码变更。**核心判定：Clay 是布局/渲染命令引擎而非编辑器引擎，不能替代 leafer-editor 的创作画布环（选择/变换/编组/历史），差异化价值在 `.ddu` HTML-DOM 交互导出与无头确定性快照渲染。** 与 leafer 预研（2026-09-10 选型 LeaferJS）构成「创作引擎 × 渲染运行时」互补对；触发条件 = .ddu 导出升级 HTML-DOM 形态或需要无头快照时重开 |
+
 ## 消费链（文档 → 文档 → 代码）
 
 - **dsh 链**：deep-dive + takeaways → adoption-plan → P0 三项落地（session.ts / llm-error.ts）→ 2026-08-17 整合为 dsh-consolidated 台账 → v3.19 收官 D 线落地候选池四件套（`29801ee`：崩溃合成收尾 / 两段式 compaction / 执行闸门 / 前缀守卫）→ **2026-09-04 封闭**（用户拍板"dsh 不需要了"；S1/S2 已判"不做"、C1 移除，无悬空候选，已吸收项全部在代码）
-- **OpenUI/Designer 链**：a2ui-integration（锁定全域动态 UI）→ openui-deep-dive（三层定位修订）→ full-adoption-plan（Batch 1-10 全落地）→ **opendesign-openpencli 预研**（对比 OpenDesign，确认自有方案为主体）
+- **OpenUI/Designer 链**：a2ui-integration（锁定全域动态 UI）→ openui-deep-dive（三层定位修订）→ full-adoption-plan（Batch 1-10 全落地）→ **opendesign-openpencli 预研**（对比 OpenDesign，确认自有方案为主体） → **clay 预研**（布局/渲染命令引擎，定位 UI-Design 渲染/导出运行时候选，与 LeaferJS 创作引擎互补并行，不作替代）
 - **路由链**：skillweaver-skill-routing-integration（G1/G2/G3）→ routing-closure-plan（R1-R4 闭环）→ 全落地；P2 book-distill + P3 skill-up CI 已于 2026-08-17 收官计划落地（版本 pin 待联网定版为闭环项）
 - **记忆链**：memos 预研（❌ 作废，由腾讯持久化记忆 @deeporca/memory 承接）；trajectory-design-exploration 划定行为记忆 vs 任务轨迹边界 → task-tree P0-P2 落地、P3 待启动；backpass → memory-audit（写入侧审计）→ tmem-hyperframes 预研（召回侧触发器，增量定位于 vendored TDAI 管线内）
 - **视频链**：code2video-remotion 预研（Code2Video 管线方法论 + Remotion 引擎首选 + 许可证红线）→ tmem-hyperframes 预研（HyperFrames 作 Apache-2.0 替代候选，拆红线；立项时重开引擎决策）

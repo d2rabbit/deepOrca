@@ -521,6 +521,11 @@ async function run() {
   // collection (Google Stitch format, MIT) — 70+ brand design systems the
   // UI-design stack can pick as designSystemId. Markdown only, nothing executes.
   ensureVendored("design-md", [".vendored-head"], "bundled 9 design systems only (vendored brands unavailable)");
+  // clay (specs/clay-ui-runtime): C layout engine compiled to clay.wasm — the
+  // UI-Design parallel render/export runtime. Needs clang(wasm32)/WSL to
+  // rebuild; committed artifacts (KB-scale, Zlib) keep non-toolchain machines
+  // building. No runtime fallback — the clay export path is optional.
+  ensureVendored("clay", [".vendored-head"], "no fallback (clay preview unavailable)");
   if (isDev) {
     await cleanRendererChunks();
     const contexts = await Promise.all([
