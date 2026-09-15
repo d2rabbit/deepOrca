@@ -12,7 +12,7 @@
 
 ## 总览
 
-54 份文档（含 1 份 EN 孪生 + 08-18 新增 1 份 + 08-19 UI/UX 重设计 4 份 + 08-19 超大版本重构预研 2 份 + 08-21 新增 1 份 + 08-27 新增 1 份 + 09-03 新增 4 份 + 09-04 新增 5 份 + 09-11 新增 1 份 + 09-14 新增 1 份；另有 09-01/09-05/09-10 若干份尚未登记，台账滞后待补）：**✅ 21 · 🟡 12 · ⬜ 17 · ❌ 3（作废）**。整体消费率高；作废 3 份均为 2026-08-17 拍板（zread 对比线、MemOS 线、pi-sdk 线），理由见各行备注。
+55 份文档（含 1 份 EN 孪生 + 08-18 新增 1 份 + 08-19 UI/UX 重设计 4 份 + 08-19 超大版本重构预研 2 份 + 08-21 新增 1 份 + 08-27 新增 1 份 + 09-03 新增 4 份 + 09-04 新增 5 份 + 09-11 新增 1 份 + 09-14 新增 1 份 + 09-15 新增 1 份；另有 09-01/09-05/09-10 若干份尚未登记，台账滞后待补）：**✅ 21 · 🟡 12 · ⬜ 18 · ❌ 3（作废）**。整体消费率高；作废 3 份均为 2026-08-17 拍板（zread 对比线、MemOS 线、pi-sdk 线），理由见各行备注。
 
 ---
 
@@ -186,6 +186,12 @@
 | --- | --- | --- | --- | --- |
 | [2026-09-14-tmem-hyperframes-prestudy.md](./2026-09-14-tmem-hyperframes-prestudy.md) | 双线预研：**T-Mem**（EMNLP 2026 Main，arXiv 2606.15405，MIT，Python 仓库早期 9★）写入时触发器图记忆——4 族（Entity/Bridge/Scene/Horizon）× 2 粒度（事实/场景）检索线索修「联想性召回」盲区，LoCoMo/LoCoMo-Plus 双 SOTA；**HyperFrames**（HeyGen，Apache-2.0，Node 22+）HTML+`data-*` 即视频——headless Chrome 逐帧 seek + FFmpeg 确定性 MP4，20 个 SKILL.md 技能，`/faceless-explainer` 与「内容→HTML→视频动态讲解」同构 | 规划落点（未启动）：T-Mem 线收敛在 `packages/memory/`（capture 生成触发器 / recall 扩充候选 / `byLayer` 增 trigger-gen / 触发器不进答案上下文，Item 层待对照 `tdai/core/record/` 核实）；HyperFrames 线：`/faceless-explainer` 等 4 技能改写 bundled、`scripts/vendor-hyperframes.js` + FFmpeg/chrome-headless-shell vendor（`configure*` 接缝注入） | ⬜ | 纯调研留档，无代码变更。**两条关键对位**：① T-Mem 补记忆链**召回侧**（memory-audit/cmb 均在写入侧），增量唯一新概念是 Trigger——概念移植进 vendored TDAI，不引 Python sidecar（与 MemOS 线作废同逻辑，@deeporca/memory 单一承接边界不变）；② HyperFrames **直接回应 09-11 Remotion 预研的许可证红线**（Apache-2.0 无商用门槛），视频能力立项时引擎决策应在 Remotion vs HyperFrames 间重开，Code2Video 管线方法论借鉴与引擎选择正交。FFmpeg 全仓缺失需新 vendor；仓库克隆需 `GIT_LFS_SKIP_SMUDGE=1`（240MB 基线不进安装器） |
 
+## 2026-09-15 · 游戏素材自动化流水线预研
+
+| 文档 | 主题 | 对应模块 | 消费 | 备注 |
+| --- | --- | --- | --- | --- |
+| [2026-09-15-aseprite-asset-pipeline-prestudy.md](./2026-09-15-aseprite-asset-pipeline-prestudy.md) | Aseprite（Igara Studio，源码可用 + 自定义 EULA，$19.99，活跃至 v1.3.17-beta 2025-12）对「游戏层第一步：素材自动化流水线」的补齐度：CLI `-b` 无头批处理全景（图集+JSON 元数据 / 按标签·图层·切片拆分 / 换色·缩放·trim·tileset / `--list-*` 结构探查 / `--script` Lua 参数化脚本）、无头 CI 实践与参数顺序坑、Lua 脚本 API、三方格式库与 MCP 生态（diivi/aseprite-mcp 104 工具） | 规划落点（未启动）：技能层一份 SKILL.md（教 agent CLI 调用模板 + 已装副本探测顺序）+ bash 直调；**vendor 红线：EULA 禁止再分发编译二进制（2016-08 v1.1.8 起），不可捆绑进 `packages/desktop/vendor/`** | ⬜ | 纯调研留档，无代码变更。**核心判定：不能完整补齐，能补齐「加工→导出」段**（业界事实标准；若第一步定义为「.aseprite 源文件 → 引擎就绪图集/动画元数据/批量变换」则 100% 补齐）。三缺口：①素材生产段——编辑器≠生成器，LLM Lua 程序化绘制质量有限（"Draw me a swordsman" 实验佐证），需另立「图像生成+像素化后处理」调研且后处理端点恰为 Aseprite CLI；②分发红线——合规路径=探测用户已装副本（默认）/引导自编译/LibreSprite（GPL-2.0 但停留 1.1.7 基线）/三方只读解析库；③引擎导入胶水自写（可控）。承接 vibegame 预研（其 Python 美术管线为同一问题另一路线，生产段对账时合并） |
+
 ## 消费链（文档 → 文档 → 代码）
 
 - **dsh 链**：deep-dive + takeaways → adoption-plan → P0 三项落地（session.ts / llm-error.ts）→ 2026-08-17 整合为 dsh-consolidated 台账 → v3.19 收官 D 线落地候选池四件套（`29801ee`：崩溃合成收尾 / 两段式 compaction / 执行闸门 / 前缀守卫）→ **2026-09-04 封闭**（用户拍板"dsh 不需要了"；S1/S2 已判"不做"、C1 移除，无悬空候选，已吸收项全部在代码）
@@ -193,6 +199,7 @@
 - **路由链**：skillweaver-skill-routing-integration（G1/G2/G3）→ routing-closure-plan（R1-R4 闭环）→ 全落地；P2 book-distill + P3 skill-up CI 已于 2026-08-17 收官计划落地（版本 pin 待联网定版为闭环项）
 - **记忆链**：memos 预研（❌ 作废，由腾讯持久化记忆 @deeporca/memory 承接）；trajectory-design-exploration 划定行为记忆 vs 任务轨迹边界 → task-tree P0-P2 落地、P3 待启动；backpass → memory-audit（写入侧审计）→ tmem-hyperframes 预研（召回侧触发器，增量定位于 vendored TDAI 管线内）
 - **视频链**：code2video-remotion 预研（Code2Video 管线方法论 + Remotion 引擎首选 + 许可证红线）→ tmem-hyperframes 预研（HyperFrames 作 Apache-2.0 替代候选，拆红线；立项时重开引擎决策）
+- **游戏层链**：vibegame 预研（游戏层宏观工具链参考：对抗式 agent 团队 + Python 美术管线 + VLM 视觉门）→ aseprite 预研（素材流水线「加工→导出」段可行性坐实；vendor 分发红线确立；生产段待另立调研并回对 vibegame 美术管线）
 - **模板/CodeGraph**：template-split → 由"工具代码迁 desktop/tools/、模板留 core"方案实现并关闭 → specs/module-system 承接发行版远景
 
 ## 遗留待办汇总（2026-08-17 更新）
