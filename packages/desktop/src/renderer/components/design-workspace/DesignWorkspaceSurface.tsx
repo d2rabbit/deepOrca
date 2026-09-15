@@ -1,6 +1,7 @@
 import { lazy, Suspense, type JSX } from "react";
 import { m, springToken } from "../../ui/motion";
 import { useI18n } from "../../i18n";
+import type { ChatRefQuote } from "../../lib/ref-buffer";
 
 const PrototypeWorkspace = lazy(() =>
   import("./PrototypeWorkspace").then((module) => ({ default: module.PrototypeWorkspace }))
@@ -14,8 +15,9 @@ type DesignWorkspaceTab =
 type Props = {
   tab: DesignWorkspaceTab;
   onClose: (kind: DesignWorkspaceTab["kind"], root: string) => void;
-  /** Flow bridge (C15): prefill the chat composer with a quoted payload. */
-  onQuoteToChat?: (quote: string) => void;
+  /** Flow bridge (C15): prefill the chat composer with a structured
+   *  ref-buffer quote (or plain-text fallback). */
+  onQuoteToChat?: (quote: ChatRefQuote) => void;
 };
 
 /** Animated main-stage host shared by the two independent design workspaces. */

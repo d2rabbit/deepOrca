@@ -5,12 +5,15 @@
  * 右端时间。TaskTurn 的回合指令与 leading 消息共用 UserDirective。
  */
 import type { JSX } from "react";
+import type { CSSProperties } from "react";
 import type { SessionMessage, SkillInfo } from "../../../shared/ipc";
 import { extractStoreReferences } from "../../lib/store-refs";
+import type { StoreRefKind } from "../../lib/store-refs";
+import { splitReferenceBlocks } from "../../lib/ref-buffer";
 import { useI18n } from "../../i18n";
 import { IconSparkle } from "../../ui/index";
 import { formatTime, truncate } from "./shared";
-import { ReferenceSegments } from "./ReferenceSegments";
+import { ReferenceSegments, refChipMeta } from "./ReferenceSegments";
 
 /** 技能附件胶囊 — 随提示词发送的技能（描述进 tooltip，胶囊保持一行）。 */
 export function SkillAttachmentChip({ skill }: { skill: SkillInfo }): JSX.Element {
@@ -28,6 +31,24 @@ export function SkillAttachmentChip({ skill }: { skill: SkillInfo }): JSX.Elemen
   );
 }
 
+/** 传输形态回放的引用块芯片：kind 未知时按文件渲染（fail-open）。 */
+function RefBlockChip({ kind, path, title }: { kind: string; path: string; title: string }): JSX.Element {
+  const { t } = useI18n();
+  const safeKind: StoreRefKind = (["wiki", "review", "design", "prototype"] as const).includes(kind as never)
+    ? (kind as StoreRefKind)
+    : "file";
+  const meta = refChipMeta(safeKind);
+  return (
+    <span className={`ui-ref-chip ${safeKind}`} title={path} style={{ "--rc": meta.color } as CSSProperties}>
+      <span className="ui-ref-chip-icon">{meta.icon}</span>
+      <span className="ui-ref-chip-body">
+        <span className="ui-ref-chip-kind">{t(meta.kindKey)}</span>
+        <span className="ui-ref-chip-label">{title || path}</span>
+      </span>
+    </span>
+  );
+}
+
 /**
  * 首个空白分词必须恰好是 "/<word>" —— 前导绝对路径（如 /Volumes/data）含
  * 第二个斜杠，因此不会被误判为指令。
@@ -40,13 +61,17 @@ export function parseSlashCommand(content: string): { name: string; args: string
   return { name: firstToken.slice(1), args: trimmed.slice(firstToken.length).trim() };
 }
 
-/** 人类指令条：整幅指令头，开启一个回合；正文含五类引用芯片。 */
+/** 人类指令条：整幅指令头，开启一个回合；正文含八类引用芯片。 */
 export function UserDirective({ message }: { message: SessionMessage }): JSX.Element {
   const { t } = useI18n();
   const attachments = Array.isArray(message.contentParams) ? message.contentParams.length : 0;
   const skills = message.meta?.userPrompt?.skills ?? [];
   const slash = parseSlashCommand(message.content ?? "");
-  const refs = message.content ? extractStoreReferences(message.content) : { hasRefs: false, refs: [] };
+  // 会话持久化的是传输形态（真实路径 + <reference> 内容块）——回放时把内容
+  // 块折叠回引用芯片，历史气泡不重绘整块引用正文。
+  const replay = message.content ? splitReferenceBlocks(message.content) : { text: "", blocks: [] };
+  const display = replay.text || message.content || "";
+  const refs = display ? extractStoreReferences(display) : { hasRefs: false, refs: [] };
   const clock = message.createTime ? formatTime(message.createTime) : "";
 
   return (
@@ -66,11 +91,10 @@ export function UserDirective({ message }: { message: SessionMessage }): JSX.Ele
           </>
         ) : (
           <span className="ui-directive-text">
-            {refs.hasRefs ? (
-              <ReferenceSegments text={message.content ?? ""} refs={refs.refs} />
-            ) : (
-              message.content || t("msg.noContent")
-            )}
+            {refs.hasRefs ? <ReferenceSegments text={display} refs={refs.refs} /> : display || t("msg.noContent")}
+            {replay.blocks.map((block, i) => (
+              <RefBlockChip key={i} kind={block.kind} path={block.path} title={block.title} />
+            ))}
             {attachments > 0 ? <span className="ui-bubble-attach">{t("msg.images", { n: attachments })}</span> : null}
           </span>
         )}

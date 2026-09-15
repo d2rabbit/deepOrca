@@ -2076,11 +2076,17 @@ button.ui-tool-head:hover {
 .ui-ref-chip.review .ui-ref-chip-kind {
   color: var(--dot-review, #2f9e44);
 }
-/* 五类独立标识（designs/chat-redesign V4）：wiki 蓝 · 审查 绿 · 文件 石墨 · 命令 橙 · 技能 紫 */
+/* 八类独立标识（designs/chat-redesign V4 + 2026-09-15 目录）：wiki 蓝 · 审查 绿 · 文件/目录 石墨 · 命令 橙 · 技能 紫 */
 .ui-ref-chip.file {
   border-color: color-mix(in srgb, #5f6b7a 35%, transparent);
 }
 .ui-ref-chip.file .ui-ref-chip-kind {
+  color: #5f6b7a;
+}
+.ui-ref-chip.dir {
+  border-color: color-mix(in srgb, #5f6b7a 35%, transparent);
+}
+.ui-ref-chip.dir .ui-ref-chip-kind {
   color: #5f6b7a;
 }
 .ui-ref-chip.cmd {
@@ -2094,6 +2100,19 @@ button.ui-tool-head:hover {
 }
 .ui-ref-chip.skill .ui-ref-chip-kind {
   color: #9a36b8;
+}
+/* ref-buffer 紧凑令牌的两类：UI 设计 青 · 原型 玫红（与输入框镜像层同色）。 */
+.ui-ref-chip.design {
+  border-color: color-mix(in srgb, #0c8599 35%, transparent);
+}
+.ui-ref-chip.design .ui-ref-chip-kind {
+  color: #0c8599;
+}
+.ui-ref-chip.prototype {
+  border-color: color-mix(in srgb, #c2255c 35%, transparent);
+}
+.ui-ref-chip.prototype .ui-ref-chip-kind {
+  color: #c2255c;
 }
 
 /* ── ① AI 去气泡：回复即页面（designs/chat-redesign V4）──

@@ -103,7 +103,7 @@ test("a QUOTED plain file path containing spaces chips as file", () => {
   const { refs } = extractStoreReferences('看下 @"docs/My Notes.txt" 谢谢');
   assert.equal(refs.length, 1);
   assert.equal(refs[0]?.kind, "file");
-  assert.equal(refs[0]?.label, "My Notes.txt");
+  assert.equal(refs[0]?.label, "docs/My Notes.txt", "2026-09-15: multi-segment files show parent/file");
 });
 
 test("a QUOTED review path containing spaces chips as review with timestamp label", () => {
@@ -143,4 +143,142 @@ test("storeRefPath unwraps @-prefix and quotes for filesystem consumers", () => 
 test("quoted refs count as COMPLETE (menu suppression over finished references)", () => {
   assert.equal(isCompleteStoreRef('@"My Project/.deeporca/deepwiki/a.md"'), true);
   assert.equal(isCompleteStoreRef('@"half typed'), false);
+});
+
+// ── 2026-09-15: ref-buffer compact store tokens (@wiki/ @review/ @design/ @prototype/) ──
+
+test("compact store tokens chip with their declared kind and slug label", () => {
+  const { refs } = extractStoreReferences("结合 @wiki/架构设计 和 @review/2026-09-02-15-49 一起看");
+  assert.equal(refs.length, 2);
+  assert.equal(refs[0]?.kind, "wiki");
+  assert.equal(refs[0]?.label, "架构设计");
+  assert.equal(refs[0]?.compact, true);
+  assert.equal(refs[1]?.kind, "review");
+  assert.equal(refs[1]?.compact, true);
+});
+
+test("design and prototype tokens get their own chip kinds", () => {
+  const { refs } = extractStoreReferences("看看 @design/设计系统 与 @prototype/登录流程-demo");
+  assert.deepEqual(
+    refs.map((r) => r.kind),
+    ["design", "prototype"]
+  );
+  assert.equal(refs[0]?.label, "设计系统");
+  assert.equal(refs[1]?.label, "登录流程-demo");
+});
+
+test("extension-shaped @kind/ tokens resolve conservatively as files (no registry)", () => {
+  // 无注册表上下文（回放气泡）：".ext" 结尾按文件芯片兜底——比把它当成
+  // 必然悬空的紧凑令牌诚实。
+  const { refs } = extractStoreReferences("read @wiki/notes.md please");
+  assert.equal(refs.length, 1);
+  assert.equal(refs[0]?.kind, "file");
+  assert.equal(refs[0]?.label, "wiki/notes.md");
+  assert.notEqual(refs[0]?.compact, true);
+});
+
+test("compact tokens count as COMPLETE for @-menu suppression", () => {
+  assert.equal(isCompleteStoreRef("@wiki/架构设计"), true);
+  assert.equal(isCompleteStoreRef("@wiki/"), false, "prefix without slug stays a query");
+});
+
+test("resolveLabel overrides the slug fallback for compact tokens only", () => {
+  const segments = splitStoreRefSegments("见 @wiki/架构设计 与 @README.md", (token, kind) =>
+    token === "@wiki/架构设计" && kind === "wiki" ? "真实页面标题" : null
+  );
+  const wiki = segments.find((s) => s.kind === "ref" && s.ref.kind === "wiki");
+  const file = segments.find((s) => s.kind === "ref" && s.ref.kind === "file");
+  assert.ok(wiki && wiki.kind === "ref");
+  assert.equal(wiki.ref.label, "真实页面标题");
+  assert.ok(file && file.kind === "ref");
+  assert.equal(file.ref.label, "README.md", "non-compact refs keep the grammar label");
+});
+
+test("unregistered hand-typed @word is NOT a compact token", () => {
+  const { refs } = extractStoreReferences("ping @frontend-review for a pass");
+  assert.equal(refs[0]?.kind, "skill");
+  assert.notEqual(refs[0]?.compact, true);
+});
+
+// ── 2026-09-15: 文件/目录引用的展示优化（与 store 引用同等的芯片待遇）──
+
+test("directory refs (trailing separator) chip as dir with trailing-slash label", () => {
+  const { refs } = extractStoreReferences("看下 @src/components/ 和 @packages/desktop/src/ 里的东西");
+  assert.equal(refs.length, 2);
+  assert.equal(refs[0]?.kind, "dir");
+  assert.equal(refs[0]?.label, "components/");
+  assert.equal(refs[1]?.kind, "dir");
+  assert.equal(refs[1]?.label, "src/");
+  assert.notEqual(refs[0]?.compact, true, "dirs are real paths, not registry tokens");
+});
+
+test("a multi-segment FILE keeps file kind with parent-qualified label", () => {
+  const { refs } = extractStoreReferences("read @src/lib/store-refs.ts now");
+  assert.equal(refs.length, 1);
+  assert.equal(refs[0]?.kind, "file");
+  assert.equal(refs[0]?.label, "lib/store-refs.ts");
+});
+
+test("dir completion suppresses the @ menu; a partial dir path does not", () => {
+  assert.equal(isCompleteStoreRef("@src/components/"), true);
+  assert.equal(isCompleteStoreRef("@src/comp"), false, "still typing → menu stays open");
+});
+
+test("file and dir refs coexist in one line, each matching once", () => {
+  const text = "改 @src/lib/store-refs.ts 和 @src/components/ 两个地方";
+  const segments = splitStoreRefSegments(text);
+  const refs = segments.filter((s) => s.kind === "ref");
+  assert.equal(refs.length, 2);
+  assert.equal(refs[0]?.kind === "ref" && refs[0].ref.kind, "file");
+  assert.equal(refs[1]?.kind === "ref" && refs[1].ref.kind, "dir");
+  // 没有残片：目录令牌后的正文不被吃进芯片
+  assert.ok(segments.some((s) => s.kind === "text" && s.text.includes("两个地方")));
+});
+
+// ── 2026-09-15 审查修复：紧凑令牌在自由文本中的降级与让位 ──
+
+test("CJK suffix typed without space resolves via longest-prefix resolver", () => {
+  // 用户跟打不空格：令牌贪婪吞掉「。谢谢」——解析器按注册表最长前缀
+  // 收缩芯片边界，剩余字符留作正文，且注册键不受污染。
+  const resolveStoreToken = (raw: string): string | null =>
+    raw.startsWith("@wiki/架构设计") ? "@wiki/架构设计" : null;
+  const segments = splitStoreRefSegments("看下 @wiki/架构设计。谢谢", undefined, resolveStoreToken);
+  const ref = segments.find((s) => s.kind === "ref");
+  assert.ok(ref && ref.kind === "ref");
+  assert.equal(ref.ref.raw, "@wiki/架构设计");
+  assert.ok(segments.some((s) => s.kind === "text" && s.text.includes("。谢谢")));
+});
+
+test("unregistered store-like tokens degrade to plain text (no dangling block)", () => {
+  const segments = splitStoreRefSegments("看下 @wiki/完全未知的东西哦", undefined, () => null);
+  assert.equal(
+    segments.every((s) => s.kind === "text"),
+    true,
+    "no chip, no send-blocking for unknown keys"
+  );
+});
+
+test("word-inner @ and real file paths never become compact tokens", () => {
+  // 4c68ccee 词中 @ 守卫对 store 组同样生效
+  const { refs: emailish } = extractStoreReferences("my@wiki/page x");
+  assert.equal(emailish.length, 0);
+  // 真实文件路径（斜杠+扩展名）落回 file 组，不被 store 组劫持
+  const { refs: fileish } = extractStoreReferences("改 @review/notes.md 一下");
+  assert.equal(fileish.length, 1);
+  assert.equal(fileish[0]?.kind, "file");
+  assert.equal(fileish[0]?.label, "review/notes.md");
+});
+
+test("URL tail like /@bob/ does not chip as directory", () => {
+  const { refs } = extractStoreReferences("主页是 https://site.com/@bob/ 去看看");
+  assert.equal(refs.length, 0);
+});
+
+test("deeporca designs paths chip as ONE full-path file ref on replay", () => {
+  // 2026-09-15 审查：file 组曾把 @…/.deeporca/designs/... 截断成 .deeporca
+  const text = "结合 @D:/repo/.deeporca/designs/s1/versions/v1.json 继续";
+  const { refs } = extractStoreReferences(text);
+  assert.equal(refs.length, 1);
+  assert.equal(refs[0]?.kind, "file");
+  assert.equal(refs[0]?.raw, "@D:/repo/.deeporca/designs/s1/versions/v1.json");
 });

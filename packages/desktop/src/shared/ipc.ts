@@ -1309,8 +1309,9 @@ export type FileMatch = {
   path: string;
   type: "file" | "directory";
   /** Store-reference semantic kind — wiki/review items are injected by the
-   *  mention menu from the stores (not filesystem scan results) and insert
-   *  as absolute store paths so the deep reference regex chips them. */
+   *  mention menu from the stores (not filesystem scan results); since
+   *  2026-09-15 they insert as ref-buffer COMPACT tokens (@wiki/<slug>),
+   *  expanded to the real path + content at send time. */
   kind?: "wiki" | "review";
   /** Human display title (wiki page title / formatted report stamp). */
   title?: string;

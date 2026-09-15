@@ -1,14 +1,18 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type JSX } from "react";
 import type { FileMatch, SkillInfo } from "../../shared/ipc";
 import { useI18n, type MessageKey } from "../i18n";
+import type { RefEntry } from "../lib/ref-buffer";
 import { extractStoreReferences, isCompleteStoreRef, splitStoreRefSegments, storeRefPath } from "../lib/store-refs";
 import { api } from "../api";
 import { FileMentionMenu } from "./FileMentionMenu";
 import {
   Button,
   IconBook,
+  IconDesign,
+  IconFolderOutline,
   IconMagicWand,
   IconPencil,
+  IconPrototype,
   IconShield,
   IconSparkle,
   IconTerminal,
@@ -50,6 +54,13 @@ type Props = {
   onRemoveImage?: (index: number) => void;
   /** Add an image (data-URL) from clipboard paste or drag-drop. */
   onAddImage?: (dataUrl: string) => void;
+  /** ref-buffer registry (token → entry): supplies REAL titles to the chips
+   *  and validates compact tokens on send (missing entry = dangling). */
+  refEntries?: Readonly<Record<string, RefEntry>>;
+  /** Store-group @-mention selection (wiki page / review report): the host
+   *  registers a ref-buffer entry and returns the compact token to splice in;
+   *  null/absent falls back to the raw absolute-path insertion. */
+  onSelectStoreRef?: (item: FileMatch) => string | null;
 };
 
 type SlashCandidate = {
@@ -142,6 +153,8 @@ export const Composer = memo(function Composer(props: Props): JSX.Element {
     imageUrls = [],
     onRemoveImage,
     onAddImage,
+    refEntries = {},
+    onSelectStoreRef,
   } = props;
   const { t } = useI18n();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -247,7 +260,26 @@ export const Composer = memo(function Composer(props: Props): JSX.Element {
   // draws pill markers over @…/.deeporca/… tokens. The textarea text stays
   // fully editable underneath — the pills are pure presentation, so IME
   // composition, undo and the send path are untouched.
-  const refSegments = useMemo(() => (value ? splitStoreRefSegments(value) : []), [value]);
+  const refSegments = useMemo(
+    () =>
+      value
+        ? splitStoreRefSegments(
+            value,
+            (token) => refEntries[token]?.label ?? null,
+            // 注册表解析器（最长前缀）：CJK 跟打/句尾标点不再吃进令牌，
+            // 未登记的令牌直接降级纯文本，不触发悬空拦截
+            (raw) => {
+              if (refEntries[raw]) return raw;
+              let best: string | null = null;
+              for (const key of Object.keys(refEntries)) {
+                if (raw.startsWith(key) && (best === null || key.length > best.length)) best = key;
+              }
+              return best;
+            }
+          )
+        : [],
+    [value, refEntries]
+  );
   const hasRefChip = useMemo(() => refSegments.some((s) => s.kind === "ref"), [refSegments]);
 
   // Copy the textarea's computed text metrics onto the mirror so the pills
@@ -349,7 +381,10 @@ export const Composer = memo(function Composer(props: Props): JSX.Element {
       return;
     }
     const { refs } = extractStoreReferences(value);
-    const storeRefs = refs.filter((r) => r.kind === "wiki" || r.kind === "review");
+    // 紧凑令牌已由镜像层的注册表解析器把关：未登记的令牌在切分阶段降级为
+    // 纯文本（不会出现在 refs 里），因此这里只剩绝对路径 store 引用需要
+    // 活存储校验（草稿可能因 wiki 重建/报告清理而过期）。
+    const storeRefs = refs.filter((r) => !r.compact && (r.kind === "wiki" || r.kind === "review"));
     if (storeRefs.length === 0 || !root) {
       doSend();
       return;
@@ -451,6 +486,17 @@ export const Composer = memo(function Composer(props: Props): JSX.Element {
       if (fileTokenStart < 0) return;
       const before = value.slice(0, fileTokenStart);
       const after = value.slice(cursorPos);
+      // Store-group items (wiki/review) go through the ref-buffer registry:
+      // the host returns a COMPACT token ("@wiki/<slug>") — short, single-line,
+      // chip never misaligns; the real path + content travel at send time.
+      const storeToken = item.kind === "wiki" || item.kind === "review" ? (onSelectStoreRef?.(item) ?? null) : null;
+      if (storeToken) {
+        skipUndoRecordRef.current = true;
+        onChange(`${before}${storeToken}${after ? " " + after : ""}`);
+        setShowFileMenu(false);
+        textareaRef.current?.focus();
+        return;
+      }
       const raw = item.type === "directory" ? item.path + "/" : item.path;
       // Paths containing whitespace can't survive the \S-based chip grammar —
       // wrap in the quoted form so the reference still chips (2026-09-06).
@@ -460,7 +506,7 @@ export const Composer = memo(function Composer(props: Props): JSX.Element {
       setShowFileMenu(false);
       textareaRef.current?.focus();
     },
-    [value, fileTokenStart, cursorPos, onChange]
+    [value, fileTokenStart, cursorPos, onChange, onSelectStoreRef]
   );
 
   function pushUndo(text: string): void {
@@ -813,10 +859,16 @@ export const Composer = memo(function Composer(props: Props): JSX.Element {
                         <IconBook />
                       ) : seg.ref.kind === "review" ? (
                         <IconShield />
+                      ) : seg.ref.kind === "dir" ? (
+                        <IconFolderOutline />
                       ) : seg.ref.kind === "cmd" ? (
                         <IconTerminal />
                       ) : seg.ref.kind === "skill" ? (
                         <IconSparkle />
+                      ) : seg.ref.kind === "design" ? (
+                        <IconDesign />
+                      ) : seg.ref.kind === "prototype" ? (
+                        <IconPrototype />
                       ) : (
                         <IconPencil />
                       )}

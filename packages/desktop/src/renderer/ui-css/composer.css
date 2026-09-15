@@ -320,10 +320,13 @@
   line-height: 1.55;
   resize: none;
   max-height: 220px;
+  /* 三行起跳的内部高度（用户要求 2026-09-15）：CSS min-height 会钳制
+     auto-grow 脚本写入的 style.height，空态也保持舒展，长文照常长高。 */
+  min-height: 66px;
   /* The card IS the input: the textarea melts into it (no sunken inner box)
      and its text aligns with the toolbar row below. Themes that draw their
      own boxed input (line/fusion) re-add background/border/padding here. */
-  padding: 6px 2px;
+  padding: 8px 2px;
   border-radius: var(--ui-radius-md);
   transition: background 0.15s var(--ui-ease);
   /* Thin overlay-style scrollbar — the native track strip read as a bright
@@ -619,8 +622,12 @@
   width: 13px;
   height: 13px;
 }
-/* 五类独立标识：wiki 蓝 · 审查 绿 · 文件 石墨 · 命令 橙 · 技能 紫 */
+/* 八类独立标识：wiki 蓝 · 审查 绿 · 文件/目录 石墨 · 命令 橙 · 技能 紫 · UI 设计 青 · 原型 玫红 */
 .ui-prompt-mirror .ui-prompt-ref-chip.file {
+  background: color-mix(in srgb, #5f6b7a 10%, var(--ui-surface-raised, #fff));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #5f6b7a 35%, transparent);
+}
+.ui-prompt-mirror .ui-prompt-ref-chip.dir {
   background: color-mix(in srgb, #5f6b7a 10%, var(--ui-surface-raised, #fff));
   box-shadow: inset 0 0 0 1px color-mix(in srgb, #5f6b7a 35%, transparent);
 }
@@ -636,6 +643,14 @@
   background: color-mix(in srgb, var(--ui-accent, #3b82f6) 10%, var(--ui-surface-raised, #fff));
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-accent, #3b82f6) 35%, transparent);
 }
+.ui-prompt-mirror .ui-prompt-ref-chip.design {
+  background: color-mix(in srgb, #0c8599 10%, var(--ui-surface-raised, #fff));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #0c8599 35%, transparent);
+}
+.ui-prompt-mirror .ui-prompt-ref-chip.prototype {
+  background: color-mix(in srgb, #c2255c 10%, var(--ui-surface-raised, #fff));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #c2255c 35%, transparent);
+}
 /* Caret inside the token: keep the chip whole, light it up instead. */
 .ui-prompt-mirror .ui-prompt-ref-chip.editing {
   background: color-mix(in srgb, var(--dot-review, #2f9e44) 16%, var(--ui-surface-raised, #fff));
@@ -648,4 +663,16 @@
   box-shadow:
     inset 0 0 0 1.5px color-mix(in srgb, var(--ui-accent, #3b82f6) 60%, transparent),
     0 0 0 3px color-mix(in srgb, var(--ui-accent, #3b82f6) 14%, transparent);
+}
+.ui-prompt-mirror .ui-prompt-ref-chip.design.editing {
+  background: color-mix(in srgb, #0c8599 16%, var(--ui-surface-raised, #fff));
+  box-shadow:
+    inset 0 0 0 1.5px color-mix(in srgb, #0c8599 60%, transparent),
+    0 0 0 3px color-mix(in srgb, #0c8599 14%, transparent);
+}
+.ui-prompt-mirror .ui-prompt-ref-chip.prototype.editing {
+  background: color-mix(in srgb, #c2255c 16%, var(--ui-surface-raised, #fff));
+  box-shadow:
+    inset 0 0 0 1.5px color-mix(in srgb, #c2255c 60%, transparent),
+    0 0 0 3px color-mix(in srgb, #c2255c 14%, transparent);
 }

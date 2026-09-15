@@ -14,6 +14,7 @@ import assert from "node:assert/strict";
 
 import { installDom, createApiStub, type DomHandle, type ApiStub } from "./dom-harness";
 import { messages } from "../renderer/i18n/messages";
+import type { ChatRefQuote } from "../renderer/lib/ref-buffer";
 import type * as RTL from "@testing-library/react";
 import type * as React from "react";
 import type { I18nProvider as I18nProviderComponent } from "../renderer/i18n";
@@ -53,10 +54,10 @@ const SUITE = {
 };
 
 const BRIEF_MD = "# 登录模块 落地简报\n\n按简报实现。";
-/** injectBrief composes its own lead-in (App's bridge is a dumb pipe so
- *  quality/verification quotes don't get brief wording). */
+/** injectBrief composes its own lead-in (it rides on the structured ref
+ *  entry — App's bridge keeps it verbatim). */
 const BRIEF_LEAD = messages.zh["prototypeWorkspace.briefInjectPrompt"];
-const quotes: string[] = [];
+const quotes: unknown[] = [];
 
 before(async () => {
   dom = installDom();
@@ -102,7 +103,7 @@ test("brief inject (C15): 生成落地简报 → 注入实现会话 reaches the 
       ReactPkg.createElement(DesignWorkspaceSurface, {
         tab: { kind: "prototype", root: "/ws" },
         onClose: () => {},
-        onQuoteToChat: (quote: string) => quotes.push(quote),
+        onQuoteToChat: (quote: ChatRefQuote) => quotes.push(quote),
       })
     )
   );
@@ -149,5 +150,16 @@ test("brief inject (C15): 生成落地简报 → 注入实现会话 reaches the 
     inject.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
     await Promise.resolve();
   });
-  assert.deepEqual(quotes, [`${BRIEF_LEAD}\n${BRIEF_MD}`]);
+  // ref-buffer 结构化引用（2026-09-15）：brief 有真实落盘路径 → 草稿放紧凑
+  // 令牌（发送时由缓冲层展开成真实路径+内容），leadIn 随条目携带。
+  assert.deepEqual(quotes, [
+    {
+      type: "ref",
+      kind: "prototype",
+      root: "/ws",
+      path: "/x/brief.md",
+      label: "登录重设计 · brief",
+      leadIn: BRIEF_LEAD,
+    },
+  ]);
 });

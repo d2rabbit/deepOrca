@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, 
 import { api } from "../../api";
 import { useI18n } from "../../i18n";
 import { pushDesignToast } from "../../lib/toast-bus";
+import { designSuiteVersionPath } from "../../lib/generated-paths";
+import type { ChatRefQuote } from "../../lib/ref-buffer";
 import { IconCheck, IconClose, IconDesign, IconRefresh, IconSparkle } from "../../ui/icons";
 import { PrototypePanel, type PrototypeSelection } from "../PrototypePanel";
 import { subscribeToSuiteChanges, suiteApi } from "./api";
@@ -32,7 +34,9 @@ export type DesignWorkspaceProps = {
   /** Hash deep link / surface tab segment (validated against the tab union). */
   initialTab?: string;
   onBack?: () => void;
-  onQuoteToChat?: (quote: string) => void;
+  /** Structured chat quote: ref-buffer entry (compact token in the draft,
+   *  real path + content at send) or a plain-text fallback dump. */
+  onQuoteToChat?: (quote: ChatRefQuote) => void;
 };
 
 const fallbackCatalogIds = [
@@ -1039,7 +1043,22 @@ export function DesignWorkspace({
               <button
                 type="button"
                 className="ui-report-quote"
-                onClick={() => onQuoteToChat(JSON.stringify(content.quality, null, 2))}
+                onClick={() => {
+                  // 结构化引用（ref-buffer）：指向套件版本快照 JSON（内嵌本次
+                  // quality 数据集），草稿只放紧凑令牌；拿不到版本上下文时退
+                  // 回旧的整段 JSON dump。
+                  if (suite && selectedVersion) {
+                    onQuoteToChat({
+                      type: "ref",
+                      kind: "design",
+                      root,
+                      path: designSuiteVersionPath(root, suite.id, selectedVersion.versionId),
+                      label: suite.title,
+                    });
+                  } else {
+                    onQuoteToChat({ type: "text", text: JSON.stringify(content.quality, null, 2) });
+                  }
+                }}
               >
                 {t("designWorkspace.quoteToChat")}
               </button>

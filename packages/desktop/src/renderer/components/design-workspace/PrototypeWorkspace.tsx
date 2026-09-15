@@ -15,6 +15,8 @@ import type { DesignSuite, DesignSuiteSummary, DesignSuiteVersion, DesignTheme, 
 import { isPrototypeContent } from "./types";
 import { StreamdownView } from "../StreamdownView";
 import { SpecDocumentView } from "./SpecDocumentView";
+import { designSuiteVersionPath } from "../../lib/generated-paths";
+import type { ChatRefQuote } from "../../lib/ref-buffer";
 
 type PrototypeTab = "spec" | "proto" | "report" | "arch";
 
@@ -24,7 +26,9 @@ export type PrototypeWorkspaceProps = {
   /** Hash deep link / surface tab segment (validated against the tab union). */
   initialTab?: string;
   onBack?: () => void;
-  onQuoteToChat?: (quote: string) => void;
+  /** Structured chat quote: ref-buffer entry (compact token in the draft,
+   *  real path + content at send) or a plain-text fallback dump. */
+  onQuoteToChat?: (quote: ChatRefQuote) => void;
 };
 
 function actionError(result: Awaited<ReturnType<typeof api.actionRun>>): string | null {
@@ -398,9 +402,12 @@ export function PrototypeWorkspace({
 
   // ── Implementation brief (specs/artifact-landing 链路 C) ─────────────────
   const [briefMd, setBriefMd] = useState<string | null>(null);
+  /** Where the built brief was written — ref-buffer 引用的真实工件路径。 */
+  const [briefPath, setBriefPath] = useState<string | null>(null);
   /** Reset the brief when the viewed version changes (it documents one spec). */
   useEffect(() => {
     setBriefMd(null);
+    setBriefPath(null);
   }, [selectedVersion?.versionId, suite?.id]);
 
   const buildBrief = async (): Promise<void> => {
@@ -409,6 +416,7 @@ export function PrototypeWorkspace({
       const res = await api.prototypeBuildBrief(root, suite.id, selectedVersion.versionId, locale);
       if (res.ok && res.briefMd) {
         setBriefMd(res.briefMd);
+        setBriefPath(res.path ?? null);
         pushDesignToast("success", t("prototypeWorkspace.briefOk", { path: res.path ?? "" }));
       } else if (res.gaps && res.gaps.length > 0) {
         pushDesignToast("error", t("prototypeWorkspace.briefGaps", { gaps: res.gaps.join("、") }));
@@ -425,11 +433,23 @@ export function PrototypeWorkspace({
 
   /** C15: hand the brief to the composer (prefill keeps the user in control —
    *  a direct cross-workspace auto-send would risk posting to the wrong root).
-   *  The lead-in names THIS payload; App's quote bridge is a dumb pipe, so
-   *  design-side quality/verification quotes don't get brief wording. */
+   *  The lead-in names THIS payload; App's quote bridge keeps it verbatim on
+   *  the ref entry. 结构化引用：brief 有真实落盘路径 → 紧凑令牌 + 发送时内联
+   *  内容；拿不到路径（旧 IPC 兜底）退回整段文本。 */
   const injectBrief = (brief: string): void => {
     if (onQuoteToChat) {
-      onQuoteToChat(`${t("prototypeWorkspace.briefInjectPrompt")}\n${brief}`);
+      if (briefPath) {
+        onQuoteToChat({
+          type: "ref",
+          kind: "prototype",
+          root,
+          path: briefPath,
+          label: suite?.title ? `${suite.title} · brief` : "brief",
+          leadIn: t("prototypeWorkspace.briefInjectPrompt"),
+        });
+      } else {
+        onQuoteToChat({ type: "text", text: `${t("prototypeWorkspace.briefInjectPrompt")}\n${brief}` });
+      }
       pushDesignToast("success", t("prototypeWorkspace.briefInjectOk"));
     } else {
       pushDesignToast("error", t("prototypeWorkspace.briefInjectUnavailable"));
@@ -1415,7 +1435,21 @@ export function PrototypeWorkspace({
               <button
                 type="button"
                 className="ui-report-quote"
-                onClick={() => onQuoteToChat(JSON.stringify(content.verification, null, 2))}
+                onClick={() => {
+                  // 结构化引用（ref-buffer）：指向套件版本快照 JSON（内嵌本次
+                  // 验收数据集）；拿不到版本上下文时退回整段 JSON dump。
+                  if (suite && selectedVersion) {
+                    onQuoteToChat({
+                      type: "ref",
+                      kind: "prototype",
+                      root,
+                      path: designSuiteVersionPath(root, suite.id, selectedVersion.versionId),
+                      label: suite.title,
+                    });
+                  } else {
+                    onQuoteToChat({ type: "text", text: JSON.stringify(content.verification, null, 2) });
+                  }
+                }}
               >
                 {t("designWorkspace.quoteToChat")}
               </button>

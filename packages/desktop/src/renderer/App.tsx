@@ -29,6 +29,7 @@ import type {
   ActionProgressEvent,
   AskPermissionRequest,
   DesignArtifactMeta,
+  FileMatch,
   SerializableSessionEntry,
   SessionMessage,
   UserPromptContent,
@@ -105,6 +106,14 @@ import { BuildConsolePanel } from "./components/BuildConsolePanel";
 import { StreamdownView } from "./components/StreamdownView";
 import { buildReviewFixPrompt, type ReviewFinding } from "./lib/review-fix";
 import { reviewStorePath, wikiStorePath } from "./lib/generated-paths";
+import {
+  appendDraftToken,
+  buildRefToken,
+  expandDraftRefs,
+  type ChatRefQuote,
+  type RefBufferKind,
+  type RefEntry,
+} from "./lib/ref-buffer";
 import { looksLikeLlmTransportError } from "./lib/llm-error";
 import { BackgroundTaskBadge } from "./components/BackgroundTaskBadge";
 import { SerenaPanel } from "./components/SerenaPanel";
@@ -175,6 +184,32 @@ export function App(): JSX.Element {
     useSkills(activeId);
 
   const [draft, setDraft] = useState("");
+  // ── ref-buffer 注册表（引用缓冲层，2026-09-15）──────────────────────────────
+  // 展示/传输双形态：草稿里只放紧凑令牌（@wiki/<slug> 等，芯片渲染永不
+  // 错位），发送时 expandDraftRefs 展开成真实路径+内容。注册表存真实标题与
+  // 路径；state 供 Composer 芯片标签，ref 供异步发送闭包读取最新值。
+  // 回调必须声明在 runPrompt/handleSend 之前——那些 useCallback 的依赖数组
+  // 在渲染期求值，后置的 const 会触发 TDZ（app-boot 回归已抓到过）。
+  const [draftRefs, setDraftRefs] = useState<Record<string, RefEntry>>({});
+  const draftRefsRef = useRef(draftRefs);
+  // ref-buffer 登记与内容解析：令牌唯一化（标题碰撞追加 -2/-3…），条目持久
+  // 整个会话期——发送后再次手敲同一令牌仍可解析。内容读取按条目自身的
+  // root/绝对路径走，与当前激活工作区无关（跨工作区引用行为与旧绝对路径
+  // 方案一致）；IPC 失败返回 null，展开层按"仅路径"降级。
+  const registerChatRef = useCallback((kind: RefBufferKind, root: string, path: string, label: string): string => {
+    const token = buildRefToken(kind, label, new Set(Object.keys(draftRefsRef.current)));
+    draftRefsRef.current = { ...draftRefsRef.current, [token]: { token, kind, label, path, root } };
+    setDraftRefs(draftRefsRef.current);
+    return token;
+  }, []);
+  const readRefContent = useCallback(async (entry: RefEntry): Promise<string | null> => {
+    try {
+      const res = await api.editorReadFile(entry.path);
+      return res.ok ? (res.content ?? null) : null;
+    } catch {
+      return null;
+    }
+  }, []);
   const [imageUrls, setImageUrls] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [enhancing, setEnhancing] = useState(false);
@@ -790,8 +825,15 @@ export function App(): JSX.Element {
   }, [busy]);
 
   // ── Prompt lifecycle ─────────────────────────────────────────────────────────
+  // `displayText`: ref-buffer 双形态 seam — the TRANSPORT text (prompt.text,
+  // compact tokens expanded to real paths + content blocks) goes to the
+  // engine, while the DISPLAY text (the compact-token draft the user typed)
+  // feeds the chat bubble and the failed-send restore.
   const runPrompt = useCallback(
-    async (prompt: UserPromptContent, opts: { showUser?: boolean; isContinue?: boolean } = {}) => {
+    async (
+      prompt: UserPromptContent,
+      opts: { showUser?: boolean; isContinue?: boolean; displayText?: string } = {}
+    ) => {
       const activeSessionId = await api.getActiveSession();
       const reply =
         pendingPermissionReply && activeSessionId === pendingPermissionReply.sessionId ? pendingPermissionReply : null;
@@ -803,7 +845,7 @@ export function App(): JSX.Element {
 
       if (opts.showUser !== false && !opts.isContinue) {
         const display =
-          (prompt.text ?? "").trim() ||
+          (opts.displayText ?? prompt.text ?? "").trim() ||
           (prompt.skills && prompt.skills.length > 0
             ? `Use skills: ${prompt.skills.map((s) => s.name).join(", ")}`
             : "");
@@ -818,7 +860,10 @@ export function App(): JSX.Element {
       // A failed send must not eat the user's typing: handleSend clears the
       // draft up-front, so on failure we hand the original text back (only
       // when the composer is still empty — never clobber fresh keystrokes).
-      const restoreDraftOnFailure = opts.showUser !== false && !opts.isContinue ? (prompt.text ?? "") : "";
+      // Restore the DISPLAY form — re-expanding a transport blob into the
+      // composer would paste reference content blocks into the draft.
+      const restoreDraftOnFailure =
+        opts.showUser !== false && !opts.isContinue ? (opts.displayText ?? prompt.text ?? "") : "";
       try {
         const result = await api.sendPrompt(prompt);
         if (!result.ok) {
@@ -859,22 +904,46 @@ export function App(): JSX.Element {
     [pendingPermissionReply, refreshSessions, refreshSkills, t]
   );
 
+  // 发送期间的乐观去重：缓冲层展开（内容读取 ≤1.5s）先于 runPrompt 置忙，
+  // 没有这道闸连按两次 Enter 会发出两条重复消息。
+  const sendingRef = useRef(false);
   const handleSend = useCallback(() => {
     const text = draft.trim();
     const skillObjs = skills.filter((s) => selectedSkills.includes(s.name));
-    if (!text && skillObjs.length === 0 && imageUrls.length === 0) {
+    if ((!text && skillObjs.length === 0 && imageUrls.length === 0) || sendingRef.current) {
       return;
     }
+    sendingRef.current = true;
     setDraft("");
     setSelectedSkills([]);
     setImageUrls([]);
-    void runPrompt({
-      text: text || undefined,
-      imageUrls: imageUrls.length > 0 ? imageUrls : undefined,
-      skills: skillObjs.length > 0 ? skillObjs : undefined,
-      planMode,
-    });
-  }, [draft, imageUrls, planMode, runPrompt, selectedSkills, setSelectedSkills, skills]);
+    void (async () => {
+      // 缓冲层（展示形态 → 传输形态）：紧凑令牌展开为真实路径，引用内容
+      // 内联为 <reference> 块；气泡与失败恢复仍用展示形态原稿。
+      let sendText: string | undefined;
+      if (text) {
+        try {
+          const registry = new Map(Object.entries(draftRefsRef.current));
+          sendText = (await expandDraftRefs(draft, registry, { resolveContent: readRefContent })).text;
+        } catch {
+          sendText = text; // 展开器自身异常 → 原稿 fail-open（纯文本发送）
+        }
+      }
+      try {
+        await runPrompt(
+          {
+            text: sendText,
+            imageUrls: imageUrls.length > 0 ? imageUrls : undefined,
+            skills: skillObjs.length > 0 ? skillObjs : undefined,
+            planMode,
+          },
+          { displayText: text || undefined }
+        );
+      } finally {
+        sendingRef.current = false;
+      }
+    })();
+  }, [draft, imageUrls, planMode, readRefContent, runPrompt, selectedSkills, setSelectedSkills, skills]);
 
   const handleStop = useCallback(() => {
     void api.interrupt();
@@ -1275,40 +1344,46 @@ export function App(): JSX.Element {
     [runPrompt, selectView]
   );
 
-  // Flow bridge (wiki → chat): quote a Wiki page into the composer as an
-  // @-mention so the agent reads the exact page, then land the user back in
-  // the conversation — knowledge becomes usable inside the chat without a
-  // manual copy-paste round-trip. Whitespace-bearing roots wrap in the quoted
-  // chip form (the \S chip grammar can't span spaces, 2026-09-06).
+  // ref-buffer 登记与内容解析见组件顶部（draftRefs 声明处）——handleSend 的
+  // 依赖数组在渲染期求值，注册表回调必须先行声明。
+  // @-菜单 store 组（wiki 页 / 审查报告）选择 → 登记 ref-buffer 条目并返回
+  // 紧凑令牌（非 store 项返回 null，Composer 走原路径插入）。
+  const handleMentionStoreRef = useCallback(
+    (item: FileMatch): string | null => {
+      if (item.kind !== "wiki" && item.kind !== "review") return null;
+      const label = item.title ?? item.path.split(/[\\/]/).pop() ?? item.path;
+      return registerChatRef(item.kind, projectRoot, item.path, label);
+    },
+    [registerChatRef, projectRoot]
+  );
+
+  // Flow bridge (wiki → chat): quote a Wiki page into the composer as a
+  // ref-buffer compact token — the chip renders the REAL page title, and the
+  // transport form (real absolute path + inlined content) is produced at send
+  // time by expandDraftRefs — then land the user back in the conversation.
   const handleQuoteWikiToChat = useCallback(
     (root: string, path: string, title: string) => {
       setActiveTab({ kind: "chat" });
-      setDraft((current) => {
-        const prefix = current.trim().length > 0 ? `${current.trimEnd()}\n\n` : "";
-        const ref = wikiStorePath(root, path);
-        const token = /\s/.test(ref) ? `@"${ref}"` : `@${ref}`;
-        return `${prefix}${t("index.quoteWikiPrompt", { title })} ${token}\n`;
-      });
+      const token = registerChatRef("wiki", root, wikiStorePath(root, path), title);
+      setDraft((current) => appendDraftToken(current, t("index.quoteWikiPrompt", { title }), token));
     },
-    [t]
+    [registerChatRef, t]
   );
 
-  // Flow bridge (review → chat), wiki parity: quote a saved report into the
-  // composer as an @-mention of its structured JSON (full findings, scope,
-  // status — NOT the lossy 8-finding text copy of handleReviewAskInChat) so
-  // the agent reads the exact run and can act on it in the session. Quoted
-  // chip form for whitespace-bearing roots (2026-09-06).
+  // Flow bridge (review → chat), wiki parity: quote a saved report as a
+  // ref-buffer token pointing at its structured JSON (full findings, scope,
+  // status — NOT the lossy 8-finding text copy of handleReviewAskInChat).
+  // 报告没有标题字段——标签沿用时间戳惯例（由 reportId 解出），但令牌携带
+  // 真实路径且发送时内联完整 JSON。
   const handleQuoteReviewToChat = useCallback(
     (root: string, reportId: string) => {
       setActiveTab({ kind: "chat" });
-      setDraft((current) => {
-        const prefix = current.trim().length > 0 ? `${current.trimEnd()}\n\n` : "";
-        const ref = reviewStorePath(root, reportId);
-        const token = /\s/.test(ref) ? `@"${ref}"` : `@${ref}`;
-        return `${prefix}${t("review.quotePrompt")} ${token}\n`;
-      });
+      const mm = reportId.match(/review-(\d{4})-(\d{2})-(\d{2})T(\d{2})-(\d{2})/);
+      const label = mm ? `${mm[1]}/${mm[2]}/${mm[3]} ${mm[4]}:${mm[5]}` : reportId;
+      const token = registerChatRef("review", root, reviewStorePath(root, reportId), label);
+      setDraft((current) => appendDraftToken(current, t("review.quotePrompt"), token));
     },
-    [t]
+    [registerChatRef, t]
   );
 
   // Flow bridge (review → chat): "ask in chat" quotes the current findings
@@ -1333,19 +1408,24 @@ export function App(): JSX.Element {
     [t]
   );
 
-  // Flow bridge (design surfaces → chat), C15 prefill: quote a payload (brief
-  // / quality / verification JSON) into the composer. Deliberately a dumb
-  // pipe — the caller owns any lead-in wording so a quality JSON quote is
-  // never mislabeled as a brief. Prefill keeps the user in control — a direct
+  // Flow bridge (design surfaces → chat), ref-buffer 结构化引用:原型/UI 质量
+  // 报告、验收结果、brief 等不再整段 dump 进草稿——登记真实工件路径（suite
+  // 版本快照 / brief 文件），草稿只放紧凑令牌，传输形态发送时展开。没有真实
+  // 工件的载荷保留 text 兜底。Prefill keeps the user in control — a direct
   // cross-workspace auto-send would risk posting to the wrong root
   // (specs/artifact-landing 链路 C).
-  const handleQuoteDesignToChat = useCallback((payload: string) => {
-    setActiveTab({ kind: "chat" });
-    setDraft((current) => {
-      const prefix = current.trim().length > 0 ? `${current.trimEnd()}\n\n` : "";
-      return `${prefix}${payload}\n`;
-    });
-  }, []);
+  const handleQuoteDesignToChat = useCallback(
+    (quote: ChatRefQuote) => {
+      setActiveTab({ kind: "chat" });
+      if (quote.type === "text") {
+        setDraft((current) => appendDraftToken(current, "", quote.text));
+        return;
+      }
+      const token = registerChatRef(quote.kind, quote.root, quote.path, quote.label);
+      setDraft((current) => appendDraftToken(current, quote.leadIn ?? "", token));
+    },
+    [registerChatRef]
+  );
 
   // ── Knowledge build → chat suggestion bar (flow closure) ─────────────────
   // A settled build used to end with the badge silently vanishing; the
@@ -1742,6 +1822,8 @@ export function App(): JSX.Element {
           enhancing={enhancing}
           busy={busy}
           disabled={composerDisabled}
+          refEntries={draftRefs}
+          onSelectStoreRef={handleMentionStoreRef}
           planMode={planMode}
           onTogglePlan={handleTogglePlan}
           skills={skills}
