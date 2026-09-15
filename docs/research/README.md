@@ -10,9 +10,15 @@
 >
 > **维护规则**：新增调研文档在本索引登记一行；提案落地后回写消费状态与一行证据；子提案否决标 ❌ 并留因；整篇作废划线保留。本轮核对发现至少 3 份文档的自身状态行滞后于代码——以本索引为准。
 
+## 游戏开发调研已归档至 [gameStudio/](./gameStudio/)
+
+> 游戏开发能力线的全部调研文档（VibeGame / GameFactory-3A / Sprite Studio，共 4 份）
+> 已按项目分目录统一归档到 `gameStudio/` 下，含独立总览 README。
+> 本索引不再重复登记，参见 [gameStudio/README.md](./gameStudio/README.md)。
+
 ## 总览
 
-56 份文档（含 1 份 EN 孪生 + 08-18 新增 1 份 + 08-19 UI/UX 重设计 4 份 + 08-19 超大版本重构预研 2 份 + 08-21 新增 1 份 + 08-27 新增 1 份 + 09-03 新增 4 份 + 09-04 新增 5 份 + 09-11 新增 1 份 + 09-14 新增 1 份 + 09-15 新增 2 份；另有 09-01/09-05/09-10 若干份尚未登记，台账滞后待补）：**✅ 21 · 🟡 12 · ⬜ 19 · ❌ 3（作废）**。整体消费率高；作废 3 份均为 2026-08-17 拍板（zread 对比线、MemOS 线、pi-sdk 线），理由见各行备注。
+55 份文档（含 1 份 EN 孪生 + 08-18 新增 1 份 + 08-19 UI/UX 重设计 4 份 + 08-19 超大版本重构预研 2 份 + 08-21 新增 1 份 + 08-27 新增 1 份 + 09-03 新增 4 份 + 09-04 新增 5 份 + 09-11 新增 1 份 + 09-14 新增 1 份 + 09-15 新增 2 份；09-15 游戏开发调研 4 份已归档至 gameStudio/（含原 vibegame 预研移档），本索引不再重复登记；另有 09-01/09-05/09-10 若干份尚未登记，台账滞后待补）：**✅ 21 · 🟡 12 · ⬜ 18 · ❌ 3（作废）**。整体消费率高；作废 3 份均为 2026-08-17 拍板（zread 对比线、MemOS 线、pi-sdk 线），理由见各行备注。
 
 ---
 
@@ -120,7 +126,6 @@
 | 文档 | 主题 | 对应模块 | 消费 | 备注 |
 | --- | --- | --- | --- | --- |
 | [2026-09-03-hkuds-deepcode-prestudy.md](./2026-09-03-hkuds-deepcode-prestudy.md) | HKUDS/DeepCode（16.5k★，MIT，v2.1.0）全景：Paper2Code 论文原型 → v2.x 通用 coding agent harness（Python 内核 + CLI TUI + Tauri 桌面 + JSON-RPC App Server），逐维对位本仓 | 规划落点（未启动）：`core/common/*`（compaction 两段式/每回合冻结安全 profile）、`core/mcp`（HTTP transport + OAuth，遗留待办 #9 参照）、`core/skills`（依赖展开/渐进读取）、`desktop`（会话投影分离/schema 生成契约） | ⬜ | 纯调研留档，无代码变更。**最有价值单条**：其 compaction 两段式（大工具结果中段修剪 → 前缀重放摘要 → 拒绝不收缩摘要）与本仓 dsh-consolidated 候选池 P1-2/前缀收尾包独立同向——继 dsh 之后第二个实现者，建议回写台账作论据；MCP HTTP+OAuth 印证遗留待办 #9。**同名澄清**：HKUDS DeepCode ≠ 本仓遗留 `.deepcode` 前身，但两者共享 SKILL.md 方言且 `~/.deepcode` 路径可能交叠（文内 §2.5） |
-| [2026-09-03-vibegame-prestudy.md](./2026-09-03-vibegame-prestudy.md) | tettethu/VibeGame（189★，Apache-2.0，2026-08 发布）游戏层全景：Prompt-to-Game AI 原生工具链（数据驱动场景树引擎 + 对抗式 7 agent 团队 + Python 美术管线 + 自进化四目的地 + bot 证据协议 + VLM 独立视觉门），逐维对位本仓 | 规划落点（未启动）：review 模块（证据协议/"不算证据"清单/VLM 逐项二元提问）、designer taste 线（主/客观双视觉门）、skill-up（先验蒸馏纪律）、编辑器诊断（模块静态自检二分法）；桌宠 spec 修订参考 | ⬜ | 纯调研留档，无代码变更。与桌宠线（`specs/next-version/desktop-pet`）范围刻意错开：桌宠"不做小游戏"边界维持不变，VibeGame 作宏观参考与机制迁移源；其"帧在动≠可运行/eval≠证据"反例清单与"VLM 逐项二元提问防讨好"两条可直接进 review 验收标准 |
 
 ---
 
@@ -206,7 +211,7 @@
 - **路由链**：skillweaver-skill-routing-integration（G1/G2/G3）→ routing-closure-plan（R1-R4 闭环）→ 全落地；P2 book-distill + P3 skill-up CI 已于 2026-08-17 收官计划落地（版本 pin 待联网定版为闭环项）
 - **记忆链**：memos 预研（❌ 作废，由腾讯持久化记忆 @deeporca/memory 承接）；trajectory-design-exploration 划定行为记忆 vs 任务轨迹边界 → task-tree P0-P2 落地、P3 待启动；backpass → memory-audit（写入侧审计）→ tmem-hyperframes 预研（召回侧触发器，增量定位于 vendored TDAI 管线内）
 - **视频链**：code2video-remotion 预研（Code2Video 管线方法论 + Remotion 引擎首选 + 许可证红线）→ tmem-hyperframes 预研（HyperFrames 作 Apache-2.0 替代候选，拆红线；立项时重开引擎决策）
-- **游戏层链**：vibegame 预研（游戏层宏观工具链参考：对抗式 agent 团队 + Python 美术管线 + VLM 视觉门）→ aseprite 预研（素材流水线「加工→导出」段可行性坐实；vendor 分发红线确立；生产段待另立调研并回对 vibegame 美术管线）
+- **游戏层链**：vibegame 预研（游戏层宏观工具链参考：对抗式 agent 团队 + Python 美术管线 + VLM 视觉门）→ aseprite 预研（素材流水线「加工→导出」段可行性坐实；vendor 分发红线确立；生产段待另立调研并回对 vibegame 美术管线；vibegame 预研已移档 gameStudio/vibegame/）
 - **模板/CodeGraph**：template-split → 由"工具代码迁 desktop/tools/、模板留 core"方案实现并关闭 → specs/module-system 承接发行版远景
 
 ## 遗留待办汇总（2026-08-17 更新）
