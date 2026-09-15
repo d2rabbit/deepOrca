@@ -1,7 +1,7 @@
 # 内容→视频动态讲解（content-to-video）· 技术设计
 
 > **状态**：**方案稿（只出方案，不改代码）** · **日期**：2026-09-14 · 分支 `feat/modern-ui-redesign` · **2026-09-14 立项入 next-version 规划区（储备项，启动时 `git mv` 回 `specs/content-to-video/` 转活跃）**。
-> **上游调研**：[`docs/research/2026-09-14-tmem-hyperframes-prestudy.md`](../../../docs/research/2026-09-14-tmem-hyperframes-prestudy.md) §3（HyperFrames 一手取证 + 与 09-11 Remotion 预研的引擎对照）；管线方法论参照 [2026-09-11-code2video-remotion-prestudy.md](../../../docs/research/2026-09-11-code2video-remotion-prestudy.md)（Code2Video 三段式/stage-gate/分级修复）。
+> **上游调研**：[`docs/research/gameStudio/related/2026-09-14-tmem-hyperframes-prestudy.md`](../../../docs/research/gameStudio/related/2026-09-14-tmem-hyperframes-prestudy.md) §3（HyperFrames 一手取证 + 与 09-11 Remotion 预研的引擎对照）；管线方法论参照 [2026-09-11-code2video-remotion-prestudy.md](../../../docs/research/gameStudio/related/2026-09-11-code2video-remotion-prestudy.md)（Code2Video 三段式/stage-gate/分级修复）。
 > **用户定调**：实现一个**额外的**能力——将部分内容转换为 HTML 再转换为视频动态讲解。**用户显式触发，不自动生成**。
 > **对应实现域**：`packages/core/templates/plugins/`（bundled skills）+ `scripts/vendor-*.js`（阶段 B）+ agent 经 bash 驱动 CLI。**不新增内置工具、不新增 IPC、主进程零新依赖**（与"内置工具保持克制"与"主进程依赖精确 pin"两条既有规则对齐）。
 

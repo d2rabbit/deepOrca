@@ -1,7 +1,7 @@
 # 记忆触发器召回强化（memory-trigger-recall）— 任务清单
 
 > 对应设计：[design.md](./design.md)。2026-09-14 立稿，方案稿（未开工）。
-> 上游调研：[docs/research/2026-09-14-tmem-hyperframes-prestudy.md](../../../docs/research/2026-09-14-tmem-hyperframes-prestudy.md) §2。
+> 上游调研：[docs/research/gameStudio/related/2026-09-14-tmem-hyperframes-prestudy.md](../../../docs/research/gameStudio/related/2026-09-14-tmem-hyperframes-prestudy.md) §2。
 > 红线：触发器文本**永不进入答案上下文**（渲染过滤测试锁死）；全程 fail-open（生成/检索失败不阻塞 capture/recall 主流程）；settings 开关**默认关**；core 零改动；不引 T-Mem Python 代码（只移植 prompt 模式）；全部改动收敛在 `packages/memory/`。
 
 ## P0 类型 + 存储 + record 级两族

@@ -1,7 +1,7 @@
 # 内容→视频动态讲解（content-to-video）— 任务清单
 
 > 对应设计：[design.md](./design.md)。2026-09-14 立稿，方案稿（未开工）。
-> 上游调研：[docs/research/2026-09-14-tmem-hyperframes-prestudy.md](../../../docs/research/2026-09-14-tmem-hyperframes-prestudy.md) §3；管线方法论参照 [2026-09-11-code2video-remotion-prestudy.md](../../../docs/research/2026-09-11-code2video-remotion-prestudy.md)。
+> 上游调研：[docs/research/gameStudio/related/2026-09-14-tmem-hyperframes-prestudy.md](../../../docs/research/gameStudio/related/2026-09-14-tmem-hyperframes-prestudy.md) §3；管线方法论参照 [2026-09-11-code2video-remotion-prestudy.md](../../../docs/research/gameStudio/related/2026-09-11-code2video-remotion-prestudy.md)。
 > 红线：不新增内置工具/MCP/IPC，主进程零新依赖（agent 经 bash 跑 CLI）；**用户显式触发，不自动生成**；动画限 CSS + GSAP 白名单；brief 经用户确认才生成；lint 不过不渲染；上游 LFS 基线（240MB mp4）绝不进安装器。
 
 ## P0 技能先行（在线 `npx` 流程）

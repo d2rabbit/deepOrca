@@ -1,7 +1,7 @@
 # 记忆触发器召回强化（memory-trigger-recall）· 技术设计
 
 > **状态**：**方案稿（只出方案，不改代码）** · **日期**：2026-09-14 · 分支 `feat/modern-ui-redesign` · **2026-09-14 立项入 next-version 规划区（储备项，启动时 `git mv` 回 `specs/memory-trigger-recall/` 转活跃）**。
-> **上游调研**：[`docs/research/2026-09-14-tmem-hyperframes-prestudy.md`](../../../docs/research/2026-09-14-tmem-hyperframes-prestudy.md) §2（T-Mem 论文 arXiv 2606.15405 / EMNLP 2026 Main + 仓库一手取证与逐概念对位，本 spec 的直接依据）。
+> **上游调研**：[`docs/research/gameStudio/related/2026-09-14-tmem-hyperframes-prestudy.md`](../../../docs/research/gameStudio/related/2026-09-14-tmem-hyperframes-prestudy.md) §2（T-Mem 论文 arXiv 2606.15405 / EMNLP 2026 Main + 仓库一手取证与逐概念对位，本 spec 的直接依据）。
 > **用户定调**：用于**记忆模块的强化**。调研结论（2026-09-14）：增量唯一新概念是写入时触发器（Trigger）；概念移植进 vendored TDAI 管线，**不引 T-Mem Python 代码**（与 MemOS 线作废同逻辑——记忆能力由 `@deeporca/memory` 单一承接的边界不变）。
 > **对应实现域**：`packages/memory/`（vendored TDAI 管线内收敛）。**core 零改动**——core 经 `MemoryProvider` 接口消费记忆，触发器是管线内部增强，对外 `recall()` / `capture()` 签名不变。
 
