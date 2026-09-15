@@ -154,6 +154,7 @@ import { CockpitActions } from "./components/CockpitActions";
 import { FailureBanner } from "./components/FailureBanner";
 import {
   findLatestPlan,
+  reconcilePipEntries,
   syntheticUserMessage,
   type MainTab,
   type PendingPermissionReply,
@@ -204,7 +205,9 @@ export function App(): JSX.Element {
   }, []);
   const readRefContent = useCallback(async (entry: RefEntry): Promise<string | null> => {
     try {
-      const res = await api.editorReadFile(entry.path);
+      // 按条目登记时的工作区 root 解析（IPC 侧过 resolveRegisteredRoot 白名单），
+      // 与当前激活工作区解耦——跨工作区引用不再静默降级"仅路径"。
+      const res = await api.editorReadFile(entry.path, entry.root);
       return res.ok ? (res.content ?? null) : null;
     } catch {
       return null;
@@ -1121,6 +1124,29 @@ export function App(): JSX.Element {
   const cyclePip = useCallback(() => {
     setPipStack((s) => (s.length > 1 ? [...s.slice(1), s[0]] : s));
   }, []);
+
+  // Corner live status (2026-09-15 迭代)：停车 root 的事件不流入本渲染器，
+  // 停车期间轮询跨 root 会话清单——闸口翻转实时反映到圆点/顶部告警；
+  // 会话完结（completed/failed/interrupted/denied）或从索引消失的条目
+  // 自动出栈，角落播放器与告警不再滞留过期标记、越积越多。
+  useEffect(() => {
+    if (pipStack.length === 0) return;
+    let alive = true;
+    const refresh = () => {
+      api
+        .listWorkspaceSessions()
+        .then((ws) => {
+          if (alive) setPipStack((prev) => reconcilePipEntries(prev, ws));
+        })
+        .catch(() => undefined); // best-effort：IPC 失败保留停车时信号
+    };
+    void refresh();
+    const timer = setInterval(refresh, 5000);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+    };
+  }, [pipStack.length]);
 
   const handleNewWorkspace = useCallback(async () => {
     const picked = await api.pickFolder();
@@ -2202,23 +2228,21 @@ export function App(): JSX.Element {
     requestCloseSettings,
   ]);
 
-  /** Live gate check: session entries are workspace-scoped, so this only sees
-   *  the CURRENT root; parked roots rely on the capture-time flag instead. */
+  /** Live gate check: the CURRENT root reads the live sessions list; parked
+   *  roots rely on blockedAtCapture — refreshed live by the corner poll. */
   const isPipBlocked = useCallback(
     (entry: PipEntry): boolean =>
-      entry.root === projectRootRef.current &&
-      sessions.some(
-        (s) =>
-          (!entry.sessionId || s.id === entry.sessionId) &&
-          (s.status === "ask_permission" || s.status === "waiting_for_user")
-      ),
+      entry.blockedAtCapture ||
+      (entry.root === projectRootRef.current &&
+        sessions.some(
+          (s) =>
+            (!entry.sessionId || s.id === entry.sessionId) &&
+            (s.status === "ask_permission" || s.status === "waiting_for_user")
+        )),
     [sessions]
   );
   const pipTop = pipStack[0] ?? null;
-  const pipBlockedEntries = useMemo(
-    () => pipStack.filter((entry) => entry.blockedAtCapture || isPipBlocked(entry)),
-    [isPipBlocked, pipStack]
-  );
+  const pipBlockedEntries = useMemo(() => pipStack.filter(isPipBlocked), [isPipBlocked, pipStack]);
   /** Flatten one frozen message into a one-line preview for the mini-window. */
   // Floating-island size vars — the hub sheet and the companion card each own
   // a drag-resizable width (persisted); the CSS vars keep orb offset, stage
