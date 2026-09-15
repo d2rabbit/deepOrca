@@ -18,6 +18,7 @@
 | A2 | 节点地址直连可达（邀请码携带 `host:port`） | `design.md:155` |
 | A3 | **数据不出局域网**（relay 期前） | `design.md:18`、`requirements.md:30` |
 | A4 | 扁平全互联 mesh ≤50 节点，无中继/无分层 | `design.md:55,347,352` |
+| A5 | 一主题一链、**跨主题发现层隔离**（v7 已松绑为"主题仅发现候选 + spaceId 定边界"，但多空间并存/选择未实现） | `design.md:154`、`requirements.md:97` |
 | A6 | 加入 = 从创世**全量重放** | `design.md:148` |
 | A7 | 信任 = 局域网 + 成员私钥保管（事后可审计，非 BFT） | branch `implementation.md:186` |
 | A8 | 端到端直连会话，无 store-and-forward（节点离线即不可达） | `transport.ts` PeerConnection |
