@@ -86,10 +86,79 @@ const GLUE = [
   "  const minMemory = instance.exports.Clay_MinMemorySize();",
   "  textBase = scratchBase + 4096 + minMemory + 4096;",
   "  instance.exports.bind_init(scratchBase, CANVAS.width, CANVAS.height);",
-  "  walk(TREE);",
   "  instance.exports.bind_begin(CANVAS.width, CANVAS.height);",
+  "  walk(TREE);",
   "  instance.exports.bind_end();",
   "  renderCommands();",
+  "}",
+  "let GRAPHEME_SEG = null;",
+  "function seg(s) {",
+  "  if (typeof Intl !== 'undefined' && Intl.Segmenter) {",
+  "    if (!GRAPHEME_SEG) GRAPHEME_SEG = new Intl.Segmenter('zh', { granularity: 'grapheme' });",
+  "    return Array.from(GRAPHEME_SEG.segment(s), function (x) { return x.segment; });",
+  "  }",
+  "  return Array.from(s);",
+  "}",
+  "function wrapCJK(text, width, fontSize, font) {",
+  "  const ctx = document.createElement('canvas').getContext('2d');",
+  "  ctx.font = fontSize + 'px ' + font;",
+  "  const fits = function (s) { return ctx.measureText(s).width <= width; };",
+  // 行首禁则（收口类标点悬挂在上一行尾，不得起一行）· 行尾禁则（开口类标点随下一行走，不收行）
+  "  const NO_LINE_START = /[。，、；：？！…—～·）》〉」』】〕＂％‰℃\"')}\\],.;:?!]/;",
+  "  const NO_LINE_END = /[（《〈「『【〔“‘([{]/;",
+  "  let out = '', line = '';",
+  "  const chars = seg(text);",
+  "  let i = 0;",
+  "  while (i < chars.length) {",
+  "    const ch = chars[i];",
+  "    i += 1;",
+  "    if (ch === '\\n') { out += line.replace(/[ \\t]+$/, '') + '\\n'; line = ''; continue; }",
+  // 空白：上得了当前行就上，上不了视为断点处的折叠空格丢弃——不产生独占空格行、
+  // 不撑肥行尾（Clay 断行时同样自剥行尾空格）
+  "    if (/\\s/.test(ch)) {",
+  "      if (line.length === 0 || fits(line + ch)) line += ch;",
+  "      continue;",
+  "    }",
+  "    let unit = ch;",
+  "    if (/[A-Za-z0-9]/.test(ch)) {",
+  "      while (i < chars.length && /[A-Za-z0-9._'-]/.test(chars[i])) { unit += chars[i]; i += 1; }",
+  "    }",
+  "    if (line.length > 0 && !fits(line + unit) && !NO_LINE_START.test(unit.charAt(0))) {",
+  "      let carry = '';",
+  "      while (line.length > 0 && NO_LINE_END.test(Array.from(line).pop())) {",
+  "        carry = Array.from(line).pop() + carry;",
+  "        line = line.slice(0, line.length - carry.length);",
+  "      }",
+  "      const flushed = line.replace(/[ \\t]+$/, '');",
+  "      if (flushed.length > 0) out += flushed + '\\n';",
+  "      line = carry;",
+  "    }",
+  // 超宽词硬拆：单字素宽度各量一次、单趟累加切分（整体 O(n) 次度量，不随输入
+  // 平方增长），按字素边界切（不劈代理对/ZWJ 序列/组合符），拆点避让行首禁则；
+  // 单个字素放不下也整发——对齐 Clay「Only word on the line is too large, just
+  // render it anyway」。逐字累加是预览近似（忽略 kerning），Clay 随后真实度量重排。
+  "    let cps = seg(unit);",
+  "    if (cps.length > 1) {",
+  "      const gw = cps.map(function (g) { return ctx.measureText(g).width; });",
+  "      let acc = 0, start = 0;",
+  "      for (let k = 0; k < cps.length; k++) {",
+  "        if (k > start && acc + gw[k] > width) {",
+  "          let cut = k;",
+  "          while (cut > start + 1 && NO_LINE_START.test(cps[cut])) cut -= 1;",
+  "          out += cps.slice(start, cut).join('') + '\\n';",
+  "          start = cut;",
+  "          acc = 0;",
+  "          for (let j = start; j < k; j++) acc += gw[j];",
+  "          k -= 1;",
+  "          continue;",
+  "        }",
+  "        acc += gw[k];",
+  "      }",
+  "      unit = cps.slice(start).join('');",
+  "    }",
+  "    line += unit;",
+  "  }",
+  "  return out + line;",
   "}",
   "function walk(n) {",
   "  bind_decl_reset();",
@@ -97,8 +166,11 @@ const GLUE = [
   "  if (n.radius != null) bind_set_corner_radius(n.radius, n.radius, n.radius, n.radius);",
   "  if (n.border) bind_set_border(n.border.color[0], n.border.color[1], n.border.color[2], n.border.color[3], n.border.width, n.border.width, n.border.width, n.border.width);",
   "  const absolute = typeof n.x === 'number' && typeof n.y === 'number';",
-  "  const widthFixed = absolute || typeof n.width === 'number';",
-  "  const heightFixed = absolute || typeof n.height === 'number';",
+  // 绝对定位且未声明宽/高的 Text 是契约的 auto-size 形态：该轴不得钉成
+  // FIXED(0)（折叠不可见）；显式声明的宽/高仍走 FIXED，非 text 绝对节点不变。
+  "  const autoText = absolute && n.kind === 'text';",
+  "  const widthFixed = typeof n.width === 'number' || (!autoText && absolute);",
+  "  const heightFixed = typeof n.height === 'number' || (!autoText && absolute);",
   "  const dir = n.layout && n.layout.direction === 'x' ? 0 : 1;",
   "  const pad = n.layout && n.layout.padding ? n.layout.padding : [0, 0, 0, 0];",
   "  const gap = n.layout && n.layout.gap ? n.layout.gap : 0;",
@@ -112,8 +184,9 @@ const GLUE = [
   "    let body = n.text || '';",
   "    const fontSize = n.fontSize || 14;",
   "    if (n.width && !n.layout) body = wrapCJK(body, n.width, fontSize, FONTS[0]);",
-  "    const pointer = textBase + textBump;",
   "    const encoded = encoder.encode(body);",
+  "    if (textBump + encoded.length > 1048576) throw new Error('preview 文本区超出 1MB 上限');",
+  "    const pointer = textBase + textBump;",
   "    new Uint8Array(memoryDataView.buffer).set(encoded, pointer);",
   "    textBump += encoded.length;",
   "    const c = n.color || [30, 33, 41, 255];",
@@ -182,12 +255,9 @@ const GLUE = [
   "});",
 ].join("\n");
 
-const GLUE_PLACEHOLDER = "__GLUE_JS__";
-
 export function buildClayPreviewHtml(options: ClayPreviewBuildOptions): ClayPreviewBuildResult {
   const fonts = options.fonts ?? DEFAULT_FONTS;
   const { tree, stats } = compileLeaferToClayTree(options.doc);
-  const treeJson = JSON.stringify(tree ?? { kind: "box", children: [] });
 
   const bannerBits: string[] = [];
   if (stats.skipped.length > 0)
@@ -198,11 +268,19 @@ export function buildClayPreviewHtml(options: ClayPreviewBuildOptions): ClayPrev
       ? '<div class="banner">⚠ ' + escapeHtml(bannerBits.join(" · ")) + " —— 完整效果以 index.html 画布为准</div>"
       : "";
 
-  const glue = GLUE.replace("__TREE_JSON__", JSON.stringify(tree))
-    .replace("__FONTS_JSON__", JSON.stringify(fonts))
-    .replace("__CANVAS_JSON__", JSON.stringify({ width: 1280, height: 800 }))
-    .replace("__WASM_B64__", JSON.stringify(options.wasmBase64))
-    .replace("__BANNER_HTML__", JSON.stringify(banner));
+  // 内嵌 JSON 统一走 < 转义（防 </script> 提前终止脚本块）+ 函数式替换
+  //（防用户文本里的 $& / $` / $' / $$ 被 String.replace 当替换模式展开）。
+  // 单趟全局替换：链式首现替换会被用户文本里的占位符字面量劫持（TREE 先入，
+  // 后续 replace 命中树内副本 → 产物 SyntaxError）；replace 不重扫插入值，
+  // 单趟天然免疫。banner 走 HTML 模板插值（已 escapeHtml），GLUE 内无占位符。
+  const embed = (value: unknown): string => JSON.stringify(value).replace(/</g, "\\u003c");
+  const payload: Record<string, unknown> = {
+    __TREE_JSON__: tree ?? { kind: "box", children: [] },
+    __FONTS_JSON__: fonts,
+    __CANVAS_JSON__: { width: options.canvasWidth, height: options.canvasHeight },
+    __WASM_B64__: options.wasmBase64,
+  };
+  const glue = GLUE.replace(/__(?:TREE_JSON|FONTS_JSON|CANVAS_JSON|WASM_B64)__/g, (k) => embed(payload[k]));
 
   const html = `<!doctype html>
 <html lang="zh-CN">

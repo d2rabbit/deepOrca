@@ -112,3 +112,24 @@ test("leafer runtime bundle resolves from the installed dependencies (unbuilt ch
   assert.ok(bundle.editor.data.length > 1024, "real editor runtime bytes, not an empty stub");
   assert.ok(bundle.flow.data.length > 512, "real flow plugin bytes, not an empty stub");
 });
+
+test("clay preview.html rides in the package and manifest.entries lists it", () => {
+  // 2026-09-15 bug-hunt 回归：manifest 曾在序列化之后才补写 entries，
+  // 包内实际有 preview.html 而 manifest 永远不列它；CANVAS 曾硬编码 1280x800。
+  const pkg = extract(
+    buildDduLeaferPackage({ id: "s2", title: "Clay 样张" }, DESIGN, new Date().toISOString(), FAKE_BUNDLE, undefined, {
+      wasmBase64: "QUJD",
+    })
+  );
+  assert.ok(pkg.names.includes("preview.html"), "preview.html entry present in the zip");
+  const manifest = JSON.parse(pkg.read("manifest.json")) as { entries?: string[] };
+  assert.ok(
+    manifest.entries?.includes("preview.html"),
+    "manifest.entries must list preview.html (serialized after the append)"
+  );
+  assert.match(
+    pkg.read("preview.html"),
+    /const CANVAS = \{"width":1440,"height":1024\}/,
+    "canvas follows the document size, not a hardcoded default"
+  );
+});

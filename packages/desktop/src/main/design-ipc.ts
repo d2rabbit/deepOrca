@@ -299,18 +299,16 @@ function buildPackage(
               }
               // clay-ui-runtime（specs/clay-ui-runtime）：附加 preview.html（可选——
               // vendored wasm 缺失时静默跳过，导出主链路不受影响）。
+              // 路径约定与 readTailwindScript 相同：bundled main.js 位于 dist/，
+              // vendor/ 在包根一级之上（打包形态为 Resources/app/vendor）。
               let clay: { wasmBase64: string } | undefined;
               try {
-                const clayWasmPath = join(
-                  dirname(fileURLToPath(import.meta.url)),
-                  "..",
-                  "..",
-                  "vendor",
-                  "clay",
-                  "clay.wasm"
-                );
+                const clayWasmPath = join(dirname(fileURLToPath(import.meta.url)), "..", "vendor", "clay", "clay.wasm");
                 clay = { wasmBase64: readFileSync(clayWasmPath).toString("base64") };
-              } catch {
+              } catch (error) {
+                console.warn(
+                  `[design:export] vendored clay.wasm unavailable (${error instanceof Error ? error.message : String(error)}) — preview.html skipped`
+                );
                 clay = undefined;
               }
               return buildDduLeaferPackage(artifact, content, exportedAt, runtimes, extras, clay);

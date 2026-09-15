@@ -25,7 +25,6 @@ import { readFileSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { compileLeaferToClayTree } from "./clay/compile-leafer-to-clay";
 import { buildClayPreviewHtml } from "./clay/clay-preview-html";
 
 function isDictLike(v: unknown): v is Record<string, unknown> {
@@ -430,6 +429,11 @@ export function buildDduLeaferPackage(
     }
   }
 
+  // preview.html 先登记进 extraNames 再序列化 manifest——manifest.entries 语义是
+  // "包内实际包含的额外条目"，事后补写改不动已生成的 Buffer。
+  const hasPreview = Boolean(clayPreviewHtml && canvasSize);
+  if (hasPreview) extraNames.push("preview.html");
+
   const manifest: DdPackageManifest = {
     format: "ddu",
     formatVersion: 1,
@@ -454,10 +458,8 @@ export function buildDduLeaferPackage(
     { name: runtimes.editor.fileName, data: runtimes.editor.data },
     { name: runtimes.flow.fileName, data: runtimes.flow.data },
   ];
-  if (clayPreviewHtml && canvasSize) {
+  if (hasPreview && clayPreviewHtml) {
     entries.push({ name: "preview.html", data: Buffer.from(clayPreviewHtml, "utf8") });
-    manifest.entries = [...(manifest.entries ?? []), "preview.html"];
-    extraNames.push("preview.html");
   }
   if (hasTokens) {
     entries.push({ name: "tokens.json", data: Buffer.from(JSON.stringify(tokens, null, 2), "utf8") });
