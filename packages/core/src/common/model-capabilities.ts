@@ -20,6 +20,14 @@ export type ModelFamilyId = "deepseek" | "stepfun" | "glm" | "kimi" | "minimax" 
 // dependency-free `@deeporca/core/capabilities` subpath stays the single
 // renderer-facing entry; core-internal callers import from ./think-level.
 export { THINK_LEVEL_ORDER, THINK_LEVELS, familyThinkLevels } from "./think-level";
+// models.dev catalog (specs/model-fleet-adaptation §七 X3.2) — data-only
+// enrichment for UNKNOWN-family models. Zero-dependency module (host injects
+// the JSON text), so this file's renderer-bundleable constraint holds.
+// configureCatalogHints is re-exported for the renderer: it configures the
+// slim per-model hints shipped inside SettingsSummary (the full snapshot
+// stays main-process-only).
+import { catalogContextWindowTokens, catalogSupportsMultimodal } from "./model-catalog";
+export { configureCatalogHints, type CatalogHint } from "./model-catalog";
 
 /** How replayed assistant messages carry reasoning content. */
 export type ReasoningReplayMode = "empty-field" | "omit" | "content";
@@ -314,12 +322,21 @@ export function supportsMultimodal(model: string, registration?: ModelCapability
   if (registration?.vision !== undefined) return registration.vision;
   // The pre-registry facade trimmed before its Set lookup; keep that exact
   // semantics (unlike the thinking/threshold facades, which never trimmed).
-  return resolveModelSpec({ model: model.trim() }).multimodal;
+  const trimmed = model.trim();
+  const spec = resolveModelSpec({ model: trimmed });
+  if (spec.familyResolved) return spec.multimodal;
+  // models.dev hint for models no native family claims (§七 X3.2 — data-only
+  // fail-open enhancement; protocol semantics never come from the catalog).
+  return catalogSupportsMultimodal(trimmed) ?? spec.multimodal;
 }
 
 /** Active-context size at which the engine compacts the conversation. */
 export function getCompactPromptTokenThreshold(model: string): number {
-  return resolveModelSpec({ model }).contextWindowTokens;
+  const spec = resolveModelSpec({ model });
+  if (spec.familyResolved) return spec.contextWindowTokens;
+  // UNKNOWN family: the catalog's real window beats the registry's blind
+  // default when models.dev knows the model (§七 X3.2; fail-open keeps it).
+  return catalogContextWindowTokens(model) ?? spec.contextWindowTokens;
 }
 
 /** Structural slice of EndpointConfig — keeps this module settings-free. */

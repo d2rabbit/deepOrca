@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 import { api } from "../api";
+import { configureCatalogHints } from "@deeporca/core/capabilities";
 import type {
   EditableSettings,
   McpServerStatus,
@@ -54,9 +55,22 @@ export function useSettingsData({ setMainView, setMessages, activeIdRef, refresh
   const [editable, setEditable] = useState<EditableSettings | null>(null);
   const [settingsInitialTab, setSettingsInitialTab] = useState<string | undefined>(undefined);
 
-  const refreshSettings = useCallback(async () => {
-    setSettings(await api.getSettings());
+  /**
+   * Every settings-summary landing point funnels through here so the
+   * renderer-side catalog hints stay in lockstep with main (specs/
+   * model-fleet-adaptation §七 X3.2): without this, the capability facades
+   * bundled via `@deeporca/core/capabilities` would see no catalog and
+   * render compaction/multimodal hints from the blind UNKNOWN defaults
+   * while main enriches from the vendored snapshot.
+   */
+  const applySettings = useCallback((summary: SettingsSummary) => {
+    configureCatalogHints(summary.catalogHints);
+    setSettings(summary);
   }, []);
+
+  const refreshSettings = useCallback(async () => {
+    applySettings(await api.getSettings());
+  }, [applySettings]);
 
   const refreshMcp = useCallback(async () => {
     setMcpStatuses(await api.mcpStatus());
@@ -64,20 +78,23 @@ export function useSettingsData({ setMainView, setMessages, activeIdRef, refresh
 
   const handleSetModel = useCallback(
     async (selection: ModelConfigSelection) => {
-      setSettings(await api.setModel(selection));
+      applySettings(await api.setModel(selection));
       const id = activeIdRef.current;
       if (id) {
         setMessages(await api.listMessages(id));
       }
     },
-    [activeIdRef, setMessages]
+    [activeIdRef, applySettings, setMessages]
   );
 
-  const handleSetThinking = useCallback(async (selection: ThinkingModeSelection) => {
-    // Settings-only hot patch: requests read settings fresh each turn, and no
-    // /model system message is appended — tier changes are silent.
-    setSettings(await api.setThinkingMode(selection));
-  }, []);
+  const handleSetThinking = useCallback(
+    async (selection: ThinkingModeSelection) => {
+      // Settings-only hot patch: requests read settings fresh each turn, and no
+      // /model system message is appended — tier changes are silent.
+      applySettings(await api.setThinkingMode(selection));
+    },
+    [applySettings]
+  );
 
   const handleOpenSettings = useCallback(async () => {
     setEditable(await api.getEditableSettings());

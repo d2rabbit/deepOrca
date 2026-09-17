@@ -98,6 +98,7 @@ import { buildThinkingRequestOptions } from "./common/openai-thinking";
 import { applyAuxSchema, auxEnumSchema, AUX_CONTENT_RETRY_BUDGET, type AuxSchema } from "./common/aux-llm-contract";
 import { configureCrgGraphQuery, createCrgGraphQuery } from "./actions/crg-query";
 import { createSecondaryClient as defaultCreateSecondaryClient, createEndpointClient } from "./common/openai-client";
+import { readOpenAIClientEndpoint, runAiSdkChatCompletionStream } from "./common/ai-sdk-transport";
 import { DEFAULT_STREAM_IDLE_TIMEOUT_MS } from "./settings";
 import { findModelRegistration, resolveBackgroundLlm, resolveModelSpec } from "./common/model-capabilities";
 import {
@@ -1020,12 +1021,27 @@ export abstract class SessionManagerBase {
 
     let response: unknown;
     try {
-      response = await (
-        client.chat.completions.create as unknown as (
-          body: Record<string, unknown>,
-          options?: Record<string, unknown>
-        ) => Promise<unknown>
-      )(streamRequest, options);
+      // Experimental AI SDK transport (specs/model-fleet-adaptation §七/X2.2).
+      // Default OFF: with the flag unset this branch is not taken and the
+      // request flows through the OpenAI SDK client exactly as before — the
+      // only added work on the legacy path is one boolean settings read.
+      // When ON, the AI SDK channel yields synthetic OpenAI-wire chunks, so
+      // EVERYTHING below (accounting, reduce, dirge, reassembly) is shared.
+      const useAiSdkTransport = this.getResolvedSettings().experimentalSdkTransport === true;
+      response = useAiSdkTransport
+        ? await runAiSdkChatCompletionStream(
+            streamRequest as unknown as Parameters<typeof runAiSdkChatCompletionStream>[0],
+            {
+              ...readOpenAIClientEndpoint(client),
+              signal: options && options.signal instanceof AbortSignal ? (options.signal as AbortSignal) : undefined,
+            }
+          )
+        : await (
+            client.chat.completions.create as unknown as (
+              body: Record<string, unknown>,
+              options?: Record<string, unknown>
+            ) => Promise<unknown>
+          )(streamRequest, options);
     } catch (error) {
       this.logChatCompletionDebug(debug, {
         timestamp: new Date().toISOString(),

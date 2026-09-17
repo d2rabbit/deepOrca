@@ -637,6 +637,7 @@ export const ko: Record<MessageKey, string> = {
   "settings.thinkingMode": "사고 모드",
   "settings.reasoningEffort": "추론 강도",
   "settings.debugLog": "디버그 로깅",
+  "settings.experimentalSdkTransport": "실험적 AI SDK 전송",
   "settings.defaultMode": "기본 모드",
   "settings.allowAll": "모두 허용(필요할 때만 확인)",
   "settings.askAll": "모두 확인",

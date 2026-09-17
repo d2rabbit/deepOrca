@@ -1,0 +1,255 @@
+/**
+ * models.dev catalog access layer (specs/model-fleet-adaptation §七 X3.2 —
+ * user decision 2026-09-17: the catalog is the data backbone for ALL new
+ * models; native registry entries stay reserved for deepseek/stepfun).
+ *
+ * What this module is NOT (R12 hard boundary): it never feeds family
+ * PROTOCOL semantics — thinking protocol, reasoning replay mode, reasoning
+ * field names stay hand-curated in model-capabilities.ts per vendor docs.
+ * It only supplies DATA for models the registry does not know:
+ *   1. UNKNOWN-family fail-open enhancement (context window → compaction
+ *      threshold; multimodal default) — consumed by the registry facades.
+ *   2. Settings-picker suggestions keyed by endpoint host (X3.3, main only).
+ *   3. Cost multipliers for local token accounting (X3.4, main only).
+ *
+ * Zero-dependency, synchronous, fail-open: no imports at all (the host
+ * injects the JSON text at boot — vendor path red line), malformed or
+ * missing data degrades to null/[] and behavior equals today's.
+ */
+
+/** Data-only view over one models.dev model entry (fields we consume). */
+export type CatalogModelEntry = {
+  id: string;
+  name?: string;
+  reasoning: boolean;
+  toolCall: boolean;
+  /** Images accepted as input. */
+  multimodal: boolean;
+  contextTokens?: number;
+  outputTokens?: number;
+  /** USD per million tokens. */
+  costInputPerMTok?: number;
+  costOutputPerMTok?: number;
+  costCacheReadPerMTok?: number;
+  providerId?: string;
+};
+
+/** Suggestion record for the settings model picker (X3.3). */
+export type CatalogModelSuggestion = CatalogModelEntry;
+
+type RawModel = Record<string, unknown>;
+type RawProvider = Record<string, unknown>;
+
+let catalogJson: string | null = null;
+/** Parsed lazily; null when unset or malformed (fail-open). */
+let parsedProviders: Map<string, RawProvider> | null = null;
+/** Exact model-id index across all providers (first provider wins). */
+let modelIndex: Map<string, { providerId: string; raw: RawModel }> | null = null;
+/** Memoized entry conversions (catalogLookupModel). */
+let entryCache: Map<string, CatalogModelEntry | null> | null = null;
+
+/**
+ * Host injection seam (desktop main wires this at boot from the vendored
+ * models.dev snapshot; dev checkout or packaged extraResources path).
+ * Pass null to clear (tests).
+ */
+export function configureModelCatalog(json: string | null): void {
+  if (json === catalogJson) return;
+  catalogJson = json && json.trim().length > 0 ? json : null;
+  parsedProviders = null;
+  modelIndex = null;
+  entryCache = null;
+}
+
+/** Slim per-model hint — the fields the capability facades enrich with. */
+export type CatalogHint = {
+  contextTokens?: number;
+  multimodal?: boolean;
+};
+
+/**
+ * Slim-hint injection seam for processes that cannot carry the full snapshot
+ * (the renderer bundle): the main process ships catalog entries for the
+ * user's actually-configured models inside SettingsSummary, and the renderer
+ * configures them here. Lookup order in {@link catalogHintFor}: the full
+ * catalog wins (main), then the slim hints (renderer). Empty map clears.
+ */
+let slimHints: Map<string, CatalogHint> | null = null;
+
+export function configureCatalogHints(hints: Record<string, CatalogHint> | undefined | null): void {
+  if (!hints || Object.keys(hints).length === 0) {
+    slimHints = null;
+    return;
+  }
+  slimHints = new Map(Object.entries(hints));
+}
+
+/** Merged hint lookup: full catalog first, slim hints as the renderer fallback. */
+function catalogHintFor(model: string): CatalogHint | null {
+  const full = catalogLookupModel(model);
+  if (full) return full;
+  return slimHints?.get(model) ?? null;
+}
+
+/** Whether a catalog snapshot is loaded and parseable. */
+export function hasModelCatalog(): boolean {
+  return parseProviders() !== null;
+}
+
+function parseProviders(): Map<string, RawProvider> | null {
+  if (parsedProviders !== null) return parsedProviders;
+  if (!catalogJson) return null;
+  try {
+    const raw = JSON.parse(catalogJson) as unknown;
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+    const providers = new Map<string, RawProvider>();
+    for (const [id, value] of Object.entries(raw as Record<string, unknown>)) {
+      if (value && typeof value === "object" && !Array.isArray(value)) {
+        providers.set(id, value as RawProvider);
+      }
+    }
+    // Sanity floor: a proxied error page would parse to far fewer providers.
+    if (providers.size < 20) return null;
+    parsedProviders = providers;
+    return providers;
+  } catch {
+    return null;
+  }
+}
+
+function buildModelIndex(): Map<string, { providerId: string; raw: RawModel }> | null {
+  if (modelIndex !== null) return modelIndex;
+  const providers = parseProviders();
+  if (!providers) return null;
+  const index = new Map<string, { providerId: string; raw: RawModel }>();
+  for (const [providerId, provider] of providers) {
+    const models = provider.models;
+    if (!models || typeof models !== "object" || Array.isArray(models)) continue;
+    for (const [modelId, model] of Object.entries(models as Record<string, unknown>)) {
+      if (!model || typeof model !== "object" || Array.isArray(model)) continue;
+      if (!index.has(modelId)) {
+        index.set(modelId, { providerId, raw: model as RawModel });
+      }
+    }
+  }
+  modelIndex = index;
+  return index;
+}
+
+function asFiniteNumber(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : undefined;
+}
+
+function asBoolean(value: unknown): boolean {
+  return value === true;
+}
+
+function toEntry(providerId: string, raw: RawModel, modelId: string): CatalogModelEntry | null {
+  const limit = raw.limit && typeof raw.limit === "object" ? (raw.limit as Record<string, unknown>) : {};
+  const cost = raw.cost && typeof raw.cost === "object" ? (raw.cost as Record<string, unknown>) : {};
+  const modalities =
+    raw.modalities && typeof raw.modalities === "object" ? (raw.modalities as Record<string, unknown>) : {};
+  const input = Array.isArray(modalities.input) ? modalities.input : [];
+  return {
+    id: modelId,
+    ...(typeof raw.name === "string" ? { name: raw.name } : {}),
+    reasoning: asBoolean(raw.reasoning),
+    toolCall: asBoolean(raw.tool_call),
+    multimodal: asBoolean(raw.attachment) && input.includes("image"),
+    ...(asFiniteNumber(limit.context) ? { contextTokens: limit.context as number } : {}),
+    ...(asFiniteNumber(limit.output) ? { outputTokens: limit.output as number } : {}),
+    ...(asFiniteNumber(cost.input) ? { costInputPerMTok: cost.input as number } : {}),
+    ...(asFiniteNumber(cost.output) ? { costOutputPerMTok: cost.output as number } : {}),
+    ...(asFiniteNumber(cost.cache_read) ? { costCacheReadPerMTok: cost.cache_read as number } : {}),
+    providerId,
+  };
+}
+
+/**
+ * Exact model-id lookup across the whole catalog (model ids are globally
+ * unique-ish; first provider wins on collisions). Memoized; null when the
+ * catalog is absent or the model is unknown (fail-open).
+ */
+export function catalogLookupModel(model: string): CatalogModelEntry | null {
+  if (!model) return null;
+  if (!entryCache) entryCache = new Map();
+  if (entryCache.has(model)) return entryCache.get(model) ?? null;
+  const index = buildModelIndex();
+  let entry: CatalogModelEntry | null = null;
+  const hit = index?.get(model);
+  if (hit) {
+    entry = toEntry(hit.providerId, hit.raw, model);
+  }
+  entryCache.set(model, entry);
+  return entry;
+}
+
+/**
+ * X3.2 consumer ① — UNKNOWN-family context-window enhancement. Only consulted
+ * by the registry facades after their own resolution fell through to UNKNOWN
+ * (native families always win; R12: resolution order unchanged).
+ */
+export function catalogContextWindowTokens(model: string): number | undefined {
+  return catalogHintFor(model)?.contextTokens;
+}
+
+/** X3.2 consumer ① — UNKNOWN-family multimodal default enhancement. */
+export function catalogSupportsMultimodal(model: string): boolean | undefined {
+  return catalogHintFor(model)?.multimodal;
+}
+
+function hostOf(url: unknown): string {
+  if (typeof url !== "string" || url.length === 0) return "";
+  try {
+    return new URL(url).hostname.toLowerCase().replace(/\.+$/, "");
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * X3.3 consumer — settings-picker suggestions for an endpoint: match the
+ * catalog provider whose `api` base host equals the endpoint baseURL host
+ * (aggregators list many models — that is exactly the point), then return
+ * its chat-capable models, reasoning models first (a coding harness cares
+ * most about those). Fail-open: unknown host → [].
+ */
+export function catalogSuggestModels(baseURL: string, limit = 20): CatalogModelSuggestion[] {
+  const providers = parseProviders();
+  if (!providers) return [];
+  const host = hostOf(baseURL);
+  if (!host) return [];
+  for (const [providerId, provider] of providers) {
+    if (hostOf(provider.api) !== host) continue;
+    const models = provider.models;
+    if (!models || typeof models !== "object" || Array.isArray(models)) continue;
+    const entries: CatalogModelEntry[] = [];
+    for (const [modelId, model] of Object.entries(models as Record<string, unknown>)) {
+      if (!model || typeof model !== "object" || Array.isArray(model)) continue;
+      const entry = toEntry(providerId, model as RawModel, modelId);
+      if (entry) entries.push(entry);
+    }
+    entries.sort((left, right) => Number(right.reasoning) - Number(left.reasoning) || left.id.localeCompare(right.id));
+    return entries.slice(0, limit);
+  }
+  return [];
+}
+
+/**
+ * X3.4 consumer — cost estimate for locally counted tokens (the local count
+ * stays the ONLY accounting source; price is just a multiplier). USD.
+ */
+export function catalogEstimateCostUsd(
+  model: string,
+  tokens: { prompt: number; completion: number; cacheRead?: number }
+): { input: number; output: number; total: number } | undefined {
+  const entry = catalogLookupModel(model);
+  if (!entry?.costInputPerMTok && !entry?.costOutputPerMTok) return undefined;
+  // Cache reads cannot exceed the prompt total (ledger rounding can overflow
+  // by a token or two) — clamp so the estimate never goes negative.
+  const cacheRead = Math.max(0, Math.min(tokens.cacheRead ?? 0, tokens.prompt));
+  const input = ((tokens.prompt - cacheRead) * (entry.costInputPerMTok ?? 0)) / 1_000_000;
+  const cache = (cacheRead * (entry.costCacheReadPerMTok ?? entry.costInputPerMTok ?? 0)) / 1_000_000;
+  const output = (tokens.completion * (entry.costOutputPerMTok ?? 0)) / 1_000_000;
+  return { input: input + cache, output, total: input + cache + output };
+}

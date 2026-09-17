@@ -212,6 +212,23 @@ export type { CodegraphExecutable } from "./common/sqlite-runtime";
 // Shared uv binary resolver (used by CRG, Serena, SkillSpector).
 export { resolveUvBinary, configureUvVendorRoot } from "./common/uv";
 
+// Experimental AI SDK transport (specs/model-fleet-adaptation §七): the
+// standalone non-streaming helper lets out-of-session LLM surfaces (vision
+// tools, edit repair) share the flag-aware dispatch.
+export { runStandaloneChatCompletion } from "./common/ai-sdk-transport";
+
+// models.dev catalog (specs/model-fleet-adaptation §七 X3): host-injected
+// snapshot, data-only enrichment for UNKNOWN-family models + suggestions +
+// cost multipliers. Fail-open by design.
+export {
+  configureModelCatalog,
+  hasModelCatalog,
+  catalogLookupModel,
+  catalogSuggestModels,
+  catalogEstimateCostUsd,
+} from "./common/model-catalog";
+export type { CatalogModelEntry, CatalogModelSuggestion } from "./common/model-catalog";
+
 export {
   CRG_MCP_SERVER_NAME,
   CRG_DIR_NAME,

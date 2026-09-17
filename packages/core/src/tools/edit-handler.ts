@@ -3,6 +3,7 @@
 import * as fs from "fs";
 import { z } from "zod";
 import { buildThinkingRequestOptions } from "../common/openai-thinking";
+import { runStandaloneChatCompletion } from "../common/ai-sdk-transport";
 import type { ToolExecutionContext, ToolExecutionResult } from "./executor";
 import {
   buildDiffPreview,
@@ -674,38 +675,44 @@ async function inferOldStringNotFoundReasonWithLLM(
   const contentAfterSnippet = getLinesAfterScope(lineIndex, scope, contextLineLimit);
 
   try {
-    const response = await client.chat.completions.create({
-      model,
-      messages: [
-        {
-          role: "system",
-          content:
-            "You diagnose failed file edits when old_string was not found. " +
-            "Return XML only using <response><reason>...</reason></response>. " +
-            "Be concise and specific. Explain the likely mismatch between old_string and the <snippet_text/> content. " +
-            "Do not suggest unrelated changes.",
-        },
-        {
-          role: "user",
-          content:
-            "<request>\n" +
-            `  <content_before_snippet><![CDATA[${contentBeforeSnippet}]]></content_before_snippet>\n` +
-            `  <snippet_text><![CDATA[${snippetText}]]></snippet_text>\n` +
-            `  <content_after_snippet><![CDATA[${contentAfterSnippet}]]></content_after_snippet>\n` +
-            `  <old_string><![CDATA[${oldString}]]></old_string>\n` +
-            `  <new_string><![CDATA[${newString}]]></new_string>\n` +
-            "</request>\n" +
-            "<output_format>\n" +
-            "  <response>\n" +
-            "    <reason><![CDATA[...]]></reason>\n" +
-            "  </response>\n" +
-            "</output_format>",
-        },
-      ],
-      ...buildThinkingRequestOptions(thinkingEnabled, baseURL, reasoningEffort),
+    // D3: flag-aware dispatch — flag ON routes through the experimental
+    // channel; OFF issues the request via the legacy client exactly as before.
+    const response = await runStandaloneChatCompletion({
+      client,
+      projectRoot: context.projectRoot,
+      request: {
+        model,
+        messages: [
+          {
+            role: "system",
+            content:
+              "You diagnose failed file edits when old_string was not found. " +
+              "Return XML only using <response><reason>...</reason></response>. " +
+              "Be concise and specific. Explain the likely mismatch between old_string and the <snippet_text/> content. " +
+              "Do not suggest unrelated changes.",
+          },
+          {
+            role: "user",
+            content:
+              "<request>\n" +
+              `  <content_before_snippet><![CDATA[${contentBeforeSnippet}]]></content_before_snippet>\n` +
+              `  <snippet_text><![CDATA[${snippetText}]]></snippet_text>\n` +
+              `  <content_after_snippet><![CDATA[${contentAfterSnippet}]]></content_after_snippet>\n` +
+              `  <old_string><![CDATA[${oldString}]]></old_string>\n` +
+              `  <new_string><![CDATA[${newString}]]></new_string>\n` +
+              "</request>\n" +
+              "<output_format>\n" +
+              "  <response>\n" +
+              "    <reason><![CDATA[...]]></reason>\n" +
+              "  </response>\n" +
+              "</output_format>",
+          },
+        ],
+        ...buildThinkingRequestOptions(thinkingEnabled, baseURL, reasoningEffort),
+      },
     });
 
-    return parseOldStringNotFoundReason(response.choices?.[0]?.message?.content ?? "");
+    return parseOldStringNotFoundReason((response.message.content as string | null) ?? "");
   } catch {
     return null;
   }
@@ -753,37 +760,42 @@ async function correctEscapedStringsWithLLM(
   }
 
   try {
-    const response = await client.chat.completions.create({
-      model,
-      messages: [
-        {
-          role: "system",
-          content:
-            "You correct file-edit strings when the only problem is escaping. " +
-            "Return XML only using <response><corrected_old_string>...</corrected_old_string><corrected_new_string>...</corrected_new_string></response>. " +
-            "Do not change semantics; only fix quoting or escaping so corrected_old_string matches the snippet exactly.",
-        },
-        {
-          role: "user",
-          content:
-            "<request>\n" +
-            `  <snippet_text><![CDATA[${snippetText}]]></snippet_text>\n` +
-            `  <old_string><![CDATA[${oldString}]]></old_string>\n` +
-            `  <new_string><![CDATA[${newString}]]></new_string>\n` +
-            `  <matched_text><![CDATA[${matchedText}]]></matched_text>\n` +
-            "</request>\n" +
-            "<output_format>\n" +
-            "  <response>\n" +
-            "    <corrected_old_string><![CDATA[...]]></corrected_old_string>\n" +
-            "    <corrected_new_string><![CDATA[...]]></corrected_new_string>\n" +
-            "  </response>\n" +
-            "</output_format>",
-        },
-      ],
-      ...buildThinkingRequestOptions(thinkingEnabled, baseURL, reasoningEffort),
+    // D3: flag-aware dispatch (see the reasoner site above).
+    const response = await runStandaloneChatCompletion({
+      client,
+      projectRoot: context.projectRoot,
+      request: {
+        model,
+        messages: [
+          {
+            role: "system",
+            content:
+              "You correct file-edit strings when the only problem is escaping. " +
+              "Return XML only using <response><corrected_old_string>...</corrected_old_string><corrected_new_string>...</corrected_new_string></response>. " +
+              "Do not change semantics; only fix quoting or escaping so corrected_old_string matches the snippet exactly.",
+          },
+          {
+            role: "user",
+            content:
+              "<request>\n" +
+              `  <snippet_text><![CDATA[${snippetText}]]></snippet_text>\n` +
+              `  <old_string><![CDATA[${oldString}]]></old_string>\n` +
+              `  <new_string><![CDATA[${newString}]]></new_string>\n` +
+              `  <matched_text><![CDATA[${matchedText}]]></matched_text>\n` +
+              "</request>\n" +
+              "<output_format>\n" +
+              "  <response>\n" +
+              "    <corrected_old_string><![CDATA[...]]></corrected_old_string>\n" +
+              "    <corrected_new_string><![CDATA[...]]></corrected_new_string>\n" +
+              "  </response>\n" +
+              "</output_format>",
+          },
+        ],
+        ...buildThinkingRequestOptions(thinkingEnabled, baseURL, reasoningEffort),
+      },
     });
 
-    const content = response.choices?.[0]?.message?.content ?? "";
+    const content = (response.message.content as string | null) ?? "";
     const parsed = parseCorrectedEditStrings(content);
     if (!parsed) {
       return null;

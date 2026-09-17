@@ -1,6 +1,7 @@
 # specs/next-version — 第二阶段（下一版）规划区
 
 > **口径（2026-09-03 立）**：冻结期后随 `next/*` 分支启动的 spec 集中本区——**不是废弃**，是"设计定稿、待启动"的 staging 区。开工时 `git mv` 回 `specs/<name>/` 转为活跃 spec。主线项的启动顺序、分期与前置见 [`docs/features/next-version-plan.md`](../../docs/features/next-version-plan.md)（A–E 五主线）；**储备项**（非主线，2026-09-03 对齐增补）不裁撤、立项时点随各自功能域规划。
+> **移出记录**：2026-09-17 `model-fleet-adaptation` 吸收同日立项的 ai-sdk-experimental-adapter（实验性 AI SDK 传输线，工件随迁）后 git mv 至活跃区 [`specs/model-fleet-adaptation/`](../model-fleet-adaptation/design.md)。
 > 本区引用归档件用 `../archive/<name>/`，引用活 spec 用 `../../<name>/`。
 
 ## 主线 spec（A–E 路线承接）
@@ -26,6 +27,5 @@
 | [in-process-multi-driver](./in-process-multi-driver/design.md) | 进程内多驱动并行（agent-relay） | ⬜ 立稿未实施 |
 | [kb-container](./kb-container/design.md) | 知识库容器格式：wiki+架构图收敛单文件 `.dkb`（SQLite 内容寻址快照，覆盖融合；coord-chain `kb.sync` 落点；CodeGraph/CRG 排除） | ⬜ 设计定稿（2026-09-08 移入本区，当前版本不实施） |
 | [memory-trigger-recall](./memory-trigger-recall/design.md) | 记忆触发器召回强化（T-Mem 写入时触发器概念移植进 vendored TDAI：4 族 × 2 粒度，capture 生成 / recall 扩充 / 永不进答案上下文，补联想性召回盲区；上游调研 [2026-09-14-tmem-hyperframes-prestudy](../../../docs/research/2026-09-14-tmem-hyperframes-prestudy.md) §2） | ⬜ 方案稿（2026-09-14 立项，启动时 git mv 回活跃区） |
-| [model-fleet-adaptation](./model-fleet-adaptation/design.md) | GLM/Kimi/MiniMax/Qwen 收官适配 | 🟡 G0+S0 落地（16/34） |
 | [sandbox-next](./sandbox-next/design.md) | 沙箱延伸（bwrap/WSL2/矩阵/WASI） | ⬜ 独立任务规划 |
 | [ts-native-migration](./ts-native-migration/design.md) | TS 原生化迁移排期（P0 包拓扑拆分 → P5 scriptc；不换语言铁律） | ⬜ 移入本区（2026-09-04，随 8e21b465 调研批次；2026-09-08 补登本表） |

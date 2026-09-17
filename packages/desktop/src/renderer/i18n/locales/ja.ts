@@ -641,6 +641,7 @@ export const ja: Record<MessageKey, string> = {
   "settings.thinkingMode": "思考モード",
   "settings.reasoningEffort": "推論の強度",
   "settings.debugLog": "デバッグログ",
+  "settings.experimentalSdkTransport": "実験的 AI SDK トランスポート",
   "settings.defaultMode": "既定モード",
   "settings.allowAll": "すべて許可（必要な場合のみ確認）",
   "settings.askAll": "すべて確認",

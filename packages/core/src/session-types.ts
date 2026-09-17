@@ -316,6 +316,11 @@ export type SessionResolvedSettings = {
   /** Activity-frames opt-in: boot-context injection AND the action-facing
    * collectBehaviorContext seam (specs/sop-extraction P2.2); absent = off. */
   behaviorContext?: boolean;
+  /**
+   * Experimental AI SDK transport (specs/model-fleet-adaptation §七/X2.2);
+   * absent = off (legacy OpenAI SDK channel stays authoritative).
+   */
+  experimentalSdkTransport?: boolean;
 };
 
 export type SessionManagerOptions = {

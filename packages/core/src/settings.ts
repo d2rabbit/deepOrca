@@ -225,6 +225,15 @@ export type DeepcodingSettings = {
    * and permission-gated continuations always replay regardless of this flag.
    */
   resumePendingToolCalls?: "replay" | "synthesize";
+  /**
+   * Experimental AI SDK transport (specs/model-fleet-adaptation §七 / X0.2):
+   * route LLM requests through the Vercel AI SDK channel (default OFF — the
+   * OpenAI SDK channel stays authoritative). Resolution consults system env
+   * and USER-level settings/env only; project files and project env are
+   * STRUCTURALLY excluded so an untrusted repo cannot enable an experimental
+   * transport (same quarantine rationale as endpoints/credentials).
+   */
+  experimentalSdkTransport?: boolean;
 };
 
 /**
@@ -426,6 +435,11 @@ export type ResolvedDeepcodingSettings = {
   lspDiagnostics: Required<LspDiagnosticsSettings>;
   /** Resolved complexity-gate config (project overrides user; budgets hard-clamped). */
   complexityGate: Required<ComplexityGateSettings>;
+  /**
+   * Experimental AI SDK transport switch (§七 X0.2). Default false; project
+   * sources are structurally excluded from the resolution chain.
+   */
+  experimentalSdkTransport: boolean;
 };
 
 export type ModelConfigSelection = {
@@ -1056,6 +1070,16 @@ export function resolveSettingsSources(
     parsePositiveInteger(userSettings?.compactTokenThreshold) ??
     parsePositiveInteger(userEnv.COMPACT_TOKEN_THRESHOLD);
 
+  // Experimental AI SDK transport (§七 X0.2): system env → USER settings/env
+  // only. safeProject / projectEnv are deliberately NOT consulted — enabling
+  // an experimental transport is a machine-owner decision, and the project
+  // quarantine is structural rather than clamped (a repo cannot flip it on).
+  const experimentalSdkTransport =
+    parseBoolean(systemEnv.EXPERIMENTAL_SDK_TRANSPORT) ??
+    parseBoolean(userSettings?.experimentalSdkTransport) ??
+    parseBoolean(userEnv.EXPERIMENTAL_SDK_TRANSPORT) ??
+    false;
+
   // ── Multi-endpoint resolution ────────────────────────────────────────────
   // Merge endpoints from user + project settings (project overrides user by id,
   // mirroring mergeStatusLine). If none configured, synthesize a default
@@ -1147,6 +1171,7 @@ export function resolveSettingsSources(
     visionApiKey,
     streamIdleTimeoutMs,
     compactTokenThreshold,
+    experimentalSdkTransport,
     lspDiagnostics: mergeLspDiagnostics(userSettings, safeProject),
     // depth-lane: project config wins per-field (project > user > default) —
     // routed through the safeProject clamp like every other execution-relevant

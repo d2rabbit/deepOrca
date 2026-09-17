@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type JSX } from "react";
+import { useCallback, useEffect, useRef, useState, type JSX } from "react";
 import type {
   EditableSettings,
   MemoryPipelineStats,
@@ -568,6 +568,31 @@ export function SettingsPanel({
   >({});
   /** Per-endpoint add-model validation errors (keyed by endpoint id). */
   const [addModelErrors, setAddModelErrors] = useState<Record<string, string>>({});
+  // ── models.dev catalog suggestions (specs/model-fleet-adaptation §七 X3.3) ─
+  /** Catalog picker suggestions keyed `${endpointId}::${baseURL}`; fetched
+   *  once per key from main (fail-open to [] — no snapshot, no suggestions,
+   *  the registry family list stands alone). */
+  const [catalogSuggestions, setCatalogSuggestions] = useState<
+    Record<string, Array<{ id: string; reasoning: boolean; multimodal: boolean }>>
+  >({});
+  const catalogFetchedKeysRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    for (const ep of s.endpoints) {
+      if (!ep.baseURL) continue;
+      const key = `${ep.id}::${ep.baseURL}`;
+      if (catalogFetchedKeysRef.current.has(key)) continue;
+      catalogFetchedKeysRef.current.add(key);
+      // Optional-chained: dom-test api stubs may predate this channel.
+      const suggestionsPromise = api.modelsCatalogSuggest?.(ep.baseURL, 30);
+      if (suggestionsPromise) {
+        void suggestionsPromise
+          .then((rows) => setCatalogSuggestions((prev) => ({ ...prev, [key]: rows })))
+          .catch(() => {
+            /* fail-open: registry family suggestions remain */
+          });
+      }
+    }
+  }, [s.endpoints]);
   // ── Collapsible per-endpoint model list ───────────────────────────────────
   /** Model list sections start COLLAPSED; the toggle row expands them. */
   const [modelsOpenByEndpoint, setModelsOpenByEndpoint] = useState<Record<string, boolean>>({});
@@ -1107,6 +1132,7 @@ export function SettingsPanel({
                       const draft = addModelDrafts[ep.id] ?? { id: "", thinking: true, vision: false };
                       const draftError = addModelErrors[ep.id] ?? "";
                       const suggestions = modelSuggestionsFor(ep);
+                      const catalogRows = catalogSuggestions[`${ep.id}::${ep.baseURL}`] ?? [];
                       const endpointTest = endpointTests[ep.id];
                       return (
                         <div className="ui-endpoint-card" key={ep.id}>
@@ -1225,12 +1251,24 @@ export function SettingsPanel({
                                       aria-label={`${ep.name || ep.id} ${t("settings.endpoint.modelId")}`}
                                       list={`ui-pool-model-suggestions-${ep.id}`}
                                       autoFocus
-                                      onChange={(e) =>
+                                      onChange={(e) => {
+                                        const modelId = e.target.value;
+                                        // Exact catalog match pre-fills the capability
+                                        // checkboxes — ONLY on first entry (empty id):
+                                        // re-firing on later edits would clobber
+                                        // manual checkbox overrides (§七 X3.3: catalog
+                                        // suggests, manual always wins afterwards).
+                                        const match =
+                                          draft.id === "" ? catalogRows.find((row) => row.id === modelId) : undefined;
                                         setAddModelDrafts((prev) => ({
                                           ...prev,
-                                          [ep.id]: { ...draft, id: e.target.value },
-                                        }))
-                                      }
+                                          [ep.id]: {
+                                            ...draft,
+                                            id: modelId,
+                                            ...(match ? { thinking: match.reasoning, vision: match.multimodal } : {}),
+                                          },
+                                        }));
+                                      }}
                                       onKeyDown={(e) => {
                                         if (e.key === "Enter") submitAddModelTo(ep.id);
                                       }}
@@ -1267,10 +1305,11 @@ export function SettingsPanel({
                             </div>
                           ) : null}
 
-                          {/* Family-bound suggestions: this endpoint's family
-                              models only (modelSuggestionsFor). */}
+                          {/* Family-bound suggestions (modelSuggestionsFor) +
+                              models.dev catalog rows for this endpoint's host
+                              (§七 X3.3) — registry first, catalog appended. */}
                           <datalist id={`ui-pool-model-suggestions-${ep.id}`}>
-                            {suggestions.map((modelId) => (
+                            {[...new Set([...suggestions, ...catalogRows.map((row) => row.id)])].map((modelId) => (
                               <option key={modelId} value={modelId} />
                             ))}
                           </datalist>
@@ -1364,6 +1403,14 @@ export function SettingsPanel({
                       checked={s.debugLogEnabled}
                       onChange={(e) => patch({ debugLogEnabled: e.target.checked })}
                       label={t("settings.debugLog")}
+                    />
+                  </Field>
+
+                  <Field>
+                    <Checkbox
+                      checked={s.experimentalSdkTransport}
+                      onChange={(e) => patch({ experimentalSdkTransport: e.target.checked })}
+                      label={t("settings.experimentalSdkTransport")}
                     />
                   </Field>
                 </div>

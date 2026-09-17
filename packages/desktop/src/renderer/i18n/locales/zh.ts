@@ -575,6 +575,7 @@ export const zh: Record<MessageKey, string> = {
   "settings.thinkingMode": "思考模式",
   "settings.reasoningEffort": "推理强度",
   "settings.debugLog": "调试日志",
+  "settings.experimentalSdkTransport": "实验性 AI SDK 传输",
   "settings.endpoint.models": "模型列表",
   "settings.endpoint.modelId": "模型 ID",
   "settings.endpoint.addModel": "添加模型",

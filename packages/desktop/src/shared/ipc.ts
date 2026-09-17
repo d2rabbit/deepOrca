@@ -218,6 +218,9 @@ export const IpcRequest = {
   TokensSummary: "tokens:summary",
   /** Model-detail popup (specs/token-model-charts): heatmap + speed window. */
   TokensModelDetail: "tokens:modelDetail",
+  /** models.dev catalog picker suggestions for an endpoint baseURL
+   * (specs/model-fleet-adaptation §七 X3.3). Fail-open to []. */
+  ModelsCatalogSuggest: "modelsCatalog:suggest",
   TaskTreeReflog: "tasktree:reflog",
   TaskTreeTrajectory: "tasktree:trajectory",
   TaskTreeArchive: "tasktree:archive",
@@ -231,6 +234,8 @@ export const IpcRequest = {
   /** Editor digital entity (specs/editor-agent S2): run the editor-agent
    *  background entity on a selection — sessionless, zero residue. */
   EditorAgentRun: "editor:agentRun",
+  /** Cancel the in-flight editor-agent run (specs/model-fleet-adaptation D2). */
+  EditorAgentCancel: "editor:agentCancel",
   // LSP bare-frame relay (specs/editor-copilot D2)
   LspRelayAttach: "lsp:relayAttach",
   LspRelaySend: "lsp:relaySend",
@@ -493,6 +498,13 @@ export type WorkspaceUsageWindow = {
 };
 
 /** Whole-workspace LLM token accounting (silent subagents included). */
+/** Picker suggestion row from the vendored models.dev catalog (§七 X3.3). */
+export type ModelsCatalogSuggestionView = {
+  id: string;
+  reasoning: boolean;
+  multimodal: boolean;
+};
+
 export type WorkspaceTokenSummary = {
   root: string;
   sessions: number;
@@ -1217,6 +1229,16 @@ export type SettingsSummary = {
   workspaceTrust: WorkspaceTrustLevel;
   /** User override for the compaction trigger (tokens); undefined = model-family default. */
   compactTokenThreshold?: number;
+  /** Experimental AI SDK transport (§七 X0.2) — effective resolved value. */
+  experimentalSdkTransport: boolean;
+  /**
+   * Slim models.dev catalog entries for the user's configured models
+   * (specs/model-fleet-adaptation §七 X3.2, renderer leg): fed into
+   * configureCatalogHints so renderer-side capability facades agree with
+   * the main process without bundling the full snapshot. Absent/empty when
+   * no catalog snapshot is vendored.
+   */
+  catalogHints?: Record<string, { contextTokens?: number; multimodal?: boolean }>;
 };
 
 /** A per-scope permission decision as edited in the GUI. */
@@ -1253,6 +1275,13 @@ export type EditableSettings = {
   thinkingEnabled: boolean;
   reasoningEffort: ReasoningEffort;
   debugLogEnabled: boolean;
+  /**
+   * Experimental AI SDK transport (specs/model-fleet-adaptation §七 X0.2).
+   * Read from / persisted to the USER settings file ONLY — the project file
+   * cannot enable an experimental transport (mirrors the core resolution
+   * chain's structural quarantine), regardless of the panel's saveTarget.
+   */
+  experimentalSdkTransport: boolean;
   permissionDefaultMode: PermissionDefaultMode;
   permissions: Partial<Record<PermissionScope, PermissionDecision>>;
   mcpServers: EditableMcpServer[];
@@ -1543,6 +1572,8 @@ export type DesktopApi = {
   tokensSummary(root: string): Promise<WorkspaceTokenSummary>;
   /** Model-detail popup payload (specs/token-model-charts): heatmap + speeds. */
   tokensModelDetail(root: string, days?: number): Promise<WorkspaceModelDetail>;
+  /** models.dev catalog picker suggestions for an endpoint baseURL (§七 X3.3). */
+  modelsCatalogSuggest(baseURL: string, limit?: number): Promise<ModelsCatalogSuggestionView[]>;
   /** Subscribe to streaming CRG build output. Returns unsubscribe fn. */
   onCrgProgress(cb: (event: CrgProgressEvent) => void): () => void;
 
@@ -1778,6 +1809,8 @@ export type DesktopApi = {
      * event so concurrent runs (explain + pair) can be told apart. */
     runId?: string;
   }): Promise<{ ok: true; content: string; iterations: number } | { ok: false; error: string }>;
+  /** Cancel the in-flight editor-agent run (D2). ok:false = nothing running. */
+  editorAgentCancel(): Promise<{ ok: boolean }>;
   lspRelayAttach(root: string, languageId: string): Promise<LspRelayAttachResult>;
   lspRelaySend(sessionId: string, frame: string): Promise<{ ok: true } | { ok: false; error: string }>;
   lspRelayDetach(sessionId: string): Promise<{ ok: true } | { ok: false; error: string }>;

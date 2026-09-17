@@ -593,6 +593,7 @@ export const en = {
   "settings.thinkingMode": "Thinking mode",
   "settings.reasoningEffort": "Reasoning effort",
   "settings.debugLog": "Debug logging",
+  "settings.experimentalSdkTransport": "Experimental AI SDK transport",
   "settings.endpoint.models": "Models",
   "settings.endpoint.modelId": "Model ID",
   "settings.endpoint.addModel": "Add Model",

@@ -131,6 +131,5 @@
 | [harmonyos-dev-kit](../../specs/next-version/harmonyos-dev-kit/design.md) | 鸿蒙开发套件 | ❌ 曾落地后整体下线；重启属 `next/*` |
 | [in-process-multi-driver](../../specs/next-version/in-process-multi-driver/design.md) | 进程内多驱动并行（agent-relay 编排） | ⬜ 立稿未实施（S0 质量验证 + 锁版起步） |
 | [kb-container](../../specs/next-version/kb-container/design.md) | 知识库容器格式：wiki+架构图收敛单文件 `.dkb`（SQLite 内容寻址快照 + 覆盖融合；生产管线「暂存区→确定性门禁→事务入库」保留，receipt 由容器写入边界取代；coord-chain `kb.sync`/链上分发的资产落点；CodeGraph/CRG 排除，OKF 作导入导出适配器） | ⬜ 设计定稿（2026-09-08 移入本区，当前版本不实施；与主线 D 衔接：doc-wiki 编译产物未来可落同款容器，D 线启动时对表） |
-| [model-fleet-adaptation](../../specs/next-version/model-fleet-adaptation/design.md) | GLM5 / Kimi-K3 / MiniMax-M3 / Qwen-3.8 收官适配 | 🟡 G0+S0 落地（16/34），S1–S4 系列核填待做 |
 | [sandbox-next](../../specs/next-version/sandbox-next/design.md) | 沙箱延伸：bwrap / WSL2 / 能力矩阵对账 / WASI 预研 | ⬜ 独立任务规划（自 sandbox 收官延伸，2026-09-03） |
 | [ts-native-migration](../../specs/next-version/ts-native-migration/design.md) | TS 原生化迁移排期 | ⬜ 移入本区（2026-09-04，随 8e21b465 调研批次；此前误列于 specs/ 活跃区，索引本次补记） |

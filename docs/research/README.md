@@ -204,6 +204,12 @@
 | --- | --- | --- | --- | --- |
 | [2026-09-15-clay-ui-engine-prestudy.md](./2026-09-15-clay-ui-engine-prestudy.md) | Clay（nicbarker/clay，Zlib，18.1k★，单头文件 4.8k LOC 零依赖，wasm 15KB）对 UI 设计模块的补齐度：立即式声明宏 + flexbox 式布局 + 渲染命令数组（RECTANGLE/BORDER/TEXT/IMAGE/SCISSOR/OVERLAY/CUSTOM）+ 官方 HTML 渲染器（retained 模式逐帧 diff）+ raylib 渲染器；hover/click + 滚动交互；无编辑器、无拖拽/变换、空白分词换行（CJK 弱）、无官方 JS 绑定（自写 wasm wrapper）、无 1.0 定版 | 规划落点（未启动）：定位为 UI-Design 的**渲染/导出运行时候选**，与 LeaferJS 创作引擎互补并行（第三栈 `content.clay` + EARS 17 扩展）；先决 spike = CJK 断行 + wasm wrapper 原型，不达标即作废；vendor 走 scripts/vendor-clay.js（pin commit，Zlib 无再分发红线） | ⬜ | 纯调研留档，无代码变更。**核心判定：Clay 是布局/渲染命令引擎而非编辑器引擎，不能替代 leafer-editor 的创作画布环（选择/变换/编组/历史），差异化价值在 `.ddu` HTML-DOM 交互导出与无头确定性快照渲染。** 与 leafer 预研（2026-09-10 选型 LeaferJS）构成「创作引擎 × 渲染运行时」互补对；触发条件 = .ddu 导出升级 HTML-DOM 形态或需要无头快照时重开 |
 
+## 2026-09-17 · 模型集成底座调研
+
+| 文档 | 主题 | 对应模块 | 消费 | 备注 |
+| --- | --- | --- | --- | --- |
+| [2026-09-17-models-dev-ai-sdk-prestudy.md](./2026-09-17-models-dev-ai-sdk-prestudy.md) | **下一轮模型集成底座双件预研**：models.dev（模型目录数据，220 provider/7843 模型，MIT，anomalyco 维护当日仍活跃）× Vercel AI SDK v7（`ai@7.0.105` Apache-2.0，Node≥22 与 .nvmrc 对齐）；`@ai-sdk/openai-compatible@3.0.51` dist 源码级实证 DeepSeek 三契约（reasoning_content 增量解析 / assistant 回放省键语义 / include_usage）与本仓手写实现同构；三阶段提案：A 目录接入（vendor api.json + 三级合并替换 2 家族硬编码目录）→ B 咽喉点金丝雀 + P0 电池六项 → C 条件触发全量切换 | 规划落点（未启动）：`scripts/vendor-models-dev.js`、`core/common/model-catalog.ts`、`model-capabilities.ts` 三级合并、`createChatCompletionStream` 旁挂 streamText 通道 | ✅ | 调研零代码变更；**同日拍板三项（§0）**：① 保留 DeepSeek 专属优化与适配（升格红线）② 引入实验性 SDK 适配能力（默认关第二传输通道）③ 持久化边界转译不迁移（R2 关闭，选转换层方案）——实现方案并入 [specs/model-fleet-adaptation/](../../../specs/model-fleet-adaptation/design.md) §七/X 系列后**同日全量落地**（X0–X3 代码面：`common/{llm-transport,model-message-adapter,ai-sdk-transport,model-catalog}.ts` + exact-pin `ai@7.0.105`/`@ai-sdk/openai-compatible@3.0.51` + vendor 脚本实拉 220/7842 + 设置开关/建议源/费用估算全链；电池 B1–B3/B5/B6 fixture 全绿 + off/on 分流端到端断言；B4/B7 真机清单与 X4 接入 SOP 成文待真机执行；门禁全绿 core 1010 例）；既有张力顺带曝光：`openai ^6.35.0`/`undici ^7.25.0` 在主进程执行却为 `^` range（违反 exact-pin 红线，存量问题）；本仓 4 个 endpoint preset 在 models.dev 全部有对应条目（deepseek/stepfun/stepfun-step-plan/opencode/opencode-go 实测） |
+
 ## 消费链（文档 → 文档 → 代码）
 
 - **dsh 链**：deep-dive + takeaways → adoption-plan → P0 三项落地（session.ts / llm-error.ts）→ 2026-08-17 整合为 dsh-consolidated 台账 → v3.19 收官 D 线落地候选池四件套（`29801ee`：崩溃合成收尾 / 两段式 compaction / 执行闸门 / 前缀守卫）→ **2026-09-04 封闭**（用户拍板"dsh 不需要了"；S1/S2 已判"不做"、C1 移除，无悬空候选，已吸收项全部在代码）

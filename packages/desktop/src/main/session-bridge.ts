@@ -10,6 +10,7 @@ import {
 import {
   buildGitmcpMaintenanceCommand,
   buildGitmcpPlaceholderConfig,
+  catalogLookupModel,
   CODEGRAPH_MCP_SERVER_NAME,
   CRG_MCP_SERVER_NAME,
   SERENA_MCP_SERVER_NAME,
@@ -42,7 +43,7 @@ import {
   writeProjectSettings,
   writeSettings,
 } from "@deeporca/core";
-import type { MemoryProvider } from "@deeporca/core";
+import type { MemoryProvider, ResolvedDeepcodingSettings } from "@deeporca/core";
 import { GitmcpStore, gitmcpSqliteAvailable, readGitmcpRepoMeta, removeGitmcpRepoIndex } from "./tools/gitmcp/store.js";
 import { indexRepository } from "./tools/gitmcp/indexer.js";
 import type { GitmcpRepoMeta } from "./tools/gitmcp/store.js";
@@ -269,7 +270,38 @@ export function toSettingsSummary(root: string): SettingsSummary {
     visionEndpointId: s.visionEndpointId,
     workspaceTrust: s.workspaceTrust,
     compactTokenThreshold: s.compactTokenThreshold,
+    experimentalSdkTransport: s.experimentalSdkTransport,
+    catalogHints: buildCatalogHints(s),
   };
+}
+
+/**
+ * Slim models.dev catalog entries for every model the user configured
+ * (endpoint registrations + the primary/secondary/vision roles), so the
+ * renderer's capability facades agree with the main process (§七 X3.2) —
+ * the 4.7MB full snapshot stays main-only, this ships a handful of entries.
+ */
+function buildCatalogHints(s: ResolvedDeepcodingSettings): SettingsSummary["catalogHints"] {
+  const modelIds = new Set<string>();
+  for (const endpoint of s.endpoints) {
+    for (const model of endpoint.models ?? []) {
+      if (model.id) modelIds.add(model.id);
+    }
+  }
+  for (const model of [s.model, s.secondaryModel, s.visionModel]) {
+    if (model) modelIds.add(model);
+  }
+  let hints: SettingsSummary["catalogHints"] | undefined;
+  for (const id of modelIds) {
+    const entry = catalogLookupModel(id);
+    if (!entry) continue;
+    hints = hints ?? {};
+    hints[id] = {
+      ...(entry.contextTokens !== undefined ? { contextTokens: entry.contextTokens } : {}),
+      ...(entry.multimodal !== undefined ? { multimodal: entry.multimodal } : {}),
+    };
+  }
+  return hints;
 }
 
 // TTL cache for the SOP-oriented behavior context (specs/sop-extraction
@@ -282,6 +314,8 @@ let sopContextCache: { root: string; at: number; value: string | null } | null =
 
 export class SessionBridge {
   private manager: SessionManager;
+  /** Live editor-agent run's cancellation source (single-flight; null = idle). */
+  private editorAgentController: AbortController | null = null;
 
   constructor(
     public projectRoot: string,
@@ -614,6 +648,9 @@ export class SessionBridge {
       thinkingEnabled: raw.thinkingEnabled ?? resolved.thinkingEnabled,
       reasoningEffort: raw.reasoningEffort ?? resolved.reasoningEffort,
       debugLogEnabled: raw.debugLogEnabled ?? false,
+      // User-level ONLY (§七 X0.2): read from the user file even when the
+      // panel's saveTarget is project — the project file has no voice here.
+      experimentalSdkTransport: readSettings()?.experimentalSdkTransport === true,
       permissionDefaultMode: raw.permissions?.defaultMode ?? "allowAll",
       permissions: buildPermissionDecisions(raw.permissions),
       mcpServers: Object.entries(raw.mcpServers ?? {}).map(([name, cfg]) => ({
@@ -724,6 +761,30 @@ export class SessionBridge {
     }
 
     next.debugLogEnabled = patch.debugLogEnabled;
+
+    // Experimental AI SDK transport (§七 X0.2): persist to the USER file only.
+    // When the panel saves to the project file, the toggle round-trips through
+    // the user file so a committable repo can never enable it. Dirty check:
+    // an unchanged toggle never rewrites (nor creates) the user file.
+    const userRaw = readSettings() ?? {};
+    const userValue = userRaw.experimentalSdkTransport === true;
+    if (userValue !== patch.experimentalSdkTransport) {
+      if (target === "user") {
+        if (patch.experimentalSdkTransport) {
+          next.experimentalSdkTransport = true;
+        } else {
+          delete next.experimentalSdkTransport;
+        }
+      } else {
+        const userNext: DeepcodingSettings = { ...userRaw };
+        if (patch.experimentalSdkTransport) {
+          userNext.experimentalSdkTransport = true;
+        } else {
+          delete userNext.experimentalSdkTransport;
+        }
+        writeSettings(userNext);
+      }
+    }
     next.permissions = buildPermissionSettings(patch.permissionDefaultMode, patch.permissions, raw.permissions);
 
     const servers: Record<string, McpServerConfig> = {};
@@ -826,6 +887,22 @@ export class SessionBridge {
     }
   }
 
+  /**
+   * Cancel the in-flight editor digital entity, if any (specs/
+   * model-fleet-adaptation D2). Single-flight by design — the editor pair
+   * session has exactly one live run, and issuing a new run (or an explicit
+   * cancel) supersedes it. The abort rides the runBackgroundLlmTask signal
+   * into the task loop's existing interruption surface.
+   */
+  cancelEditorAgent(): { ok: boolean } {
+    if (!this.editorAgentController) {
+      return { ok: false };
+    }
+    this.editorAgentController.abort();
+    this.editorAgentController = null;
+    return { ok: true };
+  }
+
   runEditorAgent(input: {
     filePath: string;
     startLine: number;
@@ -840,6 +917,10 @@ export class SessionBridge {
     /** Iteration milestone tap (same bridge). */
     onIteration?: (message: string) => void;
   }): Promise<{ content: string | null; iterations: number }> {
+    // Single-flight: a new run supersedes (aborts) the previous one.
+    this.editorAgentController?.abort();
+    const controller = new AbortController();
+    this.editorAgentController = controller;
     const sel = input.selection.length > 8000 ? `${input.selection.slice(0, 8000)}\n…（截断）` : input.selection;
     const range = input.startLine === input.endLine ? `L${input.startLine}` : `L${input.startLine}-L${input.endLine}`;
     const prompt =
@@ -850,14 +931,21 @@ export class SessionBridge {
       "```\n" +
       `Instruction: ${input.instruction}` +
       (input.extraContext?.trim() ? `\n\n[extra context from the pair bar]\n${input.extraContext.trim()}` : "");
-    return this.manager.runBackgroundLlmTask({
-      skill: "editor-agent",
-      prompt,
-      profile: "editor", // read-only mechanics + human-facing preamble (specs/editor-agent)
-      root: this.projectRoot,
-      onDelta: input.onDelta,
-      onProgress: input.onIteration,
-    });
+    return this.manager
+      .runBackgroundLlmTask({
+        skill: "editor-agent",
+        prompt,
+        profile: "editor", // read-only mechanics + human-facing preamble (specs/editor-agent)
+        root: this.projectRoot,
+        onDelta: input.onDelta,
+        onProgress: input.onIteration,
+        signal: controller.signal,
+      })
+      .finally(() => {
+        if (this.editorAgentController === controller) {
+          this.editorAgentController = null;
+        }
+      });
   }
 
   // ── MCP ─────────────────────────────────────────────────────────────────────

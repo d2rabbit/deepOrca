@@ -19,7 +19,7 @@ import { z } from "zod/v3";
 import type { ZodRawShape } from "zod/v3";
 import { readFileSync, existsSync } from "node:fs";
 import { extname } from "node:path";
-import { createVisionClient } from "@deeporca/core";
+import { createVisionClient, runStandaloneChatCompletion } from "@deeporca/core";
 
 const SERVER_INFO = { name: "deeporca-vision", version: "0.1.0" };
 
@@ -101,13 +101,20 @@ async function callVisionModel(opts: VisionCallOptions): Promise<string> {
     { type: "text", text: opts.text },
   ];
 
-  const response = await client.chat.completions.create({
-    model,
-    max_tokens: opts.maxTokens ?? 2048,
-    messages: [{ role: "user", content }],
+  // D3: flag-aware dispatch — flag ON routes through the experimental
+  // channel (image parts translate via the shared adapter); OFF keeps the
+  // legacy client call verbatim.
+  const { message } = await runStandaloneChatCompletion({
+    client,
+    projectRoot: opts.projectRoot,
+    request: {
+      model,
+      max_tokens: opts.maxTokens ?? 2048,
+      messages: [{ role: "user", content }],
+    },
   });
 
-  return response.choices[0]?.message?.content ?? "(视觉模型未返回内容)";
+  return (message.content as string | null) ?? "(视觉模型未返回内容)";
 }
 
 // ── Server builder ─────────────────────────────────────────────────────────

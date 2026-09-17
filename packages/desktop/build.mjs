@@ -526,6 +526,10 @@ async function run() {
   // rebuild; committed artifacts (KB-scale, Zlib) keep non-toolchain machines
   // building. No runtime fallback — the clay export path is optional.
   ensureVendored("clay", [".vendored-head"], "no fallback (clay preview unavailable)");
+  // models.dev catalog (specs/model-fleet-adaptation §七 X3): model specs
+  // snapshot for UNKNOWN-family enrichment + picker suggestions + cost
+  // estimates. Fail-open by design — no snapshot, today's behavior.
+  ensureVendored("models-dev", ["api.json"], "no model catalog (fail-open to registry defaults)");
   if (isDev) {
     await cleanRendererChunks();
     const contexts = await Promise.all([

@@ -33,6 +33,9 @@ import {
   configureCrgController,
   configureRoutingModelDir,
   configureRoutingLogger,
+  configureModelCatalog,
+  catalogSuggestModels,
+  buildThinkingRequestOptions,
   configureSpawnTrackedLogger,
   closeEmbeddingService,
   type MemoryProvider,
@@ -60,6 +63,7 @@ import type { ModelConfigSelection, UserPromptContent } from "@deeporca/core";
 import { IpcEvent, IpcRequest } from "../shared/ipc.js";
 import { ensureDembrandtBrowserProvider, getDembrandtCdpEndpoint } from "./tools/dembrandt-browser";
 import { laneRatesReport } from "./tools/lane-rates-ipc";
+import { extractMemoryFingerprint } from "./tools/memory-fingerprint";
 import { fetchEndpointQuota } from "./endpoint-quota.js";
 import { testEndpoint } from "./endpoint-test.js";
 import type {
@@ -541,6 +545,23 @@ configureRoutingLogger((message, detail) => {
   console.error("[routing]", message, detail ?? "");
 });
 
+// models.dev catalog snapshot (specs/model-fleet-adaptation §七 X3): vendored
+// by scripts/vendor-models-dev.js into vendor/models-dev. Host-injected for
+// the same vendor-path reason as the routing model above. Fail-open by
+// design — a missing snapshot degrades to registry defaults (today's
+// behavior), so absence is silent on purpose.
+{
+  const modelsDevPath = join(__dirname, "..", "vendor", "models-dev", "api.json");
+  if (existsSync(modelsDevPath)) {
+    try {
+      configureModelCatalog(readFileSync(modelsDevPath, "utf8"));
+    } catch (error) {
+      console.error("[models-dev] catalog snapshot unreadable — failing open:", error);
+      configureModelCatalog(null);
+    }
+  }
+}
+
 // Keep the vendored CodeGraph/OpenWiki checkouts fresh: in dev (unpackaged),
 // kick off the vendor scripts in the background at boot so they fetch upstream
 // and recompile when new commits landed — the next launch picks up the update.
@@ -768,6 +789,9 @@ function createWindow(): void {
 // These run on app startup, settings save, project switch, and shutdown — not
 // just from IPC handlers — so they live at module scope.
 
+/** Fingerprint of the settings the RUNNING manager was built from. */
+let memoryRuntimeFingerprint: string | null = null;
+
 async function startMemory(): Promise<{ ok: boolean; error?: string }> {
   if (memoryManager?.isAvailable()) return { ok: true };
   if (memoryStarting) return { ok: true };
@@ -789,11 +813,28 @@ async function startMemory(): Promise<{ ok: boolean; error?: string }> {
     // for every project — a cross-project data-leak vector.
     const dataDir = join(getUserConfigRoot(), "memory", getProjectCode(getBridge().projectRoot));
     const mgr = new MemoryManager({
-      baseUrl: settings.baseURL,
-      apiKey: settings.apiKey,
+      // Secondary-endpoint credentials (§7 review fix): the extraction model
+      // is settings.secondaryModel, so it must be paired with THAT endpoint's
+      // baseURL/apiKey — resolved settings already implement "secondary
+      // endpoint first, else the primary" (secondaryEndpointId falls back to
+      // primaryEndpointId). The old code paired the secondary MODEL with the
+      // PRIMARY endpoint's credentials — guaranteed 404s on split-endpoint
+      // setups, silently degrading recall to stale memories.
+      baseUrl: settings.secondaryBaseURL,
+      apiKey: settings.secondaryApiKey ?? settings.apiKey,
       // 继承主模型 (2026-08-30): empty secondary = the primary model, never a
       // hardcoded fallback.
       model: settings.secondaryModel || settings.model,
+      // Family-correct thinking envelope (§7 review fix): extraction matches
+      // the engine's auxiliary-call semantics (core aux calls suppress
+      // thinking) so a thinking-default-ON secondary does not burn the
+      // output budget on reasoning tokens the adapter never reads.
+      requestExtras: buildThinkingRequestOptions(
+        false,
+        settings.secondaryBaseURL,
+        "max",
+        settings.secondaryModel || settings.model
+      ),
       dataDir,
       workspaceDir: getBridge().projectRoot,
       // Embedding provider: "local-onnx" enables Granite vector recall (hybrid
@@ -809,6 +850,7 @@ async function startMemory(): Promise<{ ok: boolean; error?: string }> {
     });
     await mgr.init();
     memoryManager = mgr;
+    memoryRuntimeFingerprint = extractMemoryFingerprint(settings, getBridge().projectRoot);
     getBridge().setMemoryProvider(mgr as unknown as MemoryProvider);
     return { ok: true };
   } catch (err) {
@@ -823,6 +865,7 @@ async function stopMemory(): Promise<void> {
     await memoryManager.destroy();
     memoryManager = null;
   }
+  memoryRuntimeFingerprint = null;
   getBridge().setMemoryProvider(null);
 }
 
@@ -836,16 +879,24 @@ async function stopMemory(): Promise<void> {
  * Also handles project switches: startMemory() derives a project-scoped
  * dataDir, so when the project root changes the caller stops the old manager
  * first (see SetProjectRoot) and reconcile starts a fresh one.
+ *
+ * Hot reload (specs/model-fleet-adaptation D1): while enabled, a config
+ * fingerprint mismatch (secondary endpoint/model/key, thinking envelope,
+ * embedding, retention, cadence) rebuilds the manager — the old snapshot
+ * used to keep serving until an app restart.
  */
 async function reconcileMemory(): Promise<{ ok: boolean; error?: string }> {
   const settings = resolveCurrentSettings(getBridge().projectRoot);
   const wantEnabled = !!settings.memory?.enabled;
   const isRunning = !!memoryManager?.isAvailable();
   if (wantEnabled === isRunning) {
-    // Already in the desired state. But still (re)bind the provider on the
-    // current SessionManager — reload()/setProjectRoot() recreate the manager
-    // and lose the provider binding even when the manager object is unchanged.
     if (wantEnabled && memoryManager) {
+      // Enabled and running — rebuild only when the config actually changed.
+      const fingerprint = extractMemoryFingerprint(settings, getBridge().projectRoot);
+      if (fingerprint !== memoryRuntimeFingerprint) {
+        await stopMemory();
+        return startMemory();
+      }
       getBridge().setMemoryProvider(memoryManager as unknown as MemoryProvider);
     }
     return { ok: true };
@@ -1860,6 +1911,16 @@ function registerTaskTreeIpc({ handle, handlePrivileged }: IpcHelpers): void {
     const indexPath = projectSessionsIndexPath(getUserConfigRoot(), pinned);
     migrateLegacyUsageIntoLedger(indexPath);
     return buildModelDetail(indexPath, typeof days === "number" && days > 0 ? Math.min(14, Math.floor(days)) : 7);
+  });
+  // models.dev catalog suggestions (§七 X3.3): main-side catalog state (wired
+  // at boot), no workspace data involved — plain input validation, fail-open.
+  handle(IpcRequest.ModelsCatalogSuggest, (baseURL?: string, limit?: number) => {
+    const capped = typeof limit === "number" && limit > 0 ? Math.min(50, Math.floor(limit)) : 20;
+    return catalogSuggestModels(typeof baseURL === "string" ? baseURL : "", capped).map((entry) => ({
+      id: entry.id,
+      reasoning: entry.reasoning,
+      multimodal: entry.multimodal,
+    }));
   });
   handle(IpcRequest.TaskTreeGet, async (treeId: string, workspaceRoot?: string) => {
     if (!validTreeId(treeId)) return null;

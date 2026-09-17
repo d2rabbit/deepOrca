@@ -32,9 +32,11 @@
     "test": "node src/tests/run-tests.mjs"
   },
   "dependencies": {
+    "@ai-sdk/openai-compatible": "3.0.51",
     "@deeporca/embedding": "file:../embedding",
     "@modelcontextprotocol/sdk": "^1.22.0",
     "@tlibnx/tokenizer-deepseek_v4": "4.0.0",
+    "ai": "7.0.105",
     "chalk": "^5.6.2",
     "ejs": "^5.0.2",
     "gray-matter": "^4.0.3",

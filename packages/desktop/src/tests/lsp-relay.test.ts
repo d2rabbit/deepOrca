@@ -6,7 +6,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 type Relay = typeof import("../main/tools/lsp-relay");
 let relay: Relay | undefined;
@@ -49,12 +50,11 @@ test("relayPathToUri / relayPathWithinRoot pin the root", () => {
   assert.equal(r.relayPathToUri("C:/a/b.ts"), "file:///C:/a/b.ts");
   assert.equal(r.relayPathToUri("\\\\srv\\share\\x.ts"), "file://srv/share/x.ts");
   assert.equal(r.relayPathToUri("/a/b c.ts"), "file:///a/b%20c.ts");
-  // Adaptive fixture (repo cross-platform policy): the old hardcoded macOS
-  // `/Volumes/...` root can never realpath on Windows, so containedResolved
-  // deterministically returned null there. The containment logic under test
-  // is identical against any EXISTING root — use the repo checkout on
-  // Windows, keep the original POSIX root elsewhere.
-  const root = process.platform === "win32" ? process.cwd() : "/Volumes/data/dev/coding/deepcodeUI/deepcode-cli";
+  // Adaptive fixture (repo cross-platform policy): containment is identical
+  // against any EXISTING root — derive THIS checkout's repo root from the
+  // test file location so the fixture works on every host (the previous
+  // hardcoded sibling-repo path only existed on one dev machine).
+  const root = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
   assert.ok(r.relayPathWithinRoot(root, `${root}/packages/desktop/src/main/index.ts`));
   assert.equal(r.relayPathWithinRoot(root, "/etc/passwd"), null);
   assert.equal(r.relayPathWithinRoot(root, "relative/path.ts"), null);

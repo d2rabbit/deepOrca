@@ -1,8 +1,10 @@
 # 模型舰队收官适配 — GLM5 / Kimi-K3 / MiniMax-M3 / Qwen-3.8（model-fleet-adaptation）
 
 > **日期**：2026-08-21 立稿（未实施）；同日路线定稿；**同日深化：§二 抽象设计详案落盘（基于现状代码逐点调研，本稿为实施基准）**，并补 [requirements.md](./requirements.md)。**同日实施 G0 通用改造 + S0 DeepSeek 基线登记**（命令行门禁全绿，留痕见 [tasks.md](./tasks.md)；真机 e2e 待桌面环境）。
+> **2026-09-17 吸收合并 + 移区**：独立立项的 [ai-sdk-experimental-adapter](./ai-sdk-experimental-adapter/design.md)（实验性 AI SDK 传输线，同日用户拍板三项：① 保留 DeepSeek 专属优化 ② 引入实验性 SDK 适配 ③ 持久化转译不迁移）并入本 spec 为 **§七 / X 系列任务**（requirements 增 R9–R12），工件保留于 `./ai-sdk-experimental-adapter/`；本 spec 同日自 `next-version/` 规划区 **git mv 至活跃区**（转入当前版本实施序列）。上游调研（含 `@ai-sdk/openai-compatible` dist 源码级契约实证）：[models.dev × AI SDK prestudy](../../docs/research/2026-09-17-models-dev-ai-sdk-prestudy.md)。
+> **2026-09-17 二次拍板（范围重构）**：**除已适配的 deepseek 与 stepfun 外，S1–S4（GLM5 / Kimi-K3 / MiniMax-M3 / Qwen-3.8）原生登记路线取消，全部转入 X 系列承接（X4）；后续所有新模型一律依托 X 线接入**（models.dev 数据增强 + 实验通道验证清单）。注册表原生登记仅保留 deepseek/stepfun 两家族与「实证语义缺口」例外（须拍板）；X 线定位由实验性旁挂升级为**新模型接入的正式路径**——其中传输通道本身仍保持实验性默认关（拍板②不变），数据轨 X3 与接入 SOP X4 为正式机制。
 > **定位**：版本**收官计划**——harness 从 DeepSeek 单系列走向多模型系列深度适配。
-> **最终系列名单（用户拍板 2026-08-21）**：**DeepSeek V4 系列（含当日新发布的 "version" 新 variant，确切 model 串实施时核对）**、**GLM 5 系列**、**Kimi 2.5 → K3 系列（全区间型号）** = P0；**MiniMax M3**、**Qwen 3.8** = P1。
+> **最终系列名单（用户拍板 2026-08-21）**：**DeepSeek V4 系列（含当日新发布的 "version" 新 variant，确切 model 串实施时核对）**、**GLM 5 系列**、**Kimi 2.5 → K3 系列（全区间型号）** = P0；**MiniMax M3**、**Qwen 3.8** = P1。**（2026-09-17 修订：后四系列不再原生登记，转 X4 经 X 线接入；优先级序保留在 X4 内——GLM/Kimi 先、MiniMax/Qwen 后。）**
 > **协议范围**：**仅 OpenAI chat-completions 兼容格式**。Claude（Anthropic）消息格式与各家"新 reasoning 模式"（非 OpenAI-chat 形态的推理协议）**待定，不在本收官范围**（Backlog，见 §六）。
 > **路线决策**：双后端方案（外部 agent 如 pi/San 承接非 DeepSeek 会话）**已否决**（2026-08-21）——主循环换后端 = 放弃权限/记忆/技能路由/计划模式全部差异化机制，且 UI 协议桥的工作量大于 G0 原生适配；外部 agent 逃生舱 action 亦不做。**按 G0 原生路线执行。**
 > **原则**：本 spec 落在**真实适配面**上；各系列的具体 API 参数（思考开关参数名、上下文窗口、reasoning 字段名、工具调用格式差异）**实施时按厂商当日文档核填**，spec 只列"待核填点"，不臆造。
@@ -222,32 +224,33 @@ converter 的 `convertMessage(message, thinkingEnabled, model)` **本就持有 m
 ### S0 DeepSeek V4 基线复核（P0）✅ 2026-08-21 已实施
 家族登记**三模型**（官方 pricing 页核对）：`deepseek-v4-flash` / `deepseek-v4-pro` / `deepseek-v4-flash-vision-exp`（图像理解实验版，**多模态**、思考默认开、1M 窗口——压缩阈值维持产品 512K 既有值）；`deepseek-chat`/`deepseek-reasoner` 已停用但保留 override 兼容存量设置。跨端点激活（flash 与 pro 分布于 opencode-zen / opencode-go 等不同端点）见 §2.3 环①'。
 
-### S1 GLM 5 系列（P0）
-### S2 Kimi 2.5 → K3 系列（P0，全区间：2.5 / 3 / K3 型号一并登记）
-### S3 MiniMax M3 系列（P1）
-### S4 Qwen 3.8 系列（P1）
+### S1–S4 GLM5 / Kimi-K3 / MiniMax-M3 / Qwen-3.8 —— 已转 X4（2026-09-17 二次拍板）
 
-（五系列共用上述清单，差异只在核填结果；实施时每系列在 tasks.md 勾选留痕。）
+四系列**不再走注册表原生登记**（原 S1–S4 取消），转入 **X4「新系列经 X 线接入」**（§七）。上表验证清单保留为 X4 逐系列核对表，但「注册表登记 + 思考开关 builder 条目」两项替换为：**models.dev 目录覆盖核对**（型号串 / 窗口 / 输出上限 / 多模态 / 工具调用 / 价格 / reasoning `interleaved` 字段）+ **X 通道真机验证**；reasoning 解析依赖 UNKNOWN 默认（`reasoning_content ?? reasoning` 双字段，openai-compatible 原生同构——调研 §3.3 实证）。仅当发现**实证语义缺口**（厂商契约与 UNKNOWN 默认不兼容，如 deepseek 式 replay 强制）才提请拍板补注册表条目（escape hatch）。
 
 ## 四、实施顺序与工作量
 
 | 阶段 | 内容 | 估时 |
 |---|---|---|
-| G0 通用改造 | §2.1–2.8 + 测试三层（解析矩阵/golden/门面等价）+ DeepSeek 全量回归（**零行为变化是硬门**） | 2-2.5 天 |
-| P0 双系列 | S1 GLM5 + S2 Kimi K3（登记+核填+真机 e2e 各一轮） | 1-1.5 天 |
-| P1 双系列 | S3 MiniMax M3 + S4 Qwen 3.8 | 1 天 |
-| 收官核对 | 全系列回归 + 门禁 + 文档（README 模型支持表/CHANGELOG） | 0.5 天 |
+| G0 通用改造 | §2.1–2.8 + 测试三层（解析矩阵/golden/门面等价）+ DeepSeek 全量回归（**零行为变化是硬门**） | 2-2.5 天 ✅ 已落地 |
+| ~~P0/P1 双系列~~ | ~~S1–S4 原生登记~~ **已取消（2026-09-17 转 X4）** | — |
+| X0–X2 实验传输线 | §七（port 类型 + 转译层 + 传输层 + 电池 B1–B7） | 4–5 天 + 真机半天 |
+| X3 数据轨 | §七 models.dev 三消费点（vendor + catalog + 建议源/费用估算）；二次拍板后升为 **X4 前置**，原则上不再否决 | 2–3 天 |
+| X4 新系列接入 | §七 X4：GLM5 / Kimi-K3（先）+ MiniMax-M3 / Qwen-3.8（后）逐系列 X 线验证（X3 为前置） | 1.5–2.5 天 |
+| 收官核对 | X4 各系列回归 + 门禁 + 文档（README 模型支持表/CHANGELOG） | 0.5 天 |
 
-合计 **4.5-5.5 天**（较立稿 +0.5 天：渲染层单一事实源 G6 与回退链单测纳入）。
+G 线剩余（G2c/G5 收窄项 + G8.b 真机回归 + 收官核对）≈ 1–1.5 天；**X 线合计 8–10.5 天**（传输线 + 数据轨 + X4，含真机）。S1–S4 原生登记取消后，新模型接入成本从「每家族一条注册表条目 + builder 核填」降为「X4 验证清单一轮」。
 
 ## 五、验收
 
-对齐 [requirements.md](./requirements.md) R1–R8：
+对齐 [requirements.md](./requirements.md) R1–R13：
 
 - 任一系列端点配置后：主循环、思考模式、工具调用、compaction、技能匹配、记忆四链路全部正常，**后台任务不再出现跨厂商硬编码调用**（R3）。
 - DeepSeek 现有行为回归零变化：golden + 门面等价 + 现有 session 测试全绿（R4）。
 - 未知模型 fail-open 行为与今天逐项一致（R2）。
 - 渲染层无复制模型集合，能力标记随注册表自动生效（R7）。
+- 实验传输线：未开启时行为与现通道逐字节一致（R9）；开启时持久化形状不变（R10）、语义唯一来源既有模块（R11）；数据轨任何缺失/损坏回退现状且不进语义层（R12）。
+- 新模型接入：非原生登记家族（GLM / Kimi / MiniMax / Qwen 及未来全部新厂商）一律经 X4 SOP 接入（目录核对 + 通道验证），注册表原生条目仅 deepseek/stepfun 与实证拍板的语义缺口例外（R13）。
 - `npm run check && npm test` 全绿；每系列留真机 e2e 记录（tasks.md 勾选）。
 
 ## 六、不做（Non-goals）
@@ -256,4 +259,29 @@ converter 的 `convertMessage(message, thinkingEnabled, model)` **本就持有 m
 - **双后端 / 外部 agent 承接**——已否决（2026-08-21，理由见头部路线决策），留档不排期。
 - 不做厂商专有增值特性（如各家的 context caching API 显式管理、batch 接口）——只做 harness 兼容适配。
 - 不做模型自动选择/智能路由（家族解析只服务能力查询，不改变用户显式选型）。
-- 不改嵌入（本地 Granite，与厂商无关）；不引入厂商 SDK（保持裸 OpenAI 兼容 client）。
+- 不改嵌入（本地 Granite，与厂商无关）；不引入 per-厂商官方 SDK。~~不引入厂商 SDK（保持裸 OpenAI 兼容 client）~~ **2026-09-17 修订**：Vercel AI SDK（`ai` + `@ai-sdk/openai-compatible`，非厂商绑定的统一传输层）作为**实验性第二传输通道**例外引入（§七，exact-pin、默认关、只动传输层）——语义层（注册表/协议分派/本地计量）仍 100% 自有。
+- 实验传输线的**全量切换**（退役 openai 通道）不在本 spec 首期——触发前提见 §七 C 段。
+
+## 七、实验性 AI SDK 传输线（2026-09-17 吸收合并，X 系列任务）
+
+> 完整设计、红线论据与电池细则见工件 [./ai-sdk-experimental-adapter/design.md](./ai-sdk-experimental-adapter/design.md)；本节为**实施基准摘要**。
+> **实施状态（2026-09-17）**：X0–X3 代码面**全量落地**（`common/llm-transport.ts` port 类型、`common/model-message-adapter.ts` 转译层、`common/ai-sdk-transport.ts` 合成通道、settings 开关 + IPC + 面板 + i18n×6、`common/model-catalog.ts` + vendor 脚本实拉 220 providers/7842 models + 三消费点）；电池 B1–B3/B5/B6 fixture 全绿（含 off/on 分流端到端断言与 mutation-check），B4/B7 真机清单与 X4 接入 SOP 成文（[x-battery-manual.md](./x-battery-manual.md) / [x4-onboarding-sop.md](./x4-onboarding-sop.md)），真机执行待排期。门禁全绿（typecheck/lint/format/license/test core 1010 例/desktop:build）。
+
+**三项拍板（2026-09-17，用户）**：① 保留 DeepSeek 专属优化与适配（SDK 路径不得绕开）；② 引入实验性 SDK 适配能力（默认关）；③ 持久化走边界转译、不迁移存储。
+
+**五红线**：L1 家族语义权威性（本地计量 / reasoning 回放 / thinking 信封 / dirge 兜捞 / 多模态门控 / turn-tail 前缀纪律全部留在既有模块，通道**只消费、不复制、不旁路、不弱化**）；L2 持久化形状不变（`messageParams` 继续 OpenAI wire 形状，存量会话/索引/ledger 零改动）；L3 默认关闭（关态行为逐字节一致）；L4 `ai` + `@ai-sdk/openai-compatible` **exact-pin**（不引 `@ai-sdk/deepseek`）；L5 core UI-free / vendor 注入红线照旧。
+
+**架构**（咽喉点 `createChatCompletionStream` 入口分流 ~10 行；off = 现通道零改动）：
+
+- **port 类型** `common/llm-transport.ts`（type-only）——机制抽象落位，与 §2.0 注册表（语义抽象）分界：**注册表"指名"、port "定形"、通道"做事"**。不进 capabilities 子路径，不被注册表 import；两通道同 port 签名（`satisfies` 断言）。
+- **转译层** `common/model-message-adapter.ts`（纯函数）：OpenAI ↔ ModelMessage 双向。出向 assistant `reasoning_content` → reasoning part 是**回放链第一跳**（openai-compatible 转换器 dist 实证：有则携带 `reasoning_content`、无则省键——与 deepseek 家族 `reasoningReplay: "content"` 契约一致，见 §2.5）；turn-tail 在转换前对 OpenAI 形状执行（前缀字节稳定性不受转换器实现影响）。
+- **传输层** `common/ai-sdk-transport.ts`：`createOpenAICompatible`（undici Agent 经 `fetch` 注入 / `includeUsage` / metadataExtractor 骨架，`apiKey::baseURL` 工厂缓存）+ `streamText` fullStream 归约（语义对齐 `session-manager-base.ts:915-1304`：content/reasoning/refusal/工具缝合/最终消息重组/`onDelta` 透传）。thinking 信封经 providerOptions 透传（`extra_body` 嵌套保真是电池 B4 实测项，失真退路 `transformRequestBody`）；**本地计量继续对转换前 OpenAI 形状计数**（`countRequestPayloadTokens` 零改动——转译不迁移的直接红利）。
+- **开关**：`settings.experimentalSdkTransport` 默认 false（env → project → user；项目文件开启项检疫忽略）；设置面板「实验」分区 + i18n ×6。
+- **数据轨（X3，X4 前置）**：models.dev（MIT，220 provider/7843 模型）vendor `api.json` + `common/model-catalog.ts`（host 注入、零依赖、fail-open）三消费点——未登记模型 fail-open 增强 / 设置面板建议源与规格预填 / 费用估算乘数（本地 token 计数唯一统计源政策不变）。**目录数据不进家族语义层**（与 §2.1 手工核填原则对齐）。二次拍板后 X3 为 X4 的前置（原则上不再否决，仅技术证伪可砍——砍则 X4 回退手工清单核对）。
+- **X4 新系列经 X 线接入（承接原 S1–S4，2026-09-17 二次拍板）**：GLM5 / Kimi-K3（先）、MiniMax-M3 / Qwen-3.8（后）及**后续全部新模型**的正式接入路径——① models.dev 目录覆盖核对（型号串/窗口/输出上限/多模态/工具调用/价格/reasoning `interleaved`）；② X 通道真机验证清单（§三 表保留：工具调用/缓存对齐/错误样本/e2e 四链路）；③ 能力默认经 UNKNOWN + catalog 数据增强（X3.2），reasoning 依赖双字段默认，effort 走 UNKNOWN 恒等透传；④ **escape hatch**：仅实证语义缺口（厂商契约与 UNKNOWN 默认不兼容）才提请拍板加注册表条目。X4 使 X 线从实验性旁挂升级为**新模型接入的正式路径**（传输通道本身仍默认关，拍板②不变）。
+
+**电池 B1–B7（出口判据）**：B1 转译往返黄金（回放存在/省略边界、工具轮中断补写、图片门控、turn-tail）；B2 双通道归约对拍（同 fixture）；B3 前缀请求体字节快照（锁 SDK 版本）；B4 DeepSeek 非标字段真流（`prompt_cache_hit_tokens` 捕获 + `extra_body` 透传保真）；B5 错误分派全家桶（`classifyLlmError` 不退化）；B6 看门狗 × 背压组合；B7 性能对账（TTFO/吞吐/内存）。**B1–B6 全绿 → 允许灰度（默认仍关）；任一证伪且无退路 → 关闭实验线**（回滚 = 关开关，现通道零改动）。
+
+**C 段（不在首期）**：全量切换 / 退役 openai 通道——触发前提 = 电池全绿 + 一个版本灰度数据 + **不弱化任何 DeepSeek/家族语义**（拍板①）；届时另立决策。`ModelSpec` 增加传输偏好字段（models.dev `npm` 字段的数据版思路）同为 C 段后演进，不提前固化实验状态进语义层。
+
+**D1–D3 遗留集成修复（2026-09-17，集成探查后批准实施，方案见 [x-integration-followup-design.md](./x-integration-followup-design.md)）**：记忆配置指纹热重载（reconcile 对比重建）；编辑器数字体单飞行取消（EditorAgentCancel IPC 全链）；vision/edit-handler 纳入实验 flag（core 级 `runStandaloneChatCompletion` 非流式辅助，flag 语义升级为全部 LLM 流量）；同批修复 StepFun `reasoning_effort` 重映射（provider camelCase option）与记忆层 secondary 端点凭证配对 + thinking 信封（`requestExtras`）。全部门禁全绿。

@@ -620,6 +620,7 @@ export const zhHK: Record<MessageKey, string> = {
   "settings.thinkingMode": "思考模式",
   "settings.reasoningEffort": "推理強度",
   "settings.debugLog": "偵錯記錄",
+  "settings.experimentalSdkTransport": "實驗性 AI SDK 傳輸",
   "settings.defaultMode": "預設模式",
   "settings.allowAll": "全部允許（僅必要時詢問）",
   "settings.askAll": "全部詢問",

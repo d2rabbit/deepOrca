@@ -89,6 +89,17 @@ export interface DeepOrcaMemoryConfig {
   model: string;
   /** Max output tokens (default: 4096). */
   maxTokens?: number;
+  /**
+   * Extra top-level keys merged into every /chat/completions body. The host
+   * (desktop main) computes the family-correct thinking envelope here — e.g.
+   * `{ thinking: { type: "disabled" } }` — so extraction calls match the
+   * engine's auxiliary-call semantics: a thinking-default-ON secondary model
+   * must not burn the output budget on reasoning tokens (the response's
+   * reasoning content is ignored by this adapter; only `content` is read).
+   * Kept as a bag instead of typed fields so the memory package stays
+   * dependency-free (no core import).
+   */
+  requestExtras?: Record<string, unknown>;
   /** Request timeout in ms (default: 120000). */
   timeoutMs?: number;
   /** Data directory for TDAI storage (L0/L1/scene data). */
@@ -260,6 +271,9 @@ class DeepOrcaLLMRunner implements LLMRunner {
         messages,
         max_tokens: params.maxTokens ?? this.config.maxTokens ?? 4096,
         temperature: 0.1,
+        // Family-correct thinking envelope computed by the host (suppresses
+        // reasoning burn on thinking-default-ON secondaries).
+        ...(this.config.requestExtras ?? {}),
         // Omit the field entirely when disabled — some OpenAI-compatible
         // backends emit spurious tool calls on pure-text tasks otherwise.
         ...(tools ? { tools } : {}),
