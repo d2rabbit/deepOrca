@@ -35,8 +35,37 @@ export interface ArchifyPaths {
  */
 export type ArchRenderer = (root: string) => Promise<number>;
 
+/**
+ * Visual-readback verdict for ONE delivered artifact (specs/
+ * arch-visual-readback — fireworks "evaluate, don't assert" absorption).
+ * Per-gate status is "pass" | "fail" | "skipped"; skipped is ALWAYS honest
+ * (layout-json unsupported type, Chrome unavailable, vision unconfigured…)
+ * and never masquerades as a pass.
+ */
+export interface ArchVisualVerdict {
+  /** Artifact file name (e.g. "arch-checkout.architecture"). */
+  readonly artifact: string;
+  readonly status: "pass" | "fail" | "skipped";
+  readonly gates: {
+    /** 门① layout contract (deterministic, architecture-only). */
+    readonly layout: "pass" | "fail" | "skipped";
+    /** 门② containment (upstream visual-check harness). */
+    readonly containment: "pass" | "fail" | "skipped";
+    /** 门③ perceptual vision readback (four-question contract). */
+    readonly vision: "pass" | "fail" | "skipped";
+  };
+  /** Failure evidence lines (empty when clean). */
+  readonly findings: readonly string[];
+  /** Contact-sheet path for human review, when the harness produced one. */
+  readonly contactSheet?: string;
+}
+
+/** Host-injected visual verification over a root's DELIVERED artifacts. */
+export type ArchVisualVerifier = (root: string) => Promise<readonly ArchVisualVerdict[]>;
+
 let paths: ArchifyPaths | null = null;
 let renderer: ArchRenderer | null = null;
+let visualVerifier: ArchVisualVerifier | null = null;
 /** Reader-facing language for generated maps (BCP-47), host-synced from the
  *  app locale at boot and on change (same source as wiki's --language). */
 let language: string | undefined;
@@ -63,4 +92,12 @@ export function configureArchRenderer(r: ArchRenderer | null): void {
 
 export function getArchRenderer(): ArchRenderer | null {
   return renderer;
+}
+
+export function configureArchVisualVerifier(v: ArchVisualVerifier | null): void {
+  visualVerifier = v;
+}
+
+export function getArchVisualVerifier(): ArchVisualVerifier | null {
+  return visualVerifier;
 }

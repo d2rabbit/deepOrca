@@ -193,6 +193,34 @@ still be mediocre, and the root of mediocre is almost always thin semantics.
 - **Sparse brand marks**: `brand` only on recognizable products, roughly a
   third of components at most — everywhere is nowhere.
 
+## Semantic arrow vocabulary (connection.variant — meaning, not decoration)
+
+The renderer draws every connection the SAME way unless `variant` says
+otherwise — so variant IS the arrow's semantics. Pick by what the edge MEANS:
+
+| variant  | use when the edge means…                                   | label verb suggestions      |
+| -------- | ----------------------------------------------------------- | ---------------------------- |
+| default  | a plain request/response or data reference (the non-case)  | calls / reads / references   |
+| emphasis | the CRITICAL path — the one line a reader must not miss     | primary flow / main path     |
+| security | crossing a trust boundary (pair with a security boundary)   | authenticates / authorizes   |
+| dashed   | async, eventual, or optional interaction                    | emits / notifies / may call  |
+
+A diagram whose every edge is `emphasis` has no emphasis: reserve it for one
+or two backbone paths. Label verbs carry the direction semantics the line
+art cannot (write vs read vs subscribe) — "uses" says nothing; "reads" does.
+
+## Visual-readback revision runs
+
+After the host delivers your maps, it may run a THREE-gate visual audit
+(layout geometry → containment screenshots → vision readback) and send you a
+REVISION run listing machine-verified defects (overlapping boxes, clipped
+labels, out-of-canvas nodes). Fix ONLY the named defects in the named IR
+files: adjust positions/sizes (`pos`, grid placement) so geometry checks
+pass, shorten or reposition labels so they stop clipping. Do NOT rewrite
+whole artifacts, do NOT rescan the repository — targeted edits, then let the
+host re-deliver and re-audit. Unresolved defects after two rounds surface
+honestly to the user; a clean first pass needs no revision at all.
+
 ## Hard rules
 
 - **Mutate files ONLY with the `write` tool.** NEVER create, modify, or delete

@@ -518,12 +518,16 @@ export {
   getArchifyPaths,
   configureArchRenderer,
   getArchRenderer,
+  configureArchVisualVerifier,
+  getArchVisualVerifier,
   configureArchifyLanguage,
   getArchifyLanguage,
 } from "./actions";
 export type {
   ArchifyPaths,
   ArchRenderer,
+  ArchVisualVerifier,
+  ArchVisualVerdict,
   RegistryHost,
   ExecuteOptions,
   RunHandle,

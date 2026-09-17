@@ -14,6 +14,7 @@ import { existsSync, readdirSync, statSync, readFileSync, lstatSync } from "node
 import { dirname, join, basename } from "node:path";
 import { IpcRequest, type KnowledgeStatusResponse, type KnowledgeSourceStatus } from "../shared/ipc.js";
 import { listWorkspaceSessions } from "./workspace-registry.js";
+import { verifyArchArtifacts } from "./tools/arch-visual-verify.js";
 import type { SessionBridge } from "./session-bridge.js";
 import { safeArchmapPath } from "./safe-path.js";
 import { WIKI_STORE_DIR } from "./tools/wiki-staging.js";
@@ -27,7 +28,12 @@ import {
   refreshViewerPatches,
   type ArchifyType,
 } from "./tools/archify-cli.js";
-import { configureArchifyPaths, configureArchRenderer, type ArchifyPaths } from "@deeporca/core";
+import {
+  configureArchifyPaths,
+  configureArchRenderer,
+  configureArchVisualVerifier,
+  type ArchifyPaths,
+} from "@deeporca/core";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -84,6 +90,10 @@ const archifyCli = new ArchifyCli({
 // branch unreachable; a missing vendor must degrade, not hard-fail the stage.
 if (existsSync(archifyBin)) {
   configureArchRenderer(async (root: string) => archifyCli.deliverAllPending(root));
+  // Visual-readback verifier (specs/arch-visual-readback 门①②③): layered
+  // layout-contract → containment → vision checks over DELIVERED artifacts,
+  // consumed by arch-scan.run's bounded revision loop.
+  configureArchVisualVerifier((root: string) => verifyArchArtifacts(root));
 }
 
 /**

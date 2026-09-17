@@ -93,10 +93,12 @@ export {
   getArchifyPaths,
   configureArchRenderer,
   getArchRenderer,
+  configureArchVisualVerifier,
+  getArchVisualVerifier,
   configureArchifyLanguage,
   getArchifyLanguage,
 } from "./archify-controller";
-export type { ArchifyPaths, ArchRenderer } from "./archify-controller";
+export type { ArchifyPaths, ArchRenderer, ArchVisualVerifier, ArchVisualVerdict } from "./archify-controller";
 export {
   browserSessionStartDefinition,
   browserSessionStartRun,
@@ -186,6 +188,10 @@ export type {
   DesignLintResult,
 } from "./design-audit";
 export { memoryAuditDefinition, memoryAuditRun } from "./memory-audit";
+export { mineRepairsDefinition, mineRepairsRun } from "./repair-rules";
+export type { MineRepairsInput, MineRepairsOutput, RepairPair, RepairRuleProposal } from "./repair-rules";
+export { diffSequences, editPathHasSignal, extractToolSequence } from "./repair-diff";
+export type { EditPath, ToolCallUnit } from "./repair-diff";
 export { memoryDistillDefinition, memoryDistillRun } from "./memory-distill";
 export type {
   MemoryDistillInput,

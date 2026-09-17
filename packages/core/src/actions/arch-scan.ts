@@ -17,7 +17,8 @@
 
 import type { ActionDefinition, ActionRun } from "./types";
 import type { BackendStatus } from "../common/analysis-status";
-import { getArchRenderer, getArchifyPaths } from "./archify-controller";
+import { getArchRenderer, getArchifyPaths, getArchVisualVerifier } from "./archify-controller";
+import type { ArchVisualVerdict } from "./archify-controller";
 
 export interface ArchScanInput {
   /** Optional focus perspective (e.g. "data-flow", "dependency-map"). Omit = all. */
@@ -35,12 +36,20 @@ export interface ArchScanInput {
 export interface ArchScanOutput {
   readonly ok: boolean;
   /** Per-call degradation state — "unavailable" while the Subagent runtime is
-   * missing OR the vendored archify toolkit is not installed (distinct
-   * remedies; see reason). */
+   *  missing OR the vendored archify toolkit is not installed (distinct
+   *  remedies; see reason). */
   readonly status?: BackendStatus;
   readonly pending?: boolean;
   readonly reason?: string;
   readonly result?: unknown;
+  /**
+   * Visual-readback verdicts (specs/arch-visual-readback): present when the
+   * host injected the visual verifier. The bounded revision loop re-runs the
+   * task (≤2 rounds) with the failure findings; `visualRounds` reports how
+   * many ran. Skipped gates are always honest, never a pass.
+   */
+  readonly visualVerdicts?: readonly ArchVisualVerdict[];
+  readonly visualRounds?: number;
 }
 
 export const archScanRunDefinition: ActionDefinition<ArchScanInput> = {
@@ -123,6 +132,53 @@ export const archScanRunRun: ActionRun<ArchScanInput, ArchScanOutput> = async (i
     const delivered = await renderer(ctx.projectRoot);
     ctx.emit({ message: `架构图渲染门禁 — ${delivered} 张已渲染 / render gate — ${delivered} artifact(s)` });
   }
+
+  // ── Visual-readback loop (specs/arch-visual-readback 门①②③) ─────────────
+  // Bounded revision: verify the delivered artifacts, feed machine-verified
+  // findings back into ONE targeted revision run per round (≤2 rounds), then
+  // re-deliver + re-verify. Artifacts stay delivered either way (the deliver
+  // gate already passed = structurally sound); unresolved defects surface
+  // honestly in the verdicts — never silently degraded.
+  const verifier = getArchVisualVerifier();
+  let visualVerdicts: readonly ArchVisualVerdict[] | undefined;
+  let visualRounds = 0;
+  if (verifier && renderer) {
+    for (let round = 0; round < 3; round += 1) {
+      visualVerdicts = await verifier(ctx.projectRoot);
+      visualRounds = round + 1;
+      const failures = (visualVerdicts ?? []).filter((v) => v.status === "fail");
+      if (failures.length === 0 || round === 2) {
+        break;
+      }
+      const findings = failures.map((v) => `[${v.artifact}] ${v.findings.join("; ") || "(no detail)"}`).join("\n");
+      ctx.emit({
+        message:
+          `视觉回读第 ${round + 1} 轮发现缺陷，定向修订 ${failures.length} 张 / ` +
+          `visual readback round ${round + 1}: ${failures.length} artifact(s) failed — revising`,
+        percent: 60,
+      });
+      const reviseInput = { ...taskInput, revise: findings };
+      if (ctx.runBackgroundTask) {
+        await ctx.runBackgroundTask({ skill: "arch-scan", input: reviseInput });
+      } else {
+        await ctx.runSubagent!({ skill: "arch-scan", input: reviseInput });
+      }
+      await renderer(ctx.projectRoot);
+    }
+    const failed = (visualVerdicts ?? []).filter((v) => v.status === "fail").length;
+    const skipped = (visualVerdicts ?? []).filter((v) => v.status === "skipped").length;
+    ctx.emit({
+      message:
+        `视觉回读完成 — ${(visualVerdicts ?? []).length} 张：${failed} 未收敛 / ${skipped} 如实跳过 ` +
+        `（${visualRounds} 轮）/ visual readback: ${(visualVerdicts ?? []).length} artifact(s), ` +
+        `${failed} unresolved, ${skipped} honestly skipped (${visualRounds} round(s))`,
+    });
+  }
   ctx.emit({ message: "arch-scan complete", percent: 100 });
-  return { ok: true, status: "active", result };
+  return {
+    ok: true,
+    status: "active",
+    result,
+    ...(visualVerdicts ? { visualVerdicts, visualRounds } : {}),
+  };
 };

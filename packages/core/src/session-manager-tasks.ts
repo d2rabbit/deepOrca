@@ -135,6 +135,9 @@ export function buildArchScanTaskPrompt(
     focus?: string;
     incremental?: boolean;
     repository?: { url: string; revision: string } | null;
+    /** Visual-readback revision payload (specs/arch-visual-readback 门②③):
+     * machine-verified defect findings for previously delivered artifacts. */
+    revise?: string;
   }
 ): string {
   // Archify toolkit paths come from the host-injected seam (desktop knows
@@ -200,6 +203,18 @@ export function buildArchScanTaskPrompt(
       "rename them, and do not REWRITE a file you are not changing — a partial rewrite",
       "DESTROYS the map (a real run wrote a components-only fragment over a complete",
       "artifact, 2026-08-29). If nothing material changed, write NOTHING and say so."
+    );
+  }
+  if (opts?.revise?.trim()) {
+    lines.push(
+      "",
+      "REVISION run (visual readback loop, specs/arch-visual-readback): the previous",
+      "run's delivered artifacts failed machine-verified visual/geometry checks below.",
+      "Fix ONLY the named defects in the named IR files (geometry: adjust positions/",
+      "sizes so boxes stop overlapping or exceeding the canvas; visual: fix clipped or",
+      "unreadable labels). Do NOT rewrite whole artifacts, do NOT rescan the repo —",
+      "targeted edits to the flagged files only. Findings:",
+      opts.revise.trim()
     );
   }
   lines.push(
@@ -425,6 +440,7 @@ export abstract class SessionManagerTasks extends SessionManagerLifecycle {
             root?: string;
             incremental?: boolean;
             repository?: { url: string; revision: string } | null;
+            revise?: string;
           }
         | undefined;
       // TARGET comes from input.root (threaded by runBackgroundLlmTask from
@@ -437,6 +453,7 @@ export abstract class SessionManagerTasks extends SessionManagerLifecycle {
         focus: typed?.focus,
         incremental: typed?.incremental === true,
         repository: typed?.repository ?? null,
+        revise: typeof typed?.revise === "string" ? typed.revise : undefined,
       });
     }
     return `Execute the ${skill} skill for this project.`;

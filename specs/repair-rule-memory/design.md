@@ -3,6 +3,7 @@
 > **状态**：方案稿（2026-09-17 立稿，本计划周期内实施）。上游调研：[2026-09-17-emg-experience-memory-graph-prestudy.md](../../docs/research/2026-09-17-emg-experience-memory-graph-prestudy.md)（EMG, KDD 2027；拍板：概念级移植，不引代码）。
 > **命题**：把「失败→修复」经验变成可审查、可回写的 agent 行为规则——从任务树 fork 谱系挖掘「父分支废弃 + 子分支同任务修复成功」的配对，**确定性序列 diff** 产出编辑路径，LLM 只做措辞，经 AskUserQuestion 审查后写入项目 AGENTS.md。
 > **规模判断**（拍板依据）：无大规模重构——复用 memory-audit 三段式基础设施与 task-tree 既有存储，新动作一个 + 纯函数 diff 模块一个。
+> **实施状态（2026-09-17）**：P0+P1 代码面落地——`repair-diff.ts`（LCS 编辑路径纯函数，5 例 + mutation-check）、`repair-rules.ts`（`memory.mine-repairs` 动作：确定性配对挖掘/措辞/审查回写三段 + 双语 HTML 报告 + 共享决策存储）、挖掘集成测试 3 例（真 TaskTreeService + 临时 HOME transcript）；门禁全绿。真机一轮（T2.1）待排期。
 
 ---
 

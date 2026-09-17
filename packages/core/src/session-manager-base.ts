@@ -62,6 +62,8 @@ import {
   designAuditRun,
   memoryAuditDefinition,
   memoryAuditRun,
+  mineRepairsDefinition,
+  mineRepairsRun,
   memoryDistillDefinition,
   memoryDistillRun,
   prototypeSpecDefinition,
@@ -472,6 +474,10 @@ export abstract class SessionManagerBase {
     // ── Memory audit P0 (specs/memory-audit): deterministic evidence scan over
     // own session history — read-only, no LLM, gates whether P1 gets built ──
     this.actionRegistry.register(memoryAuditDefinition, memoryAuditRun);
+    // ── Repair-rule mining (specs/repair-rule-memory; EMG concept port): the
+    // failure→repair twin — deterministic fork-lineage pair diff + review-
+    // gated AGENTS.md write-back; shares memory-audit's decision store ─────
+    this.actionRegistry.register(mineRepairsDefinition, mineRepairsRun);
     // ── SOP extraction (specs/sop-extraction): the success-driven twin —
     // distills reusable SOPs from what sessions did; shared review store ────
     this.actionRegistry.register(memoryDistillDefinition, memoryDistillRun);

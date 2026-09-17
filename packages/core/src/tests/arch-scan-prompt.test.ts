@@ -152,3 +152,15 @@ test("detectArchRepositoryHint: github origin normalizes to https hint; anything
     fs.rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   }
 });
+
+test("revise payload rides the prompt as a REVISION run block (visual readback loop)", () => {
+  const root = "/repo";
+  const prompt = buildArchScanTaskPrompt(root, {
+    revise: "[arch-x.architecture] layout component-overlap [a↔b]: boxes intersect by 42px²",
+  });
+  assert.ok(prompt.includes("REVISION run"), "revision block present");
+  assert.ok(prompt.includes("layout component-overlap [a↔b]"), "findings verbatim");
+  assert.ok(prompt.includes("targeted edits to the flagged files only"), "targeted-fix contract");
+  // Without revise, the block is absent (fresh runs unchanged).
+  assert.ok(!buildArchScanTaskPrompt(root).includes("REVISION run"));
+});
