@@ -25,12 +25,21 @@ import { listArchifyArtifacts } from "./archify-cli";
 import { runArchifyLayoutCheck } from "./archify-layout-check";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const ARCHIFY_VENDOR_DIR = join(__dirname, "..", "vendor", "archify");
+// Vendor root resolves for BOTH layouts: bundled main (dist/main.js →
+// ../vendor/archify) and unbundled source runs (src/main/tools →
+// ../../../vendor/archify — tsx/real-machine scripts). First hit wins.
+function resolveArchifyVendorDir(): string {
+  const candidates = [
+    join(__dirname, "..", "vendor", "archify"), // bundled: dist/main.js
+    join(__dirname, "..", "..", "..", "vendor", "archify"), // source: src/main/tools
+  ];
+  return candidates.find((dir) => existsSync(join(dir, "bin", "archify.mjs"))) ?? candidates[0]!;
+}
+const ARCHIFY_VENDOR_DIR = resolveArchifyVendorDir();
 const ARCHIFY_BIN = join(ARCHIFY_VENDOR_DIR, "bin", "archify.mjs");
-const VISUAL_CHECK_BIN = join(ARCHIFY_VENDOR_DIR, "bin", "visual-check.mjs");
 
 /** visual-check harness budget: 8 captures (4 viewports × 2 themes) + page loads. */
-const VISUAL_CHECK_TIMEOUT_MS = 120_000;
+const VISUAL_CHECK_TIMEOUT_MS = 240_000;
 
 type GateStatus = "pass" | "fail" | "skipped";
 
@@ -49,16 +58,20 @@ function receiptPathFor(htmlPath: string): string {
 }
 
 function runContainmentGate(htmlPath: string): { status: GateStatus; findings: string[] } {
-  if (!existsSync(VISUAL_CHECK_BIN)) {
-    return { status: "skipped", findings: ["visual-check.mjs not vendored"] };
+  if (!existsSync(ARCHIFY_BIN)) {
+    return { status: "skipped", findings: ["archify.mjs not vendored"] };
   }
-  const run = spawnSync(process.execPath, [VISUAL_CHECK_BIN, htmlPath], {
+  // The harness is a LIBRARY (visual-check.mjs exports runVisualCheck, no CLI
+  // of its own) — the entry is the archify CLI subcommand, which writes the
+  // receipt/screenshots sidecars next to the artifact and exits 0/1/2
+  // (pass/fail/skipped). Real-machine T2 finding: spawning the library file
+  // directly exits 0 doing nothing — trust ONLY the receipt, never a
+  // no-receipt exit code.
+  const run = spawnSync(process.execPath, [ARCHIFY_BIN, "visual-check", htmlPath], {
     encoding: "utf8",
     timeout: VISUAL_CHECK_TIMEOUT_MS,
     env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" },
   });
-  // Parse the sidecar receipt for the structured truth (exit code alone
-  // conflates fail with harness errors).
   let receipt: VisualCheckReceipt | null = null;
   try {
     receipt = JSON.parse(readFileSync(receiptPathFor(htmlPath), "utf8")) as VisualCheckReceipt;
@@ -68,13 +81,16 @@ function runContainmentGate(htmlPath: string): { status: GateStatus; findings: s
   if (receipt?.error) {
     return { status: "skipped", findings: [receipt.error.slice(0, 200)] };
   }
-  if (run.status === 2 || (!receipt && run.status !== 0)) {
+  if (!receipt) {
     return {
       status: "skipped",
-      findings: [`visual-check skipped/unavailable (exit ${run.status}): ${String(run.stderr ?? "").slice(0, 160)}`],
+      findings: [`visual-check produced no receipt (exit ${run.status}): ${String(run.stderr ?? "").slice(0, 160)}`],
     };
   }
-  const containment = receipt?.containment?.status ?? (run.status === 0 ? "pass" : "fail");
+  if (run.status === 2 || receipt.status === "skipped") {
+    return { status: "skipped", findings: [`visual-check skipped (exit ${run.status})`] };
+  }
+  const containment = receipt.containment?.status ?? "fail";
   if (containment !== "pass") {
     return { status: "fail", findings: [`containment ${containment}: content overflows the viewport`] };
   }
@@ -93,10 +109,13 @@ const VISION_CONTRACT_PROMPT =
   "(contrast/size). true only for clear defects you can point at.";
 
 function parseVisionVerdict(raw: string): { pass: boolean; evidence: string } | null {
-  const match = raw.match(/\{[\s\S]*\}/);
+  // Tolerate markdown fences and prose wrappers around the JSON object
+  // (real-machine T2: deepseek-v4-flash-vision-exp sometimes wraps).
+  const fenced = raw.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
+  const match = fenced ?? raw.match(/\{[\s\S]*\}/);
   if (!match) return null;
   try {
-    const parsed = JSON.parse(match[0]) as Record<string, unknown>;
+    const parsed = JSON.parse(fenced ? fenced[1]! : match[0]) as Record<string, unknown>;
     const flags = ["clipping", "overlap", "label_overflow", "illegible"].map((key) => parsed[key] === true);
     const evidence = typeof parsed.evidence === "string" ? parsed.evidence.slice(0, 200) : "";
     return { pass: flags.every((f) => !f), evidence };
@@ -128,25 +147,30 @@ async function runVisionGate(
       image_url: { url: `data:image/png;base64,${readFileSync(p).toString("base64")}` },
     })),
   ];
-  try {
-    const { message } = await runStandaloneChatCompletion({
-      client,
-      projectRoot,
-      request: { model, max_tokens: 512, messages: [{ role: "user", content }] },
-    });
-    const verdict = parseVisionVerdict(String(message.content ?? ""));
-    if (!verdict) {
-      return { status: "skipped", findings: ["visual review inconclusive (unparseable vision verdict)"] };
+  // Real-machine T2: the vision model occasionally wraps or drops the JSON —
+  // one in-band retry on an unparseable verdict (spec R3), then honest skip.
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const { message } = await runStandaloneChatCompletion({
+        client,
+        projectRoot,
+        request: { model, max_tokens: 512, messages: [{ role: "user", content }] },
+      });
+      const verdict = parseVisionVerdict(String(message.content ?? ""));
+      if (verdict) {
+        return verdict.pass
+          ? { status: "pass", findings: verdict.evidence ? [verdict.evidence] : [] }
+          : { status: "fail", findings: [verdict.evidence || "perceptual defect flagged by vision readback"] };
+      }
+      // unparseable → retry once in-band
+    } catch (err) {
+      return {
+        status: "skipped",
+        findings: [`vision readback failed: ${err instanceof Error ? err.message.slice(0, 160) : String(err)}`],
+      };
     }
-    return verdict.pass
-      ? { status: "pass", findings: verdict.evidence ? [verdict.evidence] : [] }
-      : { status: "fail", findings: [verdict.evidence || "perceptual defect flagged by vision readback"] };
-  } catch (err) {
-    return {
-      status: "skipped",
-      findings: [`vision readback failed: ${err instanceof Error ? err.message.slice(0, 160) : String(err)}`],
-    };
   }
+  return { status: "skipped", findings: ["visual review inconclusive (unparseable vision verdict after retry)"] };
 }
 
 // ── Verifier assembly ───────────────────────────────────────────────────────

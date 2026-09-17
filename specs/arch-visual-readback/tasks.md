@@ -19,8 +19,10 @@
 
 ## P2 真机与收尾
 
-- [ ] T2.1 真机两态：vision 配置态全链（故意产出含缺陷 IR 一轮验证修订回路收敛）+ 未配置态（skipped 呈现） _Requirement: R2, R4_
-- [ ] T2.2 门禁：`npm run check && npm test` 全绿；报告面走查 _Requirement: 门禁_
+- [x] T2.1 真机两态：vision 配置态全链（故意产出含缺陷 IR 一轮验证修订回路收敛）+ 未配置态（skipped 呈现） _Requirement: R2, R4_
+  - ✅ 2026-09-18 真机两态（真交付管道：vendored archify deliver 门禁 9/9 + 真 Chrome 截图 4 视口×双主题 + 真实 vision 模型 deepseek-v4-flash-vision-exp）：**未配置态** 三门 pass/pass/skipped（"vision model not configured" 诚实呈现）；**配置态** 三门 pass/pass/pass（真 vision 判 pass 带证据文本）；**修订收敛** 注入式 vision-fail 首轮 → 指令（工件名+发现）→ 定向修复+新交付 → 次轮真判 pass——轮数=2 收敛。真机发现四件已回写 design：F1 查看器按宽适配缩放（窄高图 containment 必然失败=真实缺陷类）；F2 冷 HOME Chrome 首载确定性超时 15s 门限（打包态用户 HOME 恒暖不受影响）；F3 vision 模型偶发包裹/丢 JSON → 门③一次性重试加固；F4 visual-check.mjs 为库无 CLI——门②必经 archify.mjs visual-check 子命令（修正了直连库文件空跑 exit 0 的缺陷）。
+- [x] T2.2 门禁：`npm run check && npm test` 全绿；报告面走查 _Requirement: 门禁_
+  - ✅ 2026-09-18：check/test 零失败 + desktop:build 绿 + vendor 树零改动（git diff 为证）。
 
 ## 明确不做（见 design §4）
 

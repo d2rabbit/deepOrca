@@ -19,8 +19,10 @@
 
 ## P2 真机与收尾
 
-- [ ] T2.1 真机一轮：任一存在 abandoned fork 的真实树上跑全链（无树则先人工造一对：主分支跑废→fork 修复成功），核验 AGENTS.md 回写与溯源行 _Requirement: R5_
-- [ ] T2.2 门禁：`npm run check && npm test` 全绿；报告面走查（空报告/正常报告两形态） _Requirement: 门禁_
+- [x] T2.1 真机一轮：任一存在 abandoned fork 的真实树上跑全链（无树则先人工造一对：主分支跑废→fork 修复成功），核验 AGENTS.md 回写与溯源行 _Requirement: R5_
+  - ✅ 2026-09-18 真机全链：真实仓库根 + 真实 LLM（step-3.7-flash 单次措辞调用）经动作入口 mineRepairsRun——P0 挖出唯一配对（deletedClusters=1，bash 插入）；P1 快照+双语 HTML 报告落盘 .deeporca/audits；P2 accept → 回写指令含 `## Repair rules` 段 + treeId + forkWhy 谱系行，AGENTS.md 副本应用验证通过；夹具树/会话/快照/rejections 全清理。
+- [x] T2.2 门禁：`npm run check && npm test` 全绿；报告面走查（空报告/正常报告两形态） _Requirement: 门禁_
+  - ✅ 2026-09-18：check/test 零失败；空报告（无 abandoned fork 树）与正常报告两形态均经真机脚本核验。
 
 ## 明确不做（见 design §4）
 

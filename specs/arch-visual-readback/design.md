@@ -28,6 +28,15 @@
 | E6 | arch-scan 动作是编排宿主（110 行，arch-map-reinforce 已在此扩过参）——修订循环的正确落点 | `core/actions/arch-scan.ts` |
 | E7 | 后台任务 skill 门：非 `arch-scan` skill 无 artifact 语义——本 spec 全部挂在 arch-scan 名下，不新增 skill | `session-manager-tasks.ts:216`（arch-map-reinforce §0.4-1 同款约束） |
 
+## 0.5 真机发现（T2 回写，2026-09-18）
+
+| # | 发现 | 处置 |
+| --- | --- | --- |
+| F1 | 查看器按**宽适配**缩放——窄高图（如单列长链）缩放后高度放大，containment 必然失败；这不是渲染缺陷而是真实缺陷类（图形形态问题），指令修复应是 LLM 判断的重构而非机械变换 | 修订回路语义印证（"定向修订反馈回灌 agent"）；夹具收敛演示改用注入式 vision 缺陷 |
+| F2 | harness 每 launch 新建 Chrome profile；**冷 HOME**（无 Library 缓存）下首载确定性 ~17.5s 超过内部 15s 门限（暖 HOME ~2.4s）——真机脚本需暖缓存 symlink HOME | 打包态用户 HOME 恒暖不受影响；脚本/CI 环境注意预热 |
+| F3 | vision 模型偶发包裹/丢 JSON | 门③ 加一次性重试（R3 对齐）+ 围栏解析兼容 |
+| F4 | `visual-check.mjs` 是**库**（无自身 CLI），直连 spawn 空跑 exit 0 | 门② 修正为经 `archify.mjs visual-check` 子命令 + 只信 receipt（废启发式） |
+
 ## 1. 设计：三道门的分层验证（便宜在前，感知在后）
 
 ```

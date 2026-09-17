@@ -532,11 +532,14 @@ export async function runStandaloneChatCompletion(input: {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       chat?: { completions?: { create?: (b: Record<string, unknown>) => Promise<any> } };
     };
-    const create = client.chat?.completions?.create;
-    if (typeof create !== "function") {
+    // Call CHAINED, never via an extracted reference — the OpenAI SDK's
+    // resource methods need `this` (`this._client`); a detached `create`
+    // throws "Cannot read properties of undefined (reading '_client')"
+    // (real-machine T2 finding on the vision readback path).
+    if (typeof client.chat?.completions?.create !== "function") {
       throw new Error("standalone completion requires an OpenAI SDK client");
     }
-    const response = await create(input.request);
+    const response = await client.chat.completions.create!(input.request);
     return {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       message: ((response as any)?.choices?.[0]?.message ?? {}) as Record<string, unknown>,
