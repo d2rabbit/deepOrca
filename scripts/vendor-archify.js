@@ -40,6 +40,116 @@ function log(message) {
   console.log(`[vendor-archify] ${message}`);
 }
 
+/**
+ * deeporca carry-patches, re-applied on every install/refresh (upstream is
+ * github.com/tt-a1i/archify; we fix here instead of waiting for a release).
+ *
+ * macOS pipe diagnostics truncation (real-machine 2026-09-18): libuv wraps
+ * stdio pipes non-blocking, so `fs.writeSync` can PARTIALLY write or throw
+ * EAGAIN once the pipe fills, and a trailing `process.exit()` drops the rest —
+ * an 18KB renderer diagnostic arrived as 8KB of unparseable JSON, which the
+ * CLI's fail-closed wrapper then reported as `internal/unclassified`. The
+ * patches drain buffers fully (EAGAIN retry loop) before every exit that
+ * follows a stream write on the machine paths (renderer diagnostics boundary,
+ * `--layout-json` stdout report, CLI `fail()`).
+ *
+ * Anchors must match EXACTLY: when a ref bump changes the surrounding code,
+ * failing loudly here is correct — either upstream fixed it (drop the patch)
+ * or moved it (re-anchor), never silently ship the bug again.
+ */
+function applyDeeporcaPatches(staging) {
+  const patchFile = (relativePath, replacements) => {
+    const file = join(staging, relativePath);
+    let source = readFileSync(file, "utf-8");
+    for (const [anchor, replacement] of replacements) {
+      if (!source.includes(anchor)) {
+        throw new Error(
+          `carry-patch anchor not found in ${relativePath} — upstream changed; re-anchor or drop the patch in scripts/vendor-archify.js:\n  ${anchor.slice(0, 120)}…`
+        );
+      }
+      source = source.replace(anchor, replacement);
+    }
+    writeFileSync(file, source);
+    log(`carry-patched ${relativePath}`);
+  };
+
+  patchFile("renderers/shared/diagnostics.mjs", [
+    [
+      `    try {
+      fs.writeSync(process.stderr.fd, payload);
+    } catch {`,
+      `    try {
+      writeAllSync(process.stderr.fd, Buffer.from(payload, 'utf8'));
+    } catch {`,
+    ],
+    [
+      `export function installRendererDiagnosticBoundary() {`,
+      `// deeporca carry-patch (scripts/vendor-archify.js): libuv wraps stdio pipes
+// non-blocking, so a single fs.writeSync can partially write — or throw EAGAIN
+// once the pipe fills — and the remainder is lost forever when process.exit()
+// follows (an 18KB diagnostic arrived as 8KB of unparseable JSON on macOS).
+// Drain the whole buffer synchronously, retrying EAGAIN after ~1ms while the
+// parent reader drains the other end of the pipe.
+export function writeAllSync(fd, buffer) {
+  let written = 0;
+  while (written < buffer.length) {
+    try {
+      written += fs.writeSync(fd, buffer, written, buffer.length - written);
+    } catch (error) {
+      if (error && (error.code === 'EAGAIN' || error.code === 'EWOULDBLOCK')) {
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 1);
+        continue;
+      }
+      throw error;
+    }
+  }
+  return written;
+}
+
+export function installRendererDiagnosticBoundary() {`,
+    ],
+  ]);
+
+  patchFile("renderers/architecture/render-architecture.mjs", [
+    [
+      `import { throwDiagnosticProblems } from '../shared/diagnostics.mjs';`,
+      `import { throwDiagnosticProblems, writeAllSync } from '../shared/diagnostics.mjs';`,
+    ],
+    [
+      `  console.log(JSON.stringify(buildLayoutReport(), null, 2));
+  process.exit(0);`,
+      `  // deeporca carry-patch: console.log is async on macOS pipes; exit(0) right
+  // after could truncate the layout report. Write it synchronously instead.
+  writeAllSync(process.stdout.fd, Buffer.from(\`\${JSON.stringify(buildLayoutReport(), null, 2)}\\n\`, 'utf8'));
+  process.exit(0);`,
+    ],
+  ]);
+
+  patchFile("bin/archify.mjs", [
+    [
+      `import { fileURLToPath, pathToFileURL } from 'node:url';`,
+      `import { fileURLToPath, pathToFileURL } from 'node:url';
+import { writeAllSync } from '../renderers/shared/diagnostics.mjs';`,
+    ],
+    [
+      `function fail(message, code = 2) {
+  console.error(message);
+  process.exit(code);
+}`,
+      `function fail(message, code = 2) {
+  // deeporca carry-patch: console.error is async on macOS pipes and
+  // process.exit() can cut it off — write the message synchronously first.
+  try {
+    writeAllSync(process.stderr.fd, Buffer.from(\`\${message}\\n\`, 'utf8'));
+  } catch {
+    // best-effort: the exit status still communicates the failure
+  }
+  process.exit(code);
+}`,
+    ],
+  ]);
+}
+
 /** Shallow clone the pinned tag into a temp dir; returns the clone path. */
 function clonePinned(staging, ref) {
   const cloneDir = join(staging, "_clone");
@@ -108,6 +218,7 @@ async function main() {
         }
       }
       rmSync(cloneDir, { recursive: true, force: true });
+      applyDeeporcaPatches(staging);
       writeFileSync(join(staging, ".vendored-archify-ref"), ref);
     },
     verify: (staging) =>
