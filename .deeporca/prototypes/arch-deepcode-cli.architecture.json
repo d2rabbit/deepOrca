@@ -4,7 +4,10 @@
   "meta": {
     "title": "DeepOrca CLI 整体架构",
     "quality_profile": "showcase",
-    "viewBox": [1700, 700],
+    "viewBox": [
+      1700,
+      700
+    ],
     "repository": {
       "url": "https://github.com/d2rabbit/deepOrca.git",
       "revision": "ec9060f2134aa5a48c460fc41a684baa09f29ae0"
@@ -13,7 +16,14 @@
       {
         "id": "request-path",
         "label": "请求主路径",
-        "focus": ["renderer", "main", "ipcSecurity", "coreSession", "toolExecutor", "llmProvider"],
+        "focus": [
+          "renderer",
+          "main",
+          "ipcSecurity",
+          "coreSession",
+          "toolExecutor",
+          "llmProvider"
+        ],
         "note": "从渲染器发送 prompt 到主进程校验、会话调度、工具执行，再到 LLM 提供商返回。"
       },
       {
@@ -34,14 +44,22 @@
       {
         "id": "memory-pipeline",
         "label": "记忆流水线",
-        "focus": ["memoryManager", "tdaiCore", "sqliteStore", "llmProvider"],
+        "focus": [
+          "memoryManager",
+          "tdaiCore",
+          "sqliteStore",
+          "llmProvider"
+        ],
         "note": "L0-L3 记忆抽取、场景/角色生成、SQLite/BM25 存储与本地向量召回。"
       }
     ]
   },
   "layout": {
     "mode": "grid",
-    "origin": [40, 80],
+    "origin": [
+      40,
+      80
+    ],
     "cols": 9,
     "gapX": 28,
     "gapY": 36,
@@ -340,19 +358,32 @@
     {
       "kind": "security-group",
       "label": "渲染器特权边界",
-      "wraps": ["renderer", "main", "ipcSecurity", "pluginManager"],
+      "wraps": [
+        "renderer",
+        "main",
+        "ipcSecurity",
+        "pluginManager"
+      ],
       "pad": 18
     },
     {
       "kind": "region",
       "label": "本地数据层",
-      "wraps": ["sqliteStore", "memoryManager", "tdaiCore", "localEmbedding"],
+      "wraps": [
+        "sqliteStore",
+        "memoryManager",
+        "tdaiCore",
+        "localEmbedding"
+      ],
       "pad": 18
     },
     {
       "kind": "region",
       "label": "外部服务层",
-      "wraps": ["llmProvider", "gitRepos", "mcpServers"],
+      "wraps": [
+        "llmProvider",
+        "gitRepos"
+      ],
       "pad": 18
     }
   ],
@@ -362,20 +393,15 @@
       "from": "renderer",
       "to": "main",
       "label": "IPC",
-      "variant": "emphasis"
+      "variant": "emphasis",
+      "labelDy": 24
     },
     {
-      "id": "c-renderer-core",
-      "from": "renderer",
+      "id": "c-main-core",
+      "from": "main",
       "to": "coreSession",
-      "label": "preload API",
-      "route": "orthogonal-h",
-      "fromSide": "left",
-      "toSide": "left",
-      "via": [
-        [296, 116],
-        [296, 332]
-      ]
+      "label": "会话调度",
+      "labelDy": 24
     },
     {
       "id": "c-main-ipcsec",
@@ -387,7 +413,22 @@
       "id": "c-main-plugin",
       "from": "main",
       "to": "pluginManager",
-      "label": "生命周期"
+      "label": "生命周期",
+      "toSide": "top",
+      "via": [
+        [
+          700,
+          218
+        ],
+        [
+          700,
+          170
+        ],
+        [
+          1180,
+          170
+        ]
+      ]
     },
     {
       "id": "c-core-tools",
@@ -402,21 +443,35 @@
       "label": "MCP 工具调用"
     },
     {
+      "id": "c-mcp-servers",
+      "from": "mcpManager",
+      "to": "mcpServers",
+      "label": "stdio"
+    },
+    {
       "id": "c-core-mcp",
       "from": "coreSession",
       "to": "mcpManager",
       "label": "MCP 连接",
-      "fromSide": "left",
-      "toSide": "right"
+      "fromSide": "bottom",
+      "toSide": "bottom",
+      "via": [
+        [
+          460,
+          390
+        ],
+        [
+          1180,
+          390
+        ]
+      ]
     },
     {
-      "id": "c-main-llm",
-      "from": "main",
+      "id": "c-core-llm",
+      "from": "coreSession",
       "to": "llmProvider",
       "label": "HTTPS",
-      "variant": "emphasis",
-      "fromSide": "left",
-      "toSide": "right"
+      "variant": "emphasis"
     },
     {
       "id": "c-core-gitmcp",
@@ -459,9 +514,7 @@
       "id": "c-tdai-embed",
       "from": "tdaiCore",
       "to": "localEmbedding",
-      "label": "向量化",
-      "fromSide": "bottom",
-      "toSide": "top"
+      "label": "向量化"
     },
     {
       "id": "c-mem-sqlite",
@@ -474,19 +527,29 @@
       "from": "tdaiCore",
       "to": "llmProvider",
       "label": "LLM",
-      "fromSide": "right",
-      "toSide": "top",
+      "fromSide": "top",
+      "toSide": "left",
       "via": [
-        [1700, 548],
-        [1700, 64],
-        [116, 64]
+        [
+          1000,
+          478
+        ],
+        [
+          30,
+          478
+        ],
+        [
+          30,
+          326
+        ]
       ]
     },
     {
       "id": "c-plugin-mcp",
       "from": "pluginManager",
       "to": "mcpManager",
-      "label": "MCP 状态/重连"
+      "label": "MCP 状态/重连",
+      "labelDy": 24
     }
   ],
   "cards": [
