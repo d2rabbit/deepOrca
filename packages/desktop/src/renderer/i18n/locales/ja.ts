@@ -1887,5 +1887,7 @@ export const ja: Record<MessageKey, string> = {
   "specs.drift.stale": "上流に遅れ",
   "specs.drift.unimplemented": "未実装",
   "specs.drift.ahead": "実装が先行",
+  "specs.drift.needsReview": "要確認",
+  "specs.drift.snapshotStale": "スナップショットが新しめ",
   "specs.drift.snapshotMissing": "スナップショットなし",
 };

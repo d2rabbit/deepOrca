@@ -1886,5 +1886,7 @@ export const en = {
   "specs.drift.stale": "Design lags upstream",
   "specs.drift.unimplemented": "Not implemented",
   "specs.drift.ahead": "Implementation ahead",
+  "specs.drift.needsReview": "Needs review",
+  "specs.drift.snapshotStale": "Snapshot newer",
   "specs.drift.snapshotMissing": "Snapshot missing",
 } as const;

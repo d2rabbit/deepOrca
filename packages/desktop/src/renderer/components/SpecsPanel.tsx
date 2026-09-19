@@ -4,37 +4,71 @@
  * read model (getSpecGraph) the agent guidance points at — one source, so
  * the UI view and the agent view cannot drift.
  *
- * Layout: design chains first (product-design → architecture), then
- * independent nodes (no upstream — legal per design 拍板⑦, rendered as their
- * own entries, never folded into a chain). Status + drift badges are
- * mechanical signals straight from the wire payload.
+ * Layout: design chains first — a chain root is a product-design/design node
+ * WITHOUT a parent, and its children are whatever names that id as `parent`
+ * (architecture, tasks, …); every other node is independent (legal per
+ * design 拍板⑦, rendered as its own entry, never folded into a chain).
+ *
+ * Drift findings arrive STRUCTURED (gate + state + optional count) from
+ * core — this panel owns the localized wording, so no core-authored string
+ * can leak one language into the six-locale UI (2026-09-19 review).
  */
 
 import { useEffect, useState, type JSX } from "react";
 
-import type { SpecNode } from "@deeporca/core";
+// SPEC_NODE_STATUSES is a runtime const in core, but this panel only uses it
+// in type position (typeof → status union) — hence the type-only import.
+import type { SPEC_NODE_STATUSES, SpecDriftFinding, SpecDriftGate, SpecDriftState, SpecNode } from "@deeporca/core";
 
 import { api } from "../api";
 import { useI18n } from "../i18n";
 import type { MessageKey } from "../i18n/messages";
 
-type DriftState = "stale" | "unimplemented" | "ahead" | "unknown";
+type DriftState = Exclude<SpecDriftState, "ok">;
+type NodeStatus = (typeof SPEC_NODE_STATUSES)[number];
 
-const DRIFT_KEY: Record<DriftState, MessageKey> = {
-  stale: "specs.drift.stale",
-  unimplemented: "specs.drift.unimplemented",
-  ahead: "specs.drift.ahead",
-  unknown: "specs.drift.snapshotMissing",
+const DRIFT_TEXT: Record<SpecDriftGate, Record<DriftState, MessageKey>> = {
+  chain: {
+    stale: "specs.drift.stale",
+    // Gate A "unknown" = dangling parent link — NOT a missing snapshot.
+    unknown: "specs.drift.needsReview",
+    unimplemented: "specs.drift.needsReview",
+    ahead: "specs.drift.needsReview",
+  },
+  implementation: {
+    unimplemented: "specs.drift.unimplemented",
+    ahead: "specs.drift.ahead",
+    stale: "specs.drift.needsReview",
+    unknown: "specs.drift.needsReview",
+  },
+  knowledge: {
+    stale: "specs.drift.snapshotStale",
+    unknown: "specs.drift.snapshotMissing",
+    unimplemented: "specs.drift.needsReview",
+    ahead: "specs.drift.needsReview",
+  },
 };
 
-const KNOWN_STATUSES = new Set(["draft", "active", "done", "stalled"]);
+const STATUS_TEXT: Record<NodeStatus, MessageKey> = {
+  draft: "specs.status.draft",
+  active: "specs.status.active",
+  done: "specs.status.done",
+  stalled: "specs.status.stalled",
+};
 
-function worstDrift(node: SpecNode): DriftState | null {
-  const priority: DriftState[] = ["stale", "unimplemented", "ahead", "unknown"];
-  for (const state of priority) {
-    if (node.drift.some((d) => d.state === state)) return state;
-  }
-  return null;
+function statusLabel(status: string, t: (k: MessageKey) => string): string {
+  const key = (STATUS_TEXT as Record<string, MessageKey | undefined>)[status];
+  return key ? t(key) : status;
+}
+
+function driftPriority(finding: SpecDriftFinding): number {
+  const order: DriftState[] = ["stale", "unimplemented", "ahead", "unknown"];
+  return order.indexOf(finding.state as DriftState);
+}
+
+function driftLabel(finding: SpecDriftFinding, t: (k: MessageKey) => string): string {
+  const base = t(DRIFT_TEXT[finding.gate][finding.state as DriftState]);
+  return finding.count !== undefined ? `${base} ×${finding.count}` : base;
 }
 
 function NodeRow({
@@ -46,20 +80,18 @@ function NodeRow({
   onOpen: (relPath: string) => void;
   t: (k: MessageKey) => string;
 }): JSX.Element {
-  const drift = worstDrift(node);
+  const worst = [...node.drift].sort((a, b) => driftPriority(a) - driftPriority(b))[0];
   return (
     <button type="button" className="ui-specs-node" onClick={() => onOpen(node.relPath)} title={node.relPath}>
-      <span className={`ui-specs-status ui-specs-status-${node.status}`}>
-        {KNOWN_STATUSES.has(node.status) ? t(`specs.status.${node.status}` as MessageKey) : node.status}
-      </span>
+      <span className={`ui-specs-status ui-specs-status-${node.status}`}>{statusLabel(node.status, t)}</span>
       <span className="ui-specs-node-title">{node.title}</span>
       <span className="ui-specs-node-type">{node.type}</span>
-      {drift ? (
+      {worst ? (
         <span
-          className={`ui-specs-drift ui-specs-drift-${drift}`}
-          title={node.drift.map((d) => d.detail ?? d.state).join(" · ")}
+          className={`ui-specs-drift ui-specs-drift-${worst.state}`}
+          title={node.drift.map((finding) => driftLabel(finding, t)).join(" · ")}
         >
-          {t(DRIFT_KEY[drift])}
+          {driftLabel(worst, t)}
         </span>
       ) : null}
     </button>
@@ -86,36 +118,48 @@ export function SpecsPanel({ root }: { root: string }): JSX.Element {
   };
 
   if (!root) {
-    return <div className="ui-specs">{<div className="ui-side-panel-empty">{t("specs.empty")}</div>}</div>;
+    return (
+      <div className="ui-specs">
+        <div className="ui-side-panel-empty">{t("specs.empty")}</div>
+      </div>
+    );
   }
 
-  const designs = nodes?.filter((n) => n.type === "product-design" || n.type === "design") ?? [];
-  const chains = designs
-    .map((design) => ({
-      design,
-      children: nodes?.filter((n) => n.parent === design.id && n.id !== design.id) ?? [],
-    }))
-    .filter((chain) => chain.design || chain.children.length > 0);
-  const linkedIds = new Set(chains.flatMap((c) => [c.design.id, ...c.children.map((n) => n.id)]));
-  const independent = nodes?.filter((n) => !linkedIds.has(n.id)) ?? [];
+  const list = nodes ?? [];
+  const childrenByParent = new Map<string, SpecNode[]>();
+  for (const node of list) {
+    if (!node.parent) continue;
+    const bucket = childrenByParent.get(node.parent);
+    if (bucket) bucket.push(node);
+    else childrenByParent.set(node.parent, [node]);
+  }
+  // Chain roots: design-side nodes without an upstream. Their children are
+  // whatever names the root id as `parent` (architecture, tasks, …).
+  const chainRoots = list.filter((node) => (node.type === "product-design" || node.type === "design") && !node.parent);
+  const linkedIds = new Set<string>();
+  for (const chainRoot of chainRoots) {
+    linkedIds.add(chainRoot.id);
+    for (const child of childrenByParent.get(chainRoot.id) ?? []) linkedIds.add(child.id);
+  }
+  const independent = list.filter((node) => !linkedIds.has(node.id));
 
   return (
     <div className="ui-specs">
       {nodes === null ? (
         <div className="ui-side-panel-empty">{t("specs.loading")}</div>
-      ) : nodes.length === 0 ? (
+      ) : list.length === 0 ? (
         <div className="ui-side-panel-empty">
           {t("specs.empty")}
           <div className="ui-specs-empty-hint">{t("specs.emptyHint")}</div>
         </div>
       ) : (
         <>
-          {chains.length > 0 ? <div className="ui-specs-section">{t("specs.chainSection")}</div> : null}
-          {chains.map((chain) => (
-            <div key={chain.design.id} className="ui-specs-chain">
-              <NodeRow node={chain.design} onOpen={openNode} t={t} />
+          {chainRoots.length > 0 ? <div className="ui-specs-section">{t("specs.chainSection")}</div> : null}
+          {chainRoots.map((chainRoot) => (
+            <div key={chainRoot.id} className="ui-specs-chain">
+              <NodeRow node={chainRoot} onOpen={openNode} t={t} />
               <div className="ui-specs-chain-children">
-                {chain.children.map((child) => (
+                {(childrenByParent.get(chainRoot.id) ?? []).map((child) => (
                   <NodeRow key={child.id} node={child} onOpen={openNode} t={t} />
                 ))}
               </div>

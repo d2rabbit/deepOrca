@@ -75,7 +75,7 @@ before(async () => {
         parent: "suite-a",
         title: "Suite A 技术架构",
         relPath: ".deeporca/specs/suite-a/architecture.md",
-        drift: [{ gate: "chain", state: "stale", detail: "技术设计落后于产品设计" }],
+        drift: [{ gate: "chain", state: "stale" }],
       }),
       node({ id: "solo", type: "architecture", title: "独立架构", relPath: ".deeporca/specs/solo/architecture.md" }),
     ],
@@ -125,7 +125,7 @@ test("chains render parent→children; independent nodes stay separate; drift ba
         parent: "suite-a",
         title: "Suite A 技术架构",
         relPath: ".deeporca/specs/suite-a/architecture.md",
-        drift: [{ gate: "chain", state: "stale", detail: "技术设计落后于产品设计" }],
+        drift: [{ gate: "chain", state: "stale" }],
       }),
       node({ id: "solo", type: "architecture", title: "独立架构", relPath: ".deeporca/specs/solo/architecture.md" }),
     ],
@@ -142,7 +142,9 @@ test("chains render parent→children; independent nodes stay separate; drift ba
   const drift = out.querySelector(".ui-specs-drift");
   assert.ok(drift, "drift badge missing");
   assert.ok(drift.classList.contains("ui-specs-drift-stale"), `drift class wrong: ${drift.className}`);
-  assert.ok(drift.getAttribute("title")?.includes("落后于产品设计"), `drift tooltip: ${drift.getAttribute("title")}`);
+  // Tooltip is the LOCALIZED badge wording (core sends structured findings
+  // only — no core-authored detail strings cross the wire).
+  assert.ok(drift.getAttribute("title")?.includes("落后于上游"), `drift tooltip: ${drift.getAttribute("title")}`);
 });
 
 test("clicking a node opens its markdown through specsOpen", async () => {

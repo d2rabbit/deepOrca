@@ -161,3 +161,31 @@ export function safeArchmapPath(prototypesRoot: string, targetPath: string): Arc
   }
   return { ok: true, absPath };
 }
+
+/** Result of a spec-domain path containment check. */
+export type SpecsPathCheck = { ok: true; absPath: string } | { ok: false; reason: "escapes-root" };
+
+/**
+ * Spec-domain guard (specs/spec-graph-adoption §1.4). The wire carries the
+ * node's workspace-relative path (mirrors `SpecNode.relPath`); containment is
+ * two-layered — resolve + realpath under the project root, then re-anchor the
+ * resolved path under `<root>/.deeporca/specs` with a second realpath pass.
+ * Both layers go through `safePathWithinRoot`, closing the symlink escape a
+ * string-prefix guard here previously allowed (2026-09-19 review).
+ */
+export function safeSpecsPath(projectRoot: string, relPath: string): SpecsPathCheck {
+  const abs = safePathWithinRoot(projectRoot, relPath);
+  if (!abs) {
+    return { ok: false, reason: "escapes-root" };
+  }
+  const specsRoot = path.join(projectRoot, ".deeporca", "specs");
+  const relToSpecs = path.relative(specsRoot, abs);
+  if (!relToSpecs || relToSpecs.startsWith("..") || path.isAbsolute(relToSpecs)) {
+    return { ok: false, reason: "escapes-root" };
+  }
+  const reAnchored = safePathWithinRoot(specsRoot, relToSpecs);
+  if (!reAnchored) {
+    return { ok: false, reason: "escapes-root" };
+  }
+  return { ok: true, absPath: reAnchored };
+}

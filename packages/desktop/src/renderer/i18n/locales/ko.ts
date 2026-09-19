@@ -1874,5 +1874,7 @@ export const ko: Record<MessageKey, string> = {
   "specs.drift.stale": "상류에 뒤짐",
   "specs.drift.unimplemented": "미구현",
   "specs.drift.ahead": "구현이 앞섬",
+  "specs.drift.needsReview": "검토 필요",
+  "specs.drift.snapshotStale": "스냅샷이 최신",
   "specs.drift.snapshotMissing": "스냅샷 없음",
 };

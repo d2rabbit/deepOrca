@@ -2660,7 +2660,7 @@ function registerIpc(): void {
   registerCrgIpc(helpers);
   registerMemoryIpc(helpers);
   registerKnowledgeIpc(helpers, getBridge, () => mainWindow);
-  registerSpecsIpc(helpers, getBridge);
+  registerSpecsIpc(helpers);
   registerEndpointQuotaIpc(helpers);
   registerEndpointTestIpc(helpers);
   registerTaskTreeIpc(helpers);

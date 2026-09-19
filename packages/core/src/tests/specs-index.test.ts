@@ -207,11 +207,16 @@ test("revalidation reparses content changed between reads (cache pin)", async ()
   const root = await makeRoot();
   const { pd, arch } = chainNodes();
   const archPath = await write(root, ".deeporca/specs/suite-a/architecture.md", arch);
-  await write(root, ".deeporca/specs/suite-a/product-design.md", pd);
+  const pdPath = await write(root, ".deeporca/specs/suite-a/product-design.md", pd);
   const chainStateOf = async (): Promise<string | undefined> => {
     const { nodes } = await getSpecGraph(root);
     return nodes.find((n) => n.id === "suite-a#architecture")?.drift.find((d) => d.gate === "chain")?.state;
   };
+  // Deterministic clocks: raw write order crosses millisecond boundaries
+  // flakily, so pin the baseline explicitly (architecture newer → gate A ok).
+  const base = Date.now();
+  await fs.utimes(pdPath, new Date(base - 60_000), new Date(base - 60_000));
+  await fs.utimes(archPath, new Date(base), new Date(base));
   // Fresh chain: gate A present and not stale.
   assert.ok((await chainStateOf()) !== "stale");
   // External edit between reads: drop the parent link entirely — the changed

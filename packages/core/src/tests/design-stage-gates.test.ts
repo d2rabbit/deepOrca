@@ -9,7 +9,10 @@
  *   拒绝落盘；瞬态错误单次重试（OCR 模板预算内重试）。
  */
 
-import { test } from "node:test";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import {
   archSectionsAudit,
@@ -49,8 +52,13 @@ function makeCtx(
   const mcpCalls = options.mcpCalls ?? [];
   const subagentCalls = options.subagentCalls ?? [];
   let callIndex = 0;
+  // Disposable root: the arch action now seeds spec-domain registration
+  // anchors on success (specs/spec-graph-adoption P3) — writing those into
+  // process.cwd() polluted the source tree on every test run.
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "stage-gates-"));
+  tmpDirs.push(root);
   return {
-    projectRoot: process.cwd(),
+    projectRoot: root,
     signal: new AbortController().signal,
     emit: (event) => {
       options.emits?.push(event);
@@ -134,6 +142,13 @@ test("subagentContentOf unwraps {content}, plain strings, and nulls empties", ()
 });
 
 // ── S3 架构文档门 ────────────────────────────────────────────────────────────
+
+// Disposable ctx roots (see makeCtx) — removed after the suite so test runs
+// never leave `.deeporca/` residue in the source tree.
+const tmpDirs: string[] = [];
+after(() => {
+  for (const dir of tmpDirs.splice(0)) fs.rmSync(dir, { recursive: true, force: true });
+});
 
 const ARCH_OK = [
   "# 技术架构",

@@ -1834,5 +1834,7 @@ export const zhTW: Record<MessageKey, string> = {
   "specs.drift.stale": "落後於上游",
   "specs.drift.unimplemented": "未實施",
   "specs.drift.ahead": "實作超前",
+  "specs.drift.needsReview": "需要複核",
+  "specs.drift.snapshotStale": "快照較新",
   "specs.drift.snapshotMissing": "快照缺失",
 };

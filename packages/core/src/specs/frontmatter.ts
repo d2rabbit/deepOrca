@@ -3,15 +3,18 @@
  *
  * The spec domain is `<workspaceRoot>/.deeporca/specs/`; every spec node is a
  * markdown file whose LEADING `---` fenced YAML block carries the machine-read
- * fields. This parser deliberately implements a tiny YAML subset — scalars and
- * block/inline string lists — because the schema is closed and small
- * (id/type/status/parent/depends-on/covers/tags/artifacts). A full YAML
- * engine would be a new exact-pin dependency for zero schema benefit.
+ * fields. `gray-matter`/js-yaml IS already a core dependency and would parse
+ * this too — this parser deliberately diverges for one reason: js-yaml's
+ * IMPLICIT TYPING coerces values (`version: 1.10` → number 1.1, `id: on` →
+ * boolean true), while every field in this closed, tiny schema
+ * (id/type/status/parent/depends-on/covers/tags/artifacts) must stay a
+ * literal string. A ~100-line subset parser buys string fidelity plus
+ * per-key degradation without an engine layer.
  *
  * Tolerance contract (design §1.2): a missing block or an unparseable block
  * degrades to `null` — the caller treats the file as loose prose, never a
- * hard failure. Bad values inside a valid block degrade per-key (a scalar
- * key carrying a list yields its joined string; unknown keys are kept as-is).
+ * hard failure. Bad values inside a valid block degrade per-key (unknown
+ * keys are kept as-is).
  */
 
 export type SpecFrontmatterValue = string | string[];

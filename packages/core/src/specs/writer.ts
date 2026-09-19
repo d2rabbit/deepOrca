@@ -20,6 +20,8 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
+import { parseFrontmatter } from "./frontmatter";
+
 export interface DesignChainRegistration {
   /** Suite slug → spec-domain directory name (sanitized here). */
   suiteId: string;
@@ -57,7 +59,10 @@ export async function ensureDesignChainRegistration(root: string, input: DesignC
     `>（\`${input.suiteId}\` · \`${input.versionId}\`，\`.deeporca/designs/\` 下该套件版本目录）。\n` +
     `> 在原型设计模块的「需求文档」栏目查看与编辑；正文暂不搬家，二期再迁。\n`;
   const prdFm = [`id: ${slug}`, `type: product-design`, `status: active`, versionRef, versionLine];
-  await upsert(path.join(dir, "product-design.md"), anchorNode(prdFm, prdBody), `${versionRef}\n${versionLine}`);
+  await upsert(path.join(dir, "product-design.md"), anchorNode(prdFm, prdBody), {
+    suite: slug,
+    version: input.versionId,
+  });
 
   const archBody =
     `> 本节点是 spec 图的**登记锚点**（spec-graph-adoption 降级路线）：技术架构文档的权威版本存于套件存储\n` +
@@ -71,17 +76,24 @@ export async function ensureDesignChainRegistration(root: string, input: DesignC
     versionRef,
     versionLine,
   ];
-  await upsert(path.join(dir, "architecture.md"), anchorNode(archFm, archBody), `${versionRef}\n${versionLine}`);
+  await upsert(path.join(dir, "architecture.md"), anchorNode(archFm, archBody), {
+    suite: slug,
+    version: input.versionId,
+  });
 }
 
-async function upsert(file: string, content: string, marker: string): Promise<void> {
+/**
+ * Idempotency via STRUCTURED frontmatter comparison, not substring matching —
+ * re-quoting, key reordering, or prose edits in the body must not trigger a
+ * rewrite (a rewrite would bump the node's mtime and silently shift the
+ * drift gate A baseline).
+ */
+async function upsert(file: string, content: string, expect: { suite: string; version: string }): Promise<void> {
   try {
-    const existing = await fs.readFile(file, "utf8");
-    // Same suite version and already an anchor → leave untouched so the
-    // node's mtime stays a truthful signal for drift gate A/B/C.
-    if (existing.includes(marker) && existing.includes("登记锚点")) return;
+    const fm = parseFrontmatter(await fs.readFile(file, "utf8"));
+    if (fm && fm.suite === expect.suite && fm.version === expect.version && typeof fm.type === "string") return;
   } catch {
-    // missing → first registration
+    // missing/unreadable → (re)register
   }
   await fs.writeFile(file, content, "utf8");
 }

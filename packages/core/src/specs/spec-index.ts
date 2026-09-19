@@ -4,12 +4,13 @@
  *
  * The FILESYSTEM IS THE ONLY SOURCE OF TRUTH. The index is a derived,
  * in-memory, read-only cache revalidated ON EVERY READ by `(mtimeMs, size)`:
- * unchanged files reuse their cached parse; changed/new files re-parse;
- * vanished files are evicted. One index instance per root (keyed by cwd), so
- * the stat cost amortizes across an agent's or the UI's repeated reads —
- * while any external edit (agent write/edit, human, git) is always current
- * on the next read. Design deliberately mirrors JetBrains ThinkRail's
- * SpecIndex (idea adoption, zero code).
+ * unchanged files skip BOTH the read and the parse (stat-only); changed/new
+ * files are re-read and re-parsed; vanished files are evicted. One index
+ * instance per root (keyed by cwd), so the stat cost amortizes across an
+ * agent's or the UI's repeated reads — while any external edit (agent
+ * write/edit, human, git) is always current on the next read. Design
+ * deliberately mirrors JetBrains ThinkRail's SpecIndex (idea adoption, zero
+ * code).
  *
  * Drift detection (§1.6) is mechanical-only — mtime and existence, zero LLM —
  * and every gate is INDEPENDENT: a gate whose prerequisites are missing
@@ -29,11 +30,23 @@ import { firstHeading, parseFrontmatter, type SpecFrontmatter } from "./frontmat
 export type SpecDriftGate = "chain" | "implementation" | "knowledge";
 export type SpecDriftState = "ok" | "stale" | "unimplemented" | "ahead" | "unknown";
 
+/**
+ * A drift finding is STRUCTURED on purpose: no human-readable `detail` here —
+ * detail strings authored in core would leak one hardcoded locale into every
+ * UI language (2026-09-19 review). Consumers render `gate`+`state`+`count`
+ * through their own i18n catalogs.
+ */
 export interface SpecDriftFinding {
   gate: SpecDriftGate;
   state: SpecDriftState;
-  detail?: string;
+  /** How many artifacts the finding counts (missing/newer), where applicable. */
+  count?: number;
 }
+
+/** Closed node-type vocabulary (design §1.1). */
+export const SPEC_NODE_TYPES = ["product-design", "architecture", "design", "tasks"] as const;
+/** Closed status vocabulary (design §1.1). */
+export const SPEC_NODE_STATUSES = ["draft", "active", "done", "stalled"] as const;
 
 export interface SpecNode {
   /** Unique node id: frontmatter `id`, or derived `<dir>#tasks` for tasks files. */
@@ -62,13 +75,14 @@ export interface SpecGraph {
 export interface SpecIssue {
   severity: "error" | "warn" | "info";
   code: string;
-  /** Specs-root-relative file path the issue attaches to. */
+  /** Workspace-root-relative file path the issue attaches to (same base as
+   *  `SpecNode.relPath`, so consumers resolve issues with one rule). */
   path: string;
   message: string;
 }
 
 const SPECS_DIR_SEGMENTS = [".deeporca", "specs"];
-const PROTOTYPES_PREFIX = [".deeporca", "prototypes"];
+const PROTOTYPES_PREFIX = ".deeporca/prototypes/";
 
 interface CacheEntry {
   mtimeMs: number;
@@ -83,15 +97,6 @@ interface RootIndex {
 const indexes = new Map<string, RootIndex>();
 
 const toPosix = (p: string): string => p.split(path.sep).join("/");
-
-async function pathExists(absPath: string): Promise<boolean> {
-  try {
-    await fs.stat(absPath);
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 async function collectMarkdownFiles(dir: string): Promise<string[]> {
   const out: string[] = [];
@@ -109,7 +114,11 @@ function deriveId(dir: string, baseName: string, fm: SpecFrontmatter): string {
   const explicit = fm.id;
   if (typeof explicit === "string" && explicit.trim()) return explicit.trim();
   if (fm.type === "tasks") return `${dir}#tasks`;
-  return dir || baseName;
+  // Files directly under the specs root have dir === "specs" (the domain
+  // segment name) — fall back to the file name so several root-level docs
+  // don't all collapse onto one id.
+  if (dir === SPECS_DIR_SEGMENTS[SPECS_DIR_SEGMENTS.length - 1]) return baseName;
+  return dir;
 }
 
 function normalizeStatus(value: unknown): string {
@@ -159,18 +168,25 @@ async function revalidate(root: string): Promise<{ nodes: SpecNode[]; loose: str
   for (const absFile of await collectMarkdownFiles(specsDir)) {
     seen.add(absFile);
     let stat: Awaited<ReturnType<typeof fs.stat>>;
-    let text: string;
     try {
       stat = await fs.stat(absFile);
-      text = await fs.readFile(absFile, "utf8");
     } catch {
       continue; // raced delete — evicted on next pass via `seen`
     }
-    const cached = index.files.get(absFile);
     const mtimeMs = Math.round(stat.mtimeMs);
+    const cached = index.files.get(absFile);
+    // Cache hit: skip BOTH the read and the parse (stat-only revalidation).
     if (cached && cached.mtimeMs === mtimeMs && cached.size === stat.size) {
       if (cached.node) nodes.push({ ...cached.node, mtimeMs });
-      else loose.push(toPosix(path.relative(specsDir, absFile)));
+      else loose.push(toPosix(path.relative(root, absFile)));
+      continue;
+    }
+    // Miss: read + parse. TOCTOU between stat and read self-heals on the
+    // next revalidation (the new mtime/size no longer matches the cache).
+    let text: string;
+    try {
+      text = await fs.readFile(absFile, "utf8");
+    } catch {
       continue;
     }
     let node: SpecNode | null = null;
@@ -181,7 +197,7 @@ async function revalidate(root: string): Promise<{ nodes: SpecNode[]; loose: str
     }
     index.files.set(absFile, { mtimeMs, size: stat.size, node });
     if (node) nodes.push({ ...node, mtimeMs });
-    else loose.push(toPosix(path.relative(specsDir, absFile)));
+    else loose.push(toPosix(path.relative(root, absFile)));
   }
   for (const absFile of index.files.keys()) {
     if (!seen.has(absFile)) index.files.delete(absFile);
@@ -189,13 +205,38 @@ async function revalidate(root: string): Promise<{ nodes: SpecNode[]; loose: str
   return { nodes, loose };
 }
 
+/**
+ * Shared artifact freshness scan behind gates B and C: ONE `fs.stat` per
+ * artifact (existence and mtime from the same call — the earlier version
+ * stat'ed twice via a `pathExists` pre-check). Missing and newer are counted
+ * separately so each gate maps them to its own states.
+ */
+async function scanArtifactFreshness(
+  root: string,
+  rels: string[],
+  nodeMtimeMs: number
+): Promise<{ missing: number; newer: number }> {
+  let missing = 0;
+  let newer = 0;
+  for (const rel of rels) {
+    if (escapesRoot(rel)) continue;
+    const stat = await fs.stat(path.join(root, rel)).catch(() => null);
+    if (!stat) {
+      missing += 1;
+      continue;
+    }
+    if (Math.round(stat.mtimeMs) > nodeMtimeMs) newer += 1;
+  }
+  return { missing, newer };
+}
+
 /** Gate A — chain drift: an architecture node lagging its product-design parent. */
-async function chainDrift(root: string, node: SpecNode, byId: Map<string, SpecNode>): Promise<SpecDriftFinding | null> {
+function chainDrift(node: SpecNode, byId: Map<string, SpecNode>): SpecDriftFinding | null {
   if (node.type !== "architecture" || !node.parent) return null;
   const parent = byId.get(node.parent);
-  if (!parent) return { gate: "chain", state: "unknown", detail: `parent ${node.parent} not found (dangling link)` };
+  if (!parent) return { gate: "chain", state: "unknown" };
   if (node.mtimeMs < parent.mtimeMs) {
-    return { gate: "chain", state: "stale", detail: "技术设计落后于产品设计（产品设计更新在后）" };
+    return { gate: "chain", state: "stale" };
   }
   return { gate: "chain", state: "ok" };
 }
@@ -204,26 +245,9 @@ async function chainDrift(root: string, node: SpecNode, byId: Map<string, SpecNo
 async function implementationDrift(root: string, node: SpecNode): Promise<SpecDriftFinding | null> {
   const impl = node.artifacts.filter((p) => !isPrototypesArtifact(p));
   if (impl.length === 0) return null;
-  let missing = 0;
-  let ahead = 0;
-  for (const rel of impl) {
-    if (escapesRoot(rel)) continue;
-    const abs = path.join(root, rel);
-    if (!(await pathExists(abs))) {
-      missing += 1;
-      continue;
-    }
-    const stat = await fs.stat(abs);
-    if (Math.round(stat.mtimeMs) > node.mtimeMs) ahead += 1;
-  }
-  if (missing > 0)
-    return {
-      gate: "implementation",
-      state: "unimplemented",
-      detail: `${missing} 个实现产物不存在（未实施或路径失效）`,
-    };
-  if (ahead > 0)
-    return { gate: "implementation", state: "ahead", detail: "实现产物较新——实现可能已演进，设计或需回写" };
+  const { missing, newer } = await scanArtifactFreshness(root, impl, node.mtimeMs);
+  if (missing > 0) return { gate: "implementation", state: "unimplemented", count: missing };
+  if (newer > 0) return { gate: "implementation", state: "ahead", count: newer };
   return { gate: "implementation", state: "ok" };
 }
 
@@ -231,40 +255,19 @@ async function implementationDrift(root: string, node: SpecNode): Promise<SpecDr
 async function knowledgeDrift(root: string, node: SpecNode): Promise<SpecDriftFinding | null> {
   const snapshots = node.artifacts.filter(isPrototypesArtifact);
   if (snapshots.length === 0) return null;
-  let newer = 0;
-  let missing = 0;
-  for (const rel of snapshots) {
-    const abs = path.join(root, rel);
-    if (!(await pathExists(abs))) {
-      missing += 1;
-      continue;
-    }
-    const stat = await fs.stat(abs);
-    if (Math.round(stat.mtimeMs) > node.mtimeMs) newer += 1;
-  }
-  if (newer > 0)
-    return { gate: "knowledge", state: "stale", detail: "描述性快照较新——建议复核设计是否滞后（只读对照）" };
-  if (missing > 0) return { gate: "knowledge", state: "unknown", detail: "知识轨快照缺失（可运行 arch-scan 重建）" };
+  const { missing, newer } = await scanArtifactFreshness(root, snapshots, node.mtimeMs);
+  if (newer > 0) return { gate: "knowledge", state: "stale", count: newer };
+  if (missing > 0) return { gate: "knowledge", state: "unknown", count: missing };
   return { gate: "knowledge", state: "ok" };
 }
 
 function isPrototypesArtifact(rel: string): boolean {
-  const normalized = toPosix(rel);
-  return (
-    normalized.startsWith(toPosix(path.join(...PROTOTYPES_PREFIX)) + "/") ||
-    normalized.startsWith(".deeporca/prototypes/")
-  );
+  return toPosix(rel).startsWith(PROTOTYPES_PREFIX);
 }
 
 function escapesRoot(rel: string): boolean {
   const normalized = toPosix(rel);
   return normalized.startsWith("/") || normalized.startsWith("../") || normalized === ".." || /:[/\\]/.test(normalized);
-}
-
-export interface SpecGraphBuild {
-  graph: SpecGraph;
-  /** Non-blocking findings across the domain (loose files, chain halves, …). */
-  issues: SpecIssue[];
 }
 
 /** Build the current graph (revalidating first) with per-node drift findings. */
@@ -274,7 +277,7 @@ export async function getSpecGraph(root: string): Promise<SpecGraph> {
   const withDrift: SpecNode[] = [];
   for (const node of nodes) {
     const findings: SpecDriftFinding[] = [];
-    const chain = await chainDrift(root, node, byId);
+    const chain = chainDrift(node, byId);
     if (chain) findings.push(chain);
     const implementation = await implementationDrift(root, node);
     if (implementation) findings.push(implementation);
@@ -300,6 +303,9 @@ export async function listSpecs(root: string): Promise<SpecNode[]> {
 export async function validateSpecs(root: string): Promise<SpecIssue[]> {
   const { nodes, loose } = await revalidate(root);
   const byId = new Map(nodes.map((node) => [node.id, node]));
+  const parentsWithArchitecture = new Set(
+    nodes.filter((node) => node.type === "architecture" && node.parent).map((node) => node.parent as string)
+  );
   const issues: SpecIssue[] = [];
   const seenIds = new Map<string, string>();
   for (const node of nodes) {
@@ -313,7 +319,7 @@ export async function validateSpecs(root: string): Promise<SpecIssue[]> {
     } else {
       seenIds.set(node.id, node.relPath);
     }
-    if (!["product-design", "architecture", "design", "tasks"].includes(node.type)) {
+    if (!(SPEC_NODE_TYPES as readonly string[]).includes(node.type)) {
       issues.push({
         severity: "warn",
         code: "unknown-type",
@@ -321,7 +327,7 @@ export async function validateSpecs(root: string): Promise<SpecIssue[]> {
         message: `type "${node.type}" is outside the closed vocabulary`,
       });
     }
-    if (!["draft", "active", "done", "stalled"].includes(node.status)) {
+    if (!(SPEC_NODE_STATUSES as readonly string[]).includes(node.status)) {
       issues.push({
         severity: "warn",
         code: "unknown-status",
@@ -365,8 +371,7 @@ export async function validateSpecs(root: string): Promise<SpecIssue[]> {
       }
     }
     if (node.type === "product-design") {
-      const hasChild = nodes.some((other) => other.parent === node.id && other.type === "architecture");
-      if (!hasChild) {
+      if (!parentsWithArchitecture.has(node.id)) {
         issues.push({
           severity: "info",
           code: "chain-half",
