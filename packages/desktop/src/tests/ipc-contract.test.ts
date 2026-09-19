@@ -97,7 +97,6 @@ const KNOWN_PRIVILEGED_KEYS = [
   "PromptResume",
   "PromptEnhance",
   "PermissionDeny",
-  "AdjustBashTimeout",
   // Session terminal / destructive ops.
   "SessionDelete",
   "SessionRename",
@@ -125,12 +124,9 @@ const KNOWN_PRIVILEGED_KEYS = [
   "EditorOpenSystem",
   "PrototypeSpecExportSlides",
   "PrototypeBuildBrief",
-  // External process spawn / reindex.
-  "WikiInit",
-  "WikiUpdate",
-  "CrgReindex",
-  // Memory lifecycle (start/stop in-process TdaiCore).
-  "MemorySetEnabled",
+  // External process spawn / reindex. (WikiInit/WikiUpdate/CrgReindex and the
+  // memory toggle were dead channels — removed in the full-domain audit
+  // round-2 cleanup; the live knowledge:* surface carries the privilege.)
   // Opens a new BrowserWindow.
   "A2uiOpenWindow",
 ] as const;

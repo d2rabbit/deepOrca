@@ -686,7 +686,6 @@ export class SessionBridge {
       visionEndpointId: raw.visionEndpointId ?? "",
       memory: {
         enabled: raw.memory?.enabled ?? false,
-        port: raw.memory?.port ?? 8420,
         embedding: raw.memory?.embedding ?? "none",
         retentionDays: raw.memory?.retentionDays ?? 30,
         everyNConversations: raw.memory?.everyNConversations ?? 10,
@@ -828,7 +827,11 @@ export class SessionBridge {
     if (patch.memory) {
       next.memory = {
         enabled: patch.memory.enabled,
-        port: patch.memory.port || 8420,
+        // `port` (HTTP Gateway era) is intentionally NOT persisted — memory
+        // runs in-process and the in-process config has no port; re-writing
+        // the dead key kept resurrecting it in user settings.json
+        // (full-domain audit round-2). Legacy files that still carry it are
+        // simply left untouched.
         embedding: patch.memory.embedding ?? "none",
         retentionDays:
           typeof patch.memory.retentionDays === "number" && patch.memory.retentionDays >= 0

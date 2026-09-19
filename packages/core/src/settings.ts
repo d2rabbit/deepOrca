@@ -404,7 +404,11 @@ export type ResolvedDeepcodingSettings = {
   workspaceTrust: WorkspaceTrustLevel;
   enabledSkills: EnabledSkillsSettings;
   statusline: ResolvedStatusLineSettings;
-  memory: Required<MemorySettings>;
+  // `port`/`apiKey` are the removed HTTP-Gateway era's fields — the resolved
+  // (in-process memory) shape deliberately omits them; legacy settings.json
+  // files may still carry them but nothing reads or re-writes them
+  // (full-domain audit round-2).
+  memory: Omit<Required<MemorySettings>, "port" | "apiKey">;
   /** Resolved endpoint list (synthesized from env if not configured). */
   endpoints: EndpointConfig[];
   /** Endpoint id used by the primary model. */

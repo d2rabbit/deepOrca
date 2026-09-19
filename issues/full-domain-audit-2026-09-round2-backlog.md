@@ -57,15 +57,20 @@ architecture.md 工具列表）。以下为**登记未修**项，按优先级排
 
 ## 死面清理（低，可批量）
 
-10. 18 个无 renderer 调用方的 IPC 通道（wiki 写路径整组、design 四个、crg 两个等——
-    清单见审查记录）；279 个未引用 i18n 键 ×6 语种；17 个 declaration-only core 导出
-    （含 `catalogEstimateCostUsd` 与 desktop `token-pricing.ts` 双实现漂移）。
-11. memory `port`/`apiKey` 死配置：settings.ts:111-119 + session-bridge.ts:818 持续
-    复活死键。
+10. **IPC 死通道已清（round-2 E-1）**：17 个零调用方通道整面摘除（wiki 写路径
+    整组+onWikiProgress、design 四个、crg×2、codegraphList、memory×2、
+    adjustBashTimeout、pluginSearchSkills、knowledgeOpenArchHtml、editorAgentCancel；
+    wikiListPages 在用保留）——常量/处理器/preload/DesktopApi/事件载荷全层，
+    ipc-contract 与 design-ipc 测试同步收敛。**其余未完**：279 个未引用 i18n 键
+    ×6 语种（含 settings.memory.port）；17 个 declaration-only core 导出（含
+    catalogEstimateCostUsd 双实现合一）——留 R2-E-2。
+11. ~~memory `port`/`apiKey` 死配置~~ **已修（round-2 E-1）**：session-bridge 两处
+    写入点停写 `port`（legacy 文件里的存量键不再被触碰也不再复活）；
+    Resolved/Editable memory 形状剔除 port/apiKey（类型面同步）。
 12. repair-rules `.html` 报告不清理（prune 只删 .json）。
 13. `App.tsx` 2917 行 / `main/index.ts` 2815 行超 2500+10% 天花板——拆分任务。
-14. docs: mcp.md/session-persistence.md 残留 CLI 时代表述；session 状态枚举少
-    `paused`/`permission_denied` 两项。
+14. ~~docs 残留~~ **已修（round-2 E-1）**：mcp.md/session-persistence.md 去 CLI
+    时代表述；session 状态枚举补全 9 项 closed set。
 
 ## 已接受残差（不修，有论证）
 

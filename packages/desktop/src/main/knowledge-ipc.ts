@@ -6,7 +6,8 @@
  * root-pinning helper).
  */
 
-import { BrowserWindow, shell } from "electron";
+import type { BrowserWindow } from "electron";
+import { shell } from "electron";
 import { createRequire as nodeCreateRequire } from "node:module";
 import type { DatabaseSync as DatabaseSyncType } from "node:sqlite";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -381,114 +382,4 @@ export function registerKnowledgeIpc(
   // artifact (re-open focuses the existing one), tracked in a registry so
   // the main window's close tears them all down — no orphans after the app
   // window goes away.
-
-  handlePrivileged(
-    IpcRequest.KnowledgeOpenArchHtml,
-    (htmlPath: string, theme?: "light" | "dark"): { ok: boolean; error?: string } => {
-      const pin = archPathWithinRegisteredRoot(htmlPath);
-      if (!pin.ok) return { ok: false, error: pin.error };
-      if (!existsSync(pin.absPath)) {
-        return { ok: false, error: "HTML not delivered yet — render the artifact first." };
-      }
-      // Receipt gate (red-team 2026-08-30): the iframe path refuses unverified
-      // HTML — this open-window path must not become the bypass. Only a
-      // host-delivered render (receipt pins path + content) may open here.
-      if (!verifyReceipt(pin.absPath)) {
-        return {
-          ok: false,
-          error: "not a host-delivered render (receipt missing or mismatched) — run the render gate first.",
-        };
-      }
-      // Single instance per artifact: focus + restore the existing window.
-      const existing = archWindows.get(pin.absPath);
-      if (existing && !existing.isDestroyed()) {
-        if (existing.isMinimized()) existing.restore();
-        existing.show();
-        existing.focus();
-        return { ok: true };
-      }
-      // FOLLOW the main window (user ask 2026-08-30: 子窗口追随主体): parent
-      // gives z-order tracking + minimize-together; the move listener below
-      // keeps the window at a fixed offset from the main window as it moves.
-      const mainWin = getMainWindow?.() ?? null;
-      // Spawn NEXT TO the main window (user ask: 一打开就在主体旁边，不是随机
-      // 默认位置): cascade offset 40px so multiple children don't perfectly
-      // overlap; clamped to the screen's visible area.
-      let x: number | undefined;
-      let y: number | undefined;
-      if (mainWin && !mainWin.isDestroyed()) {
-        const mb = mainWin.getBounds();
-        x = Math.max(0, mb.x + Math.round((mb.width - 1280) / 2));
-        y = Math.max(0, mb.y + Math.round((mb.height - 860) / 2));
-      }
-      const win = new BrowserWindow({
-        width: 1280,
-        height: 860,
-        ...(x !== undefined && y !== undefined ? { x, y } : {}),
-        title: basename(pin.absPath),
-        autoHideMenuBar: true,
-        ...(mainWin ? { parent: mainWin } : {}),
-        webPreferences: {
-          contextIsolation: true,
-          nodeIntegration: false,
-          sandbox: true,
-          spellcheck: false,
-          // Dedicated in-memory partition (review round 6): the artifact window
-          // must not share cookies/storage with the app's main session.
-          partition: "arch-preview",
-        },
-      });
-      archWindows.set(pin.absPath, win);
-      // Guarded delete (red-team D-3): a stale closed event from a previous
-      // window for the same artifact must not evict the freshly registered one.
-      win.on("closed", () => {
-        if (archWindows.get(pin.absPath) === win) archWindows.delete(pin.absPath);
-      });
-      if (mainWin && !mainWin.isDestroyed()) {
-        // Move-follow: keep the child at its initial offset from the main
-        // window. The listener dies with the child (main closes → children
-        // close first via the teardown, so no dangling listeners).
-        const relX = win.getBounds().x - mainWin.getBounds().x;
-        const relY = win.getBounds().y - mainWin.getBounds().y;
-        const onMove = (): void => {
-          if (win.isDestroyed()) return;
-          const mb = mainWin.getBounds();
-          win.setBounds({ ...win.getBounds(), x: mb.x + relX, y: mb.y + relY });
-        };
-        mainWin.on("move", onMove);
-        win.on("closed", () => mainWin.removeListener("move", onMove));
-      }
-      // Model-authored HTML runs here — deny every permission request by
-      // default (Electron's default is APPROVE; review round 6).
-      win.webContents.session.setPermissionRequestHandler((_wc, permission, callback) => {
-        callback(false);
-        console.log(`[arch-preview] denied permission request: ${permission}`);
-      });
-      // A delivered artifact must never navigate anywhere else.
-      win.webContents.on("will-navigate", (event, url) => {
-        if (url === win.webContents.getURL()) return;
-        event.preventDefault();
-        if (url.startsWith("http://") || url.startsWith("https://")) void shell.openExternal(url);
-      });
-      win.webContents.setWindowOpenHandler(({ url }) => {
-        if (url.startsWith("http://") || url.startsWith("https://")) void shell.openExternal(url);
-        return { action: "deny" };
-      });
-      // TOCTOU: the file may vanish between existsSync and load — a floating
-      // rejection would be an unhandled error (review round 6). The viewer's
-      // color mode follows the app appearance via ?theme= (2026-08-30 主题跟
-      // 随); the present-lock patch re-asserts the stage regardless of URL.
-      const loadUrl =
-        theme === "light" || theme === "dark" ? `${pathToFileURL(pin.absPath).href}?present=1&theme=${theme}` : null;
-      const load = loadUrl ? win.loadURL(loadUrl) : win.loadFile(pin.absPath);
-      load.catch((err) => {
-        console.error(`[arch-preview] failed to load artifact:`, err);
-        // The window may already be destroyed (user closed mid-load → the
-        // load rejects with ERR_ABORTED) — closing a destroyed BrowserWindow
-        // throws in the main process (red-team D-2).
-        if (!win.isDestroyed()) win.close();
-      });
-      return { ok: true };
-    }
-  );
 }

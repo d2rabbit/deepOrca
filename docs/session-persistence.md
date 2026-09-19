@@ -1,6 +1,6 @@
 # 会话持久化机制
 
-DeepOrca 会把每个项目的会话记录保存在本机用户目录中。会话历史用于 `/resume`、`/continue` 和 `/undo`，不依赖当前终端进程是否仍在运行。
+DeepOrca 会把每个项目的会话记录保存在本机用户目录中。会话历史用于 `/resume`、`/continue` 和 `/undo`，不依赖当前主进程是否仍在运行。
 
 ## 存储位置
 
@@ -14,11 +14,11 @@ DeepOrca 会把每个项目的会话记录保存在本机用户目录中。会�
 
 项目存储目录包含以下主要文件和目录：
 
-| 路径 | 说明 |
-| ---- | ---- |
+| 路径                  | 说明                                                   |
+| --------------------- | ------------------------------------------------------ |
 | `sessions-index.json` | 当前项目的会话索引，保存会话列表和每个会话的概要信息。 |
-| `<session-id>.jsonl` | 单个会话的消息记录。每一行是一条 JSON 格式的消息。 |
-| `file-history/.git` | 用于代码快照的内部 Git 仓库，供 `/undo` 恢复文件内容。 |
+| `<session-id>.jsonl`  | 单个会话的消息记录。每一行是一条 JSON 格式的消息。     |
+| `file-history/.git`   | 用于代码快照的内部 Git 仓库，供 `/undo` 恢复文件内容。 |
 
 ## 持久化内容
 
@@ -27,7 +27,7 @@ DeepOrca 会把每个项目的会话记录保存在本机用户目录中。会�
 `sessions-index.json` 保存最近的会话条目。每个条目包含：
 
 - 会话 ID、标题、创建时间和更新时间。
-- 会话状态，例如 `pending`、`processing`、`completed`、`failed`、`interrupted`、`ask_permission`、`waiting_for_user`。
+- 会话状态（closed set）：`pending`、`processing`、`completed`、`failed`、`interrupted`、`ask_permission`、`waiting_for_user`、`paused`、`permission_denied`。
 - 最近一次 assistant 回复、思考内容、拒绝原因和失败原因。
 - 最近一次工具调用信息、token 用量和活跃 token 数。
 - 当前会话中仍被跟踪的子进程信息。
@@ -38,18 +38,18 @@ DeepOrca 会把每个项目的会话记录保存在本机用户目录中。会�
 
 每个会话有一个独立的 JSONL 消息文件，文件名是 `<session-id>.jsonl`。消息按追加顺序写入，常见字段包括：
 
-| 字段 | 说明 |
-| ---- | ---- |
-| `id` | 消息 ID。 |
-| `sessionId` | 所属会话 ID。 |
-| `role` | 消息角色：`system`、`user`、`assistant` 或 `tool`。 |
-| `content` | 文本内容。 |
-| `contentParams` | 结构化内容，例如图片输入。 |
-| `messageParams` | 模型消息参数，例如 tool call ID、tool calls、reasoning content。 |
-| `visible` | 是否在界面中显示。 |
-| `compacted` | 是否已经被长会话压缩替代。 |
-| `checkpointHash` | 与 `/undo` 关联的代码快照哈希。 |
-| `meta` | 工具展示、skill、权限、摘要等附加信息。 |
+| 字段             | 说明                                                             |
+| ---------------- | ---------------------------------------------------------------- |
+| `id`             | 消息 ID。                                                        |
+| `sessionId`      | 所属会话 ID。                                                    |
+| `role`           | 消息角色：`system`、`user`、`assistant` 或 `tool`。              |
+| `content`        | 文本内容。                                                       |
+| `contentParams`  | 结构化内容，例如图片输入。                                       |
+| `messageParams`  | 模型消息参数，例如 tool call ID、tool calls、reasoning content。 |
+| `visible`        | 是否在界面中显示。                                               |
+| `compacted`      | 是否已经被长会话压缩替代。                                       |
+| `checkpointHash` | 与 `/undo` 关联的代码快照哈希。                                  |
+| `meta`           | 工具展示、skill、权限、摘要等附加信息。                          |
 
 读取消息文件时，DeepOrca 会逐行解析 JSON；无法解析的行会被忽略，以便尽量保留其余可用历史。
 
@@ -105,7 +105,7 @@ DeepOrca 使用 `file-history/.git` 保存代码快照。这个仓库只作为�
 - 工具调用需要确认时，状态会变为 `ask_permission`。
 - 工具需要用户输入时，状态会变为 `waiting_for_user`。
 
-这些状态都会持久化到 `sessions-index.json`，因此重新打开 CLI 后仍能在会话列表中看到。
+这些状态都会持久化到 `sessions-index.json`，因此重新启动应用后仍能在会话列表中看到。
 
 ## `/undo` 如何使用持久化数据
 
@@ -113,11 +113,11 @@ DeepOrca 使用 `file-history/.git` 保存代码快照。这个仓库只作为�
 
 根据选择，DeepOrca 可以执行以下操作：
 
-| 操作 | 行为 |
-| ---- | ---- |
+| 操作     | 行为                                                                |
+| -------- | ------------------------------------------------------------------- |
 | 恢复对话 | 截断所选用户消息之前的消息历史，并更新索引中的最新 assistant 信息。 |
-| 恢复代码 | 从 `file-history/.git` 中读取所选快照，并还原被跟踪文件。 |
-| 同时恢复 | 先恢复代码，再截断对话历史。 |
+| 恢复代码 | 从 `file-history/.git` 中读取所选快照，并还原被跟踪文件。           |
+| 同时恢复 | 先恢复代码，再截断对话历史。                                        |
 
 恢复对话会重写该会话的 JSONL 文件；恢复代码会修改工作区中被快照跟踪的文件。
 

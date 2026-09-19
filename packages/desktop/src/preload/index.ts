@@ -35,7 +35,6 @@ const api: DesktopApi = {
   resumePrompt: (sessionId) => ipcRenderer.invoke(IpcRequest.PromptResume, sessionId),
   enhancePrompt: (text) => ipcRenderer.invoke(IpcRequest.PromptEnhance, text),
   denyPermission: (reason) => ipcRenderer.invoke(IpcRequest.PermissionDeny, reason),
-  adjustBashTimeout: (deltaMs) => ipcRenderer.invoke(IpcRequest.AdjustBashTimeout, deltaMs),
 
   listSkills: (sessionId) => ipcRenderer.invoke(IpcRequest.SkillsList, sessionId),
   getSettings: () => ipcRenderer.invoke(IpcRequest.SettingsGet),
@@ -57,7 +56,6 @@ const api: DesktopApi = {
   onSessionEntryUpdated: (cb) => subscribe(IpcEvent.SessionEntryUpdated, cb as (p: never) => void),
   onLlmStreamProgress: (cb) => subscribe(IpcEvent.LlmStreamProgress, cb as (p: never) => void),
   // ── Plugin API ────────────────────────────────────────────────────────────
-  pluginSearchSkills: (query, sessionId) => ipcRenderer.invoke(IpcRequest.PluginSearchSkills, query, sessionId),
   pluginRefreshSkills: (sessionId) => ipcRenderer.invoke(IpcRequest.PluginRefreshSkills, sessionId),
   pluginReadSkillDoc: (path, locale) => ipcRenderer.invoke(IpcRequest.PluginReadSkillDoc, path, locale),
   pluginUpsertMcpServer: (name, command, args, env) =>
@@ -98,12 +96,9 @@ const api: DesktopApi = {
   gitCommitFiles: (hash) => ipcRenderer.invoke(IpcRequest.GitCommitFiles, hash),
 
   // ── CodeGraph index library ──────────────────────────────────
-  codegraphList: () => ipcRenderer.invoke(IpcRequest.CodegraphList),
 
   // ── code-review-graph (CRG — analysis-layer) ──────────────────
-  crgCheckAvailable: () => ipcRenderer.invoke(IpcRequest.CrgCheckAvailable),
   crgList: () => ipcRenderer.invoke(IpcRequest.CrgList),
-  crgReindex: (root) => ipcRenderer.invoke(IpcRequest.CrgReindex, root),
   reviewListReports: (root) => ipcRenderer.invoke(IpcRequest.ReviewListReports, root),
   reviewReadReport: (root, id) => ipcRenderer.invoke(IpcRequest.ReviewReadReport, root, id),
   reviewRiskGraph: (root, focusQns) => ipcRenderer.invoke(IpcRequest.ReviewRiskGraph, root, focusQns),
@@ -120,12 +115,7 @@ const api: DesktopApi = {
   laneRates: (root) => ipcRenderer.invoke(IpcRequest.LaneRatesGet, root),
 
   // ── Wiki knowledge graph (openwiki) ─────────────────────────────
-  wikiCheckAvailable: () => ipcRenderer.invoke(IpcRequest.WikiCheckAvailable),
-  wikiInit: () => ipcRenderer.invoke(IpcRequest.WikiInit),
-  wikiUpdate: () => ipcRenderer.invoke(IpcRequest.WikiUpdate),
   wikiListPages: (root) => ipcRenderer.invoke(IpcRequest.WikiListPages, root),
-  wikiReadPage: (path) => ipcRenderer.invoke(IpcRequest.WikiReadPage, path),
-  onWikiProgress: (cb) => subscribe(IpcEvent.WikiProgress, cb as (p: never) => void),
 
   // ── MCP management (plugin module) ─────────────────────────────
   pluginMcpList: () => ipcRenderer.invoke(IpcRequest.PluginMcpList),
@@ -146,7 +136,6 @@ const api: DesktopApi = {
 
   // ── Memory (in-process L0-L3 pipeline) ───────────────────────────
   memoryCheckAvailable: () => ipcRenderer.invoke(IpcRequest.MemoryCheckAvailable),
-  memorySetEnabled: (enabled) => ipcRenderer.invoke(IpcRequest.MemorySetEnabled, enabled),
   memorySearch: (query, limit) => ipcRenderer.invoke(IpcRequest.MemorySearch, query, limit),
   memoryStats: () => ipcRenderer.invoke(IpcRequest.MemoryStats),
   memoryClear: () => ipcRenderer.invoke(IpcRequest.MemoryClear),
@@ -159,10 +148,8 @@ const api: DesktopApi = {
   specsOpen: (root, relPath) => ipcRenderer.invoke(IpcRequest.SpecsOpen, root, relPath),
   endpointQuota: (endpointId) => ipcRenderer.invoke(IpcRequest.EndpointQuota, endpointId),
   endpointTest: (baseURL, apiKey) => ipcRenderer.invoke(IpcRequest.EndpointTest, baseURL, apiKey),
-  memoryRoutingStatus: () => ipcRenderer.invoke(IpcRequest.MemoryRoutingStatus),
   knowledgeArchRender: (jsonPath) => ipcRenderer.invoke(IpcRequest.KnowledgeArchRender, jsonPath),
   knowledgeArchReadJson: (jsonPath) => ipcRenderer.invoke(IpcRequest.KnowledgeArchReadJson, jsonPath),
-  knowledgeOpenArchHtml: (htmlPath, theme) => ipcRenderer.invoke(IpcRequest.KnowledgeOpenArchHtml, htmlPath, theme),
   knowledgeBuild: (root) => ipcRenderer.invoke(IpcRequest.KnowledgeBuild, root),
   knowledgeBuildStatus: () => ipcRenderer.invoke(IpcRequest.KnowledgeBuildStatus),
   knowledgeGitPreflight: (root) => ipcRenderer.invoke(IpcRequest.KnowledgeGitPreflight, root),
@@ -172,18 +159,14 @@ const api: DesktopApi = {
   knowledgeSymbolGraph: (root, query) => ipcRenderer.invoke(IpcRequest.KnowledgeSymbolGraph, root, query),
 
   // ── Designer (design artifacts) ────────────────────────────────────
-  designList: (root) => ipcRenderer.invoke(IpcRequest.DesignList, root),
   designRead: (id, root) => ipcRenderer.invoke(IpcRequest.DesignRead, id, root),
-  designDelete: (id, root) => ipcRenderer.invoke(IpcRequest.DesignDelete, id, root),
   designSaveFormState: (pipeline, state, root) =>
     ipcRenderer.invoke(IpcRequest.DesignSaveFormState, pipeline, state, root),
   designReadFormState: (pipeline, root) => ipcRenderer.invoke(IpcRequest.DesignReadFormState, pipeline, root),
-  designExportPackage: (id, root) => ipcRenderer.invoke(IpcRequest.DesignExportPackage, id, root),
   designSuiteList: (root, kind) => ipcRenderer.invoke(IpcRequest.DesignSuiteList, root, kind),
   designSuiteRead: (root, id) => ipcRenderer.invoke(IpcRequest.DesignSuiteRead, root, id),
   designSuiteReadVersion: (root, id, versionId) =>
     ipcRenderer.invoke(IpcRequest.DesignSuiteReadVersion, root, id, versionId),
-  designSuiteDelete: (root, id) => ipcRenderer.invoke(IpcRequest.DesignSuiteDelete, root, id),
   designSuiteExportPackage: (root, id, versionId) =>
     ipcRenderer.invoke(IpcRequest.DesignSuiteExport, root, id, versionId),
   designSuiteSaveFormState: (root, id, state, slot) =>
@@ -224,7 +207,6 @@ const api: DesktopApi = {
     ipcRenderer.invoke(IpcRequest.TaskTreeAbandon, treeId, branch, workspaceRoot),
   taskTreeMerge: (treeId, srcBranch) => ipcRenderer.invoke(IpcRequest.TaskTreeMerge, treeId, srcBranch),
   editorAgentRun: (input) => ipcRenderer.invoke(IpcRequest.EditorAgentRun, input),
-  editorAgentCancel: () => ipcRenderer.invoke(IpcRequest.EditorAgentCancel),
   lspRelayAttach: (root, languageId) => ipcRenderer.invoke(IpcRequest.LspRelayAttach, root, languageId),
   lspRelaySend: (sessionId, frame) => ipcRenderer.invoke(IpcRequest.LspRelaySend, sessionId, frame),
   lspRelayDetach: (sessionId) => ipcRenderer.invoke(IpcRequest.LspRelayDetach, sessionId),

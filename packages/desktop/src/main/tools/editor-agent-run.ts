@@ -72,7 +72,6 @@ function ledgerDeltaSince(ledgerPath: string, sinceSize: number): { prompt: numb
 export function registerEditorAgentRunIpc(deps: EditorAgentRunDeps): void {
   // Cancel the in-flight editor-agent run (specs/model-fleet-adaptation D2):
   // aborts the single-flight controller — ok:false when nothing is running.
-  deps.handlePrivileged(IpcRequest.EditorAgentCancel, () => deps.getBridge().cancelEditorAgent());
   // Editor digital entity (specs/editor-agent S2): run the editor-agent
   // background entity on the ACTIVE workspace's manager — sessionless, zero
   // residue; the final text returns for the editor panel to render.

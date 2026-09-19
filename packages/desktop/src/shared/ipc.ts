@@ -53,7 +53,6 @@ export const IpcRequest = {
   PromptResume: "prompt:resume",
   PromptEnhance: "prompt:enhance",
   PermissionDeny: "permission:deny",
-  AdjustBashTimeout: "prompt:adjustBashTimeout",
 
   SkillsList: "skills:list",
   SettingsGet: "settings:get",
@@ -72,7 +71,6 @@ export const IpcRequest = {
   UndoRestore: "undo:restore",
 
   // Plugin channels
-  PluginSearchSkills: "plugin:searchSkills",
   PluginRefreshSkills: "plugin:refreshSkills",
   PluginReadSkillDoc: "plugin:readSkillDoc",
   PluginUpsertMcpServer: "plugin:upsertMcpServer",
@@ -112,12 +110,9 @@ export const IpcRequest = {
   SessionExport: "session:export",
 
   // CodeGraph index library
-  CodegraphList: "codegraph:list",
 
   // code-review-graph (CRG — analysis-layer: risk, impact, architecture)
-  CrgCheckAvailable: "crg:checkAvailable",
   CrgList: "crg:list",
-  CrgReindex: "crg:reindex",
 
   // Code review — report history + simplified in-app risk map
   ReviewListReports: "review:listReports",
@@ -125,12 +120,8 @@ export const IpcRequest = {
   ReviewRiskGraph: "review:riskGraph",
 
   // Wiki knowledge graph (openwiki CLI)
-  WikiCheckAvailable: "wiki:checkAvailable",
-  WikiInit: "wiki:init",
-  WikiUpdate: "wiki:update",
   WikiListPages: "wiki:listPages",
   LaneRatesGet: "laneRates:get",
-  WikiReadPage: "wiki:readPage",
 
   // MCP management (moved out of settings into the plugin module)
   PluginMcpList: "plugin:mcpList",
@@ -154,7 +145,6 @@ export const IpcRequest = {
 
   // Memory (in-process L0-L3 pipeline)
   MemoryCheckAvailable: "memory:checkAvailable",
-  MemorySetEnabled: "memory:setEnabled",
   MemorySearch: "memory:search",
   MemoryStats: "memory:stats",
   MemoryClear: "memory:clear",
@@ -163,10 +153,8 @@ export const IpcRequest = {
   KnowledgeStatus: "knowledge:status",
   EndpointQuota: "endpoint:quota",
   EndpointTest: "endpoint:test",
-  MemoryRoutingStatus: "memoryRouting:status",
   KnowledgeArchRender: "knowledge:archRender",
   KnowledgeArchReadJson: "knowledge:archReadJson",
-  KnowledgeOpenArchHtml: "knowledge:archOpenHtml",
   KnowledgeBuild: "knowledge:build",
   KnowledgeBuildStatus: "knowledge:buildStatus",
   KnowledgeGitPreflight: "knowledge:gitPreflight",
@@ -182,16 +170,12 @@ export const IpcRequest = {
   SpecsOpen: "specs:open",
 
   // Designer — design artifact management (PM-Design + UI-Design)
-  DesignList: "design:list",
   DesignRead: "design:read",
-  DesignDelete: "design:delete",
   DesignSaveFormState: "design:saveFormState",
   DesignReadFormState: "design:readFormState",
-  DesignExportPackage: "design:exportPackage",
   DesignSuiteList: "design:suiteList",
   DesignSuiteRead: "design:suiteRead",
   DesignSuiteReadVersion: "design:suiteReadVersion",
-  DesignSuiteDelete: "design:suiteDelete",
   DesignSuiteExport: "design:suiteExport",
   DesignSuiteAppendLeafer: "design:suiteAppendLeafer",
   DesignSuiteSaveFormState: "design:suiteSaveFormState",
@@ -243,7 +227,6 @@ export const IpcRequest = {
    *  background entity on a selection — sessionless, zero residue. */
   EditorAgentRun: "editor:agentRun",
   /** Cancel the in-flight editor-agent run (specs/model-fleet-adaptation D2). */
-  EditorAgentCancel: "editor:agentCancel",
   // LSP bare-frame relay (specs/editor-copilot D2)
   LspRelayAttach: "lsp:relayAttach",
   LspRelaySend: "lsp:relaySend",
@@ -273,7 +256,6 @@ export const IpcEvent = {
   ProjectRootChanged: "event:projectRootChanged",
   PluginEvent: "event:pluginEvent",
   CrgProgress: "event:crgProgress",
-  WikiProgress: "event:wikiProgress",
   DepthLaneProgress: "event:depthLaneProgress",
   A2uiSurfaceUpdate: "event:a2uiSurfaceUpdate",
   A2uiWindowPayload: "event:a2uiWindowPayload",
@@ -313,20 +295,6 @@ export type ReviewComment = {
   severity: "critical" | "warning" | "info" | string;
   message: string;
   suggestion?: string;
-};
-
-/** Payload for the WikiProgress event (streamed openwiki output). */
-export type WikiProgressEvent = {
-  /** The workspace root the wiki agent is running in. */
-  root: string;
-  /** A chunk of process output. */
-  chunk: string;
-  /** Which stream produced the chunk. */
-  stream: "stdout" | "stderr";
-  /** True when the process has exited. */
-  done: boolean;
-  /** Exit code, present only when done=true. */
-  exitCode?: number;
 };
 
 /** A single wiki page entry from the deepwiki/ store. */
@@ -947,12 +915,6 @@ export type KnowledgeStatusResponse = {
 };
 
 /** Legacy shape kept for the memory/routing observability surfaces. */
-export type MemoryRoutingStatus = {
-  memory: KnowledgeSourceStatus & { stats?: MemoryPipelineStats };
-  routing: KnowledgeSourceStatus;
-  serena: KnowledgeSourceStatus;
-};
-
 // ── Task trajectory (specs/task-tree P0) ─────────────────────────────────────
 export type { TaskNode, TaskReflogEntry, TaskTreeIndex, TaskTreeSummary } from "@deeporca/core";
 
@@ -1316,7 +1278,6 @@ export type EditableSettings = {
   /** Memory system settings (TencentDB-Agent-Memory sidecar). */
   memory: {
     enabled: boolean;
-    port: number;
     embedding: "none" | "local-onnx";
     /** Days to retain memory shards (0 = never clean). Phase 4 / T4.2. */
     retentionDays: number;
@@ -1438,7 +1399,6 @@ export type DesktopApi = {
   /** Rewrite a draft prompt via the flash model (prompt enhancement). */
   enhancePrompt(text: string): Promise<{ ok: boolean; text?: string; error?: string }>;
   denyPermission(reason?: string): Promise<void>;
-  adjustBashTimeout(deltaMs: number): Promise<{ timeoutMs: number } | null>;
 
   listSkills(sessionId?: string): Promise<SkillInfo[]>;
   getSettings(): Promise<SettingsSummary>;
@@ -1461,7 +1421,6 @@ export type DesktopApi = {
 
   // ── Plugin API ────────────────────────────────────────────────────────────
   /** Search skills by keyword (name/description, case-insensitive). */
-  pluginSearchSkills(query: string, sessionId?: string): Promise<SkillInfo[]>;
   /** Force-refresh skills from disk. */
   pluginRefreshSkills(sessionId?: string): Promise<SkillInfo[]>;
   /** Read a skill's raw SKILL.md markdown by its display path. */
@@ -1539,15 +1498,10 @@ export type DesktopApi = {
 
   // ── CodeGraph index library ─────────────────────────────────────────────
   /** List every known workspace with its CodeGraph initialization state. */
-  codegraphList(): Promise<CodegraphIndexEntry[]>;
 
   // ── code-review-graph (CRG — analysis-layer) ──────────────────────────────
-  /** Check whether `uv`/`uvx` and code-review-graph are available. */
-  crgCheckAvailable(): Promise<{ available: boolean; version?: string }>;
   /** List every known workspace with its CRG graph state. */
   crgList(): Promise<CrgIndexEntry[]>;
-  /** Build (or rebuild) the CRG graph for a workspace, streaming via onCrgProgress. */
-  crgReindex(root: string): Promise<{ ok: boolean; action: "reset"; error?: string }>;
   /** List a workspace's persisted review reports (newest first). */
   reviewListReports(root: string): Promise<ReviewReportMeta[]>;
   /** Read one persisted report: structured meta (with findings) + export HTML
@@ -1594,18 +1548,10 @@ export type DesktopApi = {
   onCrgProgress(cb: (event: CrgProgressEvent) => void): () => void;
 
   // ── Wiki knowledge graph (openwiki) ─────────────────────────────────────────
-  /** Check whether the built-in (vendored) or PATH `openwiki` CLI is available. */
-  wikiCheckAvailable(): Promise<{ available: boolean; version?: string }>;
-  /** Generate the project wiki (openwiki --init), streaming via onWikiProgress. */
-  wikiInit(): Promise<{ ok: boolean; error?: string }>;
-  /** Incrementally update the project wiki (openwiki --update). */
-  wikiUpdate(): Promise<{ ok: boolean; error?: string }>;
   /** List all wiki pages in the project's openwiki/ directory. */
   wikiListPages(root?: string): Promise<WikiPageEntry[]>;
   /** Read the markdown content of a wiki page. */
-  wikiReadPage(path: string): Promise<string>;
   /** Subscribe to streaming wiki generation output. Returns unsubscribe fn. */
-  onWikiProgress(cb: (event: WikiProgressEvent) => void): () => void;
 
   // ── MCP management (plugin module) ──────────────────────────────────────
   /** List all MCP servers (user + built-in) with enable/runtime state. */
@@ -1643,8 +1589,6 @@ export type DesktopApi = {
   // ── Memory (in-process L0-L3 pipeline) ─────────────────────────────────
   /** Check whether the memory pipeline is available and healthy. */
   memoryCheckAvailable(): Promise<{ available: boolean; healthy: boolean }>;
-  /** Enable or disable cross-session memory (starts/stops the in-process pipeline). */
-  memorySetEnabled(enabled: boolean): Promise<{ ok: boolean; error?: string }>;
   /** Search stored memories by free-text query. */
   memorySearch(query: string, limit?: number): Promise<{ text: string; total: number }>;
   /** L0-L3 pipeline statistics for the knowledge dashboard. */
@@ -1671,9 +1615,6 @@ export type DesktopApi = {
   /** Read a typed-IR artifact's JSON (for the in-pane dynamic map), under the
    *  same registered-root + prototypes containment as the render/open channels. */
   knowledgeArchReadJson(jsonPath: string): Promise<{ ok: boolean; json?: string; error?: string }>;
-  /** Open a delivered archify HTML in the sandboxed preview window. `theme`
-   *  syncs the viewer's color mode to the app appearance (2026-08-30). */
-  knowledgeOpenArchHtml(htmlPath: string, theme?: "light" | "dark"): Promise<{ ok: boolean; error?: string }>;
   /** Start (or return the in-flight) background build for a root — idempotent. */
   knowledgeBuild(root: string): Promise<KnowledgeBuildJobSnapshot>;
   /** Live snapshots of all build jobs (rows render from this). */
@@ -1691,22 +1632,17 @@ export type DesktopApi = {
   /** Display-only symbol relationship graph (callers/callees around a focus). */
   knowledgeSymbolGraph(root: string, query?: string): Promise<KnowledgeSymbolGraph>;
   /** Memory/routing observability (moved out of the knowledge module, T4). */
-  memoryRoutingStatus(): Promise<MemoryRoutingStatus>;
 
   // ── Designer (design artifacts) ────────────────────────────────────────
   /** Legacy artifact surface. Omitted root remains pinned to the active workspace. */
-  designList(root?: string): Promise<DesignArtifactMeta[]>;
   designRead(id: string, root?: string): Promise<DesignArtifact | null>;
-  designDelete(id: string, root?: string): Promise<boolean>;
   designSaveFormState(pipeline: "openui" | "design", state: Record<string, unknown>, root?: string): Promise<boolean>;
   designReadFormState(pipeline: "openui" | "design", root?: string): Promise<Record<string, unknown> | null>;
-  designExportPackage(id: string, root?: string): Promise<{ ok: boolean; path?: string; error?: string }>;
 
   /** Versioned design suite surface. All workspace operations require an explicit registered root. */
   designSuiteList(root: string, kind?: DesignSuiteKind): Promise<DesignSuiteSummary[]>;
   designSuiteRead(root: string, id: string): Promise<DesignSuite | null>;
   designSuiteReadVersion(root: string, id: string, versionId: string): Promise<DesignSuiteVersion | null>;
-  designSuiteDelete(root: string, id: string): Promise<boolean>;
   designSuiteExportPackage(
     root: string,
     id: string,
@@ -1832,7 +1768,6 @@ export type DesktopApi = {
     runId?: string;
   }): Promise<{ ok: true; content: string; iterations: number } | { ok: false; error: string }>;
   /** Cancel the in-flight editor-agent run (D2). ok:false = nothing running. */
-  editorAgentCancel(): Promise<{ ok: boolean }>;
   lspRelayAttach(root: string, languageId: string): Promise<LspRelayAttachResult>;
   lspRelaySend(sessionId: string, frame: string): Promise<{ ok: true } | { ok: false; error: string }>;
   lspRelayDetach(sessionId: string): Promise<{ ok: true } | { ok: false; error: string }>;

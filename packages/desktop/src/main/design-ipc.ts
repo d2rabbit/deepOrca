@@ -368,31 +368,10 @@ export function registerDesignIpc(helpers: DesignIpcHelpers, deps: DesignIpcDeps
   const pinned = (root?: string): string | null => deps.resolveRegisteredRoot(root);
   registerChangeEvents(store, deps.emit);
 
-  handle(IpcRequest.DesignList, (root?: string) => {
-    const resolved = pinned(root);
-    return resolved ? store.listArtifacts(resolved) : [];
-  });
   handle(IpcRequest.DesignRead, (id: string, root?: string) => {
     const resolved = pinned(root);
     return resolved ? store.readArtifact(resolved, id) : null;
   });
-  handlePrivileged(IpcRequest.DesignDelete, (id: string, root?: string) => {
-    const resolved = pinned(root);
-    return resolved ? store.deleteArtifact(resolved, id) : false;
-  });
-  handlePrivileged(IpcRequest.DesignExportPackage, async (id: string, root?: string) => {
-    const resolved = pinned(root);
-    if (!resolved) return { ok: false, error: "unregistered workspace" };
-    const artifact = store.readArtifact(resolved, id);
-    if (!artifact) return { ok: false, error: "design artifact not found" };
-    try {
-      const pkg = buildPackage(artifact, artifact.pipeline === "design" ? "ddu-dd" : "ddp", artifact.content);
-      return deps.savePackage(pkg.data, pkg.options);
-    } catch (error) {
-      return { ok: false, error: `package build failed: ${error instanceof Error ? error.message : String(error)}` };
-    }
-  });
-
   const latestArtifactId = (root: string, pipeline: DesignPipeline): string | null =>
     store.listArtifacts(root).find((artifact) => artifact.pipeline === pipeline)?.id ?? null;
 
@@ -424,10 +403,6 @@ export function registerDesignIpc(helpers: DesignIpcHelpers, deps: DesignIpcDeps
   handle(IpcRequest.DesignSuiteReadVersion, (root: string, id: string, versionId: string) => {
     const resolved = pinned(root);
     return resolved ? store.readSuiteVersion(resolved, id, versionId) : null;
-  });
-  handlePrivileged(IpcRequest.DesignSuiteDelete, (root: string, id: string) => {
-    const resolved = pinned(root);
-    return resolved ? store.deleteSuite(resolved, id) : false;
   });
   /** Leafer canvas edit → new suite version (specs/leafer-ui-engine WP1.4).
    *  Main builds the next content from the head version itself — the renderer

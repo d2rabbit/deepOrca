@@ -181,17 +181,12 @@ describe("design suite IPC root pinning", () => {
     assert.equal(invoke(harness, IpcRequest.DesignSuiteReadVersion, ROOT_B, SUITE.id, VERSION.versionId), null);
   });
 
-  test("unregistered delete never calls the store and mutations are privileged", () => {
+  test("mutations are privileged", () => {
     const harness = createHarness();
-    assert.equal(invoke(harness, IpcRequest.DesignSuiteDelete, ROOT_B, SUITE.id), false);
-    assert.equal(harness.calls.deleteSuite, 0);
     for (const channel of [
-      IpcRequest.DesignDelete,
-      IpcRequest.DesignExportPackage,
       IpcRequest.DesignSaveFormState,
       IpcRequest.DesignSuiteAppendLeafer,
       IpcRequest.DesignSuiteAssignTheme,
-      IpcRequest.DesignSuiteDelete,
       IpcRequest.DesignSuiteExport,
       IpcRequest.DesignSuiteSaveFormState,
       IpcRequest.DesignThemeCreate,
@@ -200,13 +195,6 @@ describe("design suite IPC root pinning", () => {
     ]) {
       assert.ok(harness.privileged.has(channel), `${channel} must be privileged`);
     }
-  });
-
-  test("legacy omitted root resolves to active registered root", () => {
-    const harness = createHarness();
-    assert.deepEqual(invoke(harness, IpcRequest.DesignList), [ARTIFACT]);
-    assert.equal(invoke(harness, IpcRequest.DesignRead, ARTIFACT.id), ARTIFACT);
-    assert.deepEqual(invoke(harness, IpcRequest.DesignList, ROOT_B), []);
   });
 
   test("suite export selects the requested historical version content", async () => {

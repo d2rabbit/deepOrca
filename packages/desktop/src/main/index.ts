@@ -75,7 +75,6 @@ import type {
   KnowledgeGitBootstrapResult,
   EndpointQuotaResponse,
   EndpointTestResponse,
-  MemoryRoutingStatus,
   KnowledgeSymbol,
   KnowledgeSymbolGraph,
   MemoryPipelineStats,
@@ -1087,8 +1086,6 @@ function registerCoreIpc({ handle, handlePrivileged, handleShared }: IpcHelpers)
   // PermissionDeny and AdjustBashTimeout mutate live agent/permission state
   // (denyPermission is terminal and flushes session persistence).
   handlePrivileged(IpcRequest.PermissionDeny, (reason?: string) => getBridge().denyPermission(reason));
-  handlePrivileged(IpcRequest.AdjustBashTimeout, (deltaMs: number) => getBridge().adjustBashTimeout(deltaMs));
-
   handle(IpcRequest.SkillsList, (sessionId?: string) => getPluginManager().listSkills(sessionId));
   handle(IpcRequest.SettingsGet, () => getBridge().getSettings());
   handle(IpcRequest.SettingsGetEditable, () => getBridge().getEditableSettings());
@@ -1141,9 +1138,6 @@ function registerCoreIpc({ handle, handlePrivileged, handleShared }: IpcHelpers)
 
 function registerPluginsIpc({ handle, handlePrivileged }: IpcHelpers): void {
   // ── Plugin IPC handlers ───────────────────────────────────────────────────
-  handle(IpcRequest.PluginSearchSkills, (query: string, sessionId?: string) =>
-    getPluginManager().searchSkills(query, sessionId)
-  );
   handle(IpcRequest.PluginRefreshSkills, (sessionId?: string) => getPluginManager().refreshSkills(sessionId));
   handle(IpcRequest.PluginReadSkillDoc, (path: string, locale?: string) =>
     getPluginManager().readSkillDoc(path, locale)
@@ -1268,18 +1262,6 @@ function registerCodegraphIpc({ handle }: IpcHelpers): void {
   // ── CodeGraph index library ───────────────────────────────────────────────
   // Legacy IPC for the IndexLibraryPanel status dot. The build button now uses
   // api.actionRun("index.build-all"); this handler only serves the status check.
-  handle(IpcRequest.CodegraphList, (): CodegraphIndexEntry[] => {
-    const currentRoot = getBridge().projectRoot;
-    if (!currentRoot) return [];
-    const initialized = existsSync(join(currentRoot, ".codegraph"));
-    return [
-      {
-        root: currentRoot,
-        label: currentRoot.split("/").pop() || currentRoot,
-        initialized,
-      },
-    ];
-  });
   // codegraph:reindex now delegates to the action system (index.build-all or
   // codegraph.reindex action). The old privileged handler is removed.
 }
@@ -1298,24 +1280,6 @@ function registerCrgIpc({ handle, handlePrivileged }: IpcHelpers): void {
   // an isolated Python 3.12 environment. The vendored uv binary (packages/desktop/
   // vendor/uv) is preferred; when absent, a system `uv`/`uvx` on PATH is used.
 
-  handle(IpcRequest.CrgCheckAvailable, (): Promise<{ available: boolean; version?: string }> => {
-    return new Promise((resolve) => {
-      const uvBin = resolveUvBinary();
-      if (!uvBin) {
-        resolve({ available: false });
-        return;
-      }
-      // Probe uv version first — if uv works, uvx can run CRG.
-      execFile(uvBin, ["--version"], { timeout: 10000, windowsHide: true }, (err, stdout) => {
-        if (err) {
-          resolve({ available: false });
-          return;
-        }
-        resolve({ available: true, version: stdout.trim().split("\n")[0] });
-      });
-    });
-  });
-
   handle(IpcRequest.CrgList, (): CrgIndexEntry[] => {
     const { workspaces } = listWorkspaceSessions(getBridge().projectRoot);
     return workspaces.map((w) => ({
@@ -1323,36 +1287,6 @@ function registerCrgIpc({ handle, handlePrivileged }: IpcHelpers): void {
       label: w.label,
       hasGraph: hasCrgProject(w.root),
     }));
-  });
-
-  handlePrivileged(IpcRequest.CrgReindex, async (_rootFromRenderer: string) => {
-    // Derive the workspace root server-side. Earlier code trusted a renderer-
-    // supplied root and recursively removed .code-review-graph under it.
-    const root = getBridge().projectRoot;
-    // Terminal progress MUST fire on every path (success, non-zero exit, and
-    // throw) — the task row's done state hangs off this one event, and a
-    // missing terminal event is exactly the index-module stuck-state bug.
-    let exitCode = 1;
-    try {
-      exitCode = await runCrgResetWithOutput(root, (chunk: string, stream: "stdout" | "stderr") => {
-        emit(IpcEvent.CrgProgress, { root, chunk, stream, done: false });
-      });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      emit(IpcEvent.CrgProgress, {
-        root,
-        chunk: `\n[Error] CRG reset failed: ${message}\n`,
-        stream: "stderr",
-        done: false,
-      });
-    } finally {
-      emit(IpcEvent.CrgProgress, { root, chunk: "", stream: "stdout", done: true, exitCode });
-    }
-    return {
-      ok: exitCode === 0,
-      action: "reset" as const,
-      error: exitCode !== 0 ? `exit code ${exitCode}` : undefined,
-    };
   });
 
   // ── code review — report history + simplified risk map ────────────────────
@@ -1464,51 +1398,8 @@ function registerMemoryIpc({ handle, handlePrivileged }: IpcHelpers): void {
   // (startMemory/stopMemory/reconcileMemory are module-scoped so the startup,
   // settings-save, project-switch, and shutdown paths can reach them.)
 
-  handle(IpcRequest.MemoryRoutingStatus, async (): Promise<MemoryRoutingStatus> => {
-    const root = getBridge().projectRoot;
-    const countDirFiles = (dir: string, filter?: (name: string) => boolean): number => {
-      try {
-        const entries = readdirSync(dir, { withFileTypes: true });
-        return entries.filter((e) => e.isFile() && (!filter || filter(e.name))).length;
-      } catch {
-        return 0;
-      }
-    };
-    // Serena — memory file count under .serena/memories/.
-    const serenaMemDir = join(root, ".serena", "memories");
-    const serenaCount = countDirFiles(serenaMemDir, (n) => n.endsWith(".md"));
-    const serena: KnowledgeSourceStatus = existsSync(join(root, ".serena"))
-      ? { state: serenaCount === 0 ? "empty" : "indexed", count: serenaCount, unit: "条", detail: ".serena/memories/" }
-      : { state: "empty", detail: "未初始化" };
-    const memStats = memoryManager ? await memoryManager.getStats() : null;
-    const memory: MemoryRoutingStatus["memory"] = memoryManager?.isAvailable()
-      ? {
-          state: memStats && memStats.l0 > 0 ? "indexed" : "empty",
-          count: memStats?.l1 ?? 0,
-          unit: "天",
-          detail: memStats?.l3 ? "L0-L3 全链路" : "L0-L2",
-          stats: memStats ?? undefined,
-        }
-      : { state: "disabled", detail: "未启用" };
-    const routingState = getBridge().getSessionManager().getRoutingStatus();
-    const routing: KnowledgeSourceStatus =
-      routingState.state === "ready"
-        ? { state: "indexed", detail: "技能/工具语义召回" }
-        : routingState.state === "error"
-          ? { state: "disabled", detail: `路由降级: ${routingState.error ?? "嵌入模型不可用"}` }
-          : { state: "empty", detail: "未激活（首次会话时加载）" };
-    return { memory, routing, serena };
-  });
   handle(IpcRequest.MemoryCheckAvailable, async (): Promise<{ available: boolean; healthy: boolean }> => {
     return { available: !!memoryManager, healthy: memoryManager?.isAvailable() ?? false };
-  });
-
-  handlePrivileged(IpcRequest.MemorySetEnabled, async (enabled: boolean): Promise<{ ok: boolean; error?: string }> => {
-    if (enabled) {
-      return startMemory();
-    }
-    await stopMemory();
-    return { ok: true };
   });
 
   handle(IpcRequest.MemorySearch, async (query: string, limit?: number): Promise<{ text: string; total: number }> => {
@@ -2294,31 +2185,6 @@ function registerWikiIpc({ handle, handlePrivileged }: IpcHelpers): void {
     return null;
   };
 
-  handle(IpcRequest.WikiCheckAvailable, (): Promise<{ available: boolean; version?: string }> => {
-    return new Promise((resolve) => {
-      const resolved = resolveOpenwikiCommand();
-      if (!resolved) {
-        resolve({ available: false });
-        return;
-      }
-      const { command, prefixArgs, env } = resolved;
-      const execEnv = env ? { ...(process.env as Record<string, string>), ...env } : undefined;
-      execFile(
-        command,
-        [...prefixArgs, "--version"],
-        { timeout: 10000, env: execEnv, windowsHide: true },
-        (err, stdout) => {
-          if (!err) {
-            resolve({ available: true, version: stdout.trim().split("\n")[0] });
-          } else {
-            // A vendored build counts as available even when --version probing fails.
-            resolve({ available: true });
-          }
-        }
-      );
-    });
-  });
-
   /**
    * Spawn openwiki with the wiki agent's model strategy:
    * 1. Try flash model (fast/cheap) first
@@ -2331,51 +2197,6 @@ function registerWikiIpc({ handle, handlePrivileged }: IpcHelpers): void {
   // and bypassed the staging lifecycle every read surface now expects. The
   // controller owns: openai-compatible provider routing, staging
   // copy/promote, guards, retries, and language.
-  handlePrivileged(IpcRequest.WikiInit, async (): Promise<{ ok: boolean; error?: string }> => {
-    try {
-      const res = await wikiController.init(getBridge().projectRoot, (p) =>
-        emit(IpcEvent.WikiProgress, {
-          root: getBridge().projectRoot,
-          chunk: `${p.message}\n`,
-          stream: "stdout",
-          done: false,
-        })
-      );
-      emit(IpcEvent.WikiProgress, {
-        root: getBridge().projectRoot,
-        chunk: "",
-        stream: "stdout",
-        done: true,
-        exitCode: 0,
-      });
-      return { ok: res.ok, error: res.ok ? undefined : res.warning };
-    } catch (err) {
-      return { ok: false, error: err instanceof Error ? err.message : String(err) };
-    }
-  });
-  handlePrivileged(IpcRequest.WikiUpdate, async (): Promise<{ ok: boolean; error?: string }> => {
-    try {
-      const res = await wikiController.update(getBridge().projectRoot, (p) =>
-        emit(IpcEvent.WikiProgress, {
-          root: getBridge().projectRoot,
-          chunk: `${p.message}\n`,
-          stream: "stdout",
-          done: false,
-        })
-      );
-      emit(IpcEvent.WikiProgress, {
-        root: getBridge().projectRoot,
-        chunk: "",
-        stream: "stdout",
-        done: true,
-        exitCode: 0,
-      });
-      return { ok: res.ok, error: res.ok ? undefined : res.warning };
-    } catch (err) {
-      return { ok: false, error: err instanceof Error ? err.message : String(err) };
-    }
-  });
-
   /**
    * Tree label for a wiki page: the frontmatter `title` (localized at
    * generation time) — filename-derived labels forced English filenames onto
@@ -2466,41 +2287,6 @@ function registerWikiIpc({ handle, handlePrivileged }: IpcHelpers): void {
       return orderWikiPagesIndexFirst(entries);
     } catch {
       return [];
-    }
-  });
-
-  handle(IpcRequest.WikiReadPage, async (pagePath: string): Promise<string> => {
-    // Containment: page must be a strictly-relative .md file under
-    // <project>/deepwiki, with no symlink/junction escape. The previous
-    // string-only `normalize + regex strip ../` guard was defeated by absolute
-    // paths, drive letters, UNC paths, and symlinks inside deepwiki/. The
-    // shared safeWikiPath uses the same lexical + realpath containment that
-    // editor-handlers uses, and additionally restricts to .md files.
-    ensureGeneratedLayout(getBridge().projectRoot);
-    const wikiRoot = join(getBridge().projectRoot, WIKI_STORE_DIR);
-    const check = safeWikiPath(wikiRoot, pagePath);
-    if (!check.ok) {
-      // Surface the rejection in the main log so an attack or a bug is
-      // diagnosable. The IPC return stays the existing "" for back-compat.
-      console.warn(`[wiki:readPage] rejected path (${check.reason}): ${pagePath}`);
-      return "";
-    }
-    try {
-      const fileStat = await stat(check.absPath);
-      if (!fileStat.isFile()) {
-        // A directory or special file masquerading as a .md page.
-        console.warn(`[wiki:readPage] not a regular file: ${pagePath}`);
-        return "";
-      }
-      // Cap read size (2 MB) so a pathological page can't exhaust memory.
-      if (fileStat.size > 2 * 1024 * 1024) {
-        console.warn(`[wiki:readPage] page too large (${fileStat.size} bytes): ${pagePath}`);
-        return "";
-      }
-      return await readFile(check.absPath, "utf-8");
-    } catch (err) {
-      console.warn(`[wiki:readPage] read failed: ${err instanceof Error ? err.message : String(err)}`);
-      return "";
     }
   });
 }
