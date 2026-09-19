@@ -149,28 +149,17 @@ export const zhTW: Record<MessageKey, string> = {
 
   // ── Empty states ──────────────────────────────────────────
   "empty.subtitle": "開始對話，建置、重構或探索你的程式碼庫。",
-  "empty.tips": "先在上方選擇專案資料夾，然後在下方輸入需求。",
   "empty.newSession": "新工作階段 —— 傳送你的第一則訊息。",
-  "welcome.quickStart": "快速開始",
   "welcome.greetMorning": "早安，今天從什麼開始？",
   "welcome.greetNoon": "午安呀，要不要先休息一下",
   "welcome.greetAfternoon": "下午好，來點推進？",
   "welcome.greetEvening": "晚安，夜色正適合寫程式",
   "welcome.planTitle": "先規劃",
-  "welcome.planDesc": "在變更程式碼前先草擬一份唯讀計畫。",
   "welcome.initTitle": "產生 AGENTS.md",
-  "welcome.initDesc": "讓 DeepOrca 為代理記錄本專案。",
   "welcome.skillsTitle": "技能與 MCP",
-  "welcome.skillsDesc": "瀏覽外掛並為任務附加技能。",
   "welcome.knowledgeTitle": "知識庫",
-  "welcome.knowledgeDesc": "為目前儲存庫構建 Wiki、架構圖與符號索引。",
   "welcome.reviewTitle": "程式碼審查",
-  "welcome.reviewDesc": "掃描變更並產生審查發現。",
   "welcome.undoTitle": "復原與還原",
-  "welcome.undoDesc": "回復對話或程式碼。",
-  "welcome.hintNew": "新增工作階段",
-  "welcome.hintPalette": "命令面板",
-  "welcome.hintShortcuts": "所有快捷鍵",
   "suggest.knowledgeTitle": "Wiki 已更新 · {n} 頁",
   "suggest.viewWiki": "檢視",
   "suggest.askArch": "請基於 @deepwiki/ 目錄下的 Wiki，分析這個專案的整體架構，並指出最值得改進的 3 個點：",
@@ -266,8 +255,6 @@ export const zhTW: Record<MessageKey, string> = {
 
   // ── Plugin center ────────────────────────────────────────
   "plugins.title": "外掛中心",
-  "plugins.tab.skills": "技能",
-  "plugins.tab.mcp": "MCP 伺服器",
   "plugins.skills.none": "未發現技能。將 SKILL.md 放入 .deeporca/skills/ 目錄即可。",
   "plugins.skills.loaded": "已載入",
   "plugins.skills.attach": "附加至提示",
@@ -410,19 +397,6 @@ export const zhTW: Record<MessageKey, string> = {
   "app.taskComplete": "任務已完成",
 
   // ── Process output panel ─────────────────────────────────
-  "process.title": "進程輸出",
-  "process.timeout": "超時",
-  "process.noTimeout": "無超時",
-  "process.running": "執行中",
-  "process.timeoutSet": "超時已設為",
-  "process.noAdjustable": "無可調整的 Bash 超時",
-  "process.clear": "清空輸出",
-  "process.cleared": "輸出已清空",
-  "process.stopAll": "全部停止（中斷整個任務）",
-  "process.processHeader": "── 進程 {pid} [{command}] ──",
-  "process.noOutput": "（暫無輸出）",
-  "process.noProcesses": "（無執行中的程序）",
-  "process.pidLabel": "PID",
 
   // ── 訊息渲染雜項 ───────────────────────────────────────────
   "msg.loadingComparison": "對比表載入中…",
@@ -506,8 +480,6 @@ export const zhTW: Record<MessageKey, string> = {
   "activity.none": "暫無工具呼叫",
   "pip.back": "切回此會話",
   "pip.blocked": "正在等待你的確認",
-  "pip.you": "使用者",
-  "pip.ai": "AI",
   "pip.cycle": "切換駐留工作區",
 
   // ── Mermaid ───────────────────────────────────────────────
@@ -1042,16 +1014,6 @@ export const zhTW: Record<MessageKey, string> = {
   "rail.prototype": "原型設計",
   "proto.title": "原型設計",
   "proto.openWindow": "在獨立視窗開啟",
-  "proto.stepSpec": "需求 → 需求文件",
-  "proto.requirementPrompt": "描述你的需求，一句話即可（將細化為結構化需求文件）…",
-  "proto.specBtn": "生成需求文件",
-  "proto.stepPrototype": "需求文件 → 原型圖",
-  "proto.noSpecHint": "先生成需求文件，再基於文件生成原型圖。",
-  "proto.prototypeBtn": "生成原型圖",
-  "proto.running": "進行中…",
-  "proto.empty": "還沒有需求文件或原型。",
-  "proto.kindSpec": "需求文件",
-  "proto.kindPrototype": "原型",
   "design.noPrototypeBasis": "不基於原型",
   "design.fromPrototype": "基於原型：{title}",
 
@@ -1223,8 +1185,6 @@ export const zhTW: Record<MessageKey, string> = {
   "index.openAgents": "開啟 AGENTS.md",
   "index.agentsMissing": "此工作區暫無 AGENTS.md",
   "index.archmapsEmpty": "還沒有架構圖——請先構建",
-  "index.archOpenMap": "開啟互動架構圖",
-  "index.archOpenWindow": "在獨立視窗開啟",
   "index.build": "構建",
   "index.buildKnowledge": "構建索引與知識",
   "index.gitNoRepoTitle": "不是 git 儲存庫",
@@ -1411,10 +1371,8 @@ export const zhTW: Record<MessageKey, string> = {
 
   // ── Editor (Monaco code editor) ───────────────────────────
   "rail.editor": "編輯器",
-  "editor.title": "程式碼編輯器",
   "editor.empty": "選擇要編輯的檔案。",
   "editor.loading": "載入檔案中…",
-  "editor.binary": "二進位檔案 — 無法編輯。",
   "editor.preview.loading": "正在載入預覽…",
   "editor.preview.unsupported": "該格式暫不支援內嵌預覽。",
   "editor.preview.tooLarge": "檔案超出預覽大小上限（64 MB）。",
@@ -1428,16 +1386,8 @@ export const zhTW: Record<MessageKey, string> = {
 
   "editor.autoSaving": "儲存中…",
 
-  "editor.agentTrigger": "問智能體",
-
-  "editor.agentTriggerLabel": "智能體",
-
-  "editor.save": "儲存",
-  "editor.saved": "已儲存",
-  "editor.saving": "儲存中…",
   "editor.dirty": "已修改",
   "editor.openInEditor": "在編輯器中開啟",
-  "editor.back": "返回",
   "editor.fileTree": "檔案",
   "editor.noFiles": "找不到檔案。",
   "editor.pair.title": "行內結對",
@@ -1556,13 +1506,11 @@ export const zhTW: Record<MessageKey, string> = {
   "editor.palette.kbd.close": "關閉",
   "editor.readError": "讀取檔案失敗。",
   "editor.writeError": "儲存檔案失敗。",
-  "editor.tooLarge": "檔案過大，無法編輯。",
   "editor.closeDirtyTitle": "有未儲存的修改",
   "editor.closeDirtyBody": "該檔案有未儲存的修改，確定關閉嗎？",
   "editor.workspace.closeDirtyTitle": "編輯器有未儲存的修改",
   "editor.workspace.closeDirtyBody": "一或多個開啟的檔案有未儲存的修改，關閉編輯器將捨棄這些修改。",
   "editor.discardAndClose": "放棄並關閉",
-  "editor.saveAndClose": "儲存並關閉",
 
   // ── 錯誤邊界 ───────────────────────────────────────────────
   "error.panelCrash": "面板渲染失敗。",

@@ -152,28 +152,17 @@ export const en = {
 
   // ── Empty states ──────────────────────────────────────────
   "empty.subtitle": "Start a conversation to build, refactor, or explore your codebase.",
-  "empty.tips": "Pick a project folder above, then type a request below.",
   "empty.newSession": "New session — send your first message.",
-  "welcome.quickStart": "Quick start",
   "welcome.greetMorning": "Good morning — what are we building today?",
   "welcome.greetNoon": "Good afternoon — fancy a break first?",
   "welcome.greetAfternoon": "Good afternoon — let's keep the momentum.",
   "welcome.greetEvening": "Good evening — the quiet hours are for code.",
   "welcome.planTitle": "Plan first",
-  "welcome.planDesc": "Draft a read-only plan before touching code.",
   "welcome.initTitle": "Generate AGENTS.md",
-  "welcome.initDesc": "Let DeepOrca document this project for agents.",
   "welcome.skillsTitle": "Skills & MCP",
-  "welcome.skillsDesc": "Browse plugins and attach skills to a task.",
   "welcome.knowledgeTitle": "Knowledge Base",
-  "welcome.knowledgeDesc": "Build Wiki, arch maps and a symbol index for this repo.",
   "welcome.reviewTitle": "Code Review",
-  "welcome.reviewDesc": "Scan changes and generate review findings.",
   "welcome.undoTitle": "Undo & restore",
-  "welcome.undoDesc": "Roll back the conversation or the code.",
-  "welcome.hintNew": "New session",
-  "welcome.hintPalette": "Command palette",
-  "welcome.hintShortcuts": "All shortcuts",
   "suggest.knowledgeTitle": "Wiki updated · {n} pages",
   "suggest.viewWiki": "View",
   "suggest.askArch":
@@ -270,8 +259,6 @@ export const en = {
 
   // ── Plugin center ────────────────────────────────────────
   "plugins.title": "Plugin Center",
-  "plugins.tab.skills": "Skills",
-  "plugins.tab.mcp": "MCP Servers",
   "plugins.skills.none": "No skills found. Place a SKILL.md inside the .deeporca/skills/ directory.",
   "plugins.skills.loaded": "loaded",
   "plugins.skills.attach": "Attach to prompt",
@@ -424,19 +411,6 @@ export const en = {
   "app.taskComplete": "Task completed",
 
   // ── Process output panel ─────────────────────────────────
-  "process.title": "Process Output",
-  "process.timeout": "timeout",
-  "process.noTimeout": "no timeout",
-  "process.running": "running",
-  "process.timeoutSet": "Timeout set to",
-  "process.noAdjustable": "No adjustable Bash timeout",
-  "process.clear": "Clear output",
-  "process.cleared": "Output cleared",
-  "process.stopAll": "Stop all (interrupts the whole task)",
-  "process.processHeader": "── Process {pid} [{command}] ──",
-  "process.noOutput": "(no output yet)",
-  "process.noProcesses": "(no running processes)",
-  "process.pidLabel": "PID",
 
   // ── Message render misc ───────────────────────────────────
   "msg.loadingComparison": "Loading comparison…",
@@ -520,8 +494,6 @@ export const en = {
   "activity.none": "No tool calls yet",
   "pip.back": "Back to this session",
   "pip.blocked": "Waiting for your confirmation",
-  "pip.you": "You",
-  "pip.ai": "AI",
   "pip.cycle": "Switch parked workspace",
 
   // ── Mermaid ───────────────────────────────────────────────
@@ -1062,16 +1034,6 @@ export const en = {
   "rail.prototype": "Prototype Design",
   "proto.title": "Prototype Design",
   "proto.openWindow": "Open in standalone window",
-  "proto.stepSpec": "Requirement → requirements document",
-  "proto.requirementPrompt": "Describe your requirement — a single sentence is enough (it becomes a structured spec)…",
-  "proto.specBtn": "Write spec",
-  "proto.stepPrototype": "Requirements document → prototype",
-  "proto.noSpecHint": "Write the requirements document first, then generate the prototype from it.",
-  "proto.prototypeBtn": "Generate prototype",
-  "proto.running": "Working…",
-  "proto.empty": "No requirements documents or prototypes yet.",
-  "proto.kindSpec": "Spec",
-  "proto.kindPrototype": "Prototype",
   "design.noPrototypeBasis": "No prototype basis",
   "design.fromPrototype": "From prototype: {title}",
 
@@ -1263,8 +1225,6 @@ export const en = {
   "index.openAgents": "Open AGENTS.md",
   "index.agentsMissing": "No AGENTS.md in this workspace",
   "index.archmapsEmpty": "No architecture maps yet — build first",
-  "index.archOpenMap": "Open interactive map",
-  "index.archOpenWindow": "Open in standalone window",
   "index.wikiEmpty": "Wiki not generated",
   "index.build": "Build",
   "index.buildKnowledge": "Build Knowledge Base",
@@ -1438,10 +1398,8 @@ export const en = {
 
   // ── Wiki knowledge graph (openwiki) ────────────────────────
   "rail.editor": "Editor",
-  "editor.title": "Code Editor",
   "editor.empty": "Select a file to edit.",
   "editor.loading": "Loading file…",
-  "editor.binary": "Binary file — cannot edit.",
   "editor.preview.loading": "Loading preview…",
   "editor.preview.unsupported": "This format has no embedded preview yet.",
   "editor.preview.tooLarge": "File exceeds the preview size limit (64 MB).",
@@ -1455,16 +1413,8 @@ export const en = {
 
   "editor.autoSaving": "Saving…",
 
-  "editor.agentTrigger": "Ask agent",
-
-  "editor.agentTriggerLabel": "Agent",
-
-  "editor.save": "Save",
-  "editor.saved": "Saved",
-  "editor.saving": "Saving…",
   "editor.dirty": "Modified",
   "editor.openInEditor": "Open in Editor",
-  "editor.back": "Back",
   "editor.fileTree": "Files",
   "editor.noFiles": "No files found.",
   "editor.pair.title": "Inline pair",
@@ -1584,14 +1534,12 @@ export const en = {
   "editor.palette.kbd.close": "Close",
   "editor.readError": "Failed to read file.",
   "editor.writeError": "Failed to save file.",
-  "editor.tooLarge": "File too large to edit.",
   "editor.closeDirtyTitle": "Unsaved changes",
   "editor.closeDirtyBody": "This file has unsaved modifications. Close it anyway?",
   "editor.workspace.closeDirtyTitle": "Unsaved changes in editor",
   "editor.workspace.closeDirtyBody":
     "One or more open files have unsaved modifications. Close the editor and discard them?",
   "editor.discardAndClose": "Discard & close",
-  "editor.saveAndClose": "Save & close",
 
   // ── Error boundary ────────────────────────────────────────
   "error.panelCrash": "This panel failed to render.",

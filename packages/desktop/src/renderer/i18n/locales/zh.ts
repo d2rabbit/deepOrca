@@ -149,28 +149,17 @@ export const zh: Record<MessageKey, string> = {
 
   // ── Empty states ──────────────────────────────────────────
   "empty.subtitle": "开始对话，构建、重构或探索你的代码库。",
-  "empty.tips": "先在上方选择项目文件夹，然后在下方输入需求。",
   "empty.newSession": "新会话 —— 发送你的第一条消息。",
-  "welcome.quickStart": "快速开始",
   "welcome.greetMorning": "早上好，今天从什么开始？",
   "welcome.greetNoon": "中午好呀，要不要先休息一下",
   "welcome.greetAfternoon": "下午好，来点推进？",
   "welcome.greetEvening": "晚上好，夜色正适合写代码",
   "welcome.planTitle": "先规划",
-  "welcome.planDesc": "在改动代码前先起草一份只读计划。",
   "welcome.initTitle": "生成 AGENTS.md",
-  "welcome.initDesc": "让 DeepOrca 为智能体记录本项目。",
   "welcome.skillsTitle": "技能与 MCP",
-  "welcome.skillsDesc": "浏览插件并为任务附加技能。",
   "welcome.knowledgeTitle": "知识库",
-  "welcome.knowledgeDesc": "为当前仓库构建 Wiki、架构图与符号索引。",
   "welcome.reviewTitle": "代码审查",
-  "welcome.reviewDesc": "扫描变更并生成审查发现。",
   "welcome.undoTitle": "撤销与恢复",
-  "welcome.undoDesc": "回滚对话或代码。",
-  "welcome.hintNew": "新建会话",
-  "welcome.hintPalette": "命令面板",
-  "welcome.hintShortcuts": "所有快捷键",
   "suggest.knowledgeTitle": "Wiki 已更新 · {n} 页",
   "suggest.viewWiki": "查看",
   "suggest.askArch": "请基于 @deepwiki/ 目录下的 Wiki，分析这个项目的整体架构，并指出最值得改进的 3 个点：",
@@ -266,8 +255,6 @@ export const zh: Record<MessageKey, string> = {
 
   // ── Plugin center ────────────────────────────────────────
   "plugins.title": "插件中心",
-  "plugins.tab.skills": "技能",
-  "plugins.tab.mcp": "MCP 服务器",
   "plugins.skills.none": "未发现技能。将 SKILL.md 放入 .deeporca/skills/ 目录即可。",
   "plugins.skills.loaded": "已加载",
   "plugins.skills.attach": "附加到提示",
@@ -411,19 +398,6 @@ export const zh: Record<MessageKey, string> = {
   "app.taskComplete": "任务已完成",
 
   // ── Process output panel ─────────────────────────────────
-  "process.title": "进程输出",
-  "process.timeout": "超时",
-  "process.noTimeout": "无超时",
-  "process.running": "运行中",
-  "process.timeoutSet": "超时已设为",
-  "process.noAdjustable": "无可调整的 Bash 超时",
-  "process.clear": "清空输出",
-  "process.cleared": "输出已清空",
-  "process.stopAll": "全部停止（中断整个任务）",
-  "process.processHeader": "── 进程 {pid} [{command}] ──",
-  "process.noOutput": "（暂无输出）",
-  "process.noProcesses": "（无运行中的进程）",
-  "process.pidLabel": "PID",
 
   // ── 消息渲染杂项 ───────────────────────────────────────────
   "msg.loadingComparison": "对比表加载中…",
@@ -507,8 +481,6 @@ export const zh: Record<MessageKey, string> = {
   "activity.none": "暂无工具调用",
   "pip.back": "切回此会话",
   "pip.blocked": "正在等待你的确认",
-  "pip.you": "用户",
-  "pip.ai": "AI",
   "pip.cycle": "切换驻留工作区",
 
   // ── Mermaid ───────────────────────────────────────────────
@@ -1028,16 +1000,6 @@ export const zh: Record<MessageKey, string> = {
   "rail.prototype": "原型设计",
   "proto.title": "原型设计",
   "proto.openWindow": "在独立窗口打开",
-  "proto.stepSpec": "需求 → 需求文档",
-  "proto.requirementPrompt": "描述你的需求，一句话即可（将细化为结构化需求文档）…",
-  "proto.specBtn": "生成需求文档",
-  "proto.stepPrototype": "需求文档 → 原型图",
-  "proto.noSpecHint": "先生成需求文档，再基于文档生成原型图。",
-  "proto.prototypeBtn": "生成原型图",
-  "proto.running": "进行中…",
-  "proto.empty": "还没有需求文档或原型。",
-  "proto.kindSpec": "需求文档",
-  "proto.kindPrototype": "原型",
   "design.noPrototypeBasis": "不基于原型",
   "design.fromPrototype": "基于原型：{title}",
 
@@ -1223,8 +1185,6 @@ export const zh: Record<MessageKey, string> = {
   "index.openAgents": "打开 AGENTS.md",
   "index.agentsMissing": "此工作区暂无 AGENTS.md",
   "index.archmapsEmpty": "还没有架构图——请先构建",
-  "index.archOpenMap": "打开交互架构图",
-  "index.archOpenWindow": "在独立窗口打开",
   "index.wikiEmpty": "Wiki 未生成",
   "index.build": "构建",
   "index.buildKnowledge": "构建知识库",
@@ -1394,10 +1354,8 @@ export const zh: Record<MessageKey, string> = {
 
   // ── Wiki knowledge graph (openwiki) ────────────────────────
   "rail.editor": "编辑器",
-  "editor.title": "代码编辑器",
   "editor.empty": "选择一个文件进行编辑。",
   "editor.loading": "加载文件中…",
-  "editor.binary": "二进制文件 — 无法编辑。",
   "editor.preview.loading": "正在加载预览…",
   "editor.preview.unsupported": "该格式暂不支持内嵌预览。",
   "editor.preview.tooLarge": "文件超出预览大小上限（64 MB）。",
@@ -1411,16 +1369,8 @@ export const zh: Record<MessageKey, string> = {
 
   "editor.autoSaving": "保存中…",
 
-  "editor.agentTrigger": "问智能体",
-
-  "editor.agentTriggerLabel": "智能体",
-
-  "editor.save": "保存",
-  "editor.saved": "已保存",
-  "editor.saving": "保存中…",
   "editor.dirty": "已修改",
   "editor.openInEditor": "在编辑器中打开",
-  "editor.back": "返回",
   "editor.fileTree": "文件",
   "editor.noFiles": "未找到文件。",
   "editor.pair.title": "行内结对",
@@ -1539,13 +1489,11 @@ export const zh: Record<MessageKey, string> = {
   "editor.palette.kbd.close": "关闭",
   "editor.readError": "读取文件失败。",
   "editor.writeError": "保存文件失败。",
-  "editor.tooLarge": "文件过大，无法编辑。",
   "editor.closeDirtyTitle": "有未保存的修改",
   "editor.closeDirtyBody": "该文件有未保存的修改，确定关闭吗？",
   "editor.workspace.closeDirtyTitle": "编辑器有未保存的修改",
   "editor.workspace.closeDirtyBody": "一个或多个打开的文件有未保存的修改，关闭编辑器将丢弃这些修改。",
   "editor.discardAndClose": "放弃并关闭",
-  "editor.saveAndClose": "保存并关闭",
 
   // ── 错误边界 ───────────────────────────────────────────────
   "error.panelCrash": "面板渲染失败。",

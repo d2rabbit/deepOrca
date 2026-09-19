@@ -153,28 +153,17 @@ export const ja: Record<MessageKey, string> = {
 
   // ── Empty states ──────────────────────────────────────────
   "empty.subtitle": "会話を開始して、コードベースを構築・リファクタリング・探索しましょう。",
-  "empty.tips": "上でプロジェクトフォルダーを選び、下にリクエストを入力してください。",
   "empty.newSession": "新規セッション — 最初のメッセージを送信してください。",
-  "welcome.quickStart": "クイックスタート",
   "welcome.greetMorning": "おはようございます。今日は何を作りますか？",
   "welcome.greetNoon": "こんにちは。少し休憩しますか？",
   "welcome.greetAfternoon": "こんにちは。少しずつ進めましょう。",
   "welcome.greetEvening": "こんばんは。静かな夜にコードを。",
   "welcome.planTitle": "まず計画",
-  "welcome.planDesc": "コードに触れる前に読み取り専用の計画を作成します。",
   "welcome.initTitle": "AGENTS.md を生成",
-  "welcome.initDesc": "DeepOrca にこのプロジェクトをエージェント向けに記録させます。",
   "welcome.skillsTitle": "スキルと MCP",
-  "welcome.skillsDesc": "プラグインを閲覧し、タスクにスキルを付加します。",
   "welcome.knowledgeTitle": "ナレッジベース",
-  "welcome.knowledgeDesc": "このリポジトリの Wiki・アーキテクチャ図・シンボル索引を構築します。",
   "welcome.reviewTitle": "コードレビュー",
-  "welcome.reviewDesc": "変更をスキャンしてレビュー所見を生成します。",
   "welcome.undoTitle": "元に戻す・復元",
-  "welcome.undoDesc": "会話またはコードをロールバックします。",
-  "welcome.hintNew": "新規セッション",
-  "welcome.hintPalette": "コマンドパレット",
-  "welcome.hintShortcuts": "すべてのショートカット",
   "suggest.knowledgeTitle": "Wiki を更新しました · {n} ページ",
   "suggest.viewWiki": "表示",
   "suggest.askArch":
@@ -271,8 +260,6 @@ export const ja: Record<MessageKey, string> = {
 
   // ── Plugin center ────────────────────────────────────────
   "plugins.title": "プラグインセンター",
-  "plugins.tab.skills": "スキル",
-  "plugins.tab.mcp": "MCP サーバー",
   "plugins.skills.none": "スキルが見つかりません。SKILL.md を .deeporca/skills/ ディレクトリに配置してください。",
   "plugins.skills.loaded": "読み込み済み",
   "plugins.skills.attach": "プロンプトに付加",
@@ -424,19 +411,6 @@ export const ja: Record<MessageKey, string> = {
   "app.taskComplete": "タスク完了",
 
   // ── Process output panel ─────────────────────────────────
-  "process.title": "プロセス出力",
-  "process.timeout": "タイムアウト",
-  "process.noTimeout": "タイムアウトなし",
-  "process.running": "実行中",
-  "process.timeoutSet": "タイムアウト設定",
-  "process.noAdjustable": "調整可能な Bash タイムアウトがありません",
-  "process.clear": "出力をクリア",
-  "process.cleared": "出力をクリアしました",
-  "process.stopAll": "すべて停止（タスク全体を中断）",
-  "process.processHeader": "── プロセス {pid} [{command}] ──",
-  "process.noOutput": "（出力はまだありません）",
-  "process.noProcesses": "（実行中のプロセスなし）",
-  "process.pidLabel": "PID",
 
   // ── メッセージ描画その他 ───────────────────────────────────
   "msg.loadingComparison": "比較表を読み込み中…",
@@ -520,8 +494,6 @@ export const ja: Record<MessageKey, string> = {
   "activity.none": "ツール呼び出しはまだありません",
   "pip.back": "このセッションに戻る",
   "pip.blocked": "確認待ちです",
-  "pip.you": "あなた",
-  "pip.ai": "AI",
   "pip.cycle": "駐留ワークスペースを切替",
 
   // ── Mermaid ───────────────────────────────────────────────
@@ -1073,16 +1045,6 @@ export const ja: Record<MessageKey, string> = {
   "rail.prototype": "プロトタイプ設計",
   "proto.title": "プロトタイプ設計",
   "proto.openWindow": "独立ウィンドウで開く",
-  "proto.stepSpec": "要件 → 要件定義書",
-  "proto.requirementPrompt": "要件を記述（一文でも可。構造化された要件定義書になります）…",
-  "proto.specBtn": "要件定義書を生成",
-  "proto.stepPrototype": "要件定義書 → プロトタイプ",
-  "proto.noSpecHint": "先に要件定義書を生成し、それを元にプロトタイプを作成します。",
-  "proto.prototypeBtn": "プロトタイプを生成",
-  "proto.running": "実行中…",
-  "proto.empty": "要件定義書もプロトタイプもまだありません。",
-  "proto.kindSpec": "要件定義書",
-  "proto.kindPrototype": "プロトタイプ",
   "design.noPrototypeBasis": "プロトタイプを基にしない",
   "design.fromPrototype": "プロトタイプ基準: {title}",
 
@@ -1259,8 +1221,6 @@ export const ja: Record<MessageKey, string> = {
   "index.openAgents": "AGENTS.md を開く",
   "index.agentsMissing": "このワークスペースに AGENTS.md がありません",
   "index.archmapsEmpty": "アーキテクチャ図はまだありません。先にビルドしてください",
-  "index.archOpenMap": "インタラクティブ図を開く",
-  "index.archOpenWindow": "別ウィンドウで開く",
   "index.build": "ビルド",
   "index.buildKnowledge": "インデックスとナレッジをビルド",
   "index.gitNoRepoTitle": "git リポジトリではありません",
@@ -1453,10 +1413,8 @@ export const ja: Record<MessageKey, string> = {
 
   // ── Editor (Monaco code editor) ───────────────────────────
   "rail.editor": "エディタ",
-  "editor.title": "コードエディタ",
   "editor.empty": "編集するファイルを選択してください。",
   "editor.loading": "ファイルを読み込み中…",
-  "editor.binary": "バイナリファイル — 編集できません。",
   "editor.preview.loading": "プレビューを読み込み中…",
   "editor.preview.unsupported": "この形式はまだ埋め込みプレビューに対応していません。",
   "editor.preview.tooLarge": "ファイルがプレビューのサイズ上限（64 MB）を超えています。",
@@ -1470,16 +1428,8 @@ export const ja: Record<MessageKey, string> = {
 
   "editor.autoSaving": "保存中…",
 
-  "editor.agentTrigger": "エージェントに聞く",
-
-  "editor.agentTriggerLabel": "エージェント",
-
-  "editor.save": "保存",
-  "editor.saved": "保存しました",
-  "editor.saving": "保存中…",
   "editor.dirty": "変更あり",
   "editor.openInEditor": "エディタで開く",
-  "editor.back": "戻る",
   "editor.fileTree": "ファイル",
   "editor.noFiles": "ファイルが見つかりません。",
   "editor.pair.title": "インラインペア",
@@ -1599,13 +1549,11 @@ export const ja: Record<MessageKey, string> = {
   "editor.palette.kbd.close": "閉じる",
   "editor.readError": "ファイルの読み込みに失敗しました。",
   "editor.writeError": "ファイルの保存に失敗しました。",
-  "editor.tooLarge": "ファイルが大きすぎて編集できません。",
   "editor.closeDirtyTitle": "未保存の変更",
   "editor.closeDirtyBody": "このファイルには未保存の変更があります。閉じますか？",
   "editor.workspace.closeDirtyTitle": "エディターに未保存の変更があります",
   "editor.workspace.closeDirtyBody": "開いているファイルに未保存の変更があります。エディターを閉じると破棄されます。",
   "editor.discardAndClose": "破棄して閉じる",
-  "editor.saveAndClose": "保存して閉じる",
 
   // ── エラーバウンダリ ───────────────────────────────────────
   "error.panelCrash": "パネルの描画に失敗しました。",

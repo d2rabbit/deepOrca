@@ -9,7 +9,6 @@ import {
   hasModelCatalog,
   catalogLookupModel,
   catalogSuggestModels,
-  catalogEstimateCostUsd,
 } from "../common/model-catalog";
 import {
   defaultsToThinkingMode,
@@ -115,18 +114,6 @@ test("suggestions are host-keyed, reasoning-first, and fail-open on unknown host
   assert.deepEqual(catalogSuggestModels("https://unknown.example.test"), []);
 });
 
-test("cost estimate multiplies local token counts (never an accounting source itself)", () => {
-  configureModelCatalog(fixtureJson());
-  const estimate = catalogEstimateCostUsd("glm-5-plus", { prompt: 1_000_000, completion: 500_000, cacheRead: 400_000 });
-  assert.ok(estimate);
-  // (1M − 400K) × $0.6/Mtok + 400K × $0.06/Mtok = $0.384 input; 500K × $2.2/Mtok = $1.10 output.
-  assert.ok(Math.abs(estimate.input - 0.384) < 1e-9);
-  assert.ok(Math.abs(estimate.output - 1.1) < 1e-9);
-  assert.ok(Math.abs(estimate.total - 1.484) < 1e-9);
-  // Unknown model / no pricing → undefined (renderer hides the row).
-  assert.equal(catalogEstimateCostUsd("minimax-m3", { prompt: 1, completion: 1 }), undefined);
-});
-
 test("R12 red line: catalog reasoning never leaks into thinking defaults or background routing", () => {
   configureModelCatalog(fixtureJson());
   // glm-5-plus has reasoning:true in the catalog — but the registry facades
@@ -149,15 +136,4 @@ test("slim hints (renderer leg): facades enrich from hints when no full catalog 
   assert.equal(getCompactPromptTokenThreshold("deepseek-v4-pro"), 512 * 1024);
   configureCatalogHints(null);
   assert.equal(getCompactPromptTokenThreshold("glm-5-plus"), 200 * 1024);
-});
-
-test("cost estimate clamps cacheRead overflow (ledger rounding) to non-negative", () => {
-  configureModelCatalog(fixtureJson());
-  // cacheRead (100) > prompt (10): clamped to 10, so every token prices at
-  // the cache_read tier (0.06/Mtok) and the non-cached tier is empty.
-  const estimate = catalogEstimateCostUsd("glm-5-plus", { prompt: 10, completion: 0, cacheRead: 100 });
-  assert.ok(estimate);
-  assert.ok(estimate.input >= 0);
-  assert.ok(Math.abs(estimate.input - (10 * 0.06) / 1_000_000) < 1e-15);
-  assert.equal(estimate.output, 0);
 });

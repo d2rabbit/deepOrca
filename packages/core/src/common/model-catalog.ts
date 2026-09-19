@@ -234,22 +234,3 @@ export function catalogSuggestModels(baseURL: string, limit = 20): CatalogModelS
   }
   return [];
 }
-
-/**
- * X3.4 consumer — cost estimate for locally counted tokens (the local count
- * stays the ONLY accounting source; price is just a multiplier). USD.
- */
-export function catalogEstimateCostUsd(
-  model: string,
-  tokens: { prompt: number; completion: number; cacheRead?: number }
-): { input: number; output: number; total: number } | undefined {
-  const entry = catalogLookupModel(model);
-  if (!entry?.costInputPerMTok && !entry?.costOutputPerMTok) return undefined;
-  // Cache reads cannot exceed the prompt total (ledger rounding can overflow
-  // by a token or two) — clamp so the estimate never goes negative.
-  const cacheRead = Math.max(0, Math.min(tokens.cacheRead ?? 0, tokens.prompt));
-  const input = ((tokens.prompt - cacheRead) * (entry.costInputPerMTok ?? 0)) / 1_000_000;
-  const cache = (cacheRead * (entry.costCacheReadPerMTok ?? entry.costInputPerMTok ?? 0)) / 1_000_000;
-  const output = (tokens.completion * (entry.costOutputPerMTok ?? 0)) / 1_000_000;
-  return { input: input + cache, output, total: input + cache + output };
-}

@@ -61,9 +61,14 @@ architecture.md 工具列表）。以下为**登记未修**项，按优先级排
     整组+onWikiProgress、design 四个、crg×2、codegraphList、memory×2、
     adjustBashTimeout、pluginSearchSkills、knowledgeOpenArchHtml、editorAgentCancel；
     wikiListPages 在用保留）——常量/处理器/preload/DesktopApi/事件载荷全层，
-    ipc-contract 与 design-ipc 测试同步收敛。**其余未完**：279 个未引用 i18n 键
-    ×6 语种（含 settings.memory.port）；17 个 declaration-only core 导出（含
-    catalogEstimateCostUsd 双实现合一）——留 R2-E-2。
+    ipc-contract 与 design-ipc 测试同步收敛。
+    **E-2（已闭）**：i18n 死键经宽匹配重算（原始串/模板/动态前缀/测试，
+    整组规则防动态键误删）实为 **50 个**（round-1 的 279 为窄匹配器过计
+    数）——×6 语种整组删除，跨语种完备性由 tsc 强制；17 个
+    declaration-only core 导出全部摘出公共 barrel（模块与自有测试保留，
+    SandboxPolicyEngine 标注 designed-future）；`catalogEstimateCostUsd`
+    连同测试删除——desktop `token-pricing.ts` 为唯一估价面（本就分层：
+    models.dev 目录优先 + 离线兜底，与 core 版非重复表，删死侧即合一）。
 11. ~~memory `port`/`apiKey` 死配置~~ **已修（round-2 E-1）**：session-bridge 两处
     写入点停写 `port`（legacy 文件里的存量键不再被触碰也不再复活）；
     Resolved/Editable memory 形状剔除 port/apiKey（类型面同步）。

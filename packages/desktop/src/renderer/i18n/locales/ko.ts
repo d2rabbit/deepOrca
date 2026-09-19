@@ -150,28 +150,17 @@ export const ko: Record<MessageKey, string> = {
 
   // ── Empty states ──────────────────────────────────────────
   "empty.subtitle": "대화를 시작하여 코드베이스를 빌드, 리팩터링 또는 탐색하세요.",
-  "empty.tips": "위에서 프로젝트 폴더를 선택한 다음 아래에 요청을 입력하세요.",
   "empty.newSession": "새 세션 — 첫 메시지를 보내세요.",
-  "welcome.quickStart": "빠른 시작",
   "welcome.greetMorning": "좋은 아침이에요. 오늘은 무엇을 만들어 볼까요?",
   "welcome.greetNoon": "좋은 오후예요. 잠깐 쉬어갈래요?",
   "welcome.greetAfternoon": "좋은 오후예요. 조금씩 앞으로 가요.",
   "welcome.greetEvening": "좋은 저녁이에요. 밤하늘은 코드의 계절입니다.",
   "welcome.planTitle": "먼저 계획",
-  "welcome.planDesc": "코드를 수정하기 전에 읽기 전용 계획을 작성합니다.",
   "welcome.initTitle": "AGENTS.md 생성",
-  "welcome.initDesc": "DeepOrca가 에이전트를 위해 이 프로젝트를 문서화하도록 합니다.",
   "welcome.skillsTitle": "스킬 및 MCP",
-  "welcome.skillsDesc": "플러그인을 탐색하고 작업에 스킬을 연결합니다.",
   "welcome.knowledgeTitle": "지식 베이스",
-  "welcome.knowledgeDesc": "이 저장소의 Wiki·아키텍처 맵·심볼 인덱스를 구축합니다.",
   "welcome.reviewTitle": "코드 리뷰",
-  "welcome.reviewDesc": "변경 사항을 스캔하고 리뷰 결과를 생성합니다.",
   "welcome.undoTitle": "실행 취소 및 복원",
-  "welcome.undoDesc": "대화 또는 코드를 롤백합니다.",
-  "welcome.hintNew": "새 세션",
-  "welcome.hintPalette": "명령 팔레트",
-  "welcome.hintShortcuts": "모든 단축키",
   "suggest.knowledgeTitle": "Wiki 업데이트됨 · {n}개 문서",
   "suggest.viewWiki": "보기",
   "suggest.askArch":
@@ -268,8 +257,6 @@ export const ko: Record<MessageKey, string> = {
 
   // ── Plugin center ────────────────────────────────────────
   "plugins.title": "플러그인 센터",
-  "plugins.tab.skills": "스킬",
-  "plugins.tab.mcp": "MCP 서버",
   "plugins.skills.none": "스킬을 찾을 수 없습니다. SKILL.md를 .deeporca/skills/ 디렉터리에 두세요.",
   "plugins.skills.loaded": "로드됨",
   "plugins.skills.attach": "프롬프트에 연결",
@@ -420,19 +407,6 @@ export const ko: Record<MessageKey, string> = {
   "app.taskComplete": "작업 완료",
 
   // ── Process output panel ─────────────────────────────────
-  "process.title": "프로세스 출력",
-  "process.timeout": "타임아웃",
-  "process.noTimeout": "타임아웃 없음",
-  "process.running": "실행 중",
-  "process.timeoutSet": "타임아웃 설정",
-  "process.noAdjustable": "조정 가능한 Bash 타임아웃이 없습니다",
-  "process.clear": "출력 지우기",
-  "process.cleared": "출력이 지워졌습니다",
-  "process.stopAll": "모두 중지(전체 작업 중단)",
-  "process.processHeader": "── 프로세스 {pid} [{command}] ──",
-  "process.noOutput": "(아직 출력 없음)",
-  "process.noProcesses": "(실행 중인 프로세스 없음)",
-  "process.pidLabel": "PID",
 
   // ── 메시지 렌더링 기타 ─────────────────────────────────────
   "msg.loadingComparison": "비교표 불러오는 중…",
@@ -516,8 +490,6 @@ export const ko: Record<MessageKey, string> = {
   "activity.none": "아직 도구 호출 없음",
   "pip.back": "이 세션으로 돌아가기",
   "pip.blocked": "확인 대기 중",
-  "pip.you": "사용자",
-  "pip.ai": "AI",
   "pip.cycle": "주차된 작업 공간 전환",
 
   // ── Mermaid ───────────────────────────────────────────────
@@ -1064,16 +1036,6 @@ export const ko: Record<MessageKey, string> = {
   "rail.prototype": "프로토타입 설계",
   "proto.title": "프로토타입 설계",
   "proto.openWindow": "독립 창으로 열기",
-  "proto.stepSpec": "요구사항 → 요구사항 문서",
-  "proto.requirementPrompt": "요구사항을 입력 (한 문장이면 충분, 구조화된 문서로 확장됩니다)…",
-  "proto.specBtn": "요구사항 문서 생성",
-  "proto.stepPrototype": "요구사항 문서 → 프로토타입",
-  "proto.noSpecHint": "먼저 요구사항 문서를 생성한 뒤 프로토타입을 만드세요.",
-  "proto.prototypeBtn": "프로토타입 생성",
-  "proto.running": "진행 중…",
-  "proto.empty": "아직 요구사항 문서나 프로토타입이 없습니다.",
-  "proto.kindSpec": "요구사항 문서",
-  "proto.kindPrototype": "프로토타입",
   "design.noPrototypeBasis": "프로토타입 기반 사용 안 함",
   "design.fromPrototype": "프로토타입 기반: {title}",
 
@@ -1250,8 +1212,6 @@ export const ko: Record<MessageKey, string> = {
   "index.openAgents": "AGENTS.md 열기",
   "index.agentsMissing": "이 워크스페이스에 AGENTS.md가 없습니다",
   "index.archmapsEmpty": "아직 아키텍처 맵이 없습니다 — 먼저 빌드하세요",
-  "index.archOpenMap": "인터랙티브 맵 열기",
-  "index.archOpenWindow": "별도 창에서 열기",
   "index.build": "빌드",
   "index.buildKnowledge": "인덱스 및 지식 빌드",
   "index.gitNoRepoTitle": "git 저장소가 아닙니다",
@@ -1442,10 +1402,8 @@ export const ko: Record<MessageKey, string> = {
 
   // ── Editor (Monaco code editor) ───────────────────────────
   "rail.editor": "에디터",
-  "editor.title": "코드 에디터",
   "editor.empty": "편집할 파일을 선택하세요.",
   "editor.loading": "파일 로드 중…",
-  "editor.binary": "바이너리 파일 — 편집할 수 없습니다.",
   "editor.preview.loading": "미리 보기를 로드하는 중…",
   "editor.preview.unsupported": "이 형식은 아직 내장 미리 보기를 지원하지 않습니다.",
   "editor.preview.tooLarge": "파일이 미리 보기 크기 제한(64 MB)을 초과했습니다.",
@@ -1459,16 +1417,8 @@ export const ko: Record<MessageKey, string> = {
 
   "editor.autoSaving": "저장 중…",
 
-  "editor.agentTrigger": "에이전트에게 질문",
-
-  "editor.agentTriggerLabel": "에이전트",
-
-  "editor.save": "저장",
-  "editor.saved": "저장됨",
-  "editor.saving": "저장 중…",
   "editor.dirty": "수정됨",
   "editor.openInEditor": "에디터에서 열기",
-  "editor.back": "뒤로",
   "editor.fileTree": "파일",
   "editor.noFiles": "파일을 찾을 수 없습니다.",
   "editor.pair.title": "인라인 페어",
@@ -1588,14 +1538,12 @@ export const ko: Record<MessageKey, string> = {
   "editor.palette.kbd.close": "닫기",
   "editor.readError": "파일을 읽지 못했습니다.",
   "editor.writeError": "파일을 저장하지 못했습니다.",
-  "editor.tooLarge": "파일이 너무 커서 편집할 수 없습니다.",
   "editor.closeDirtyTitle": "저장되지 않은 변경 사항",
   "editor.closeDirtyBody": "이 파일에 저장되지 않은 변경 사항이 있습니다. 그래도 닫으시겠습니까?",
   "editor.workspace.closeDirtyTitle": "편집기에 저장되지 않은 변경 사항이 있습니다",
   "editor.workspace.closeDirtyBody":
     "열린 파일 중 저장되지 않은 변경 사항이 있습니다. 편집기를 닫으면 변경 사항이 삭제됩니다.",
   "editor.discardAndClose": "버리고 닫기",
-  "editor.saveAndClose": "저장하고 닫기",
 
   // ── 에러 바운더리 ──────────────────────────────────────────
   "error.panelCrash": "패널 렌더링에 실패했습니다.",

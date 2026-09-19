@@ -25,14 +25,12 @@ export {
   getProjectSettingsPath,
   DEFAULT_MODEL,
   DEFAULT_BASE_URL,
-  DEFAULT_SECONDARY_MODEL,
   ENDPOINT_PRESETS,
   normalizeEndpoints,
   buildModelKey,
   parseModelKey,
   resolveModelCapability,
   collectAllModelKeys,
-  findEndpointForModel,
 } from "./settings";
 export type {
   DeepcodingSettings,
@@ -155,7 +153,9 @@ export {
   type AuditEventType,
 } from "./sandbox/audit";
 // P2 sans-IO policy engine
-export { SandboxPolicyEngine, buildPolicyMatrix, resolveScopeVerdict } from "./sandbox/policy";
+// SandboxPolicyEngine/buildPolicyMatrix stay module-internal (designed-future surface,
+// tested in isolation — not part of core's public contract; audit round-2 E-2).
+export { resolveScopeVerdict } from "./sandbox/policy";
 export {
   ALL_SANDBOX_SCOPES,
   type SandboxScope,
@@ -220,13 +220,7 @@ export { runStandaloneChatCompletion } from "./common/ai-sdk-transport";
 // models.dev catalog (specs/model-fleet-adaptation §七 X3): host-injected
 // snapshot, data-only enrichment for UNKNOWN-family models + suggestions +
 // cost multipliers. Fail-open by design.
-export {
-  configureModelCatalog,
-  hasModelCatalog,
-  catalogLookupModel,
-  catalogSuggestModels,
-  catalogEstimateCostUsd,
-} from "./common/model-catalog";
+export { configureModelCatalog, catalogLookupModel, catalogSuggestModels } from "./common/model-catalog";
 export type { CatalogModelEntry, CatalogModelSuggestion } from "./common/model-catalog";
 
 export {
@@ -235,7 +229,6 @@ export {
   CRG_LEGACY_DIR_NAME,
   configureCrgVersionRoot,
   setCrgDisabled,
-  isCrgDisabled,
   hasCrgProject,
   migrateLegacyCrgDir,
   runCrgResetWithOutput,
@@ -310,20 +303,13 @@ export {
   configureVisionServerBuilder,
   getVisionServerBuilder,
   type VisionServerBuilder,
-  type VisionServerLike,
 } from "./mcp/vision-seam";
 
 // KB MCP seam — the generated knowledge base (deepwiki + architecture maps)
 // as generic MCP tools for every agent session (user ask 2026-09-09: 知识库
 // 不能是孤岛). Desktop injects the server builder at boot; the pure store
 // readers live in common/kb-store.ts.
-export {
-  KB_MCP_SERVER_NAME,
-  configureKbServerBuilder,
-  getKbServerBuilder,
-  type KbServerBuilder,
-  type KbServerLike,
-} from "./mcp/kb-seam";
+export { KB_MCP_SERVER_NAME, configureKbServerBuilder, getKbServerBuilder, type KbServerBuilder } from "./mcp/kb-seam";
 export { findDeadButtons, prototypeMaterializeRun } from "./actions/prototype";
 // specs/design-md-collection：设计系统三源解析（bundled / project DESIGN.md / vendored 收藏集）。
 export {
@@ -345,9 +331,7 @@ export {
   searchWikiPages,
   listArchDiagrams,
   readArchDiagram,
-  type KbOverview,
   type KbWikiPage,
-  type KbWikiPageRead,
   type KbSearchHit,
   type KbDiagramSummary,
   type KbDiagramRead,
@@ -407,24 +391,16 @@ export {
   type EndpointQuotaKind,
   type ModelFamilyId,
   type ModelFamilySpec,
-  type ModelSpec,
-  type ReasoningReplayMode,
   type ThinkingProtocolId,
-  type BackgroundLlmChoice,
 } from "./common/model-capabilities";
 export { findGitBashPath, resolveShellPath, setShellIfWindows } from "./common/shell-utils";
-export { getOsLinkEntry, listOsLinkEntries, renderOsLinkDictionary, renderOsLinkPromptSection } from "./common/os-link";
+export { renderOsLinkPromptSection } from "./common/os-link";
 export type { OsLinkEntry, OsLinkShell } from "./common/os-link";
 export { logApiError } from "./common/error-logger";
 export { logOpenAIChatCompletionDebug } from "./common/debug-logger";
 export { describeLlmError, getLlmErrorDetails } from "./common/llm-error";
 export type { LlmErrorDetails } from "./common/llm-error";
-export {
-  clampBashTimeoutMs,
-  DEFAULT_BASH_TIMEOUT_MS,
-  BASH_TIMEOUT_INCREMENT_MS,
-  BASH_TIMEOUT_DECREMENT_MS,
-} from "./common/bash-timeout";
+export { clampBashTimeoutMs, DEFAULT_BASH_TIMEOUT_MS } from "./common/bash-timeout";
 export { executeValidatedTool, semanticBoolean } from "./common/validate";
 export { OpenAIMessageConverter } from "./common/openai-message-converter";
 export {
