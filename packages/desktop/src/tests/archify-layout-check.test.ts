@@ -3,6 +3,9 @@
 // the vendored checkout-platform example), plus the honest-skip paths.
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import * as fs from "node:fs";
+import * as path from "node:path";
+import { fileURLToPath } from "node:url";
 import { checkLayoutContract, runArchifyLayoutCheck, type LayoutReport } from "../main/tools/archify-layout-check";
 
 /** Minimal real-shape report builder (components carry x/y/width/height). */
@@ -76,8 +79,8 @@ test("honest skips: unreadable report, renderer-invalid, empty geometry", () => 
   assert.equal(checkLayoutContract(report({ components: [] })).skipped, true);
 });
 
-test("runner: non-architecture types skip honestly; spawn failures skip with reason", () => {
-  const skippedType = runArchifyLayoutCheck({
+test("runner: non-architecture types skip honestly; spawn failures/rejections skip with reason", async () => {
+  const skippedType = await runArchifyLayoutCheck({
     archifyBinPath: "/unused/archify.mjs",
     diagramType: "sequence",
     irPath: "/unused.json",
@@ -85,24 +88,78 @@ test("runner: non-architecture types skip honestly; spawn failures skip with rea
   assert.equal(skippedType.skipped, true);
   assert.ok(skippedType.skipReason?.includes("architecture"));
 
-  const spawnFail = runArchifyLayoutCheck({
+  const spawnFail = await runArchifyLayoutCheck({
     archifyBinPath: "/unused/archify.mjs",
     diagramType: "architecture",
     irPath: "/unused.json",
-    spawnSync: () => ({ status: 1, stdout: "", stderr: "schema error" }),
+    spawn: async () => ({ status: 1, stdout: "", stderr: "schema error" }),
   });
   assert.equal(spawnFail.skipped, true);
   assert.ok(spawnFail.skipReason?.includes("schema error"));
 
-  const spawnOk = runArchifyLayoutCheck({
+  // A REJECTED runner (spawnTracked timeout/kill) is an honest skip, never a
+  // thrown error out of the gate (full-domain audit round-2 contract).
+  const spawnRejected = await runArchifyLayoutCheck({
     archifyBinPath: "/unused/archify.mjs",
     diagramType: "architecture",
     irPath: "/unused.json",
-    spawnSync: () => ({
+    spawn: async () => {
+      throw new Error("SIGKILL after timeout");
+    },
+  });
+  assert.equal(spawnRejected.skipped, true);
+  assert.ok(spawnRejected.skipReason?.includes("validate spawn failed"));
+
+  const spawnOk = await runArchifyLayoutCheck({
+    archifyBinPath: "/unused/archify.mjs",
+    diagramType: "architecture",
+    irPath: "/unused.json",
+    spawn: async () => ({
       status: 0,
       stdout: JSON.stringify(report()),
       stderr: "",
     }),
   });
   assert.deepEqual(spawnOk, { violations: [] });
+});
+
+test("runner is ASYNC — the event loop stays responsive while the spawn is in flight", async () => {
+  // Full-domain audit round-2 regression: the gate used spawnSync, which
+  // blocked the entire Electron main process for the check's duration.
+  let release: () => void = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const pending = runArchifyLayoutCheck({
+    archifyBinPath: "/unused/archify.mjs",
+    diagramType: "architecture",
+    irPath: "/unused.json",
+    spawn: () =>
+      new Promise((resolve) => {
+        void gate.then(() => resolve({ status: 0, stdout: JSON.stringify(report()), stderr: "" }));
+      }),
+  });
+  // While the spawn is pending, timers/immediates must keep firing.
+  await new Promise((resolve) => setTimeout(resolve, 15));
+  assert.ok(pending instanceof Promise, "runner must return a Promise");
+  release();
+  assert.deepEqual(await pending, { violations: [] });
+});
+
+test("gates never regress to synchronous spawns (source guard)", () => {
+  // spawnSync in either gate file blocks the whole main process inside the
+  // arch-scan revision loop — the async spawnTracked pattern is load-bearing.
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  for (const rel of ["../main/tools/arch-visual-verify.ts", "../main/tools/archify-layout-check.ts"]) {
+    const src = fs.readFileSync(path.join(here, rel), "utf8");
+    // Match the import or a CALL — prose mentions in comments stay legal.
+    assert.ok(
+      !/import\s*\{[^}]*spawnSync/.test(src) && !/spawnSync\s*\(/.test(src),
+      `${rel} must not use spawnSync (use spawnTracked)`
+    );
+    assert.ok(
+      src.includes('env: { ELECTRON_RUN_AS_NODE: "1" }'),
+      `${rel} must spawn archify with ELECTRON_RUN_AS_NODE=1 (packaged Electron)`
+    );
+  }
 });

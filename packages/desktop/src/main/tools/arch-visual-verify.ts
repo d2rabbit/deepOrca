@@ -15,11 +15,10 @@
  *        configured — honestly, never as a pass.
  */
 
-import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, rmSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createVisionClient, runStandaloneChatCompletion } from "@deeporca/core";
+import { createVisionClient, runStandaloneChatCompletion, spawnTracked } from "@deeporca/core";
 import type { ArchVisualVerdict } from "@deeporca/core";
 import { listArchifyArtifacts } from "./archify-cli";
 import { runArchifyLayoutCheck } from "./archify-layout-check";
@@ -57,7 +56,7 @@ function receiptPathFor(htmlPath: string): string {
   return htmlPath.replace(/\.html?$/i, "") + ".visual-check.json";
 }
 
-function runContainmentGate(htmlPath: string): { status: GateStatus; findings: string[] } {
+async function runContainmentGate(htmlPath: string): Promise<{ status: GateStatus; findings: string[] }> {
   if (!existsSync(ARCHIFY_BIN)) {
     return { status: "skipped", findings: ["archify.mjs not vendored"] };
   }
@@ -67,11 +66,40 @@ function runContainmentGate(htmlPath: string): { status: GateStatus; findings: s
   // (pass/fail/skipped). Real-machine T2 finding: spawning the library file
   // directly exits 0 doing nothing — trust ONLY the receipt, never a
   // no-receipt exit code.
-  const run = spawnSync(process.execPath, [ARCHIFY_BIN, "visual-check", htmlPath], {
-    encoding: "utf8",
-    timeout: VISUAL_CHECK_TIMEOUT_MS,
-    env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" },
-  });
+  //
+  // ASYNC on purpose (full-domain audit round-2): spawnSync here blocked the
+  // ENTIRE Electron main process for up to VISUAL_CHECK_TIMEOUT_MS ×
+  // artifacts × revision rounds — every window, every IPC, including the
+  // progress events meant to narrate this very loop. spawnTracked is the
+  // archify-cli deliver-gate pattern.
+  //
+  // Receipt freshness (audit round-2): drop any stale sidecar from a
+  // PREVIOUS round before spawning — an early child death must never
+  // resurrect last round's receipt as this round's verdict.
+  try {
+    rmSync(receiptPathFor(htmlPath), { force: true });
+  } catch {
+    // best-effort freshness
+  }
+  let run: { code: number | null; stderr: string };
+  try {
+    const tracked = await spawnTracked({
+      label: "archify-visual-check",
+      command: process.execPath,
+      args: [ARCHIFY_BIN, "visual-check", htmlPath],
+      cwd: process.cwd(),
+      env: { ELECTRON_RUN_AS_NODE: "1" },
+      timeoutMs: VISUAL_CHECK_TIMEOUT_MS,
+    });
+    run = { code: tracked.code, stderr: tracked.stderr };
+  } catch (err) {
+    // A timeout/kill rejects — the honest verdict is a skip, never a thrown
+    // error out of the gate.
+    return {
+      status: "skipped",
+      findings: [`visual-check failed: ${err instanceof Error ? err.message.slice(0, 160) : String(err)}`],
+    };
+  }
   let receipt: VisualCheckReceipt | null = null;
   try {
     receipt = JSON.parse(readFileSync(receiptPathFor(htmlPath), "utf8")) as VisualCheckReceipt;
@@ -84,11 +112,11 @@ function runContainmentGate(htmlPath: string): { status: GateStatus; findings: s
   if (!receipt) {
     return {
       status: "skipped",
-      findings: [`visual-check produced no receipt (exit ${run.status}): ${String(run.stderr ?? "").slice(0, 160)}`],
+      findings: [`visual-check produced no receipt (exit ${run.code}): ${run.stderr.slice(0, 160)}`],
     };
   }
-  if (run.status === 2 || receipt.status === "skipped") {
-    return { status: "skipped", findings: [`visual-check skipped (exit ${run.status})`] };
+  if (run.code === 2 || receipt.status === "skipped") {
+    return { status: "skipped", findings: [`visual-check skipped (exit ${run.code})`] };
   }
   const containment = receipt.containment?.status ?? "fail";
   if (containment !== "pass") {
@@ -182,7 +210,7 @@ export async function verifyArchArtifacts(root: string): Promise<readonly ArchVi
     const findings: string[] = [];
 
     // 门① — deterministic geometry (cheapest; architecture-only by upstream).
-    const layout = runArchifyLayoutCheck({
+    const layout = await runArchifyLayoutCheck({
       archifyBinPath: ARCHIFY_BIN,
       diagramType: artifact.type,
       irPath: artifact.jsonPath,
@@ -195,7 +223,7 @@ export async function verifyArchArtifacts(root: string): Promise<readonly ArchVi
     }
 
     // 门② — containment harness (needs screenshots for 门③ too).
-    const containment = runContainmentGate(artifact.htmlPath);
+    const containment = await runContainmentGate(artifact.htmlPath);
     findings.push(...containment.findings.map((f) => `containment: ${f}`));
 
     // 门③ — vision readback, only when containment held (layered cost).

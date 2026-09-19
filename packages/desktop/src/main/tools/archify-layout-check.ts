@@ -121,17 +121,27 @@ export function checkLayoutContract(report: unknown): LayoutCheckResult {
   return { violations };
 }
 
+/** Layout validate is a pure-JS pass over the IR — generous hard cap. */
+const LAYOUT_CHECK_TIMEOUT_MS = 120_000;
+
 /**
  * Run the vendored `archify validate <type> <ir> --layout-json` and check its
  * report. Non-architecture diagram types have no layout-json support (the
  * CLI rejects them) — an honest skip, never a failure.
+ *
+ * ASYNC on purpose (full-domain audit round-2): the runner goes through
+ * core's tracked spawn (`spawnTracked`, the archify-cli deliver-gate pattern)
+ * — a `spawnSync` here blocked the ENTIRE Electron main process for the
+ * check's whole duration inside the arch-scan revision loop. A spawn failure
+ * or timeout is an honest skip, never a thrown error out of the gate.
  */
-export function runArchifyLayoutCheck(opts: {
+export async function runArchifyLayoutCheck(opts: {
   archifyBinPath: string;
   diagramType: string;
   irPath: string;
-  spawnSync?: (cmd: string, args: string[]) => { status: number | null; stdout: string; stderr: string };
-}): LayoutCheckResult {
+  /** Injectable runner (tests); defaults to the tracked async spawn. */
+  spawn?: (cmd: string, args: string[]) => Promise<{ status: number | null; stdout: string; stderr: string }>;
+}): Promise<LayoutCheckResult> {
   if (opts.diagramType !== "architecture") {
     return {
       violations: [],
@@ -139,14 +149,23 @@ export function runArchifyLayoutCheck(opts: {
       skipReason: `layout-json supports architecture diagrams only (got ${opts.diagramType})`,
     };
   }
-  const spawn = opts.spawnSync ?? ((cmd: string, args: string[]) => defaultSpawn(cmd, args));
-  const result = spawn(process.execPath, [
-    opts.archifyBinPath,
-    "validate",
-    opts.diagramType,
-    opts.irPath,
-    "--layout-json",
-  ]);
+  const spawn = opts.spawn ?? ((cmd: string, args: string[]) => defaultSpawn(cmd, args));
+  let result: { status: number | null; stdout: string; stderr: string };
+  try {
+    result = await spawn(process.execPath, [
+      opts.archifyBinPath,
+      "validate",
+      opts.diagramType,
+      opts.irPath,
+      "--layout-json",
+    ]);
+  } catch (err) {
+    return {
+      violations: [],
+      skipped: true,
+      skipReason: `validate spawn failed: ${err instanceof Error ? err.message.slice(0, 200) : String(err)}`,
+    };
+  }
   if (result.status !== 0) {
     return {
       violations: [],
@@ -163,8 +182,21 @@ export function runArchifyLayoutCheck(opts: {
   return checkLayoutContract(parsed);
 }
 
-import { spawnSync as defaultSpawnRaw } from "node:child_process";
-function defaultSpawn(cmd: string, args: string[]): { status: number | null; stdout: string; stderr: string } {
-  const run = defaultSpawnRaw(cmd, args, { encoding: "utf8" });
-  return { status: run.status, stdout: run.stdout ?? "", stderr: run.stderr ?? "" };
+import { spawnTracked } from "@deeporca/core";
+async function defaultSpawn(
+  cmd: string,
+  args: string[]
+): Promise<{ status: number | null; stdout: string; stderr: string }> {
+  const run = await spawnTracked({
+    label: "archify-layout",
+    command: cmd,
+    args,
+    cwd: process.cwd(),
+    // Full-domain audit round-2: under PACKAGED Electron, process.execPath is
+    // the app binary — without ELECTRON_RUN_AS_NODE the child booted the app
+    // instead of running archify in Node mode (gate ① silently broken there).
+    env: { ELECTRON_RUN_AS_NODE: "1" },
+    timeoutMs: LAYOUT_CHECK_TIMEOUT_MS,
+  });
+  return { status: run.code, stdout: run.stdout, stderr: run.stderr };
 }

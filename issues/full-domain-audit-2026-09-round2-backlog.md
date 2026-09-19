@@ -6,10 +6,13 @@ architecture.md 工具列表）。以下为**登记未修**项，按优先级排
 
 ## 主流程/性能（下一轮主项）
 
-1. **arch 视觉回读 spawnSync 阻塞主进程**（HIGH-MED）：`arch-visual-verify.ts:70-74`
-   spawnSync × 240s × N artifacts × 3 revision 轮 + `archify-layout-check.ts:143,168`
-   同款——一次 `arch-scan.run` 可把整个 Electron 主进程（含进度 emit）阻塞数分钟。
-   render gate 已用 async spawnTracked（archify-cli.ts:20），对齐即可。
+1. ~~**arch 视觉回读 spawnSync 阻塞主进程**（HIGH-MED）~~ **已修（round-2，2026-09-20）**：
+   `arch-visual-verify.ts` 门② 与 `archify-layout-check.ts` 门① 均改异步
+   `spawnTracked`（对齐 archify-cli 范式）；spawn 失败/超时降级诚实 skip 不抛出；
+   顺带修两个潜伏缺陷——layout-check 原未设 `ELECTRON_RUN_AS_NODE=1`（打包环境
+   门① spawn 的是应用本体）、门② spawn 前先清陈旧 receipt（早死子进程不再复活
+   上轮判定，即原第 6 项）。回归：事件循环响应性测试 + spawnSync/env 源守卫
+   （变异验证 ×2）。
 2. **流式进度每 delta 一条 IPC**（MED）：`session-manager-base.ts:1134-1140` trackText
    每 delta emit，desktop session-bridge 1:1 转发无节流。加时间窗合并（如 30-60ms）。
 3. **repair-diff LCS 无界内存**（MED）：`repair-diff.ts:116-123` 全 DP 表，
@@ -22,8 +25,7 @@ architecture.md 工具列表）。以下为**登记未修**项，按优先级排
    会在等待用户时执行副作用调用。
 5. **arch-scan 修订轮验证所有历史 artifact**：`arch-scan.ts:147` 无范围过滤，
    legacy 产物可触发无关修订轮。
-6. **视觉回读 receipt 新鲜度**：`arch-visual-verify.ts:75-89` 子进程早死时可读到
-   上一轮 receipt——spawn 前父进程先 unlink receipt（或记 mtime）。
+6. ~~**视觉回读 receipt 新鲜度**~~ **已修（并入 round-2 第 1 项：spawn 前 rmSync receipt）**。
 7. **compaction 守卫失败后重发超大 payload**：`lifecycle.ts:526-536` + autoRecovery
    同型重试——不可配对簇会话楔死至历史变化。
 8. **后台 LLM 任务 bash 不入 liveProcessKeys**：`session-manager-tasks.ts:811-819`
