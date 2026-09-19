@@ -9,8 +9,9 @@
  * 确定性纪律（M3E #2，对齐 describeLeaferDocument）：固定遍历序（children 数组序）、
  * 输出键按固定顺序构造（与输入键序无关）、数值 round2——同输入字节级同输出。
  *
- * 断行职责（WP0 结论）：CJK 文本由本编译器逐字符度量预断行后再产出文本节点；
- * Clay 分词只认 ' ' 与 '\n'，直接传入会整段溢出。
+ * 断行职责（WP0 结论）：CJK 文本由 preview.html 的 GLUE（clay-preview-html.ts 的
+ * wrapCJK，浏览器侧 canvas 度量）逐字符预断行——本编译器只搬运文本节点；
+ * Clay 分词只认 ' ' 与 '\n'，未预断行的 CJK 文本会整段溢出。
  */
 
 export interface ClayTreeNode {
@@ -136,8 +137,14 @@ export function compileLeaferToClayTree(doc: unknown): ClayCompileResult {
     ...(rootFill ? { background: rootFill } : {}),
     children,
   };
-  stats.nodes = children.length;
-  return { tree, stats: { ...stats, nodes: stats.nodes } };
+  // 节点数按全树统计（合成根除外）——banner 与 manifest 的「节点数」必须
+  // 反映真实编译产物规模，根层计数会把深层嵌套文档低报一个量级。
+  stats.nodes = children.reduce((sum, child) => sum + countTreeNodes(child), 0);
+  return { tree, stats };
+}
+
+function countTreeNodes(node: ClayTreeNode): number {
+  return 1 + (node.children ?? []).reduce((sum, child) => sum + countTreeNodes(child), 0);
 }
 
 function walkNode(value: unknown, stats: ClayCompileStats): ClayTreeNode | null {

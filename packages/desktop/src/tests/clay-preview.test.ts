@@ -136,7 +136,8 @@ test("GLUE wrapCJK behavior executed with a deterministic measure stub", () => {
     canvasHeight: 10,
   });
   const html = built.html;
-  const src = html.slice(html.indexOf("let GRAPHEME_SEG"), html.indexOf("function walk")).trim();
+  // 切片从 measureCtx 助手起（wrapCJK 现经单个缓存 ctx 度量，助手须同源求值）
+  const src = html.slice(html.indexOf("var MEASURE_CTX"), html.indexOf("function walk")).trim();
   let calls = 0;
   const w = (s: string) =>
     [...s].reduce((n, ch) => n + (/[\u4e00-\u9fff]/.test(ch) ? 20 : /[A-Za-z0-9]/.test(ch) ? 10 : 8), 0);

@@ -6,8 +6,8 @@
  * （结构体偏移由 C 编译器计算，不在此层手排）；命令数组按 vendored clay.h 的
  * Clay_RenderCommand 布局读取（stride 72，偏移见 CMD_OFFSETS）。
  *
- * 断行职责（WP0 结论）：Clay 分词只认 ' ' 与 '\n'，CJK 文本由调用方
- * （WP2 编译器）逐字符度量预断行后再传入——本层不做断行。
+ * 断行职责（WP0 结论）：Clay 分词只认 ' ' 与 '\n'，CJK 文本由 preview.html
+ * GLUE 的 wrapCJK 逐字符度量预断行后再传入——本层不做断行。
  */
 
 const CMD_NAMES = [
@@ -215,6 +215,12 @@ export class ClayLayoutRuntime {
 
   endFrame(): ClayCommandView[] {
     this.instance.exports.bind_end();
+    // wasm memory 一旦 grow，旧 ArrayBuffer 即被 detach——本层持有的 DataView
+    // 会静默读出垃圾（NaN 布局/空文本）。arena 由 bind_init 按 MinMemorySize
+    // 预分配、正常路径不会 grow；真发生了必须大声失败，绝不带病出命令。
+    if (this.memory.buffer !== this.instance.exports.memory.buffer) {
+      throw new Error("clay-wrapper: wasm memory grew mid-frame — command view detached, refusing to read garbage");
+    }
     return this.readCommands();
   }
 

@@ -39,6 +39,14 @@ const GLUE = [
   "const CANVAS = __CANVAS_JSON__;",
   "let memoryDataView, scratchBase, instance, textBase, textBump = 0;",
   "const encoder = new TextEncoder();",
+  // 文本度量统一走单个缓存的 2d 上下文（measureTextFunction 与 wrapCJK 共用）：
+  // 每次度量新建 canvas 会在大文档上产生可观的 DOM/GC 抖动，直接吃掉 wrapCJK
+  // 单趟切分的优化收益（20k 次度量 × 每次一个 canvas 元素）。
+  "var MEASURE_CTX = null;",
+  "function measureCtx() {",
+  "  if (!MEASURE_CTX) MEASURE_CTX = document.createElement('canvas').getContext('2d');",
+  "  return MEASURE_CTX;",
+  "}",
   "function bind_decl_reset() { instance.exports.bind_decl_reset(); }",
   "function bind_set_background(r, g, b, a) { instance.exports.bind_set_background(r, g, b, a); }",
   "function bind_set_corner_radius(tl, tr, bl, br) { instance.exports.bind_set_corner_radius(tl, tr, bl, br); }",
@@ -68,7 +76,7 @@ const GLUE = [
   "    const text = readString(pointer, length);",
   "    const fontId = memoryDataView.getUint16(configAddress + 20, true);",
   "    const fontSize = memoryDataView.getUint16(configAddress + 22, true);",
-  "    const ctx = document.createElement('canvas').getContext('2d');",
+  "    const ctx = measureCtx();",
   "    ctx.font = fontSize + 'px ' + FONTS[fontId];",
   "    const m = ctx.measureText(text);",
   "    const h = (m.fontBoundingBoxAscent || m.actualBoundingBoxAscent) + (m.fontBoundingBoxDescent || m.actualBoundingBoxDescent);",
@@ -100,7 +108,7 @@ const GLUE = [
   "  return Array.from(s);",
   "}",
   "function wrapCJK(text, width, fontSize, font) {",
-  "  const ctx = document.createElement('canvas').getContext('2d');",
+  "  const ctx = measureCtx();",
   "  ctx.font = fontSize + 'px ' + font;",
   "  const fits = function (s) { return ctx.measureText(s).width <= width; };",
   // 行首禁则（收口类标点悬挂在上一行尾，不得起一行）· 行尾禁则（开口类标点随下一行走，不收行）
@@ -199,7 +207,6 @@ const GLUE = [
   "  const stage = document.getElementById('stage');",
   "  stage.style.width = CANVAS.width + 'px';",
   "  stage.style.height = CANVAS.height + 'px';",
-  "  const capacity = memoryDataView.getUint32(scratchBase, true);",
   "  const length = memoryDataView.getUint32(scratchBase + 4, true);",
   "  let offset = memoryDataView.getUint32(scratchBase + 8, true);",
   "  for (let i = 0; i < length; i++, offset += 72) {",

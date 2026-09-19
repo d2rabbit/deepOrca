@@ -107,3 +107,27 @@ test("text nodes keep copy, font size and computed line height", () => {
   assert.equal(textNode?.fontSize, 14);
   assert.equal(textNode?.lineHeight, 19.6);
 });
+
+test("nodes stat counts the full tree, not just root children", () => {
+  const doc = {
+    tag: "Leafer",
+    width: 800,
+    height: 600,
+    children: [
+      {
+        tag: "Group",
+        x: 0,
+        y: 0,
+        flow: "y",
+        children: [
+          { tag: "Rect", x: 0, y: 0, width: 40, height: 20, fill: "#101623" },
+          { tag: "Text", x: 0, y: 30, text: "深层节点", fontSize: 14 },
+        ],
+      },
+      { tag: "Rect", x: 100, y: 100, width: 60, height: 30, fill: "#3b82f6" },
+    ],
+  };
+  const { stats } = compileLeaferToClayTree(doc);
+  // Group + Rect + Text + Rect = 4（合成根不计）；根层计数只会报 2。
+  assert.equal(stats.nodes, 4);
+});
