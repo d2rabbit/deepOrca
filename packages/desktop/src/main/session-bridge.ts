@@ -64,6 +64,7 @@ import { existsSync, realpathSync } from "node:fs";
 import path from "node:path";
 import { execFile, spawnSync } from "node:child_process";
 import { IpcEvent } from "../shared/ipc.js";
+import { LlmStreamProgressCoalescer } from "./llm-stream-progress-coalescer.js";
 import type { WorkspaceTrustLevel, WorkspaceTrustStatus } from "../shared/ipc.js";
 import type {
   AgentChangeFile,
@@ -317,6 +318,9 @@ export class SessionBridge {
   /** Live editor-agent run's cancellation source (single-flight; null = idle). */
   private editorAgentController: AbortController | null = null;
 
+  /** Per-request time window on LLM stream-progress IPC (audit round-2). */
+  private readonly llmStreamCoalescer = new LlmStreamProgressCoalescer();
+
   constructor(
     public projectRoot: string,
     private readonly emit: Emit
@@ -400,7 +404,12 @@ export class SessionBridge {
         this.emit(IpcEvent.DepthLaneProgress, { root: this.projectRoot, ...event });
       },
       onLlmStreamProgress: (progress) => {
-        this.emit(IpcEvent.LlmStreamProgress, progress);
+        // Coalesce per-delta token snapshots (idempotent) — one IPC per
+        // request per 45ms window instead of hundreds per second; start/end
+        // phases always pass through immediately (audit round-2).
+        if (this.llmStreamCoalescer.accept(progress)) {
+          this.emit(IpcEvent.LlmStreamProgress, progress);
+        }
       },
       onMcpStatusChanged: () => {
         this.emit(IpcEvent.McpStatusChanged);
@@ -422,6 +431,10 @@ export class SessionBridge {
     }
     this.manager.dispose();
     this.projectRoot = next;
+    // Stale request ids from the retired manager must not throttle the new
+    // one's streams (in-flight request ids are unique per manager anyway —
+    // this is hygiene, not correctness).
+    this.llmStreamCoalescer.clear();
     this.manager = this.createManager(root);
     // The memory provider is bound per-bridge (not per-manager) so it survives
     // manager recreation. createManager() already re-applies it via

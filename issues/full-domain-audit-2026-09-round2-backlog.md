@@ -13,8 +13,11 @@ architecture.md 工具列表）。以下为**登记未修**项，按优先级排
    门① spawn 的是应用本体）、门② spawn 前先清陈旧 receipt（早死子进程不再复活
    上轮判定，即原第 6 项）。回归：事件循环响应性测试 + spawnSync/env 源守卫
    （变异验证 ×2）。
-2. **流式进度每 delta 一条 IPC**（MED）：`session-manager-base.ts:1134-1140` trackText
-   每 delta emit，desktop session-bridge 1:1 转发无节流。加时间窗合并（如 30-60ms）。
+2. ~~**流式进度每 delta 一条 IPC**~~ **已修（round-2）**：桥接层新增
+   `llm-stream-progress-coalescer.ts`——按 requestId 45ms drop-only 时间窗
+   （载荷是幂等 token 快照，"start"/"end" 恒直通，"end" 清态；renderer 侧本就
+   250ms 合并 setState，此前白白支付每 delta 一条序列化 IPC）。注入时钟
+   回归 ×7（100 同窗 delta→1 条；1000 delta/10 窗→≤11 条）；变异验证 ×1。
 3. **repair-diff LCS 无界内存**（MED）：`repair-diff.ts:116-123` 全 DP 表，
    长轨迹 ×5 候选对可 OOM。加序列长度上限或 Hirschberg/分块。
 
