@@ -30,6 +30,7 @@ import {
   createSessionManager,
   createSkillMatchingResponse,
   createTempDir,
+  createToolCallResponse,
   escapeRegExp,
   isSkillMatchingRequest,
   mcpStatusFor,
@@ -1660,4 +1661,73 @@ test("create-phase failures still land a prompt-side ledger record", async () =>
     failed.every((record) => record.prompt > 0),
     "prompt side counted in full — same bias as the mid-stream failure path"
   );
+});
+
+test("AskUserQuestion pauses the batch: later side-effecting tool calls do NOT run while waiting", async () => {
+  const workspace = createTempDir("deepcode-ask-batch-pause-workspace-");
+  const home = createTempDir("deepcode-ask-batch-pause-home-");
+  setHomeDir(home);
+  const sideEffectFile = path.join(workspace, "side-effect.txt");
+  const manager = createMockedClientSessionManager(workspace, [
+    createToolCallResponse(
+      [
+        {
+          id: "call-ask-1",
+          type: "function",
+          function: {
+            name: "AskUserQuestion",
+            arguments: JSON.stringify({
+              questions: [{ question: "Proceed with the write?", options: [{ label: "Yes" }, { label: "No" }] }],
+            }),
+          },
+        },
+        {
+          id: "call-bash-1",
+          type: "function",
+          function: {
+            name: "bash",
+            // A REAL side effect: would create the file if executed.
+            arguments: JSON.stringify({ command: `echo RAN > ${JSON.stringify(sideEffectFile)}` }),
+          },
+        },
+      ],
+      { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 }
+    ),
+    createChatResponse("all done", { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 }),
+  ]);
+
+  const sessionId = await manager.createSession({ text: "ask then write" });
+  const entry = manager.listSessions().find((candidate) => candidate.id === sessionId);
+  // Full-domain audit round-2: the batch used to keep executing after the
+  // question, running the bash side effect while the user was still deciding.
+  assert.equal(entry?.status, "waiting_for_user", `status: ${entry?.status}`);
+  assert.equal(fs.existsSync(sideEffectFile), false, "side-effecting bash must NOT run during the wait");
+
+  // 1:1 pairing survives the pause: BOTH calls have tool messages, and the
+  // skipped one is an honest synthetic — not a fabricated success.
+  const toolCalls = (
+    manager
+      .listSessionMessages(sessionId)
+      .find((message) => message.role === "assistant" && (message.messageParams as any)?.tool_calls)?.messageParams as {
+      tool_calls?: Array<{ id?: string }>;
+    } | null
+  )?.tool_calls;
+  const toolMessages = manager.listSessionMessages(sessionId).filter((message) => message.role === "tool");
+  assert.deepEqual(
+    toolMessages.map((message) => (message.messageParams as { tool_call_id?: unknown } | null)?.tool_call_id),
+    toolCalls?.map((toolCall) => toolCall.id),
+    "every tool_call needs its paired tool message"
+  );
+  const bashMessage = toolMessages.find((message) => JSON.parse(message.content ?? "{}").name === "bash");
+  assert.ok(bashMessage, "bash tool message must exist (synthetic)");
+  const bashResult = JSON.parse(bashMessage.content ?? "{}");
+  assert.equal(bashResult.ok, false, "skipped call must not report success");
+  assert.match(bashResult.error ?? "", /Skipped.*paused for a user question/);
+
+  // The user replies → the session resumes and the turn completes; the side
+  // effect still never happened (the model must re-issue the call itself).
+  await manager.replySession(sessionId, { text: "Yes, go ahead" });
+  const resumed = manager.listSessions().find((candidate) => candidate.id === sessionId);
+  assert.equal(resumed?.status, "completed", `resumed status: ${resumed?.status}`);
+  assert.equal(fs.existsSync(sideEffectFile), false, "side effect must stay absent across resume");
 });

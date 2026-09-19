@@ -1319,9 +1319,32 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
         bashSandbox,
       });
       toolExecutions.push(...executions);
+      // Batch pause (full-domain audit round-2): once a tool in this turn
+      // asks the user a question, the REMAINING calls must not execute while
+      // waiting — a [AskUserQuestion, bash-write] batch used to run the side
+      // effect during the wait. The session resumes via the user's next
+      // reply; skipped calls get synthetic 1:1 results below so no
+      // tool_call id dangles (providers reject that).
+      if (executions.some((execution) => execution.result.awaitUserResponse === true)) {
+        break;
+      }
     }
     if (this.isInterrupted(sessionId)) {
       return { waitingForUser: false };
+    }
+    // Synthetic results for calls skipped by the pause above (or an
+    // interrupt mid-batch): the model must SEE the call never ran, and the
+    // tool_call ↔ tool-message pairing must stay 1:1.
+    const executedIds = new Set(toolExecutions.map((execution) => execution.toolCallId));
+    for (const toolCall of parsedToolCalls) {
+      if (executedIds.has(toolCall.id)) continue;
+      const result = {
+        ok: false,
+        name: toolCall.function.name,
+        error:
+          "Skipped: this turn paused for a user question before the call executed. Re-issue it after the answer if still needed.",
+      };
+      toolExecutions.push({ toolCallId: toolCall.id, content: JSON.stringify(result), result });
     }
     let waitingForUser = false;
     const followUpMessages: SessionMessage[] = [];

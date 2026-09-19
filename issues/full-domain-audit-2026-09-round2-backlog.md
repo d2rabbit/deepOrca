@@ -26,9 +26,14 @@ architecture.md 工具列表）。以下为**登记未修**项，按优先级排
 
 ## 正确性（中）
 
-4. **AskUserQuestion 不暂停同批后续工具**：`session-manager-lifecycle.ts:1306-1322`
-   顺序执行整批，awaitUserResponse 在批后才生效——`[AskUserQuestion, bash 写操作]`
-   会在等待用户时执行副作用调用。
+4. ~~**AskUserQuestion 不暂停同批后续工具**~~ **已修（round-2）**：
+   `appendToolMessages` 在某调用置 awaitUserResponse 后即中断批内执行；
+   未执行调用回填合成 tool 消息（`ok:false, "Skipped: paused for a user
+   question"`）保持 tool_call↔tool-message 1:1（悬挂 id 会被 provider 拒收），
+   模型可见"未执行"并在应答后自行重发。端到端回归（mocked LLM 循环）：
+   批内 bash 副作用在等待期间与 resume 后都不发生、状态机
+   waiting_for_user→(reply)→completed、配对完整；变异验证 ×1（去 break→
+   副作用发生断言红）。
 5. **arch-scan 修订轮验证所有历史 artifact**：`arch-scan.ts:147` 无范围过滤，
    legacy 产物可触发无关修订轮。
 6. ~~**视觉回读 receipt 新鲜度**~~ **已修（并入 round-2 第 1 项：spawn 前 rmSync receipt）**。
