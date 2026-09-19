@@ -673,7 +673,9 @@ test("progress-label maps every core emit code both ways and handles format/term
   const sources = ["prototype.ts", "design.ts"]
     .map((name) => fs.readFileSync(path.join(actionsDir, name), "utf8"))
     .join("\n");
-  const emitted = [...sources.matchAll(/["'](prototype|design)\.[a-z]+(?:\.[a-z]+)+["']/g)]
+  // [a-zA-Z]: camelCase segments (prototype.arch.anchorSkipped) must not
+  // escape the bijection (2026-09 iter-4 review F1).
+  const emitted = [...sources.matchAll(/["'](prototype|design)\.[a-zA-Z]+(?:\.[a-zA-Z]+)+["']/g)]
     .map((match) => match[0].slice(1, -1))
     // File-name literals ("prototype.openui.txt") share the dotted shape —
     // only two-segment-plus codes without extensions count.
@@ -686,10 +688,20 @@ test("progress-label maps every core emit code both ways and handles format/term
     assert.ok(sources.includes(`"${key}"`), `dead mapping — core never emits: ${key}`);
   }
   // Formatting, unknown-code fallback and the terminal marker.
-  const translate = (key: string) => `T:${key}`;
+  const translate = (key: string, params?: Record<string, string>) =>
+    params?.file !== undefined ? `T:${key}(${params.file})` : `T:${key}`;
   assert.equal(
     progressLabel({ message: "raw", percent: 30, data: { code: "prototype.spec.generating" } }, translate),
     "30% — T:prototypeWorkspace.progressSpec"
+  );
+  // String data fields interpolate into the mapped label's {placeholders}
+  // (iter-4 F1: the anchor-skip note's {file}).
+  assert.equal(
+    progressLabel(
+      { message: "raw english", percent: 100, data: { code: "prototype.arch.anchorSkipped", file: "/ws/a.md" } },
+      translate
+    ),
+    "100% — T:prototypeWorkspace.progressArchAnchorSkipped(/ws/a.md)"
   );
   assert.equal(progressLabel({ message: "plain english", percent: 10 }, translate), "10% — plain english");
   assert.equal(isTerminalProgress({ message: "done", data: { done: true } }), true);

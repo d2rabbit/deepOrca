@@ -1780,6 +1780,7 @@ export const zhTW: Record<MessageKey, string> = {
     "驗收通過後,將基於需求文件生成技術架構文件(系統架構圖、資料模型、核心流程、模組拆分)。",
   "prototypeWorkspace.progressArch": "正在生成技術架構文件(arch-writer)…",
   "prototypeWorkspace.progressArchSaved": "技術架構文件已儲存",
+  "prototypeWorkspace.progressArchAnchorSkipped": "技術架構文件已儲存——spec 錨點被跳過（手工編輯、無法解析）：{file}",
   "prototypeWorkspace.noPrototype": "此版本尚無互動原型。",
   "prototypeWorkspace.verify": "驗收原型",
   "prototypeWorkspace.reportTitle": "驗收報告",

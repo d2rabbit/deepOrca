@@ -1817,6 +1817,8 @@ export const ko: Record<MessageKey, string> = {
     "검수 통과 후, 요구사항 문서를 기반으로 기술 아키텍처 문서(시스템 구성도, 데이터 모델, 핵심 흐름, 모듈 분해)를 생성합니다.",
   "prototypeWorkspace.progressArch": "기술 아키텍처 문서 생성 중(arch-writer)…",
   "prototypeWorkspace.progressArchSaved": "기술 아키텍처 문서가 저장되었습니다",
+  "prototypeWorkspace.progressArchAnchorSkipped":
+    "기술 아키텍처 문서가 저장되었습니다 — spec 앵커 건너뜀(수동 편집, 구문 분석 불가): {file}",
   "prototypeWorkspace.noPrototype": "이 버전에는 인터랙티브 프로토타입이 없습니다.",
   "prototypeWorkspace.verify": "프로토타입 검증",
   "prototypeWorkspace.reportTitle": "인수 보고서",

@@ -1777,6 +1777,7 @@ export const zh: Record<MessageKey, string> = {
     "验收通过后，将基于需求文档生成技术架构文档（系统架构图、数据模型、核心流程、模块拆分）。",
   "prototypeWorkspace.progressArch": "正在生成技术架构文档(arch-writer)…",
   "prototypeWorkspace.progressArchSaved": "技术架构文档已保存",
+  "prototypeWorkspace.progressArchAnchorSkipped": "技术架构文档已保存——spec 锚点被跳过（手工编辑、无法解析）：{file}",
   "prototypeWorkspace.noPrototype": "此版本尚无交互原型。",
   "prototypeWorkspace.verify": "验收原型",
   "prototypeWorkspace.reportTitle": "验收报告",

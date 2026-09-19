@@ -45,7 +45,7 @@ function anchorNode(frontmatterLines: string[], body: string): string {
   return `---\n${frontmatterLines.join("\n")}\n---\n\n${body.trim()}\n`;
 }
 
-/** Outcome of one anchor upsert — the skip is reported, never silent. */
+/** Outcome of an anchor upsert (and the aggregated two-anchor registration result) — the skip is reported, never silent. */
 export type DesignChainRegistrationResult = {
   status: "written" | "unchanged" | "skipped-unparseable-anchor";
   /** Anchor file the status refers to (absolute path). */

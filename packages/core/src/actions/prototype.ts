@@ -1858,6 +1858,7 @@ export const prototypeArchRun: ActionRun<PrototypeArchInput, PrototypeArchOutput
     // 播种两个指针锚点（product-design + architecture）让设计链入图。注册
     // 失败绝不拖垮设计动作——best-effort。
     let anchorSkipNote: string | null = null;
+    let anchorSkipFile = "";
     try {
       const registered = await ensureDesignChainRegistration(ctx.projectRoot, { suiteId, versionId });
       if (registered.status === "skipped-unparseable-anchor") {
@@ -1869,6 +1870,7 @@ export const prototypeArchRun: ActionRun<PrototypeArchInput, PrototypeArchOutput
         // status (last message wins) — a separate earlier emit would be
         // visually overwritten by this very "saved" line.
         anchorSkipNote = ` — spec anchor skipped (hand-edited, unparsable): ${registered.file}`;
+        anchorSkipFile = registered.file;
       }
     } catch {
       // honest no-op: the graph misses this chain until the next save
@@ -1876,7 +1878,9 @@ export const prototypeArchRun: ActionRun<PrototypeArchInput, PrototypeArchOutput
     ctx.emit({
       message: `Technical architecture document saved${anchorSkipNote ?? ""}`,
       percent: 100,
-      data: anchorSkipNote ? { code: "prototype.arch.anchorSkipped" } : { code: "prototype.arch.saved" },
+      data: anchorSkipNote
+        ? { code: "prototype.arch.anchorSkipped", file: anchorSkipFile }
+        : { code: "prototype.arch.saved" },
     });
     return { ok: true, artifactRef: saved.artifactRef, refreshStore: !saved.artifactRef };
   } catch (error) {

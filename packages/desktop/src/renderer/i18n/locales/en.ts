@@ -1828,6 +1828,8 @@ export const en = {
     "Once verification passes, the technical architecture document (architecture diagram, data model, core flows, module breakdown) is derived from the approved PRD.",
   "prototypeWorkspace.progressArch": "Generating the technical architecture document (arch-writer)…",
   "prototypeWorkspace.progressArchSaved": "Technical architecture document saved",
+  "prototypeWorkspace.progressArchAnchorSkipped":
+    "Technical architecture document saved — spec anchor skipped (hand-edited, unparsable): {file}",
   "prototypeWorkspace.noPrototype": "This version does not contain an interactive prototype yet.",
   "prototypeWorkspace.verify": "Verify prototype",
   "prototypeWorkspace.reportTitle": "Acceptance report",

@@ -1828,6 +1828,8 @@ export const ja: Record<MessageKey, string> = {
     "検収に合格すると、要件ドキュメントに基づいて技術アーキテクチャ文書(システム構成図・データモデル・主要フロー・モジュール分割)を生成します。",
   "prototypeWorkspace.progressArch": "技術アーキテクチャ文書を生成中(arch-writer)…",
   "prototypeWorkspace.progressArchSaved": "技術アーキテクチャ文書を保存しました",
+  "prototypeWorkspace.progressArchAnchorSkipped":
+    "技術アーキテクチャドキュメントを保存しました——spec アンカーをスキップ（手作業で編集済み・解析不可）：{file}",
   "prototypeWorkspace.noPrototype": "このバージョンにはインタラクティブプロトタイプがありません。",
   "prototypeWorkspace.verify": "プロトタイプを検証",
   "prototypeWorkspace.reportTitle": "受け入れ報告",

@@ -32,6 +32,9 @@ const PROGRESS_KEYS: Record<string, MessageKey> = {
   "prototype.materialize.saved": "prototypeWorkspace.progressMaterializeSaved",
   "prototype.arch.generating": "prototypeWorkspace.progressArch",
   "prototype.arch.saved": "prototypeWorkspace.progressArchSaved",
+  // Skip note rides the terminal saved line (writer no-clobber): label needs
+  // the {file} param from event.data — see progressLabel's interpolation.
+  "prototype.arch.anchorSkipped": "prototypeWorkspace.progressArchAnchorSkipped",
   "design.materialize.generating": "designWorkspace.progressGenerate",
   "design.materialize.saved": "designWorkspace.progressSaved",
   "design.tokens.extracting": "designWorkspace.progressTokensExtract",
@@ -55,13 +58,26 @@ export function isTerminalProgress(event: ProgressEventLike): boolean {
   return typeof event.data === "object" && event.data !== null && (event.data as { done?: unknown }).done === true;
 }
 
-/** Localized `${percent}% — label` for a progress event (raw message fallback). */
-export function progressLabel(event: ProgressEventLike, translate: (key: MessageKey) => string): string {
-  const code =
-    typeof event.data === "object" && event.data !== null && "code" in event.data
-      ? (event.data as { code?: unknown }).code
-      : undefined;
+/** Localized `${percent}% — label` for a progress event (raw message fallback).
+ *
+ * When the mapped label carries `{param}` placeholders (e.g. the anchor-skip
+ * note's `{file}`), the event's string-valued `data` fields interpolate into
+ * them — a plain-label registration can no longer silently drop the detail
+ * a code was switched for (2026-09 iter-4 review F1). */
+export function progressLabel(
+  event: ProgressEventLike,
+  translate: (key: MessageKey, params?: Record<string, string>) => string
+): string {
+  const data =
+    typeof event.data === "object" && event.data !== null ? (event.data as Record<string, unknown>) : undefined;
+  const code = typeof data?.code === "string" ? data.code : undefined;
   const key = typeof code === "string" ? PROGRESS_KEYS[code] : undefined;
-  const label = key ? translate(key) : event.message;
+  const params: Record<string, string> | undefined =
+    key && data
+      ? Object.fromEntries(
+          Object.entries(data).filter((entry): entry is [string, string] => typeof entry[1] === "string")
+        )
+      : undefined;
+  const label = key ? translate(key, params) : event.message;
   return event.percent != null ? `${event.percent}% — ${label}` : label;
 }
