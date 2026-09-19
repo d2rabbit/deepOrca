@@ -104,19 +104,40 @@ function sameUnit(a: ToolCallUnit, b: ToolCallUnit): boolean {
 }
 
 /**
+ * Per-sequence length ceiling for the LCS table (full-domain audit round-2).
+ * The classic (n+1)×(m+1) DP allocates ~200MB in the Electron main process
+ * for two ~5k-call trajectories — `memory.mine-repairs` over long-histories
+ * could OOM the app. Mining semantics only need the RECENT trajectory (the
+ * failure cluster and its repair both sit at the tail of a same-task fork),
+ * so each sequence is trimmed to its LAST this-many units before diffing.
+ * 1500² ≈ 2.25M table cells ≈ ~18MB transient — bounded for any input.
+ */
+export const MAX_SEQUENCE_UNITS = 1_500;
+
+/**
  * LCS-based sequence diff. Classic dynamic programming over unit equality;
  * the reconstruction walks the table once. Parent-only runs between spine
  * anchors collapse into deleted clusters (EMG "parallelizing consecutive
  * invalid actions" — a repeated-failure run is ONE cluster, not N events).
+ *
+ * Inputs longer than {@link MAX_SEQUENCE_UNITS} are tail-trimmed first (see
+ * the constant's doc); `parentLength`/`childLength` still report the ORIGINAL
+ * lengths so callers' stats stay truthful about the trajectories compared.
  */
 export function diffSequences(parent: readonly ToolCallUnit[], child: readonly ToolCallUnit[]): EditPath {
+  const tail = (seq: readonly ToolCallUnit[]): readonly ToolCallUnit[] =>
+    seq.length > MAX_SEQUENCE_UNITS ? seq.slice(seq.length - MAX_SEQUENCE_UNITS) : seq;
+  const parentUnits = tail(parent);
+  const childUnits = tail(child);
   const n = parent.length;
   const m = child.length;
   // table[i][j] = LCS length of parent[i..] × child[j..]
-  const table: number[][] = Array.from({ length: n + 1 }, () => new Array<number>(m + 1).fill(0));
-  for (let i = n - 1; i >= 0; i -= 1) {
-    for (let j = m - 1; j >= 0; j -= 1) {
-      table[i]![j] = sameUnit(parent[i]!, child[j]!)
+  const table: number[][] = Array.from({ length: parentUnits.length + 1 }, () =>
+    new Array<number>(childUnits.length + 1).fill(0)
+  );
+  for (let i = parentUnits.length - 1; i >= 0; i -= 1) {
+    for (let j = childUnits.length - 1; j >= 0; j -= 1) {
+      table[i]![j] = sameUnit(parentUnits[i]!, childUnits[j]!)
         ? table[i + 1]![j + 1]! + 1
         : Math.max(table[i + 1]![j]!, table[i]![j + 1]!);
     }
@@ -133,26 +154,26 @@ export function diffSequences(parent: readonly ToolCallUnit[], child: readonly T
   };
   let i = 0;
   let j = 0;
-  while (i < n && j < m) {
-    if (sameUnit(parent[i]!, child[j]!)) {
+  while (i < parentUnits.length && j < childUnits.length) {
+    if (sameUnit(parentUnits[i]!, childUnits[j]!)) {
       flushDeletion();
-      spine.push(parent[i]!);
+      spine.push(parentUnits[i]!);
       i += 1;
       j += 1;
     } else if (table[i + 1]![j]! >= table[i]![j + 1]!) {
-      pendingDeletion.push(parent[i]!);
+      pendingDeletion.push(parentUnits[i]!);
       i += 1;
     } else {
-      insertions.push(child[j]!);
+      insertions.push(childUnits[j]!);
       j += 1;
     }
   }
-  while (i < n) {
-    pendingDeletion.push(parent[i]!);
+  while (i < parentUnits.length) {
+    pendingDeletion.push(parentUnits[i]!);
     i += 1;
   }
-  while (j < m) {
-    insertions.push(child[j]!);
+  while (j < childUnits.length) {
+    insertions.push(childUnits[j]!);
     j += 1;
   }
   flushDeletion();

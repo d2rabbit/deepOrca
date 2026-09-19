@@ -18,8 +18,11 @@ architecture.md 工具列表）。以下为**登记未修**项，按优先级排
    （载荷是幂等 token 快照，"start"/"end" 恒直通，"end" 清态；renderer 侧本就
    250ms 合并 setState，此前白白支付每 delta 一条序列化 IPC）。注入时钟
    回归 ×7（100 同窗 delta→1 条；1000 delta/10 窗→≤11 条）；变异验证 ×1。
-3. **repair-diff LCS 无界内存**（MED）：`repair-diff.ts:116-123` 全 DP 表，
-   长轨迹 ×5 候选对可 OOM。加序列长度上限或 Hirschberg/分块。
+3. ~~**repair-diff LCS 无界内存**~~ **已修（round-2）**：`diffSequences` 对超
+   `MAX_SEQUENCE_UNITS`(1500) 的序列先做尾部裁剪再建表（失败簇与修复都在
+   同任务分叉的轨迹尾部，语义无损；1500²≈18MB 上限），`parentLength`/
+   `childLength` 仍报原始长度。回归 ×2（头部匹配出窗不进 spine、超限结果
+   ≡ 显式尾裁等价）+ 变异验证 ×1（去上限→两条红）。
 
 ## 正确性（中）
 
