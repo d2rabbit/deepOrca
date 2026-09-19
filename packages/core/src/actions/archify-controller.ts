@@ -61,7 +61,13 @@ export interface ArchVisualVerdict {
 }
 
 /** Host-injected visual verification over a root's DELIVERED artifacts. */
-export type ArchVisualVerifier = (root: string) => Promise<readonly ArchVisualVerdict[]>;
+/**
+ * Optional scope: when `sinceMs` is set (arch-scan's revision loop), only
+ * artifacts whose IR mtime is newer — THIS run's deliveries — are verified;
+ * legacy artifacts from other runs must not trigger unrelated revision
+ * rounds (full-domain audit round-2). Omit for verify-everything callers.
+ */
+export type ArchVisualVerifier = (root: string, opts?: { sinceMs?: number }) => Promise<readonly ArchVisualVerdict[]>;
 
 let paths: ArchifyPaths | null = null;
 let renderer: ArchRenderer | null = null;

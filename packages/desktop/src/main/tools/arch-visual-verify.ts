@@ -203,8 +203,32 @@ async function runVisionGate(
 
 // ── Verifier assembly ───────────────────────────────────────────────────────
 
-export async function verifyArchArtifacts(root: string): Promise<readonly ArchVisualVerdict[]> {
-  const artifacts = listArchifyArtifacts(root).filter((a) => a.htmlDelivered);
+/**
+ * Scope artifacts to THIS run's deliveries (full-domain audit round-2): the
+ * arch-scan revision loop used to verify every legacy artifact under
+ * `.deeporca/prototypes/` — one visually-failing leftover from another run
+ * dragged unrelated revision rounds (extra LLM passes + gate time) and
+ * reported non-convergence for artifacts this run never touched. An artifact
+ * counts as in-run when its IR mtime is STRICTLY NEWER than the run's start
+ * (a legitimate re-delivery of an existing name refreshes the mtime; focus
+ * NAME matching is deliberately avoided — artifact names are LLM-chosen).
+ */
+export function filterArtifactsSince<T extends { mtime: string }>(
+  artifacts: readonly T[],
+  sinceMs: number | undefined
+): readonly T[] {
+  if (sinceMs === undefined) return artifacts;
+  return artifacts.filter((artifact) => Date.parse(artifact.mtime) > sinceMs);
+}
+
+export async function verifyArchArtifacts(
+  root: string,
+  opts?: { sinceMs?: number }
+): Promise<readonly ArchVisualVerdict[]> {
+  const artifacts = filterArtifactsSince(
+    listArchifyArtifacts(root).filter((a) => a.htmlDelivered),
+    opts?.sinceMs
+  );
   const verdicts: ArchVisualVerdict[] = [];
   for (const artifact of artifacts) {
     const findings: string[] = [];

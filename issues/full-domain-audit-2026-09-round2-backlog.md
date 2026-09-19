@@ -34,8 +34,12 @@ architecture.md 工具列表）。以下为**登记未修**项，按优先级排
    批内 bash 副作用在等待期间与 resume 后都不发生、状态机
    waiting_for_user→(reply)→completed、配对完整；变异验证 ×1（去 break→
    副作用发生断言红）。
-5. **arch-scan 修订轮验证所有历史 artifact**：`arch-scan.ts:147` 无范围过滤，
-   legacy 产物可触发无关修订轮。
+5. ~~**arch-scan 修订轮验证所有历史 artifact**~~ **已修（round-2）**：
+   `ArchVisualVerifier` seam 增可选 `{ sinceMs }`，arch-scan 以运行起点
+   水位线传入；`verifyArchArtifacts` 按 IR mtime 严格新于水位线过滤
+   （重交付的既有名会刷新 mtime 自然入scope；刻意不用 focus 名匹配——
+   artifact 名是 LLM 起的）。知识面的 verify-everything 调用方不传参、
+   行为不变。纯函数 `filterArtifactsSince` 回归 ×4 + 变异 ×1。
 6. ~~**视觉回读 receipt 新鲜度**~~ **已修（并入 round-2 第 1 项：spawn 前 rmSync receipt）**。
 7. **compaction 守卫失败后重发超大 payload**：`lifecycle.ts:526-536` + autoRecovery
    同型重试——不可配对簇会话楔死至历史变化。

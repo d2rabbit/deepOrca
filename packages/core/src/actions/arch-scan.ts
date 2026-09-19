@@ -120,6 +120,10 @@ export const archScanRunRun: ActionRun<ArchScanInput, ArchScanOutput> = async (i
     ...(input?.perspective ? { perspective: input.perspective } : {}),
     ...(focusInput ? { focus: focusInput } : {}),
   };
+  // Run-start watermark for scoping the visual-readback loop (audit
+  // round-2): only artifacts delivered AFTER this point are this run's —
+  // legacy leftovers must not trigger revision rounds.
+  const runStartedAtMs = Date.now();
   const result = ctx.runBackgroundTask
     ? await ctx.runBackgroundTask({ skill: "arch-scan", input: taskInput })
     : await ctx.runSubagent!({ skill: "arch-scan", input: taskInput });
@@ -144,7 +148,7 @@ export const archScanRunRun: ActionRun<ArchScanInput, ArchScanOutput> = async (i
   let visualRounds = 0;
   if (verifier && renderer) {
     for (let round = 0; round < 3; round += 1) {
-      visualVerdicts = await verifier(ctx.projectRoot);
+      visualVerdicts = await verifier(ctx.projectRoot, { sinceMs: runStartedAtMs });
       visualRounds = round + 1;
       const failures = (visualVerdicts ?? []).filter((v) => v.status === "fail");
       if (failures.length === 0 || round === 2) {
