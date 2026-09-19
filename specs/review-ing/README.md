@@ -7,3 +7,4 @@
 | --- | --- | --- | --- |
 | [task-tree-hub](./task-tree-hub/design.md) | 2026-09-03 | 收尾清单 + 真机走查（任务树 V2 已于 2026-09-02 提交） | 复核通过 → 移入 `specs/archive/task-tree-hub/` |
 | [skill-eval](./skill-eval/design.md) | 2026-09-03 | T2.3 双引擎趋势对拍（待真实 LLM 花费，登记为预生产测试内容） | 对拍通过 + CI 首跑 → 移入 `specs/archive/skill-eval/` |
+| [model-fleet-adaptation](./model-fleet-adaptation/design.md) | 2026-09-19 | X4 新模型接入 SOP 真机验证待排期（X0–X3 已落地，32/43） | X4 真机验证 + 收尾 → 移入 `specs/archive/model-fleet-adaptation/` |

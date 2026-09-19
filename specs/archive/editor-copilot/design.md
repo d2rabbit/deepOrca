@@ -3,7 +3,7 @@
 > **状态**：方案稿（只出方案，不改代码）· **日期**：2026-09-05 · 分支 `feat/modern-ui-redesign`。
 > **上游**（三件套）：
 > ① 视觉交互稿 [`designs/screen-editor-copilot.html`](./designs/screen-editor-copilot.html)（13 项可点击演示，交互形态的唯一基准）；
-> ② 内核选型调研 [`docs/research/2026-09-05-editor-kernel-selection.md`](../../docs/research/2026-09-05-editor-kernel-selection.md)（结论：**CodeMirror 6** 替换 Monaco）；
+> ② 内核选型调研 [`docs/research/2026-09-05-editor-kernel-selection.md`](../../../docs/research/2026-09-05-editor-kernel-selection.md)（结论：**CodeMirror 6** 替换 Monaco）；
 > ③ 可行性实验 [`designs/proof-codemirror6.html`](./designs/proof-codemirror6.html) + 验证截图 ×3（流式/审阅态红绿与 hunk 芯片/gutter/tooltip/undo 全部真实 API 跑通）。
 > **用户拍板**（2026-09-05）：内核替换为 CM6；**LSP 深入化采用官方客户端 `@codemirror/lsp-client`**（本稿 §4）。
 > **性质**：编辑器模块（`packages/desktop/src/renderer/components/editor/`）唯一重构方案；不含任务分解（tasks.md 待定稿后另出）。

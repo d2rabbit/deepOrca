@@ -73,7 +73,7 @@
 
 ## §4 产物与风格
 
-- **产物通道**：mp4 与合成 HTML 落工作区用户指定目录（默认 `<workspace>/.deeporca/outputs/video/`，沿用 .deeporca 存储约定与 registered-root 规则）；桌面侧打开 mp4 走既有产物预览通道（对齐 [specs/artifact-landing](../../artifact-landing/design.md) 的 open-file-viewer 路线，**本 spec 零改动、只对齐**——若其视频预览未就绪则降级为 reveal-in-folder）。
+- **产物通道**：mp4 与合成 HTML 落工作区用户指定目录（默认 `<workspace>/.deeporca/outputs/video/`，沿用 .deeporca 存储约定与 registered-root 规则）；桌面侧打开 mp4 走既有产物预览通道（对齐 [specs/artifact-landing](../../archive/artifact-landing/design.md) 的 open-file-viewer 路线，**本 spec 零改动、只对齐**——若其视频预览未就绪则降级为 reveal-in-folder）。
 - **风格统一**：以 frame.md 机制把本仓设计 token（色板/字体/间距）反转为镜头用规范，随技能内置一份 `frame.md` 基线；与已 vendor 的 design-md 集合（`vendor-design-md.js`）同族衔接，保证出片风格与产品一致。
 - **i18n**：阶段 A/B 无新桌面 UI 文案（全走技能与 CLI）；阶段 C 若加进度面，文案键 ×6 locale 全覆盖。
 

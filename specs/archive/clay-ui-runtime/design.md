@@ -1,8 +1,10 @@
 # clay-ui-runtime — UI-Design 的并行渲染/导出运行时（Clay）· 技术设计
 
-> 立项：2026-09-15（user 拍板出 spec；选型证据：[docs/research/2026-09-15-clay-ui-engine-prestudy.md](../../docs/research/2026-09-15-clay-ui-engine-prestudy.md)）。
+> 立项：2026-09-15（user 拍板出 spec；选型证据：[docs/research/2026-09-15-clay-ui-engine-prestudy.md](../../../docs/research/2026-09-15-clay-ui-engine-prestudy.md)）。
 > 定位：**UI-Design 的并行渲染/导出运行时**，与 LeaferJS 创作引擎互补并行——Clay 是布局/渲染命令引擎而非编辑器引擎（研究文档核心判定），不做第三生成栈、不做 EARS 17 第三路由。
-> 关联：三层定位红线（PM-Design = OpenUI Lang、A2UI 全域交互层不动）沿袭 `specs/leafer-ui-engine/design.md` §2 纪律。
+> 关联：三层定位红线（PM-Design = OpenUI Lang、A2UI 全域交互层不动）沿袭 `specs/archive/leafer-ui-engine/design.md` §2 纪律。
+> 状态：**已收官（2026-09-19 复核改判归档）**——WP0–WP4 全落地（`e6ad4ecf5`：spike kill gate **PASS** 放行 / vendor+wrapper / 确定性编译器 / `.ddu` preview.html 集成 / 收编；新增 clay 15 例全绿，guard 测试锁定 PM-Design 与 A2UI 零触碰）+ E2E 实测加固批（`1bc8ed372` 五处致命缺陷 + wrapCJK 全面重写）+ vendor 指纹防漂移维护（`910a938d7`）；唯一未勾任务 4.2 端到端走查已移交预生产清单（符合归档口径）。实施状态与勘误详见 §6。
+> 版图（2026-09-19）：原型生成栈 = OpenUI Lang → MoonViz wasm（[moonviz-engine-replacement](../../moonviz-engine-replacement/design.md)，已立项）；UI-Design 创作引擎 = LeaferJS（[leafer-ui-engine](../leafer-ui-engine/design.md)，已收官）；UI-Design 渲染/导出运行时 = Clay（本 spec）。三线互不替代、各归各的子域。
 
 ## 1. 背景与动因
 
@@ -99,4 +101,8 @@ lint/review/revise/版本快照：**不经过此链路**（leafer 文档派生�
 
 ## 6. 勘误记录
 
-- （空——立项时点无预研勘误；后续按 leafer spec 先例在此累计）
+- **审查区登记误判（2026-09-19 修正）**：转入 review-ing 时登记的待复核项「WP0 kill gate 未跑」不实——提交记录证实 WP0 已跑且 **PASS**（`e6ad4ecf5`：三策略实证，原生空白换行/ZWSP 均溢出，逐字符度量 + 手断行正确折行），未勾任务仅 4.2 端到端走查（移交预生产清单）。教训同 leafer-ui-engine：**状态以提交记录与代码为准，spec 状态头可能滞后**。
+- **上游 clay.h 缺陷（WP0 发现）**：`Clay_GetLayoutDimensions` 前导出注记误写（同名导出 ×2 实例化必炸）——vendor 构建内置单行补丁，可向上游反馈。
+- **E2E 加固批回写（`1bc8ed372`，2026-09-15）**：① wasm 路径两级 `..` 改一级（bundled 形态此前必 ENOENT 且被静默吞，preview.html 永不生成，catch 补 `[design:export]` warn）；② GLUE init 调序 `bind_begin → walk → bind_end`（`Clay_BeginLayout` 重置 ephemeral arena，旧序整树白建渲染恒空白）；③ **wrapCJK 全面重写**——`Intl.Segmenter` 字素分段（ZWJ/组合符不劈裂）+ CJK 双向禁则（句读悬挂行尾/开口括号下移）+ 空白断点折叠 + 单字素宽度缓存单趟切分（20k 字符度量 91,825→20,000 次，200k 病态输入 195s→117ms）；④ CANVAS 采纳入参尺寸（原硬编码 1280×800，Leafer 预设无一命中）；⑤ 占位符单趟函数式替换 + `<` 转义（杜绝 `$&`/`$$` 展开与 `</script>` 提前终止）；⑥ manifest 先登记再序列化（附 unzip 解包断言）。
+- **vendor 维护（`910a938d7`）**：重建 clay.wasm 补齐 `bind_set_floating` 导出 + bindings 指纹防漂移。
+- **代码级复审加强批（2026-09-19）**：归档前对 wrapper/编译器/preview 三件套（1665 行）做代码级复审，落四处加强——① **GLUE 度量上下文提升**：`measureTextFunction` 与 `wrapCJK` 原先每次度量各建一个 canvas 2d 上下文，wrapCJK 重写把度量降到 ~20k 次但每次新建 canvas 的 DOM/GC 抖动直接吃掉收益——收敛为单个缓存 ctx（`measureCtx()`），顺带删除 `renderCommands` 死变量 `capacity`；② **wasm memory grow 防护（大声失败）**：`ClayLayoutRuntime.endFrame` 增加 DataView/detach 校验——arena 理应预分配不 grow，一旦发生旧 buffer 被 detach、命令读取将静默产出垃圾（NaN 布局/空文本），现在直接 throw 拒绝带病出命令；③ **`stats.nodes` 改全树计数**：原值只数根层 children，深层嵌套文档的「节点数」被低报一个量级（banner/manifest 语义失真），改为递归全树统计（合成根不计）+ 删除冗余双展开，新增嵌套文档回归测试并 mutation-check（破坏→红/还原→绿）；④ **断行职责头注纠偏**：wrapper 与编译器头注均声称「CJK 预断行在本文件/编译器」，实际实现在 preview GLUE 的 wrapCJK（浏览器侧 canvas 度量）——两处注释改为指向真实落点（状态漂移教训的又一实例，注释/文档与代码对不上时以代码为准并当场修正注释）。验证：clay 四套件 + ddu-leafer-export 27/27 绿，desktop 全量 823/827（4 skipped 条件跳过），desktop tsc 0 错误。leafer 侧（lint/repair/contract 572 行）同批复审**无缺陷**：确定性 lint 四规则、error-only 修复门槛、fail-closed 语义、有界树深均与 spec 承诺逐项吻合。

@@ -5,7 +5,7 @@
 > **同日实施**：X0–X3 代码面按存续 spec 全量落地（本工件 §2.1 口径有一处微调：回向不作为数据路径——传输层直接合成 OpenAI wire chunk 流，归约/落盘逻辑 100% 复用；详见存续 spec tasks X1.1 勾选注记）。
 > **定位**：在**保留全部自有模型语义**（DeepSeek 家族专属优化 + model-fleet-adaptation 家族注册表）的前提下，旁挂 **Vercel AI SDK（`ai` + `@ai-sdk/openai-compatible`）** 作为**实验性第二 LLM 传输通道**——默认关闭、可一键回退；消息持久化经**边界转译**，**不迁移存储**。
 > **用户拍板（2026-09-17，三项）**：① 保留本项目 DeepSeek 专属优化与适配，SDK 路径不得绕开；② 引入实验性 SDK 适配能力；③ 持久化走转译、不迁移。
-> **上游调研（含源码级契约实证）**：[docs/research/2026-09-17-models-dev-ai-sdk-prestudy.md](../../../docs/research/2026-09-17-models-dev-ai-sdk-prestudy.md)。关键实证：`@ai-sdk/openai-compatible@3.0.51` 原生内置 DeepSeek 三契约（`delta.reasoning_content ?? delta.reasoning` 增量解析 / assistant 回放"有则携带 `reasoning_content`、无则省键" / `includeUsage`），与本仓手写语义一致；`ai@7.0.105` Apache-2.0、Node ≥22、zod 工具定义。
+> **上游调研（含源码级契约实证）**：[docs/research/2026-09-17-models-dev-ai-sdk-prestudy.md](../../../../docs/research/2026-09-17-models-dev-ai-sdk-prestudy.md)。关键实证：`@ai-sdk/openai-compatible@3.0.51` 原生内置 DeepSeek 三契约（`delta.reasoning_content ?? delta.reasoning` 增量解析 / assistant 回放"有则携带 `reasoning_content`、无则省键" / `includeUsage`），与本仓手写语义一致；`ai@7.0.105` Apache-2.0、Node ≥22、zod 工具定义。
 > **关联 spec**：[model-fleet-adaptation](../design.md)（家族注册表、协议分派、渲染层单一事实源为其领地——本 spec **不改家族语义面**，只挂传输层）。其「双后端换主循环已否决」决策对本线同样生效：**主循环 / 权限 / 记忆 / 技能路由 / 压缩策略全部不动**。
 
 ---

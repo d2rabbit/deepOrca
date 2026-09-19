@@ -1,7 +1,7 @@
 # leafer-ui-engine — 需求（EARS）
 
 > Phase 1 of spec-workflow。问题陈述、引擎选型证据与技术方案见 [design.md](./design.md)；任务分解见 [tasks.md](./tasks.md)。本文件只锁验收口径。
-> 立项依据：[docs/research/2026-09-10-leaferjs-stitch-ui-engine.md](../../docs/research/2026-09-10-leaferjs-stitch-ui-engine.md)（user 2026-09-10 拍板：UI-Design 引擎换掉，选型 LeaferJS，npm lib 引入）。
+> 立项依据：[docs/research/2026-09-10-leaferjs-stitch-ui-engine.md](../../../docs/research/2026-09-10-leaferjs-stitch-ui-engine.md)（user 2026-09-10 拍板：UI-Design 引擎换掉，选型 LeaferJS，npm lib 引入）。
 
 ## 范围
 

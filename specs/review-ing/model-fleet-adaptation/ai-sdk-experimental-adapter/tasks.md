@@ -1,6 +1,6 @@
 # 实验性 AI SDK 传输适配 — 任务清单
 
-> 对应设计：[design.md](./design.md)。上游调研：[docs/research/2026-09-17-models-dev-ai-sdk-prestudy.md](../../../docs/research/2026-09-17-models-dev-ai-sdk-prestudy.md)（含契约源码实证）。
+> 对应设计：[design.md](./design.md)。上游调研：[docs/research/2026-09-17-models-dev-ai-sdk-prestudy.md](../../../../docs/research/2026-09-17-models-dev-ai-sdk-prestudy.md)（含契约源码实证）。
 > 拍板依据（2026-09-17）：① DeepSeek 专属优化保留（红线 L1）② 实验性 SDK 适配引入（L3 默认关）③ 持久化边界转译不迁移（L2）。
 > **2026-09-17 工件化**：已吸收合并入 [`model-fleet-adaptation`](../tasks.md) X 系列（同日 git mv 至活跃区）；本清单保留为完整溯源工件，勾选留痕以存续 spec 为准。
 > 粗估：WP1+WP2 ≈ 4–5 天（含电池落盘）+ B4/B7 真机半天；WP3 ≈ 2–3 天（独立可否决）。

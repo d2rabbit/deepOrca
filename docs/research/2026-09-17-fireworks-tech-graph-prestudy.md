@@ -75,4 +75,4 @@ Prompt → 图契约(Diagram Contract) → 语义 IR → 风格规格 → 路由
 ## 4. 参考
 
 - 上游仓库：<https://github.com/yizhiyanhua-ai/fireworks-tech-graph>（MIT；README/目录结构一手抓取）
-- 本仓对位：`specs/arch-map-reinforce/design.md`（活跃 spec，吸收落点）、Archify 引擎（v0.9.0 changelog：类型化 JSON→确定性门禁→交互 HTML）、`docs/research/2026-08-06-oh-my-mermaid-research.md`（12 视角方法论）、`packages/desktop/src/main/tools/vision-mcp.ts`（vision_chat，回读执行器候选）
+- 本仓对位：`specs/archive/arch-map-reinforce/design.md`（原活跃 spec，已收官归档，吸收落点）、Archify 引擎（v0.9.0 changelog：类型化 JSON→确定性门禁→交互 HTML）、`docs/research/2026-08-06-oh-my-mermaid-research.md`（12 视角方法论）、`packages/desktop/src/main/tools/vision-mcp.ts`（vision_chat，回读执行器候选）

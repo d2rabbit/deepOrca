@@ -1,6 +1,6 @@
 # SOP 萃取通道（sop-extraction）· memory-audit P3 泛化 — 技术设计
 
-> **状态**：**P0+P1 已落地（2026-09-04，随 GVGL 真机验证批）；P2 三件套 2026-09-06 规划细化（§4）并同日落地（含多段审查修复批——独立审查 P0/P1 级发现 3 项全部闭合，落地留痕见 §4.4）**——上游：[`specs/archive/memory-audit/`](../archive/memory-audit/design.md) P3（"proposal 管线抽成通用规则/SOP 萃取通道"）+ 其空白区出处 `specs/archive/memory-remediation/` §五 2（「session→SOP/规则自萃取」自研空白区）。按流转口径 6 延伸立项：memory-audit 主体收官，P3 构成独立工作面。
+> **状态**：**P0+P1 已落地（2026-09-04，随 GVGL 真机验证批）；P2 三件套 2026-09-06 规划细化（§4）并同日落地（含多段审查修复批——独立审查 P0/P1 级发现 3 项全部闭合，落地留痕见 §4.4）**——上游：[`specs/archive/memory-audit/`](../memory-audit/design.md) P3（"proposal 管线抽成通用规则/SOP 萃取通道"）+ 其空白区出处 `specs/archive/memory-remediation/` §五 2（「session→SOP/规则自萃取」自研空白区）。按流转口径 6 延伸立项：memory-audit 主体收官，P3 构成独立工作面。
 > **命题**：把已验证的管线基底（证据 → 合成 → 逐项审核 → 拒绝持久化 → 受控写回）从"**失败驱动的记忆规则**"泛化为"**成功驱动的 SOP 萃取**"——素材不再是什么坏了，而是"这次是怎么做成的"。
 > **对应实现域**：`core/actions/memory-distill.ts`（新 action）；共享基底经 memory-audit.ts 直接导出（零搬移重构，对已测文件零触碰）。
 > **硬约束**（继承 memory-audit）：零新依赖；会话与 store 只读；写回只经主会话原生工具（新文件走 write、改文件走 edit）；默认 fail-open；不向 L0–L3 写入；P0–P1 零新增 IPC/i18n。

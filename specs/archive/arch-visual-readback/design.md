@@ -1,6 +1,6 @@
 # 架构图视觉回读闭环（arch-visual-readback）
 
-> **状态**：方案稿（2026-09-17 立稿，本计划周期内实施）。上游调研：[2026-09-17-fireworks-tech-graph-prestudy.md](../../docs/research/2026-09-17-fireworks-tech-graph-prestudy.md)（fireworks-tech-graph；拍板：**不引代码**，吸收「评估而非断言」哲学三件套）。
+> **状态**：方案稿（2026-09-17 立稿，本计划周期内实施）。上游调研：[2026-09-17-fireworks-tech-graph-prestudy.md](../../../docs/research/2026-09-17-fireworks-tech-graph-prestudy.md)（fireworks-tech-graph；拍板：**不引代码**，吸收「评估而非断言」哲学三件套）。
 > **命题**：把 vendored Archify 已内建的视觉验收半成品（多视口截图 + containment 检查 + **"visual review pending"** 悬置态）接上感知读回（vision 模型四问），并以 `--layout-json` 的确定性几何检查为更便宜的第一道门——形成「布局契约 → containment → 视觉回读 → 定向修订 ≤2 轮」的分层验证闭环，全部搭在既有管线上，**零管线改动、vendored 树零改动**（沿袭 arch-map-reinforce 硬约束）。
 > **实施状态（2026-09-17）**：P0+P1 代码面落地——门① `archify-layout-check.ts`（6 例 + mutation-check）、门②③ `arch-visual-verify.ts`（containment harness + vision 四问，诚实跳过全路径）、`ArchVisualVerifier` 第三接缝（core archify-controller + index 导出）、arch-scan.run 有界修订循环（≤2 轮，revise 载荷进 buildArchScanTaskPrompt REVISION 块，prompt 测试 13/13）、SKILL.md 语义箭头词汇表 + 修订运行节；门禁全绿 + vendor 树零改动（R5 以 git diff 为证）。真机两态（T2.1）待排期。
 > **姊妹 spec**：[arch-map-reinforce](../arch-map-reinforce/design.md)（提示词层强化，已收官）；本 spec 是其 §0.4-4「不做审美评估器」决策的**对账型延伸**——见 §0.1。

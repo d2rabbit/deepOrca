@@ -1,7 +1,7 @@
 # specs/next-version — 第二阶段（下一版）规划区
 
 > **口径（2026-09-03 立）**：冻结期后随 `next/*` 分支启动的 spec 集中本区——**不是废弃**，是"设计定稿、待启动"的 staging 区。开工时 `git mv` 回 `specs/<name>/` 转为活跃 spec。主线项的启动顺序、分期与前置见 [`docs/features/next-version-plan.md`](../../docs/features/next-version-plan.md)（A–E 五主线）；**储备项**（非主线，2026-09-03 对齐增补）不裁撤、立项时点随各自功能域规划。
-> **移出记录**：2026-09-17 `model-fleet-adaptation` 吸收同日立项的 ai-sdk-experimental-adapter（实验性 AI SDK 传输线，工件随迁）后 git mv 至活跃区 [`specs/model-fleet-adaptation/`](../model-fleet-adaptation/design.md)。
+> **移出记录**：2026-09-17 `model-fleet-adaptation` 吸收同日立项的 ai-sdk-experimental-adapter（实验性 AI SDK 传输线，工件随迁）后 git mv 至活跃区；**2026-09-19 再转入审查区** [`specs/review-ing/model-fleet-adaptation/`](../review-ing/model-fleet-adaptation/design.md)（X4 真机验证待排期）。
 > 本区引用归档件用 `../archive/<name>/`，引用活 spec 用 `../../<name>/`。
 
 ## 主线 spec（A–E 路线承接）

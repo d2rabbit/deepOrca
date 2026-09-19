@@ -1,7 +1,7 @@
 # clay-ui-runtime — 需求（EARS）
 
 > Phase 1 of spec-workflow。技术方案见 [design.md](./design.md)；任务分解见 [tasks.md](./tasks.md)。本文件只锁验收口径。
-> 立项依据：[docs/research/2026-09-15-clay-ui-engine-prestudy.md](../../docs/research/2026-09-15-clay-ui-engine-prestudy.md)（Clay：nicbarker/clay，Zlib，单头文件 4.8k LOC 零依赖，wasm 15KB，渲染命令数组契约 + 官方 HTML 渲染器 retained 模式）。
+> 立项依据：[docs/research/2026-09-15-clay-ui-engine-prestudy.md](../../../docs/research/2026-09-15-clay-ui-engine-prestudy.md)（Clay：nicbarker/clay，Zlib，单头文件 4.8k LOC 零依赖，wasm 15KB，渲染命令数组契约 + 官方 HTML 渲染器 retained 模式）。
 > 定位：**UI-Design 的并行渲染/导出运行时**——Clay 是布局/渲染命令引擎而非编辑器引擎，与 LeaferJS 创作引擎互补并行，不作替代（user 2026-09-15 拍板出 spec）。
 
 ## 范围

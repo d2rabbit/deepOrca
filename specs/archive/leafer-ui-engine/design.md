@@ -1,14 +1,15 @@
 # leafer-ui-engine — UI-Design 引擎替换为 LeaferJS · 技术设计
 
 > 立项：2026-09-10（user 拍板：OpenUI 做简单原型尚可，精致化 UI 视觉稿不合理；不介意替换整个 UI-Design 底层。候选走廊 HTML-in-Canvas vs LeaferJS，**选型 LeaferJS，npm lib 引入**）。
-> 状态：**方案定稿，未实施**。选型证据：[docs/research/2026-09-10-leaferjs-stitch-ui-engine.md](../../docs/research/2026-09-10-leaferjs-stitch-ui-engine.md)。
-> 关联：三层定位（`docs/research/2026-08-14-openui-full-adoption-plan.md` §〇）——本 spec 只动 **UI-Design 子域的引擎**，PM-Design（OpenUI Lang）与 A2UI 全域交互层不动；boundary guard 沿用三层定位红线纪律。
+> 状态：**已收官（2026-09-19 代码核实改判归档；本行原为立项残留「方案定稿，未实施」，WP0–WP5 实际全量落地）**——WP0+WP2 契约/修复环/路由切换（`cca6b1a62`）· WP1+WP3 leafer-editor 画布 + render_leafer 持久化 + 可交互 `.ddu` 导出（`f2354b4e6`）· WP5 自检自修复 + M3E 内化（`acf90e474`）· 两轮审查修复批（`579993a63` / `4a0d5e73c`）· EARS 17 双栈路由修复（`2dccbb87f`）；真机走查移交预生产清单（`441206563`）。选型证据：[docs/research/2026-09-10-leaferjs-stitch-ui-engine.md](../../../docs/research/2026-09-10-leaferjs-stitch-ui-engine.md)。
+> 关联：三层定位（`docs/research/2026-08-14-openui-full-adoption-plan.md` §〇）——本 spec 只动 **UI-Design 子域的引擎**，PM-Design（OpenUI Lang）与 A2UI 全域交互层不动；boundary guard 沿用三层定位红线纪律（测试锁定：`a2ui-leafer-suite.test.ts` / `clay-boundary.test.ts`；`render_leafer` 接线见 `actions/design.ts`，含 p-core 加固「报成功无 ArtifactRef 必须大声失败」`199c2f1fa`）。
+> 版图（2026-09-19）：原型生成栈 = OpenUI Lang → MoonViz wasm（[moonviz-engine-replacement](../../moonviz-engine-replacement/design.md)，已立项）；**UI-Design 创作引擎 = LeaferJS（本 spec，已收官）**；UI-Design 渲染/导出运行时 = Clay（[clay-ui-runtime](../clay-ui-runtime/design.md)，已收官）。三线互不替代。**后续延伸**（tasks.md 未勾 7 项，均为能力暴露/上游跟踪类，非交付缺口）：MCP 工具暴露、`@leafer-ui/node` 离屏渲染、图片导出（PNG 已实测可行；SVG/PDF 阻塞上游）、富文本、text-editor 就地编辑、多方向并排对比、Stitch 自动补屏。
 
 ## 1. 背景与动因
 
 UI-Design 当前实现（源码事实）：`design.materialize`（`packages/core/src/actions/design.ts`）→ deep-design skill 产出 OpenUI Lang 程序 → `render_openui` 持久化 `content.openui` → `DesignWorkspace` 用 `OpenuiRenderer`（官方 `@openuidev/react-lang` Renderer + DOM 组件库）渲染 → `.ddu` 导出（manifest + `source.openui.txt` + viewer stub）。
 
-OpenUI 的结构性短板（`specs/prototype-reliability/design.md` §4.1）：自由画布/绝对布局 ❌、母版/实例 ❌、组件表达力受库约束——**对"精致化 UI 视觉稿"是硬伤**：视觉稿要的是图元级控制（x/y/宽高/渐变/阴影/圆角/图层）、生成后可人工微调、高保真导出，而不是组件组合的流式布局。
+OpenUI 的结构性短板（`specs/archive/prototype-reliability/design.md` §4.1）：自由画布/绝对布局 ❌、母版/实例 ❌、组件表达力受库约束——**对"精致化 UI 视觉稿"是硬伤**：视觉稿要的是图元级控制（x/y/宽高/渐变/阴影/圆角/图层）、生成后可人工微调、高保真导出，而不是组件组合的流式布局。
 
 LeaferJS（v2.2.x，MIT，70KB 零依赖）正面覆盖全部缺口：场景树图元模型 + 原生 Flex（`flow`）+ **内置 Figma 风格编辑器**（leafer-editor：选择/变换/编组/层级/历史）+ JSON 导入导出（`toJSON()` / `app.tree.set({children})`，LLM 直出路径）+ PNG/SVG/PDF 导出 + 官方 AI 支持（ai-docs 知识库 / Context7 MCP）。已知短板（文本就地编辑、维护者单点）见调研文档 §1.2/§1.3，均有规避策略（首版不启用文本编辑、npm 精确 pin）。
 
@@ -64,7 +65,7 @@ LeaferJS（v2.2.x，MIT，70KB 零依赖）正面覆盖全部缺口：场景树�
 
 ### WP5 自检自修复强化与 M3E 方法论内化（core + desktop main）
 
-> 依据：user 2026-09-10 要求"强化自检测和自循环修复——正常渲染 + 达到合理要求，整合 m3e-canvas 能力，UI→提示词稳定无抖动"。方法论来源：`specs/artifact-landing/design.md` 附录 D 十条防塌原则（只取方法论，不集成代码）。
+> 依据：user 2026-09-10 要求"强化自检测和自循环修复——正常渲染 + 达到合理要求，整合 m3e-canvas 能力，UI→提示词稳定无抖动"。方法论来源：`specs/archive/artifact-landing/design.md` 附录 D 十条防塌原则（只取方法论，不集成代码）。
 
 | #   | 改动                                                                                                                                                                                                                  | 落点                                                   |
 | --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
