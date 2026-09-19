@@ -29,7 +29,7 @@ architecture.md 工具列表）。以下为**登记未修**项，按优先级排
 4. ~~**AskUserQuestion 不暂停同批后续工具**~~ **已修（round-2）**：
    `appendToolMessages` 在某调用置 awaitUserResponse 后即中断批内执行；
    未执行调用回填合成 tool 消息（`ok:false, "Skipped: paused for a user
-   question"`）保持 tool_call↔tool-message 1:1（悬挂 id 会被 provider 拒收），
+question"`）保持 tool_call↔tool-message 1:1（悬挂 id 会被 provider 拒收），
    模型可见"未执行"并在应答后自行重发。端到端回归（mocked LLM 循环）：
    批内 bash 副作用在等待期间与 resume 后都不发生、状态机
    waiting_for_user→(reply)→completed、配对完整；变异验证 ×1（去 break→
@@ -73,7 +73,7 @@ architecture.md 工具列表）。以下为**登记未修**项，按优先级排
     写入点停写 `port`（legacy 文件里的存量键不再被触碰也不再复活）；
     Resolved/Editable memory 形状剔除 port/apiKey（类型面同步）。
 12. repair-rules `.html` 报告不清理（prune 只删 .json）。
-13. `App.tsx` 2917 行 / `main/index.ts` 2815 行超 2500+10% 天花板——拆分任务。
+13. `App.tsx` 2917 行超 2500+10% 天花板——拆分任务（`main/index.ts` 已随 E-1 回落至带内）。i18n 另有 ~219 键保守保留群（宽匹配仍未引用，整组规则外的个体项），后续批次可再收。
 14. ~~docs 残留~~ **已修（round-2 E-1）**：mcp.md/session-persistence.md 去 CLI
     时代表述；session 状态枚举补全 9 项 closed set。
 

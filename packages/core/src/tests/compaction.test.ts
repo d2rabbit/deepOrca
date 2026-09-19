@@ -408,3 +408,55 @@ test("compactSession reports applied:true when Stage A trimming alone suffices",
   const outcome = await manager.compactSession(sessionId);
   assert.equal(outcome.applied, true, "Stage-A trim path must report applied:true");
 });
+
+test("recovery surfaces the actionable wedge message when compaction cannot apply (wiring)", async () => {
+  setHomeDir(createTempDir("deepcode-compact-wedge-wiring-home-"));
+  const workspace = createTempDir("deepcode-compact-wedge-wiring-workspace-");
+  const manager = new SessionManager({
+    projectRoot: workspace,
+    createOpenAIClient: () => ({
+      client: null,
+      model: "test-model",
+      baseURL: "https://api.deepseek.com",
+      thinkingEnabled: false,
+    }),
+    getResolvedSettings: () => ({ model: "test-model" }),
+    renderMarkdown: (text) => text,
+    onAssistantMessage: () => {},
+  });
+  // R3 finding F1: the !applied short-circuit throw used to live INSIDE the
+  // try — its own catch replaced the actionable message with the raw provider
+  // overflow error. Pin the surfaced wording end-to-end.
+  (manager as unknown as { compactSession: () => Promise<{ applied: boolean }> }).compactSession = async () => ({
+    applied: false,
+  });
+  const recovery = (
+    manager as unknown as {
+      runActivationLoopWithAutoRecovery: (
+        runLoop: () => Promise<void>,
+        sessionId: string,
+        ctrl: AbortController
+      ) => Promise<void>;
+    }
+  ).runActivationLoopWithAutoRecovery.bind(manager);
+  const sessionId = await manager.createSession({ text: "hi" });
+  // isInterrupted = "no active controller" — register one so the recovery
+  // path actually proceeds (a never-activated session short-circuits).
+  (manager as unknown as { sessionControllers: Map<string, AbortController> }).sessionControllers.set(
+    sessionId,
+    new AbortController()
+  );
+  await assert.rejects(
+    recovery(
+      async () => {
+        throw new Error("provider: maximum context length is 131072 tokens");
+      },
+      sessionId,
+      new AbortController()
+    ),
+    (error: unknown) => {
+      assert.match(error instanceof Error ? error.message : String(error), /could not apply[\s\S]*Summarize or prune/);
+      return true;
+    }
+  );
+});

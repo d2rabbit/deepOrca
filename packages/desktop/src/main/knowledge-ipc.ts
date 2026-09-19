@@ -7,10 +7,9 @@
  */
 
 import type { BrowserWindow } from "electron";
-import { shell } from "electron";
 import { createRequire as nodeCreateRequire } from "node:module";
 import type { DatabaseSync as DatabaseSyncType } from "node:sqlite";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 import { existsSync, readdirSync, statSync, readFileSync, lstatSync } from "node:fs";
 import { dirname, join, basename } from "node:path";
 import { IpcRequest, type KnowledgeStatusResponse, type KnowledgeSourceStatus } from "../shared/ipc.js";
@@ -38,15 +37,6 @@ import {
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-/** Arch preview windows (user ask 2026-08-30: 子窗口追踪): one per artifact,
- *  single instance per path; all torn down when the main window closes. */
-const archWindows = new Map<string, BrowserWindow>();
-export function closeAllArchPreviewWindows(): void {
-  for (const w of archWindows.values()) {
-    if (!w.isDestroyed()) w.close();
-  }
-  archWindows.clear();
-}
 const moduleRequire = nodeCreateRequire(import.meta.url);
 
 /** Minimal structural shape of main/index.ts's IpcHelpers (no reverse import). */
@@ -94,7 +84,11 @@ if (existsSync(archifyBin)) {
   // Visual-readback verifier (specs/arch-visual-readback 门①②③): layered
   // layout-contract → containment → vision checks over DELIVERED artifacts,
   // consumed by arch-scan.run's bounded revision loop.
-  configureArchVisualVerifier((root: string) => verifyArchArtifacts(root));
+  // R3 wiring fix: the one-arg lambda DROPPED the opts argument — the
+  // sinceMs watermark (audit round-2, arch-scan revision-loop scoping) was
+  // inert in the desktop runtime; a narrower lambda is assignable to the
+  // seam type, so only forwarding restores it.
+  configureArchVisualVerifier((root: string, opts?: { sinceMs?: number }) => verifyArchArtifacts(root, opts));
 }
 
 /**
@@ -120,7 +114,7 @@ export function resolveRegisteredRoot(rootArg?: string): string | null {
 export function registerKnowledgeIpc(
   helpers: KnowledgeIpcHelpers,
   getBridge: () => SessionBridge,
-  getMainWindow?: () => BrowserWindow | null
+  getMainWindow?: () => BrowserWindow | null // eslint-disable-line @typescript-eslint/no-unused-vars
 ): void {
   bridge = getBridge;
   const { handle, handlePrivileged } = helpers;

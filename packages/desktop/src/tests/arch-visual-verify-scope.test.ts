@@ -9,6 +9,8 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import * as fs from "node:fs";
+import * as path from "node:path";
 
 import { filterArtifactsSince } from "../main/tools/arch-visual-verify.js";
 
@@ -47,4 +49,17 @@ test("a re-delivered legacy name (refreshed mtime) stays in scope", () => {
 test("empty input and empty result shapes", () => {
   assert.deepEqual(filterArtifactsSince([], 123), []);
   assert.deepEqual(filterArtifactsSince([art("old", "1970-01-01T00:00:00.000Z")], Date.now()), []);
+});
+
+test("the host wiring forwards the sinceMs opts (R3 wiring fix)", () => {
+  // The one-arg lambda `(root) => verifyArchArtifacts(root)` silently DROPPED
+  // the opts argument — a narrower lambda is assignable to the seam type, so
+  // only a source guard can pin the forwarding.
+  const src = fs.readFileSync(path.join(process.cwd(), "../main/knowledge-ipc.ts"), "utf8");
+  assert.ok(
+    /configureArchVisualVerifier\(\(root: string, opts\?: \{ sinceMs\?: number \}\) => verifyArchArtifacts\(root, opts\)\)/.test(
+      src
+    ),
+    "knowledge-ipc must forward the opts argument to verifyArchArtifacts"
+  );
 });

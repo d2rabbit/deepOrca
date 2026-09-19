@@ -738,18 +738,11 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
       notice.meta = { asThinking: true };
       this.onAssistantMessage(notice, false);
       if (category === "CONTEXT_WINDOW_EXCEEDED") {
+        let compactionInapplicable = false;
         try {
           const outcome = await this.compactSession(sessionId, sessionController.signal);
           if (!outcome.applied) {
-            // Wedge short-circuit (full-domain audit round-2): a guard-rejected
-            // compaction is deterministic — re-running the loop would re-send
-            // the same oversized payload and fail the turn anyway, after two
-            // more doomed round-trips. Fail ONCE with an actionable cause.
-            throw new Error(
-              "Context window exceeded and auto-compaction could not apply " +
-                "(the conversation's middle is an unpairable tool-call/result cluster, or nothing was eligible). " +
-                "Summarize or prune the session history manually, then retry."
-            );
+            compactionInapplicable = true;
           }
         } catch (compactionError) {
           if (this.isAbortLikeError(compactionError) || sessionController.signal.aborted) {
@@ -758,11 +751,31 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
           // Compaction itself failed — surface the original overflow error.
           throw error;
         }
+        if (compactionInapplicable) {
+          // Wedge short-circuit (full-domain audit round-2, R3 wiring fix):
+          // a guard-rejected compaction is deterministic — re-running the
+          // loop would re-send the same oversized payload and fail the turn
+          // anyway, after two more doomed round-trips. Fail ONCE, AFTER the
+          // catch (throwing inside the try used to be swallowed and replaced
+          // by the raw provider overflow error, dead-lettering this message).
+          throw new Error(
+            "Context window exceeded and auto-compaction could not apply " +
+              "(the conversation's middle is an unpairable tool-call/result cluster, or nothing was eligible). " +
+              "Summarize or prune the session history manually, then retry."
+          );
+        }
       }
       await runLoop();
     }
   }
 
+  /**
+   * Compact the session's middle history. Returns `{ applied: false }` when a
+   * guard rejected the range (unpairable tool cluster, nothing eligible, no
+   * background LLM) — deterministic, so the auto-recovery caller fails once
+   * with an actionable error instead of retrying (wedge short-circuit).
+   * `{ applied: true }` after a Stage-A-only trim or a written summary.
+   */
   async compactSession(sessionId: string, signal?: AbortSignal): Promise<{ applied: boolean }> {
     this.throwIfAborted(signal);
     const { client: sessionClient, baseURL, debugLogEnabled, model: sessionModel } = this.createOpenAIClient();

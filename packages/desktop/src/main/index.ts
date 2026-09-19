@@ -6,11 +6,11 @@ import { app, BrowserWindow, dialog, ipcMain, session as electronSession, shell 
 import { basename, dirname, extname, join, delimiter, resolve as pathResolve, sep as pathSep } from "node:path";
 import { createRequire as nodeCreateRequire } from "node:module";
 import { fileURLToPath } from "node:url";
-import { open, readdir, readFile, writeFile, stat } from "node:fs/promises";
-import { statSync, existsSync, readdirSync, readFileSync, appendFileSync, mkdirSync } from "node:fs";
+import { open, readdir, writeFile, stat } from "node:fs/promises";
+import { statSync, existsSync, readFileSync, appendFileSync, mkdirSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { homedir } from "node:os";
-import { execFile, spawn, type ChildProcess } from "node:child_process";
+import { spawn, type ChildProcess } from "node:child_process";
 import {
   configureSessionLocale,
   setShellIfWindows,
@@ -26,7 +26,6 @@ import {
   configureUvVendorRoot,
   configureDembrandtVendorRoot,
   configureDembrandtCdpEndpointGetter,
-  runCrgResetWithOutput,
   configureSerenaController,
   configureSkillSpectorController,
   configureLspBridgeController,
@@ -67,10 +66,8 @@ import { extractMemoryFingerprint } from "./tools/memory-fingerprint";
 import { fetchEndpointQuota } from "./endpoint-quota.js";
 import { testEndpoint } from "./endpoint-test.js";
 import type {
-  CodegraphIndexEntry,
   CrgIndexEntry,
   EditableSettings,
-  KnowledgeSourceStatus,
   KnowledgeGitPreflight,
   KnowledgeGitBootstrapResult,
   EndpointQuotaResponse,
@@ -135,10 +132,10 @@ import {
   handleEditorListFiles,
 } from "./editor-handlers.js";
 import { createRendererPolicy, createElectronEventAdapter, type RendererPolicy } from "./ipc-security.js";
-import { registerKnowledgeIpc, resolveRegisteredRoot, closeAllArchPreviewWindows } from "./knowledge-ipc.js";
+import { registerKnowledgeIpc, resolveRegisteredRoot } from "./knowledge-ipc.js";
 import { registerSpecsIpc } from "./specs-ipc.js";
 import { configureArchifyLanguage } from "@deeporca/core";
-import { safeWikiPath, safePathWithinRoot } from "./safe-path.js";
+import { safePathWithinRoot } from "./safe-path.js";
 import { orderWikiPagesIndexFirst } from "./wiki-page-order.js";
 import * as gitService from "./git-service.js";
 
@@ -781,7 +778,6 @@ function createWindow(): void {
     mainWindow = null;
     // Arch preview windows track the main window's lifecycle (user ask
     // 2026-08-30) — no orphan artifact windows after the app window goes.
-    closeAllArchPreviewWindows();
   });
 }
 
@@ -1083,8 +1079,8 @@ function registerCoreIpc({ handle, handlePrivileged, handleShared }: IpcHelpers)
       return { ok: false, error: error instanceof Error ? error.message : String(error) };
     }
   });
-  // PermissionDeny and AdjustBashTimeout mutate live agent/permission state
-  // (denyPermission is terminal and flushes session persistence).
+  // PermissionDeny mutates live permission state (denyPermission is terminal
+  // and flushes session persistence).
   handlePrivileged(IpcRequest.PermissionDeny, (reason?: string) => getBridge().denyPermission(reason));
   handle(IpcRequest.SkillsList, (sessionId?: string) => getPluginManager().listSkills(sessionId));
   handle(IpcRequest.SettingsGet, () => getBridge().getSettings());
@@ -1258,14 +1254,6 @@ function registerGitIpc({ handle, handlePrivileged }: IpcHelpers): void {
   handle(IpcRequest.GitCommitFiles, (hash: string) => getBridge().gitCommitFiles(hash));
 }
 
-function registerCodegraphIpc({ handle }: IpcHelpers): void {
-  // ── CodeGraph index library ───────────────────────────────────────────────
-  // Legacy IPC for the IndexLibraryPanel status dot. The build button now uses
-  // api.actionRun("index.build-all"); this handler only serves the status check.
-  // codegraph:reindex now delegates to the action system (index.build-all or
-  // codegraph.reindex action). The old privileged handler is removed.
-}
-
 // OCR resolution moved to OcrCliController — this file no longer needs
 // resolveOcrCommand (the controller class handles it internally).
 
@@ -1274,7 +1262,7 @@ function registerCodegraphIpc({ handle }: IpcHelpers): void {
 // Legacy registerCodeReviewIpc removed — CodeReviewPanel now uses review.full
 // action via api.actionRun(). The OcrCliController handles all OCR spawning.
 
-function registerCrgIpc({ handle, handlePrivileged }: IpcHelpers): void {
+function registerCrgIpc({ handle }: IpcHelpers): void {
   // ── code-review-graph (CRG — analysis-layer via uv/uvx) ────────────────────
   // CRG is a Python tool. We run it via `uv tool run` (uvx), which auto-provisions
   // an isolated Python 3.12 environment. The vendored uv binary (packages/desktop/
@@ -2147,7 +2135,7 @@ function registerA2uiPrototypeWindowIpc({ handleShared, handlePrivileged }: IpcH
   });
 }
 
-function registerWikiIpc({ handle, handlePrivileged }: IpcHelpers): void {
+function registerWikiIpc({ handle }: IpcHelpers): void {
   // ── Wiki knowledge graph (openwiki — vendored Node CLI) ────────────────────
   // OpenWiki is a TypeScript CLI (langchain-ai/openwiki). We vendor it at build
   // time (scripts/vendor-openwiki.js → packages/desktop/vendor/openwiki) and run
@@ -2156,34 +2144,6 @@ function registerWikiIpc({ handle, handlePrivileged }: IpcHelpers): void {
   // reported unavailable when the vendored build is missing — never reaching for
   // an external runtime.
   // Dedicated wiki agent model strategy: flash-first, pro-fallback.
-
-  /**
-   * Resolve how to invoke openwiki. Internal plugins must stay self-contained:
-   * the vendored entry runs through the bundled Node (Electron ≥35 ships
-   * Node 22.14+), never the host's external Node/npm. Returns null when the
-   * vendored entry or a suitable runtime is missing — the UI then reports the
-   * tool as unavailable rather than reaching for an external `npx`.
-   */
-  const resolveOpenwikiCommand = (): {
-    command: string;
-    prefixArgs: string[];
-    env?: Record<string, string>;
-  } | null => {
-    try {
-      if (statSync(OPENWIKI_VENDOR_ENTRY).isFile()) {
-        const node = resolveModernNode(22);
-        if (node) {
-          // When the runtime is Electron itself, ELECTRON_RUN_AS_NODE makes its
-          // bundled Node execute the entry like plain `node entry.js`.
-          const env = node === process.execPath ? { ELECTRON_RUN_AS_NODE: "1" } : undefined;
-          return { command: node, prefixArgs: [OPENWIKI_VENDOR_ENTRY], env };
-        }
-      }
-    } catch {
-      // Vendored entry not present.
-    }
-    return null;
-  };
 
   /**
    * Spawn openwiki with the wiki agent's model strategy:
@@ -2441,7 +2401,6 @@ function registerIpc(): void {
   registerFileScannerIpc(helpers);
   registerWorkspaceIpc(helpers);
   registerGitIpc(helpers);
-  registerCodegraphIpc(helpers);
   // registerCodeReviewIpc removed — actions replace legacy review IPC.
   registerCrgIpc(helpers);
   registerMemoryIpc(helpers);
