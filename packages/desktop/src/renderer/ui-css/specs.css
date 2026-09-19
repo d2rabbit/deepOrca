@@ -1,0 +1,122 @@
+/* Specs panel (specs/spec-graph-adoption §1.4) — design-chain tree + drift badges. */
+
+.ui-specs {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 20px 24px;
+  overflow: auto;
+  height: 100%;
+}
+
+.ui-specs-section {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.55;
+  margin-top: 4px;
+}
+
+.ui-specs-chain {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ui-specs-chain-children {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-left: 18px;
+  border-left: 2px solid var(--border-subtle, rgba(128, 128, 128, 0.25));
+  margin-left: 8px;
+}
+
+.ui-specs-node {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border: 1px solid var(--border-subtle, rgba(128, 128, 128, 0.25));
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  width: 100%;
+}
+
+.ui-specs-node:hover {
+  border-color: var(--accent, #7aa2f7);
+}
+
+.ui-specs-node-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.ui-specs-node-type {
+  font-size: 10px;
+  font-family: var(--font-mono, monospace);
+  opacity: 0.55;
+}
+
+.ui-specs-status {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.ui-specs-status-draft {
+  background: rgba(128, 128, 128, 0.18);
+}
+
+.ui-specs-status-active {
+  background: rgba(48, 164, 108, 0.2);
+  color: #1f8f5f;
+}
+
+.ui-specs-status-done {
+  background: rgba(64, 120, 220, 0.18);
+  color: #3b74d6;
+}
+
+.ui-specs-status-stalled {
+  background: rgba(200, 140, 20, 0.2);
+  color: #b07a10;
+}
+
+.ui-specs-drift {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 999px;
+  flex-shrink: 0;
+  background: rgba(212, 132, 20, 0.18);
+  color: #b06e10;
+}
+
+.ui-specs-drift-unimplemented {
+  background: rgba(200, 70, 70, 0.16);
+  color: #c05050;
+}
+
+.ui-specs-drift-unknown {
+  background: rgba(128, 128, 128, 0.16);
+  color: inherit;
+  opacity: 0.75;
+}
+
+.ui-specs-empty-hint {
+  margin-top: 6px;
+  font-size: 12px;
+  opacity: 0.65;
+}

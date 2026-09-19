@@ -18,6 +18,7 @@ export type MainTab =
   | { kind: "plugins" }
   | { kind: "editor" }
   | { kind: "knowledge"; root: string }
+  | { kind: "specs" }
   | { kind: "review"; root: string }
   | { kind: "prototype"; root: string; suiteId?: string; tab?: string }
   | { kind: "design"; root: string; suiteId?: string; tab?: string }

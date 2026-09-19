@@ -62,3 +62,6 @@
 
 /* Token model-detail popup — pixel heatmap + live speed bars (token-model-charts) */
 @import url("./ui-css/token-detail.css");
+
+/* Specs panel — spec graph + drift badges (specs/spec-graph-adoption) */
+@import url("./ui-css/specs.css");

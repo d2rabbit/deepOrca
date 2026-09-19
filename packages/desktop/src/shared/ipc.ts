@@ -13,6 +13,7 @@ import type {
   SessionEntry,
   SessionMessage,
   SkillInfo,
+  SpecGraph,
   UndoTarget,
   UserPromptContent,
 } from "@deeporca/core";
@@ -172,6 +173,12 @@ export const IpcRequest = {
   KnowledgeReadAgents: "knowledge:readAgents",
   KnowledgeListSymbols: "knowledge:listSymbols",
   KnowledgeSymbolGraph: "knowledge:symbolGraph",
+
+  // Spec graph — the pre-design source of truth (specs/spec-graph-adoption).
+  // A separate IPC family from knowledge:* by decree: mechanism shared
+  // (registered-root guard), semantics separate (design §0.4).
+  SpecsGraph: "specs:graph",
+  SpecsOpen: "specs:open",
 
   // Designer — design artifact management (PM-Design + UI-Design)
   DesignList: "design:list",
@@ -1639,6 +1646,11 @@ export type DesktopApi = {
   // ── Knowledge dashboard ────────────────────────────────────────────────
   /** Aggregated status of every knowledge source (codegraph/wiki/serena/agents/memory). */
   knowledgeStatus(root?: string): Promise<KnowledgeStatusResponse>;
+  /** Spec-graph read for the Specs panel (design chain + drift badges).
+   *  Unregistered root or missing domain degrades to an empty graph. */
+  specsGraph(root?: string): Promise<SpecGraph>;
+  /** Open one spec node's markdown (containment-checked to `<root>/.deeporca/specs/`). */
+  specsOpen(root: string | undefined, relPath: string): Promise<{ ok: boolean; error?: string }>;
   /** 端点额度查询（额度跟随端点；无额度面的端点返回 ok:false）. */
   endpointQuota(endpointId: string): Promise<EndpointQuotaResponse>;
   /** 端点连通性探测：可达性（任何 HTTP 应答）+ API 可用性（/models 鉴权）。 */

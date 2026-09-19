@@ -137,6 +137,7 @@ import {
 } from "./editor-handlers.js";
 import { createRendererPolicy, createElectronEventAdapter, type RendererPolicy } from "./ipc-security.js";
 import { registerKnowledgeIpc, resolveRegisteredRoot, closeAllArchPreviewWindows } from "./knowledge-ipc.js";
+import { registerSpecsIpc } from "./specs-ipc.js";
 import { configureArchifyLanguage } from "@deeporca/core";
 import { safeWikiPath, safePathWithinRoot } from "./safe-path.js";
 import { orderWikiPagesIndexFirst } from "./wiki-page-order.js";
@@ -2659,6 +2660,7 @@ function registerIpc(): void {
   registerCrgIpc(helpers);
   registerMemoryIpc(helpers);
   registerKnowledgeIpc(helpers, getBridge, () => mainWindow);
+  registerSpecsIpc(helpers, getBridge);
   registerEndpointQuotaIpc(helpers);
   registerEndpointTestIpc(helpers);
   registerTaskTreeIpc(helpers);

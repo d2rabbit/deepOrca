@@ -88,6 +88,7 @@ const DesignWorkspaceSurface = lazy(() =>
   import("./components/design-workspace/DesignWorkspaceSurface").then((m) => ({ default: m.DesignWorkspaceSurface }))
 );
 const KnowledgePanel = lazy(() => import("./components/KnowledgePanel").then((m) => ({ default: m.KnowledgePanel })));
+const SpecsPanel = lazy(() => import("./components/SpecsPanel").then((m) => ({ default: m.SpecsPanel })));
 const ReviewWorkspace = lazy(() =>
   import("./components/ReviewWorkspace").then((m) => ({ default: m.ReviewWorkspace }))
 );
@@ -138,6 +139,7 @@ import {
   IconEditor,
   IconFile,
   IconIndex,
+  IconBook,
   IconReview,
   IconPrototype,
   IconDesign,
@@ -1956,6 +1958,18 @@ export function App(): JSX.Element {
         onClose: () => handleCloseKnowledgeTab(tab.root),
       });
     }
+    // Specs graph (pre-design track) — one persistent chip, scoped to the
+    // active project root; the panel degrades to an empty state off-scope.
+    if (projectRoot) {
+      items.push({
+        key: "specs",
+        icon: <IconBook />,
+        title: t("specs.title"),
+        tip: projectRoot,
+        active: activeTab.kind === "specs",
+        onSelect: () => setActiveTab({ kind: "specs" }),
+      });
+    }
     for (const tab of reviewTabs) {
       items.push({
         key: `review:${tab.root}`,
@@ -2476,6 +2490,25 @@ export function App(): JSX.Element {
                 onOpenFile={handleOpenEditor}
                 onQuoteToChat={handleQuoteWikiToChat}
               />
+            </m.div>
+          ) : activeTab.kind === "specs" ? (
+            <m.div
+              key="tab-specs"
+              className="ui-sheet"
+              initial={{ opacity: 0, y: 8, scale: 0.985 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 8, scale: 0.985 }}
+              transition={springToken}
+            >
+              <button
+                type="button"
+                className="ui-sheet-close"
+                onClick={() => setActiveTab({ kind: "chat" })}
+                aria-label={t("sheet.backToChat")}
+              >
+                ✕ {t("sheet.backToChat")}
+              </button>
+              <SpecsPanel root={projectRoot} />
             </m.div>
           ) : activeTab.kind === "review" ? (
             <m.div

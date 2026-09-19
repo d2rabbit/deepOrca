@@ -1872,4 +1872,19 @@ export const en = {
   "prototypeWorkspace.dirChainPrototype": "Spec → interactive prototype → acceptance report",
   "openui.warningSummary":
     "{count} compatibility notice(s) — extra arguments were dropped, rendering continues. Click 修复此项 to let the agent self-heal.",
+  "specs.title": "Specs",
+  "specs.loading": "Loading spec graph…",
+  "specs.empty": "No spec graph in this workspace yet.",
+  "specs.emptyHint":
+    "Design documents under .deeporca/specs/ with frontmatter (id/type/status) become nodes here — product design → architecture chains, drift badges included.",
+  "specs.chainSection": "Design chains",
+  "specs.independentSection": "Independent nodes",
+  "specs.status.draft": "Draft",
+  "specs.status.active": "Active",
+  "specs.status.done": "Done",
+  "specs.status.stalled": "Stalled",
+  "specs.drift.stale": "Design lags upstream",
+  "specs.drift.unimplemented": "Not implemented",
+  "specs.drift.ahead": "Implementation ahead",
+  "specs.drift.snapshotMissing": "Snapshot missing",
 } as const;

@@ -1860,4 +1860,19 @@ export const ko: Record<MessageKey, string> = {
   "prototypeWorkspace.dirChainPrototype": "요구사항 → 인터랙티브 프로토타입 → 수용 보고서",
   "openui.warningSummary":
     "{count}건의 호환성 경고 — 초과 인수는 무시되고 렌더링은 계속됩니다. 「이 항목 수정」으로 에이전트에게 자가 치유를 시킬 수 있습니다.",
+  "specs.title": "Specs 그래프",
+  "specs.loading": "spec 그래프를 읽는 중…",
+  "specs.empty": "이 워크스페이스에는 아직 spec 그래프가 없습니다.",
+  "specs.emptyHint":
+    ".deeporca/specs/ 아래 설계 문서에 frontmatter(id/type/status)를 붙이면 그래프에 등록됩니다 — 제품 설계 → 기술 아키텍처 체인과 드리프트 배지 포함.",
+  "specs.chainSection": "설계 체인",
+  "specs.independentSection": "독립 노드",
+  "specs.status.draft": "초안",
+  "specs.status.active": "진행 중",
+  "specs.status.done": "완료",
+  "specs.status.stalled": "정체",
+  "specs.drift.stale": "상류에 뒤짐",
+  "specs.drift.unimplemented": "미구현",
+  "specs.drift.ahead": "구현이 앞섬",
+  "specs.drift.snapshotMissing": "스냅샷 없음",
 };

@@ -587,3 +587,8 @@ export {
   type SessionPromptKey,
   type SessionPromptLocale,
 } from "./common/session-prompts";
+
+export { getSpecGraph, listSpecs, resetSpecIndexCache, validateSpecs } from "./specs";
+export type { SpecDriftFinding, SpecDriftGate, SpecDriftState, SpecGraph, SpecIssue, SpecNode } from "./specs";
+export { ensureDesignChainRegistration, sanitizeSuiteSlug } from "./specs";
+export type { DesignChainRegistration } from "./specs";

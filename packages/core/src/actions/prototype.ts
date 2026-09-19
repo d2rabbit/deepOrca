@@ -16,6 +16,7 @@ import {
   type OpenuiDevice,
 } from "./openui-contract";
 import { componentJaccard, extractProgramPages, extractTargetPlatforms, parsePageList } from "../common/openui-pages";
+import { ensureDesignChainRegistration } from "../specs";
 import {
   archSectionsAudit,
   callSubagentStable,
@@ -1852,6 +1853,15 @@ export const prototypeArchRun: ActionRun<PrototypeArchInput, PrototypeArchOutput
       note: input.note?.trim() || "technical architecture document",
     });
     if (!saved.ok) return saved;
+    // specs/spec-graph-adoption P3（降级路线，T3.0 定稿 2026-09-19）：套件存储
+    // 仍是唯一权威（arch 为版本 content 字段，非独立文件），此处仅在 spec 域
+    // 播种两个指针锚点（product-design + architecture）让设计链入图。注册
+    // 失败绝不拖垮设计动作——best-effort。
+    try {
+      await ensureDesignChainRegistration(ctx.projectRoot, { suiteId, versionId });
+    } catch {
+      // honest no-op: the graph misses this chain until the next save
+    }
     ctx.emit({
       message: "Technical architecture document saved",
       percent: 100,

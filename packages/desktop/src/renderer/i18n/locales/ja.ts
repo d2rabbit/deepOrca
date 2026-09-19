@@ -1873,4 +1873,19 @@ export const ja: Record<MessageKey, string> = {
   "prototypeWorkspace.dirChainPrototype": "要件 → プロトタイプ → 検収レポート",
   "openui.warningSummary":
     "{count} 件の互換性警告 — 余分な引数は無視され、描画は継続します。「この項目を修正」でエージェントに自己修復させられます。",
+  "specs.title": "Specs グラフ",
+  "specs.loading": "spec グラフを読み込み中…",
+  "specs.empty": "このワークスペースには spec グラフがまだありません。",
+  "specs.emptyHint":
+    ".deeporca/specs/ の設計ドキュメントに frontmatter（id/type/status）を付けるとグラフに登録されます——製品設計 → 技術アーキテクチャのチェーンと、ドリフトバッジ付き。",
+  "specs.chainSection": "設計チェーン",
+  "specs.independentSection": "独立ノード",
+  "specs.status.draft": "草案",
+  "specs.status.active": "進行中",
+  "specs.status.done": "完了",
+  "specs.status.stalled": "停滞中",
+  "specs.drift.stale": "上流に遅れ",
+  "specs.drift.unimplemented": "未実装",
+  "specs.drift.ahead": "実装が先行",
+  "specs.drift.snapshotMissing": "スナップショットなし",
 };

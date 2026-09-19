@@ -153,6 +153,10 @@ const api: DesktopApi = {
 
   // ── Knowledge dashboard ──────────────────────────────────────────
   knowledgeStatus: (root) => ipcRenderer.invoke(IpcRequest.KnowledgeStatus, root),
+
+  // ── Spec graph (pre-design track; separate from knowledge by decree) ──
+  specsGraph: (root) => ipcRenderer.invoke(IpcRequest.SpecsGraph, root),
+  specsOpen: (root, relPath) => ipcRenderer.invoke(IpcRequest.SpecsOpen, root, relPath),
   endpointQuota: (endpointId) => ipcRenderer.invoke(IpcRequest.EndpointQuota, endpointId),
   endpointTest: (baseURL, apiKey) => ipcRenderer.invoke(IpcRequest.EndpointTest, baseURL, apiKey),
   memoryRoutingStatus: () => ipcRenderer.invoke(IpcRequest.MemoryRoutingStatus),
