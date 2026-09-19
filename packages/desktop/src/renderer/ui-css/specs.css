@@ -120,3 +120,55 @@
   font-size: 12px;
   opacity: 0.65;
 }
+
+.ui-specs-open-error {
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgba(200, 70, 70, 0.12);
+  color: #c05050;
+  overflow-wrap: anywhere;
+}
+
+.ui-specs-issue {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 5px 10px;
+  border: 1px solid var(--border-subtle, rgba(128, 128, 128, 0.25));
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+.ui-specs-issue-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  flex-shrink: 0;
+  align-self: center;
+  background: rgba(128, 128, 128, 0.6);
+}
+
+.ui-specs-issue-error .ui-specs-issue-dot {
+  background: #c05050;
+}
+
+.ui-specs-issue-warn .ui-specs-issue-dot {
+  background: #b07a10;
+}
+
+.ui-specs-issue-text {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.ui-specs-issue-path {
+  font-size: 10px;
+  opacity: 0.6;
+  flex-shrink: 1;
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

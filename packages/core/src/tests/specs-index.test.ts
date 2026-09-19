@@ -202,6 +202,67 @@ test("registration writer upserts pointer anchors with a visible chain", async (
   assert.ok(!after.includes("# 技术架构文档"));
 });
 
+test("registration writer never clobbers a hand-mangled anchor (no-clobber guard)", async () => {
+  resetSpecIndexCache();
+  const root = await makeRoot();
+  const first = await ensureDesignChainRegistration(root, { suiteId: "套件B", versionId: "v1" });
+  assert.equal(first.status, "written");
+  const file = path.join(root, ".deeporca/specs/套件B/architecture.md");
+  // Hand edit that breaks frontmatter parsing (a line without ":") while the
+  // body still carries the anchor marker — the 2026-09 swarm review
+  // data-loss seam: a full overwrite would silently destroy the human edits.
+  const mangled = "this line has no colon\n> 本节点是 spec 图的**登记锚点**，已被手工接管。\n";
+  await fs.writeFile(file, mangled, "utf8");
+  // The skip is REPORTED (status), not silent — the caller surfaces it.
+  const skipped = await ensureDesignChainRegistration(root, { suiteId: "套件B", versionId: "v1" });
+  assert.equal(skipped.status, "skipped-unparseable-anchor");
+  assert.equal(skipped.file, file);
+  await ensureDesignChainRegistration(root, { suiteId: "套件B", versionId: "v2" });
+  assert.equal(await fs.readFile(file, "utf8"), mangled);
+  // Idempotent re-registration of an intact anchor reports unchanged.
+  await ensureDesignChainRegistration(root, { suiteId: "套件C", versionId: "v1" });
+  const unchanged = await ensureDesignChainRegistration(root, { suiteId: "套件C", versionId: "v1" });
+  assert.equal(unchanged.status, "unchanged");
+});
+
+test("registration result aggregates mixed outcomes with an accurate file", async () => {
+  resetSpecIndexCache();
+  const root = await makeRoot();
+  // PRD written fresh, arch already intact for the same version → the
+  // aggregate must report "written" naming the PRD file (iter-2D review:
+  // it used to always name architecture.md).
+  await ensureDesignChainRegistration(root, { suiteId: "套件D", versionId: "v1" });
+  const prdFile = path.join(root, ".deeporca/specs/套件D/product-design.md");
+  const archFile = path.join(root, ".deeporca/specs/套件D/architecture.md");
+  // Delete the PRD anchor (external edit), keep arch → re-registration writes
+  // only the PRD; the aggregate must point at it.
+  await fs.rm(prdFile);
+  const mixed = await ensureDesignChainRegistration(root, { suiteId: "套件D", versionId: "v1" });
+  assert.equal(mixed.status, "written");
+  assert.equal(mixed.file, prdFile);
+  // PRD mangled (unparseable + marker), arch written for a NEW version →
+  // the skip outranks the write and names the PRD file.
+  await fs.writeFile(prdFile, "no colon here\n> 登记锚点 hand-owned\n", "utf8");
+  const skipOutranks = await ensureDesignChainRegistration(root, { suiteId: "套件D", versionId: "v2" });
+  assert.equal(skipOutranks.status, "skipped-unparseable-anchor");
+  assert.equal(skipOutranks.file, prdFile);
+  const archAfter = await fs.readFile(archFile, "utf8");
+  assert.ok(archAfter.includes("version: v2"), `arch should have moved to v2: ${archAfter.slice(0, 120)}`);
+});
+
+test("a parentless tasks node gets the <dir>#tasks info hint (not silence)", async () => {
+  resetSpecIndexCache();
+  const root = await makeRoot();
+  await write(root, ".deeporca/specs/solo/tasks.md", `---\nid: solo#tasks\ntype: tasks\nstatus: active\n---\n\n# t\n`);
+  const issues = await validateSpecs(root);
+  const hint = issues.find((issue) => issue.code === "tasks-parent");
+  // Iter-2 review: the no-parent arm was dead behind `node.parent &&` — the
+  // exact mistake the convention exists for showed no structure hint at all.
+  assert.ok(hint, `issues: ${JSON.stringify(issues)}`);
+  assert.equal(hint.severity, "info");
+  assert.equal(hint.data, undefined);
+});
+
 test("revalidation reparses content changed between reads (cache pin)", async () => {
   resetSpecIndexCache();
   const root = await makeRoot();

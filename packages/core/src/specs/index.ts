@@ -16,5 +16,5 @@ export {
   resetSpecIndexCache,
   validateSpecs,
 } from "./spec-index";
-export type { DesignChainRegistration } from "./writer";
+export type { DesignChainRegistration, DesignChainRegistrationResult } from "./writer";
 export { ensureDesignChainRegistration } from "./writer";

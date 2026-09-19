@@ -78,7 +78,14 @@ export interface SpecIssue {
   /** Workspace-root-relative file path the issue attaches to (same base as
    *  `SpecNode.relPath`, so consumers resolve issues with one rule). */
   path: string;
+  /** Developer/agent-facing prose. UIs must NOT render this — one hardcoded
+   *  locale leaked into every panel language (same discipline as
+   *  `SpecDriftFinding`'s structured shape, 2026-09 swarm review). */
   message: string;
+  /** Structured interpolation params for the issue's `code` (2026-09 swarm
+   *  review M1 closure): consumers localize via their own catalogs with
+   *  `code` → template key + these params. Param set is fixed per code. */
+  data?: Record<string, string>;
 }
 
 const SPECS_DIR_SEGMENTS = [".deeporca", "specs"];
@@ -315,6 +322,7 @@ export async function validateSpecs(root: string): Promise<SpecIssue[]> {
         code: "duplicate-id",
         path: node.relPath,
         message: `node id "${node.id}" is already used by ${seenIds.get(node.id)}`,
+        data: { id: node.id, other: String(seenIds.get(node.id) ?? "") },
       });
     } else {
       seenIds.set(node.id, node.relPath);
@@ -325,6 +333,7 @@ export async function validateSpecs(root: string): Promise<SpecIssue[]> {
         code: "unknown-type",
         path: node.relPath,
         message: `type "${node.type}" is outside the closed vocabulary`,
+        data: { type: node.type },
       });
     }
     if (!(SPEC_NODE_STATUSES as readonly string[]).includes(node.status)) {
@@ -333,6 +342,7 @@ export async function validateSpecs(root: string): Promise<SpecIssue[]> {
         code: "unknown-status",
         path: node.relPath,
         message: `status "${node.status}" is outside the closed vocabulary`,
+        data: { status: node.status },
       });
     }
     const linkTargets: Array<{ kind: string; id: string }> = [
@@ -346,6 +356,7 @@ export async function validateSpecs(root: string): Promise<SpecIssue[]> {
           code: "dangling-link",
           path: node.relPath,
           message: `${link.kind} → "${link.id}" points at no existing node`,
+          data: { kind: link.kind, id: link.id },
         });
       }
     }
@@ -366,6 +377,7 @@ export async function validateSpecs(root: string): Promise<SpecIssue[]> {
             code: "architecture-parent-not-product-design",
             path: node.relPath,
             message: `parent "${node.parent}" is a ${parent.type} node, not product-design`,
+            data: { parent: node.parent, type: parent.type },
           });
         }
       }
@@ -382,7 +394,11 @@ export async function validateSpecs(root: string): Promise<SpecIssue[]> {
     }
     if (node.type === "tasks") {
       const parent = node.parent ? byId.get(node.parent) : null;
-      if (node.parent && (!parent || parent.dir !== node.dir || parent.type === "tasks")) {
+      // A parentless tasks node is exactly the mistake the <dir>#tasks
+      // convention exists for (design §1.1) — it gets the info hint too,
+      // not just mismatches (2026-09 iter-2 review: the no-parent arm was
+      // dead code behind `node.parent &&`).
+      if (!node.parent || !parent || parent.dir !== node.dir || parent.type === "tasks") {
         issues.push({
           severity: parent ? "warn" : "info",
           code: "tasks-parent",
@@ -390,6 +406,7 @@ export async function validateSpecs(root: string): Promise<SpecIssue[]> {
           message: node.parent
             ? `tasks parent "${node.parent}" should be a design node in the same directory`
             : "tasks node without a parent — expected `<dir>#tasks` convention with parent set",
+          data: node.parent ? { parent: node.parent } : undefined,
         });
       }
     }
@@ -400,6 +417,7 @@ export async function validateSpecs(root: string): Promise<SpecIssue[]> {
           code: "artifact-escapes-root",
           path: node.relPath,
           message: `artifacts entry "${artifact}" escapes the workspace root`,
+          data: { artifact },
         });
       }
     }

@@ -591,4 +591,4 @@ export {
 export { SPEC_NODE_STATUSES, SPEC_NODE_TYPES, getSpecGraph, listSpecs, validateSpecs } from "./specs";
 export type { SpecDriftFinding, SpecDriftGate, SpecDriftState, SpecGraph, SpecIssue, SpecNode } from "./specs";
 export { ensureDesignChainRegistration } from "./specs";
-export type { DesignChainRegistration } from "./specs";
+export type { DesignChainRegistration, DesignChainRegistrationResult } from "./specs";

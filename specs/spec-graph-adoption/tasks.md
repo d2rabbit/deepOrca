@@ -52,4 +52,5 @@ parent: spec-graph-adoption
 
 - [x] T9.1 `specs/README.md` 活跃区行状态字样更新（立稿时已登记）。
 - [x] T9.2 `npm run typecheck && npm run lint && npm test`（P2 后追加相关测试套件）。
-- [ ] T9.3 design.md 实施状态回写（blockquote 行）+ frontmatter `status` 同步 `draft`→`active`→`done`。
+- [x] T9.3 design.md 实施状态回写（blockquote 行，含 2026-09 两轮复审加固批记录；frontmatter `status` 保持 `active`——开放决策 R4/R6 未收官）。
+- [x] T9.4 加固批回写（2026-09-20 两轮 bug-hunt 复审）：§1.4 IPC 契约（issues 进 wire / md 门槛 / 依赖注入）、§1.6 呈现（结构校验区）、R7/R8 风险登记。

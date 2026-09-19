@@ -79,7 +79,10 @@ export function I18nProvider({ children }: { children: ReactNode }): JSX.Element
       let text = messages[locale][key] ?? messages.en[key] ?? key;
       if (params) {
         for (const [name, value] of Object.entries(params)) {
-          text = text.replace(new RegExp(`\\{${name}\\}`, "g"), String(value));
+          // Replacement FUNCTION, not string: a string replacement interprets
+          // $$/$&/$`/$' inside the value — file-derived params (ids, paths)
+          // would corrupt the rendered text (2026-09 iter-2 review).
+          text = text.replace(new RegExp(`\\{${name}\\}`, "g"), () => String(value));
         }
       }
       return text;

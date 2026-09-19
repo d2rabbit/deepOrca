@@ -14,11 +14,18 @@
  * can leak one language into the six-locale UI (2026-09-19 review).
  */
 
-import { useEffect, useState, type JSX } from "react";
+import { useEffect, useRef, useState, type JSX } from "react";
 
 // SPEC_NODE_STATUSES is a runtime const in core, but this panel only uses it
 // in type position (typeof → status union) — hence the type-only import.
-import type { SPEC_NODE_STATUSES, SpecDriftFinding, SpecDriftGate, SpecDriftState, SpecNode } from "@deeporca/core";
+import type {
+  SPEC_NODE_STATUSES,
+  SpecDriftFinding,
+  SpecDriftGate,
+  SpecDriftState,
+  SpecIssue,
+  SpecNode,
+} from "@deeporca/core";
 
 import { api } from "../api";
 import { useI18n } from "../i18n";
@@ -56,6 +63,28 @@ const STATUS_TEXT: Record<NodeStatus, MessageKey> = {
   stalled: "specs.status.stalled",
 };
 
+/** Structure-check codes (core validateSpecs) → localized templates. The
+ *  core `message` is developer prose and never rendered here (2026-09 swarm
+ *  review M1 closure — design.md 呈现: the panel surfaces the issue detail). */
+const ISSUE_TEXT: Record<string, MessageKey> = {
+  "duplicate-id": "specs.issue.duplicateId",
+  "unknown-type": "specs.issue.unknownType",
+  "unknown-status": "specs.issue.unknownStatus",
+  "dangling-link": "specs.issue.danglingLink",
+  "independent-architecture": "specs.issue.independentArchitecture",
+  "architecture-parent-not-product-design": "specs.issue.archParentNotProductDesign",
+  "chain-half": "specs.issue.chainHalf",
+  "tasks-parent": "specs.issue.tasksParentMismatch",
+  "artifact-escapes-root": "specs.issue.artifactEscapesRoot",
+  "loose-file": "specs.issue.looseFile",
+};
+
+function issueLabel(issue: SpecIssue, t: (k: MessageKey, params?: Record<string, string>) => string): string {
+  if (issue.code === "tasks-parent" && !issue.data?.parent) return t("specs.issue.tasksNoParent");
+  const key = ISSUE_TEXT[issue.code];
+  return key ? t(key, issue.data) : issue.code;
+}
+
 function statusLabel(status: string, t: (k: MessageKey) => string): string {
   const key = (STATUS_TEXT as Record<string, MessageKey | undefined>)[status];
   return key ? t(key) : status;
@@ -80,7 +109,11 @@ function NodeRow({
   onOpen: (relPath: string) => void;
   t: (k: MessageKey) => string;
 }): JSX.Element {
-  const worst = [...node.drift].sort((a, b) => driftPriority(a) - driftPriority(b))[0];
+  // "ok" findings carry no user signal — a healthy gate must never win the
+  // worst-slot (2026-09-19 swarm review: "ok" sorted first and both drew a
+  // bogus empty badge on healthy nodes AND masked real drift on mixed ones).
+  const findings = node.drift.filter((finding) => finding.state !== "ok");
+  const worst = [...findings].sort((a, b) => driftPriority(a) - driftPriority(b))[0];
   return (
     <button type="button" className="ui-specs-node" onClick={() => onOpen(node.relPath)} title={node.relPath}>
       <span className={`ui-specs-status ui-specs-status-${node.status}`}>{statusLabel(node.status, t)}</span>
@@ -89,7 +122,7 @@ function NodeRow({
       {worst ? (
         <span
           className={`ui-specs-drift ui-specs-drift-${worst.state}`}
-          title={node.drift.map((finding) => driftLabel(finding, t)).join(" · ")}
+          title={findings.map((finding) => driftLabel(finding, t)).join(" · ")}
         >
           {driftLabel(worst, t)}
         </span>
@@ -101,12 +134,25 @@ function NodeRow({
 export function SpecsPanel({ root }: { root: string }): JSX.Element {
   const { t } = useI18n();
   const [nodes, setNodes] = useState<SpecNode[] | null>(null);
+  const [issues, setIssues] = useState<SpecIssue[]>([]);
+  const [openError, setOpenError] = useState<string | null>(null);
+  // Tracks the CURRENT root for openNode's async guard (a slow specsOpen from
+  // a previous workspace must not paint its failure banner here).
+  const rootRef = useRef(root);
+  rootRef.current = root;
 
   useEffect(() => {
     let cancelled = false;
     setNodes(null);
+    setIssues([]);
+    // A stale open-failure banner from the previous root must not survive
+    // the switch (2026-09 iter-2 review).
+    setOpenError(null);
     void api.specsGraph(root).then((graph) => {
-      if (!cancelled) setNodes(graph.nodes);
+      if (!cancelled) {
+        setNodes(graph.nodes);
+        setIssues(graph.issues ?? []);
+      }
     });
     return () => {
       cancelled = true;
@@ -114,7 +160,15 @@ export function SpecsPanel({ root }: { root: string }): JSX.Element {
   }, [root]);
 
   const openNode = (relPath: string): void => {
-    void api.specsOpen(root, relPath);
+    setOpenError(null);
+    const openRoot = root;
+    void api.specsOpen(openRoot, relPath).then((res) => {
+      // Surface instead of a silent no-op (2026-09-19 swarm review): refusal
+      // (unregistered root / containment) and real OS-open failures were both
+      // invisible — a node click just did nothing. Root guard: a slow open
+      // from a previous workspace must not paint its failure here.
+      if (!res.ok && openRoot === rootRef.current) setOpenError(res.error ?? "unknown error");
+    });
   };
 
   if (!root) {
@@ -145,6 +199,11 @@ export function SpecsPanel({ root }: { root: string }): JSX.Element {
 
   return (
     <div className="ui-specs">
+      {openError !== null ? (
+        <div className="ui-specs-open-error">
+          {t("specs.openFailed")}: {openError}
+        </div>
+      ) : null}
       {nodes === null ? (
         <div className="ui-side-panel-empty">{t("specs.loading")}</div>
       ) : list.length === 0 ? (
@@ -171,6 +230,27 @@ export function SpecsPanel({ root }: { root: string }): JSX.Element {
           ))}
         </>
       )}
+      {/* Outside the nodes ternary on purpose: a loose-file-only specs tree
+       * (zero nodes, non-empty issues) must still show its structure checks —
+       * that bootstrap hint is the feature's canonical first-run state
+       * (2026-09 iter-2 review). */}
+      {nodes !== null && issues.length > 0 ? (
+        <>
+          <div className="ui-specs-section">{t("specs.issue.section")}</div>
+          {issues.map((issue, index) => (
+            <div
+              key={`${issue.path}:${issue.code}:${index}`}
+              className={`ui-specs-issue ui-specs-issue-${issue.severity}`}
+            >
+              <span className="ui-specs-issue-dot" aria-hidden="true" />
+              <span className="ui-specs-issue-text">{issueLabel(issue, t)}</span>
+              <span className="ui-specs-issue-path" title={issue.path}>
+                {issue.path}
+              </span>
+            </div>
+          ))}
+        </>
+      ) : null}
     </div>
   );
 }

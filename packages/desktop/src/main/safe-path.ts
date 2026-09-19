@@ -163,7 +163,7 @@ export function safeArchmapPath(prototypesRoot: string, targetPath: string): Arc
 }
 
 /** Result of a spec-domain path containment check. */
-export type SpecsPathCheck = { ok: true; absPath: string } | { ok: false; reason: "escapes-root" };
+export type SpecsPathCheck = { ok: true; absPath: string } | { ok: false; reason: "not-markdown" | "escapes-root" };
 
 /**
  * Spec-domain guard (specs/spec-graph-adoption §1.4). The wire carries the
@@ -172,15 +172,29 @@ export type SpecsPathCheck = { ok: true; absPath: string } | { ok: false; reason
  * resolved path under `<root>/.deeporca/specs` with a second realpath pass.
  * Both layers go through `safePathWithinRoot`, closing the symlink escape a
  * string-prefix guard here previously allowed (2026-09-19 review).
+ *
+ * Markdown-only, like `safeWikiPath` (2026-09-19 swarm review): the spec
+ * domain's open target is markdown documents, and that claim is now enforced
+ * instead of assumed — `shell.openPath` on a `.sh`/`.exe` that landed in the
+ * agent-writable specs tree is one click from execution, so non-`.md` is
+ * structurally rejected before any filesystem work.
  */
 export function safeSpecsPath(projectRoot: string, relPath: string): SpecsPathCheck {
+  // Case-insensitive like the indexer (collectMarkdownFiles lowercases the
+  // extension) — a case-sensitive gate would advertise .MD nodes that then
+  // refuse to open (2026-09 iter-2 review).
+  if (!relPath.toLowerCase().endsWith(".md")) {
+    return { ok: false, reason: "not-markdown" };
+  }
   const abs = safePathWithinRoot(projectRoot, relPath);
   if (!abs) {
     return { ok: false, reason: "escapes-root" };
   }
   const specsRoot = path.join(projectRoot, ".deeporca", "specs");
   const relToSpecs = path.relative(specsRoot, abs);
-  if (!relToSpecs || relToSpecs.startsWith("..") || path.isAbsolute(relToSpecs)) {
+  // `..`-prefix must not over-match: a file literally named `..draft.md` is a
+  // legal specs child (2026-09-19 swarm review false-positive).
+  if (!relToSpecs || relToSpecs === ".." || relToSpecs.startsWith("../") || path.isAbsolute(relToSpecs)) {
     return { ok: false, reason: "escapes-root" };
   }
   const reAnchored = safePathWithinRoot(specsRoot, relToSpecs);

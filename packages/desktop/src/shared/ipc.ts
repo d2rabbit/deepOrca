@@ -14,6 +14,7 @@ import type {
   SessionMessage,
   SkillInfo,
   SpecGraph,
+  SpecIssue,
   UndoTarget,
   UserPromptContent,
 } from "@deeporca/core";
@@ -920,6 +921,14 @@ export type EndpointTestResponse = {
   error?: string;
 };
 
+/**
+ * Specs panel graph read = core's SpecGraph plus the structure-check issues
+ * (specs/spec-graph-adoption design.md 呈现: the panel surfaces BOTH the drift
+ * badges and the validateSpecs detail). Issues carry structured `data` params
+ * so the renderer localizes them — `message` stays developer-facing.
+ */
+export type SpecsGraphResponse = SpecGraph & { issues: SpecIssue[] };
+
 export type KnowledgeStatusResponse = {
   codegraph: KnowledgeSourceStatus;
   openwiki: KnowledgeSourceStatus;
@@ -1646,9 +1655,10 @@ export type DesktopApi = {
   // ── Knowledge dashboard ────────────────────────────────────────────────
   /** Aggregated status of every knowledge source (codegraph/wiki/serena/agents/memory). */
   knowledgeStatus(root?: string): Promise<KnowledgeStatusResponse>;
-  /** Spec-graph read for the Specs panel (design chain + drift badges).
-   *  Unregistered root or missing domain degrades to an empty graph. */
-  specsGraph(root?: string): Promise<SpecGraph>;
+  /** Spec-graph read for the Specs panel (design chain + drift badges +
+   *  structure-check issues). Unregistered root or missing domain degrades to
+   *  an empty graph with no issues. */
+  specsGraph(root?: string): Promise<SpecsGraphResponse>;
   /** Open one spec node's markdown (containment-checked to `<root>/.deeporca/specs/`). */
   specsOpen(root: string | undefined, relPath: string): Promise<{ ok: boolean; error?: string }>;
   /** 端点额度查询（额度跟随端点；无额度面的端点返回 ok:false）. */

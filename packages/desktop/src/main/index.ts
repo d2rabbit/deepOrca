@@ -2660,7 +2660,10 @@ function registerIpc(): void {
   registerCrgIpc(helpers);
   registerMemoryIpc(helpers);
   registerKnowledgeIpc(helpers, getBridge, () => mainWindow);
-  registerSpecsIpc(helpers);
+  registerSpecsIpc(helpers, {
+    resolveRoot: resolveRegisteredRoot,
+    openPath: (absPath) => shell.openPath(absPath),
+  });
   registerEndpointQuotaIpc(helpers);
   registerEndpointTestIpc(helpers);
   registerTaskTreeIpc(helpers);

@@ -3,13 +3,24 @@ id: spec-graph-adoption
 type: design
 status: active
 depends-on: []
-covers: [spec-graph, spec-domain, design-chain, link-independence, navigating-specs, specs-panel, arch-writer-migration, drift-detection]
+covers:
+  [
+    spec-graph,
+    spec-domain,
+    design-chain,
+    link-independence,
+    navigating-specs,
+    specs-panel,
+    arch-writer-migration,
+    drift-detection,
+  ]
 tags: [spec-graph, thinkrail-adoption, design-track]
 ---
 
 # Spec 图谱与前置设计轨（spec-graph-adoption）
 
 > **状态**：**实施落地（2026-09-19 一步到位）**——P0 读模型（core `src/specs/`：frontmatter 解析/SpecIndex (mtimeMs,size) 增量重校验/getSpecGraph·listSpecs·validateSpecs）+ P1 `navigating-specs` 技能（writing-skills 纪律命名，T1.3 验收走查待真实使用）+ P2 Specs 面板与独立 `specs-ipc`（registered-root 守卫 + 未注册降级空图 + specs:open 包含性检查）+ P4 drift 三门（机械级、各门独立、unknown 诚实路径）+ P3 **降级路线**（T3.0 核对：arch/PRD 为套件版本 content 字段非独立文件，深度耦合——落**登记锚点**：save_suite_arch 成功后 best-effort 播种 product-design + architecture 指针锚点，无 artifacts 免误触 gate B，权威留套件存储，双权威零产生）。验证：core 1041 / desktop 826 全绿 + specs 新套件 12+3 例、关键路径 mutation-check（SpecIndex 重解析 ×2、面板 drift 徽标）。上游输入：JetBrains ThinkRail 仓库研究（2026-09-18；**借思想不引代码**）。
+> **加固批（2026-09-19/20 两轮 bug-hunt 复审）**：ok 态 drift finding 不再进徽章排序（原会画空徽章并掩盖真实漂移）；`safeSpecsPath` 增 **markdown-only 门槛**（大小写与索引器对齐）+ `..` 前缀精确化；specs:open 未注册 root 拒绝 + 失败 surface；`SpecIssue.data` 结构化参数 + 面板结构校验区（M1 闭环）；writer no-clobber + 状态回报；t() 插值改替换函数（`$&` 类值不再损坏文案）；parentless tasks 死分支激活。验证：core 1043 / desktop 849 全绿。
 > **命题**：在目标项目 `.deeporca/specs/` 建立**前置设计事实源（spec 图）**——以「产品设计 → 技术设计」设计链为主轴，agent 动工前可导航、动完可对账，UI 有只读 Specs 面板，并有机械级 drift detection（文档债告警）。知识轨（arch-scan → `.deeporca/prototypes/` → Knowledge panel）与产品原型轨的流程、门控、栏目**零改动**（drift detection 对知识轨**只读消费**）。
 > **六方拍板**（2026-09-18 对话定稿，本 spec 的不可推翻前提）：
 > ① **三轨道边界**——原型设计轨（设计管线各阶段与栏目）/ 知识轨（arch-scan 等，运行时 agent 知识增强）/ spec 轨（新建，前置事实源）三者分家，spec 图**不进**知识库；
@@ -31,11 +42,11 @@ ThinkRail（JetBrains 孵化，`pi` coding agent 的薄宿主）把「规约驱�
 
 本仓要修的核心概念错位：**设计链（产品设计 → 技术设计）是设计期事实源（前置），今天却有两处各自错位**——技术架构文档作为产品流程 step 4 的附属产物落在套件存储里，且与它的上游（PRD）不在同一个可导航的结构里：
 
-| 轨道 | 真身 | 定位 | 处置 |
-| --- | --- | --- | --- |
-| **原型设计轨** | 设计管线（spec-writer PRD → pm-design → ui-design → 原型 → 验收 → arch-writer 技术架构 → 程序）及其栏目 | 设计期、前置，但产物散落套件存储，无链式结构 | 流程/门控/栏目**保持**；设计链当前有效版升格进 spec 轨（§1.5） |
-| **知识轨** | arch-scan 动作 → `.deeporca/prototypes/arch-*` → Archify 渲染 → Knowledge panel | 运行时知识增强（架构级索引，扫已有代码，可重建快照） | **零改动**（§0.3 硬约束；drift detection 只读消费） |
-| **spec 轨（新建）** | `.deeporca/specs/` frontmatter 设计链图 + SpecIndex + navigating-specs 技能 + Specs 面板 + drift detection | 前置事实源，agent ground truth | 本 spec 主体 |
+| 轨道                | 真身                                                                                                       | 定位                                                 | 处置                                                           |
+| ------------------- | ---------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- | -------------------------------------------------------------- |
+| **原型设计轨**      | 设计管线（spec-writer PRD → pm-design → ui-design → 原型 → 验收 → arch-writer 技术架构 → 程序）及其栏目    | 设计期、前置，但产物散落套件存储，无链式结构         | 流程/门控/栏目**保持**；设计链当前有效版升格进 spec 轨（§1.5） |
+| **知识轨**          | arch-scan 动作 → `.deeporca/prototypes/arch-*` → Archify 渲染 → Knowledge panel                            | 运行时知识增强（架构级索引，扫已有代码，可重建快照） | **零改动**（§0.3 硬约束；drift detection 只读消费）            |
+| **spec 轨（新建）** | `.deeporca/specs/` frontmatter 设计链图 + SpecIndex + navigating-specs 技能 + Specs 面板 + drift detection | 前置事实源，agent ground truth                       | 本 spec 主体                                                   |
 
 补充事实澄清（2026-09-18 对话确认）：图类绘制引擎从头到尾只有一个（vendored Archify）；fireworks-tech-graph **从未引入代码**，只以「强化输入」出现两次——arch-visual-readback 吸收「评估而非断言」三件套、arch-writer 方法论基线引用其图形质量契约（见 `docs/research/2026-09-17-fireworks-tech-graph-prestudy.md` 拍板）。MoonViz 为原型设计引擎，与本 spec 无关。
 
@@ -56,17 +67,17 @@ AGENTS.md 安全不变量：root 参数化 IPC 必须经 `resolveRegisteredRoot(
 
 ### 0.5 现状与证据（全部已核对宿主代码，2026-09-18）
 
-| # | 事实 | 出处 |
-| --- | --- | --- |
-| E1 | **`.deeporca/` 是 agent 任务执行的内部规范性文件与产物的统一家园**：designs（设计套件）/ prototypes（架构图产物）/ deepwiki / codegraph / crg / reviews / task-trees / audits 均在其中——spec 轨同律落 `.deeporca/specs/`（拍板⑤）。**本仓库根 `specs/` 为开发流程目录，与本功能无关** | `.deeporca/` 目录实测；`actions/prototype.ts:32`（`DESIGNS_DIR = ".deeporca/designs"`） |
-| E2 | skill 扫描六个根（项目 `.deeporca/.deepcode/.agents` + home 三根）**无条件加载**，不看信任级 | `session-manager-skills.ts:479-484` |
-| E3 | `WorkspaceTrustLevel` 已存在且已门控 MCP project servers（`quarantine` → `{}`）与 LSP 诊断桥——skill 信任门可搭现成体系（本 spec 不做，记 §4） | `settings.ts:891,899,263`；`main/index.ts:1119-1123` |
-| E4 | arch-scan 自我定位「architecture-level index…shown in the Knowledge panel」，产物 `.deeporca/prototypes/arch-<slug>.<type>.json`，被 index-build 折入知识索引——**今天的技术架构图长在知识轨**（描述性快照） | `actions/arch-scan.ts:6,58`；`actions/index-build.ts:60,128` |
-| E5 | 设计管线：spec-writer 产 PRD（需求文档）→ 原型 → 验收门 → arch-writer 从**已批准 PRD** 推导标准技术架构文档（系统架构/数据模型/核心流程/模块拆分，Mermaid + 对照表），`save_suite_arch` 持久化，套件存储 `.deeporca/designs`——**PRD 与技术架构的链式关系只存在于流程顺序中，不存在于任何可导航结构里** | `i18n/locales/zh.ts:1770-1779`；`templates/plugins/design/skills/arch-writer/SKILL.md`；`actions/prototype.ts:32,77,1799,1848` |
-| E6 | arch-writer 方法论基线直接引用 fireworks-tech-graph 图形质量契约（分层容器/语义节点/零交叉优先/每图对照表）——「再次加强」而非引入 | `design/skills/arch-writer/SKILL.md`；`docs/research/2026-09-17-fireworks-tech-graph-prestudy.md` |
-| E7 | IPC 契约 `shared/ipc.ts`（~1871 行）：类型 + `IpcRequest`/`IpcEvent` 通道常量，结构同构 ThinkRail contracts；无 `PROTOCOL_VERSION`（本 spec 不做，记 §4） | `desktop/src/shared/ipc.ts` |
-| E8 | 知识轨安全模型成熟：`resolveRegisteredRoot()` 守卫 + 未注册 root 降级空结果 | `main/knowledge-ipc.ts`；AGENTS.md 安全不变量 |
-| E9 | 工程纪律：renderer 测试 mutation-check；i18n 每个 `MessageKey` 6 语种全量（typecheck 强制）；core 无 UI 依赖 | AGENTS.md |
+| #   | 事实                                                                                                                                                                                                                                                                                                   | 出处                                                                                                                           |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
+| E1  | **`.deeporca/` 是 agent 任务执行的内部规范性文件与产物的统一家园**：designs（设计套件）/ prototypes（架构图产物）/ deepwiki / codegraph / crg / reviews / task-trees / audits 均在其中——spec 轨同律落 `.deeporca/specs/`（拍板⑤）。**本仓库根 `specs/` 为开发流程目录，与本功能无关**                  | `.deeporca/` 目录实测；`actions/prototype.ts:32`（`DESIGNS_DIR = ".deeporca/designs"`）                                        |
+| E2  | skill 扫描六个根（项目 `.deeporca/.deepcode/.agents` + home 三根）**无条件加载**，不看信任级                                                                                                                                                                                                           | `session-manager-skills.ts:479-484`                                                                                            |
+| E3  | `WorkspaceTrustLevel` 已存在且已门控 MCP project servers（`quarantine` → `{}`）与 LSP 诊断桥——skill 信任门可搭现成体系（本 spec 不做，记 §4）                                                                                                                                                          | `settings.ts:891,899,263`；`main/index.ts:1119-1123`                                                                           |
+| E4  | arch-scan 自我定位「architecture-level index…shown in the Knowledge panel」，产物 `.deeporca/prototypes/arch-<slug>.<type>.json`，被 index-build 折入知识索引——**今天的技术架构图长在知识轨**（描述性快照）                                                                                            | `actions/arch-scan.ts:6,58`；`actions/index-build.ts:60,128`                                                                   |
+| E5  | 设计管线：spec-writer 产 PRD（需求文档）→ 原型 → 验收门 → arch-writer 从**已批准 PRD** 推导标准技术架构文档（系统架构/数据模型/核心流程/模块拆分，Mermaid + 对照表），`save_suite_arch` 持久化，套件存储 `.deeporca/designs`——**PRD 与技术架构的链式关系只存在于流程顺序中，不存在于任何可导航结构里** | `i18n/locales/zh.ts:1770-1779`；`templates/plugins/design/skills/arch-writer/SKILL.md`；`actions/prototype.ts:32,77,1799,1848` |
+| E6  | arch-writer 方法论基线直接引用 fireworks-tech-graph 图形质量契约（分层容器/语义节点/零交叉优先/每图对照表）——「再次加强」而非引入                                                                                                                                                                      | `design/skills/arch-writer/SKILL.md`；`docs/research/2026-09-17-fireworks-tech-graph-prestudy.md`                              |
+| E7  | IPC 契约 `shared/ipc.ts`（~1871 行）：类型 + `IpcRequest`/`IpcEvent` 通道常量，结构同构 ThinkRail contracts；无 `PROTOCOL_VERSION`（本 spec 不做，记 §4）                                                                                                                                              | `desktop/src/shared/ipc.ts`                                                                                                    |
+| E8  | 知识轨安全模型成熟：`resolveRegisteredRoot()` 守卫 + 未注册 root 降级空结果                                                                                                                                                                                                                            | `main/knowledge-ipc.ts`；AGENTS.md 安全不变量                                                                                  |
+| E9  | 工程纪律：renderer 测试 mutation-check；i18n 每个 `MessageKey` 6 语种全量（typecheck 强制）；core 无 UI 依赖                                                                                                                                                                                           | AGENTS.md                                                                                                                      |
 
 ## 1. 设计
 
@@ -75,16 +86,16 @@ AGENTS.md 安全不变量：root 参数化 IPC 必须经 `resolveRegisteredRoot(
 - **扫描根**：`<workspaceRoot>/.deeporca/specs/`（单一根，拍板⑤——与 designs/prototypes/reviews 等 agent 产物同律；终端用户项目与开发机行为一致）。
 - **frontmatter schema**（YAML，置于文档头部）：
 
-  | 字段 | 出现于 | 语义 |
-  | --- | --- | --- |
-  | `id` | product-design / architecture / design 文档 | 节点唯一 id，kebab-case，**约定 = 所在目录名或显式命名** |
-  | `type` | 全部 | 封闭词表：`product-design`（产品设计，PRD 当前有效版）/ `architecture`（技术设计，arch-writer 产物）/ `design`（通用设计节点，预留）/ `tasks`（任务清单） |
-  | `status` | product-design / architecture / design | `draft` \| `active` \| `done` \| `stalled` |
-  | `parent` | 可选；**管线生成的架构节点必填** | 单链接，指父节点 id。管线生成的 `architecture` 节点由生成流写入 `parent` → 同套件 `product-design`（拍板④，链由门控保证）；**独立产出的架构节点可无 parent**（拍板⑦：独立入口，validate 给 info 级提示「无产品设计上游」，非 error） |
-  | `depends-on` | 可选 | id 列表，跨套件/跨节点硬依赖边 |
-  | `covers` / `tags` | 可选 | 自由标签（非图边） |
-  | `artifacts` | 可选 | 相对路径列表（实现产物、架构图快照等），登记产物归属，drift detection 的对照锚点（§1.6） |
-  | tasks.md 仅需：`{ type: tasks, parent: <同目录设计节点 id> }`——节点 id 派生为 `<dir>#tasks`，不独立命名 | | |
+  | 字段                                                                                                    | 出现于                                      | 语义                                                                                                                                                                                                                                 |
+  | ------------------------------------------------------------------------------------------------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+  | `id`                                                                                                    | product-design / architecture / design 文档 | 节点唯一 id，kebab-case，**约定 = 所在目录名或显式命名**                                                                                                                                                                             |
+  | `type`                                                                                                  | 全部                                        | 封闭词表：`product-design`（产品设计，PRD 当前有效版）/ `architecture`（技术设计，arch-writer 产物）/ `design`（通用设计节点，预留）/ `tasks`（任务清单）                                                                            |
+  | `status`                                                                                                | product-design / architecture / design      | `draft` \| `active` \| `done` \| `stalled`                                                                                                                                                                                           |
+  | `parent`                                                                                                | 可选；**管线生成的架构节点必填**            | 单链接，指父节点 id。管线生成的 `architecture` 节点由生成流写入 `parent` → 同套件 `product-design`（拍板④，链由门控保证）；**独立产出的架构节点可无 parent**（拍板⑦：独立入口，validate 给 info 级提示「无产品设计上游」，非 error） |
+  | `depends-on`                                                                                            | 可选                                        | id 列表，跨套件/跨节点硬依赖边                                                                                                                                                                                                       |
+  | `covers` / `tags`                                                                                       | 可选                                        | 自由标签（非图边）                                                                                                                                                                                                                   |
+  | `artifacts`                                                                                             | 可选                                        | 相对路径列表（实现产物、架构图快照等），登记产物归属，drift detection 的对照锚点（§1.6）                                                                                                                                             |
+  | tasks.md 仅需：`{ type: tasks, parent: <同目录设计节点 id> }`——节点 id 派生为 `<dir>#tasks`，不独立命名 |                                             |                                                                                                                                                                                                                                      |
 
 - **目录形态**：`.deeporca/specs/<suite-slug>/`——一个设计套件一个目录，内含 `product-design.md` 与 `architecture.md` 成链（命名映射待 T3.0 核对定稿）；跨套件通用设计节点可平铺目录。
 - **节点来源开放（拍板⑦的结构基础）**：管线生成 / agent 或人手工撰写 / 未来动作（如仓库级 root 节点）——文件系统是唯一事实源，任何来源只要文件带合法 frontmatter 落进 `.deeporca/specs/` 即自动入图，不需要「走完链」的入场券。
@@ -108,7 +119,7 @@ AGENTS.md 安全不变量：root 参数化 IPC 必须经 `resolveRegisteredRoot(
 
 ### 1.4 Renderer：Specs 面板 + 独立 IPC 面（`main/specs-ipc.ts`）
 
-- **IPC**（`shared/ipc.ts` 增通道常量 + 类型，两端接线）：`SpecsGraph`（返回图快照：节点摘要 + 边 + status + drift 徽标）/ `SpecsOpen`（打开节点 → 复用现有文件打开通道，落到对应 md）。handler 落**新文件** `main/specs-ipc.ts`，复用 `resolveRegisteredRoot()` 守卫；未注册 root / 无 `.deeporca/specs/` 目录降级空图（安全不变量天然满足）。
+- **IPC**（`shared/ipc.ts` 增通道常量 + 类型，两端接线）：`SpecsGraph`（返回 `SpecsGraphResponse` = 图快照（节点摘要 + 边 + status + drift 徽标）**+ `issues: SpecIssue[]` 结构校验明细**——2026-09 iter-2 闭环：`validateSpecs` 输出进 wire，`SpecIssue.data` 携带结构化插值参数，面板本地化渲染、core `message` 仅开发者面）/ `SpecsOpen`（打开节点 → `safeSpecsPath` 包含性检查后交 `shell.openPath`；**markdown-only 门槛**与索引器大小写对齐，非 `.md` 结构性拒绝；打开失败向面板 surface 而非静默）。handler 落**新文件** `main/specs-ipc.ts`，复用 `resolveRegisteredRoot()` 守卫（依赖注入 `resolveRoot`/`openPath`，可脱离 Electron 单测）；未注册 root / 无 `.deeporca/specs/` 目录降级空图（安全不变量天然满足）。
 - **面板**：rail 侧栏 Specs 组（与 Knowledge 组并列、互不嵌套）：以设计链为主轴的树（product-design → architecture）+ status/drift 徽标（配色走既有语义 token）；空态（无 `.deeporca/specs/` 或无 frontmatter 节点）诚实显示引导文案。
 - i18n：新增 `MessageKey` 全量落 6 语种（typecheck 强制）。
 - 测试：dom-harness + api-stub 渲染测试（链式树渲染/空态/徽标），mutation-check 一次。
@@ -131,23 +142,23 @@ AGENTS.md 安全不变量：root 参数化 IPC 必须经 `resolveRegisteredRoot(
 - **门 A 链内漂移（设计链自检）**：同套件 `architecture.md` 的 (mtime, hash) 旧于 `product-design.md` 当前版 → 「技术设计落后于产品设计」黄标。直接可查，零外部依赖。链只有一半（仅有 PRD 无架构）→ info「未生成技术设计」（链未走完的正常状态，非 drift 告警）。
 - **门 B 实施漂移（设计 vs 实现）**：`artifacts` 登记的实现产物（程序/组件/代码路径）——存在性（设计有、实现无 → 「未实施」提示）+ 新鲜度（实现产物新于 architecture.md → 「实现已演进，技术设计可能滞后」黄标）。
 - **门 C 跨轨对照（只读消费知识轨）**：`artifacts` 若登记了 `.deeporca/prototypes/` 的 arch-scan 快照，给出「描述性快照 vs 规范性设计」的新鲜度对照（快照新于设计 → 提示复核）；**不语义 diff**。
-- **呈现**：SpecIndex 计算徽标数据 → Specs 面板节点黄标 + `validateSpecs` 输出明细；navigating-specs 技能在对账步骤读同一徽标。
+- **呈现**：SpecIndex 计算徽标数据 → Specs 面板节点黄标；`validateSpecs` 明细经 `SpecsGraph` wire 进面板**结构校验区**（`SpecIssue.code`→i18n 模板 + `data` 参数插值渲染，空图/散文件树同样可见——2026-09 iter-2）；navigating-specs 技能在对账步骤读同一徽标。
 - **语义级 diff**（archify IR 与 Mermaid 结构对齐、模块级增删对照）列开放决策 R6，实测门 A/B/C 价值后再议。
 
 ### 1.7 独立执行矩阵（拍板⑦）
 
 **定位**：全链路（产品设计 → 技术设计 → 实现 → drift 对账）是**金路径**——打通它是本 spec 的核心；但**每个环节必须可独立使用**，任何环节的缺席不降低其他环节的可用性。矩阵即验收口径：
 
-| 环节 | 可独立使用 | 前置缺失时的行为 |
-| --- | --- | --- |
-| SpecIndex（读模型） | ✅ 任意节点集合（含空目录、纯手工节点、部分链） | 目录缺失 → 空图，不报错 |
-| Specs 面板 | ✅ 不依赖设计管线是否跑过 | 无节点 → 空态引导；独立节点 → 独立入口呈现 |
-| spec-navigator 技能 | ✅ 只要求 `.deeporca/specs/` 存在 | 域为空 → 技能如实说明并继续（不阻塞任务） |
-| 设计管线（PRD→原型→验收→技术架构） | ✅ 不依赖面板/技能/索引存在，照常跑 | 落点迁移只改变写哪，不改变能否跑 |
-| drift 门 A（链内） | ✅ | 链缺一半 → info「未生成技术设计」，非告警 |
-| drift 门 B（实施） | ✅ | 无 `artifacts` 登记 → 该门跳过（unknown），链上其他门照常 |
-| drift 门 C（跨轨） | ✅ | 无知识轨快照登记 → 该门跳过 |
-| 图校验 | ✅ | 只查**链接完整性**（悬空指向 = error）；**链不完整永不 error**（独立架构节点 = info） |
+| 环节                               | 可独立使用                                      | 前置缺失时的行为                                                                      |
+| ---------------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------- |
+| SpecIndex（读模型）                | ✅ 任意节点集合（含空目录、纯手工节点、部分链） | 目录缺失 → 空图，不报错                                                               |
+| Specs 面板                         | ✅ 不依赖设计管线是否跑过                       | 无节点 → 空态引导；独立节点 → 独立入口呈现                                            |
+| spec-navigator 技能                | ✅ 只要求 `.deeporca/specs/` 存在               | 域为空 → 技能如实说明并继续（不阻塞任务）                                             |
+| 设计管线（PRD→原型→验收→技术架构） | ✅ 不依赖面板/技能/索引存在，照常跑             | 落点迁移只改变写哪，不改变能否跑                                                      |
+| drift 门 A（链内）                 | ✅                                              | 链缺一半 → info「未生成技术设计」，非告警                                             |
+| drift 门 B（实施）                 | ✅                                              | 无 `artifacts` 登记 → 该门跳过（unknown），链上其他门照常                             |
+| drift 门 C（跨轨）                 | ✅                                              | 无知识轨快照登记 → 该门跳过                                                           |
+| 图校验                             | ✅                                              | 只查**链接完整性**（悬空指向 = error）；**链不完整永不 error**（独立架构节点 = info） |
 
 **推论**：链的「完整性」只在一个地方被强制——**生成流**（管线门控：无验收 PRD 不生成技术架构）；图、面板、索引、drift 对部分链一律如实呈现、绝不拦路。这与 ThinkRail 的入口分诊同构（空仓 / 存量代码 / 已有 spec 三种入口都合法，不强制从零走全流程）。
 
@@ -164,15 +175,16 @@ AGENTS.md 安全不变量：root 参数化 IPC 必须经 `resolveRegisteredRoot(
 
 ## 3. 风险与开放决策
 
-| # | 项 | 状态 | 处置 |
-| --- | --- | --- | --- |
-| R1 | 设计链迁移的**套件版本语义**核对 | **已核对（T3.0，2026-09-19）** | `save_suite_arch` 走 `appendDesignSuiteVersion`（版本 append + head-moved 契约），arch/PRD 均为**版本 content 的字段而非独立文件**，验证门在写入边界二次执行——深度耦合坐实，**定稿降级路线**（登记锚点，权威不动） |
-| R5 | PRD 栏目读写源迁移比 tabArch 只读迁移风险高一档（编辑面） | **已定稿：降级路线**（2026-09-19） | 锚点不带 artifacts（套件文档是 content 字段非文件，假路径会误触 gate B）；权威转移立 T3.5 二期 |
-| R2 | 终端用户项目无 `.deeporca/specs/` 目录 | 必然场景 | 面板空态引导（§1.4），SpecIndex 对缺失目录返回空图不报错 |
-| R3 | spec 域当前版与套件版本集的一致性（归档时机） | 设计已定 | 唯一权威 + append-only 归档（§1.5）；T3.2 回归用例钉住「归档后读当前版仍指 spec 域」 |
-| R4 | navigating-specs 依赖 LLM 遵循技能指引（无机械门） | 接受 | 与仓库既有技能同水位；drift 徽标（§1.6）提供机械对账锚点补位；T1.3 验收走查待真实特性使用 |
-| R5 | PRD 栏目读写源迁移比 tabArch 只读迁移风险高一档（编辑面） | **已定稿：降级路线**（T3.0，2026-09-19） | 锚点不带 artifacts（套件文档是 content 字段非文件，假路径会误触 gate B）；权威转移立 T3.5 二期 |
-| R6 | drift detection 语义级 diff（archify IR vs Mermaid 结构对齐） | 开放 | 门 A/B/C 机械级先行；价值实证后再立项语义层 |
+| #   | 项                                                                                | 状态                                     | 处置                                                                                                                                                                                                               |
+| --- | --------------------------------------------------------------------------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| R1  | 设计链迁移的**套件版本语义**核对                                                  | **已核对（T3.0，2026-09-19）**           | `save_suite_arch` 走 `appendDesignSuiteVersion`（版本 append + head-moved 契约），arch/PRD 均为**版本 content 的字段而非独立文件**，验证门在写入边界二次执行——深度耦合坐实，**定稿降级路线**（登记锚点，权威不动） |
+| R2  | 终端用户项目无 `.deeporca/specs/` 目录                                            | 必然场景                                 | 面板空态引导（§1.4），SpecIndex 对缺失目录返回空图不报错                                                                                                                                                           |
+| R3  | spec 域当前版与套件版本集的一致性（归档时机）                                     | 设计已定                                 | 唯一权威 + append-only 归档（§1.5）；T3.2 回归用例钉住「归档后读当前版仍指 spec 域」                                                                                                                               |
+| R4  | navigating-specs 依赖 LLM 遵循技能指引（无机械门）                                | 接受                                     | 与仓库既有技能同水位；drift 徽标（§1.6）提供机械对账锚点补位；T1.3 验收走查待真实特性使用                                                                                                                          |
+| R5  | PRD 栏目读写源迁移比 tabArch 只读迁移风险高一档（编辑面）                         | **已定稿：降级路线**（T3.0，2026-09-19） | 锚点不带 artifacts（套件文档是 content 字段非文件，假路径会误触 gate B）；权威转移立 T3.5 二期                                                                                                                     |
+| R6  | drift detection 语义级 diff（archify IR vs Mermaid 结构对齐）                     | 开放                                     | 门 A/B/C 机械级先行；价值实证后再立项语义层                                                                                                                                                                        |
+| R7  | specs:open 残余面：`.deeporca/specs` 自身符号链接重定基（攻击者需文件系统写权限） | **已接受残差**（2026-09 两轮复审）       | `.md` 门槛后 reach 收敛为「打开工作区内任意 markdown」，严格被既有 `EditorOpenSystem` 面（renderer 本可开根下任意文件）支配——零增量能力，不再收紧（收紧会误伤根内合法符号链接布局）                                |
+| R8  | 登记锚点被手工接管后注册永久静默跳过                                              | 已缓解                                   | writer no-clobber 守卫（frontmatter 不可解析 + 正文含锚点标记 → 不覆写）+ 返回 `skipped-unparseable-anchor` 状态由动作层 emit 提示（不再无声）；恢复需人工修文件                                                   |
 
 ## 4. 后续延伸（不进本 spec，落地后视需求各自立项）
 

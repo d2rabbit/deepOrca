@@ -1857,15 +1857,26 @@ export const prototypeArchRun: ActionRun<PrototypeArchInput, PrototypeArchOutput
     // 仍是唯一权威（arch 为版本 content 字段，非独立文件），此处仅在 spec 域
     // 播种两个指针锚点（product-design + architecture）让设计链入图。注册
     // 失败绝不拖垮设计动作——best-effort。
+    let anchorSkipNote: string | null = null;
     try {
-      await ensureDesignChainRegistration(ctx.projectRoot, { suiteId, versionId });
+      const registered = await ensureDesignChainRegistration(ctx.projectRoot, { suiteId, versionId });
+      if (registered.status === "skipped-unparseable-anchor") {
+        // Not an error (design action must not fail on spec-domain seeding),
+        // but never silent: an unparseable anchor file is hand-owned now and
+        // stays out of the graph until a human fixes it — no future save
+        // re-registers it (writer no-clobber guard). Folded into the FINAL
+        // saved message on purpose: the progress surface is a single-line
+        // status (last message wins) — a separate earlier emit would be
+        // visually overwritten by this very "saved" line.
+        anchorSkipNote = ` — spec anchor skipped (hand-edited, unparsable): ${registered.file}`;
+      }
     } catch {
       // honest no-op: the graph misses this chain until the next save
     }
     ctx.emit({
-      message: "Technical architecture document saved",
+      message: `Technical architecture document saved${anchorSkipNote ?? ""}`,
       percent: 100,
-      data: { code: "prototype.arch.saved" },
+      data: anchorSkipNote ? { code: "prototype.arch.anchorSkipped" } : { code: "prototype.arch.saved" },
     });
     return { ok: true, artifactRef: saved.artifactRef, refreshStore: !saved.artifactRef };
   } catch (error) {

@@ -20,7 +20,13 @@ import assert from "node:assert/strict";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import * as os from "node:os";
-import { safePathWithinRoot, safeWikiPath, isStrictlyRelative, safeArchmapPath } from "../main/safe-path.js";
+import {
+  safePathWithinRoot,
+  safeWikiPath,
+  isStrictlyRelative,
+  safeArchmapPath,
+  safeSpecsPath,
+} from "../main/safe-path.js";
 
 async function withTempTree(fn: (dir: string) => Promise<void>): Promise<void> {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "safe-path-"));
@@ -308,5 +314,107 @@ test("safeArchmapPath: absolute path to another tree's archmap is rejected", asy
     } finally {
       await fs.rm(other, { recursive: true, force: true });
     }
+  });
+});
+
+// ── safeSpecsPath (2026-09 swarm review) ────────────────────────────────────
+
+async function withSpecsTree(fn: (root: string) => Promise<void>): Promise<void> {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "safe-specs-"));
+  try {
+    await fs.mkdir(path.join(dir, ".deeporca", "specs", "suite-a"), { recursive: true });
+    await fs.writeFile(path.join(dir, ".deeporca", "specs", "suite-a", "architecture.md"), "arch");
+    await fs.writeFile(path.join(dir, ".deeporca", "specs", "notes.md"), "notes");
+    await fs.writeFile(path.join(dir, ".deeporca", "specs", "..draft.md"), "dotdot-named");
+    await fs.writeFile(path.join(dir, ".deeporca", "specs", "evil.sh"), "#!/bin/sh\n");
+    await fs.mkdir(path.join(dir, ".deeporca", "designs"), { recursive: true });
+    await fs.writeFile(path.join(dir, ".deeporca", "designs", "other.md"), "other");
+    await fs.writeFile(path.join(dir, "secret.md"), "secret");
+    await fn(dir);
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+}
+
+test("safeSpecsPath: legitimate spec markdown under the specs root resolves", async () => {
+  await withSpecsTree(async (dir) => {
+    const result = safeSpecsPath(dir, ".deeporca/specs/suite-a/architecture.md");
+    assert.equal(result.ok, true);
+    if (result.ok) {
+      assert.equal(result.absPath, path.resolve(dir, ".deeporca", "specs", "suite-a", "architecture.md"));
+    }
+    // Root-level spec file (the deriveId id-collapse domain) also resolves.
+    assert.equal(safeSpecsPath(dir, ".deeporca/specs/notes.md").ok, true);
+  });
+});
+
+test("safeSpecsPath: uppercase .MD matches the case-insensitive indexer gate", async () => {
+  await withSpecsTree(async (dir) => {
+    await fs.writeFile(path.join(dir, ".deeporca", "specs", "NOTE.MD"), "---\ntype: design\n---\n");
+    // collectMarkdownFiles lowercases the extension check — the opener's gate
+    // must agree or the panel lists nodes that refuse to open (iter-2 review).
+    const result = safeSpecsPath(dir, ".deeporca/specs/NOTE.MD");
+    assert.equal(result.ok, true, JSON.stringify(result));
+  });
+});
+
+test("safeSpecsPath: non-.md target is rejected before any fs work (not-markdown)", async () => {
+  await withSpecsTree(async (dir) => {
+    // The executable-in-specs shape the swarm review flagged: the specs tree
+    // is agent-writable, and shell.openPath on it is one click from execution.
+    const result = safeSpecsPath(dir, ".deeporca/specs/evil.sh");
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.equal(result.reason, "not-markdown");
+  });
+});
+
+test("safeSpecsPath: markdown inside the workspace but outside the specs domain is rejected", async () => {
+  await withSpecsTree(async (dir) => {
+    for (const rel of [".deeporca/designs/other.md", "secret.md", "../../outside.md"]) {
+      const result = safeSpecsPath(dir, rel);
+      assert.equal(result.ok, false, rel);
+      if (!result.ok) assert.equal(result.reason, "escapes-root", rel);
+    }
+  });
+});
+
+test("safeSpecsPath: a file literally named ..x.md under specs is not over-matched", async () => {
+  await withSpecsTree(async (dir) => {
+    // `startsWith("..")` would falsely reject this legal child — the check
+    // is now `=== ".." || startsWith("../")`.
+    assert.equal(safeSpecsPath(dir, ".deeporca/specs/..draft.md").ok, true);
+  });
+});
+
+test("safeSpecsPath: symlink inside specs escaping the domain is rejected", async () => {
+  await withSpecsTree(async (dir) => {
+    if (process.platform === "win32") {
+      return;
+    }
+    // secret.md is inside the project root but OUTSIDE the specs subdomain —
+    // layer 1 alone would allow it; the re-anchor layer must catch it.
+    await fs.symlink(path.join(dir, "secret.md"), path.join(dir, ".deeporca", "specs", "leak.md"));
+    const result = safeSpecsPath(dir, ".deeporca/specs/leak.md");
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.equal(result.reason, "escapes-root");
+    // And one pointing fully outside the root.
+    const outsideTarget = path.join(os.tmpdir(), `outside-specs-${Date.now()}.md`);
+    await fs.writeFile(outsideTarget, "stolen");
+    try {
+      await fs.symlink(outsideTarget, path.join(dir, ".deeporca", "specs", "leak2.md"));
+      assert.equal(safeSpecsPath(dir, ".deeporca/specs/leak2.md").ok, false);
+    } finally {
+      await fs.rm(outsideTarget, { force: true });
+    }
+  });
+});
+
+test("safeSpecsPath: absolute and drive-letter paths are rejected", async () => {
+  await withSpecsTree(async (dir) => {
+    // Non-md absolute → not-markdown; md absolute → escapes-root.
+    assert.equal(safeSpecsPath(dir, "/etc/passwd").ok, false);
+    assert.equal(safeSpecsPath(dir, "/etc/hosts.md").ok, false);
+    assert.equal(safeSpecsPath(dir, "C:\\evil.md").ok, false);
+    assert.equal(safeSpecsPath(dir, "../../etc/passwd.md").ok, false);
   });
 });
