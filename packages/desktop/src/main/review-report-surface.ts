@@ -44,7 +44,10 @@ export function withReviewReportSurface(
     input?: unknown,
     execOpts?: ExecuteOptions
   ): RunHandle<unknown> => {
-    if (id !== "review.full") return registry.execute<unknown>(id, input, execOpts);
+    // Registered-root guard for EVERY root-taking action (full-domain audit
+    // 2026-09: index.build-all also reads input.root and spawns git/wiki CLIs
+    // under it — an unvalidated root is the AGENTS.md invariant violation,
+    // not just a review.full concern).
     const inputRoot = (input as { root?: unknown } | undefined)?.root;
     if (typeof inputRoot === "string" && inputRoot && !deps.isKnownRoot(inputRoot)) {
       return {
@@ -53,6 +56,7 @@ export function withReviewReportSurface(
         cancel: () => {},
       };
     }
+    if (id !== "review.full") return registry.execute<unknown>(id, input, execOpts);
     const handle = registry.execute<unknown>(id, input, execOpts);
     // Progress subscribers registered through this wrapper (action-ipc) also
     // receive the synthetic post-save event below, so an open review tab can

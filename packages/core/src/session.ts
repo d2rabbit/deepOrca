@@ -44,6 +44,7 @@ export { LlmStreamIdleTimeoutError, withStreamIdleTimeout } from "./session-stre
 export { getLastPromptTokens, getFreshInputTokens } from "./session-usage";
 
 import { SessionManagerDepth } from "./session-manager-depth";
+import { clearSessionState } from "./common/state";
 
 export class SessionManager extends SessionManagerDepth {
   dispose(): void {
@@ -63,6 +64,13 @@ export class SessionManager extends SessionManagerDepth {
     this.sessionAuditLogs.clear();
     this.bashSandboxBySession.clear();
     this.bashBackendBySession.clear();
+    // Free the module-level per-session file-state maps for THIS manager's
+    // sessions (full-domain audit 2026-09: they hold FULL file contents and
+    // previously survived disposal — desktop swaps managers on every project
+    // switch, so retired workspaces leaked their snippets for process life).
+    for (const entry of this.listSessions()) {
+      clearSessionState(entry.id);
+    }
     this.mcpManager.disconnect();
     // Flush any pending debounced index write before teardown. Best-effort:
     // a disk failure here must not abort the remaining teardown steps (A2UI

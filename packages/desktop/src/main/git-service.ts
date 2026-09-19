@@ -318,6 +318,12 @@ export async function commitDiff(cwd: string, hash: string, file?: string): Prom
   if (!trimmed) {
     return { file: "", diff: "", binary: false };
   }
+  // A leading dash makes git parse the ref as an option (full-domain audit
+  // 2026-09: `git show --output=<path>` is an arbitrary-file-write primitive;
+  // same rejection checkout/stashCheckout already apply).
+  if (trimmed.startsWith("-")) {
+    return { file: trimmed, diff: "# invalid commit ref (leading dash)", binary: false };
+  }
   try {
     const args = ["show", "--no-color", trimmed];
     if (file) {
@@ -333,7 +339,7 @@ export async function commitDiff(cwd: string, hash: string, file?: string): Prom
 /** Files touched by a commit (`git show --name-status`). Soft-fails to `[]`. */
 export async function commitFiles(cwd: string, hash: string): Promise<GitCommitFileEntry[]> {
   const trimmed = hash.trim();
-  if (!trimmed) {
+  if (!trimmed || trimmed.startsWith("-")) {
     return [];
   }
   try {

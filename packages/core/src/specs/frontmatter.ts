@@ -58,7 +58,10 @@ export function parseFrontmatter(text: string): SpecFrontmatter | null {
   if (closeFence === -1) return null;
   // The closing fence must be its own line (optionally followed by \n or EOF).
   const afterFence = text.slice(closeFence + 4);
-  if (afterFence && !afterFence.startsWith("\n")) return null;
+  // Accept \n or \r\n (full-domain audit 2026-09: CRLF-authored specs —
+  // Windows editors are a first-class environment here — silently degraded
+  // to loose prose and then tripped the writer's no-clobber guard forever).
+  if (afterFence && !afterFence.startsWith("\n") && !afterFence.startsWith("\r\n")) return null;
 
   const block = text.slice(firstLineEnd + 1, closeFence);
   const data: SpecFrontmatter = {};

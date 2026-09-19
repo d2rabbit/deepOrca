@@ -868,6 +868,10 @@ export abstract class SessionManagerPersistence extends SessionManagerSkills {
   protected removeSessionMessages(sessionIds: string[]): void {
     for (const sessionId of sessionIds) {
       this.sessionAuditLogs.delete(sessionId);
+      // Drop the in-memory transcript cache too (full-domain audit 2026-09):
+      // a stale hit resurrected deleted sessions via listSessionMessages,
+      // and a late background append re-created the JSONL as an orphan.
+      this.messageCache.delete(sessionId);
       this.bashSandboxBySession.delete(sessionId);
       this.bashBackendBySession.delete(sessionId);
       const { projectDir } = this.getProjectStorage();
@@ -1469,7 +1473,8 @@ export abstract class SessionManagerPersistence extends SessionManagerSkills {
       status === "completed" ||
       status === "interrupted" ||
       status === "ask_permission" ||
-      status === "permission_denied"
+      status === "permission_denied" ||
+      status === "paused"
     ) {
       return status;
     }

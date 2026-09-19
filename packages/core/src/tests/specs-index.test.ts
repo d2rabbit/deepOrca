@@ -250,6 +250,45 @@ test("registration result aggregates mixed outcomes with an accurate file", asyn
   assert.ok(archAfter.includes("version: v2"), `arch should have moved to v2: ${archAfter.slice(0, 120)}`);
 });
 
+test("CRLF-authored spec files parse as nodes, not loose prose", async () => {
+  resetSpecIndexCache();
+  const root = await makeRoot();
+  // Windows editors emit CRLF (the repo is developed cross-platform); the
+  // frontmatter close-fence check used to reject \r\n and silently degraded
+  // the whole file to loose prose (full-domain audit 2026-09).
+  await write(
+    root,
+    ".deeporca/specs/win/suite.md",
+    "---\r\nid: win\r\ntype: design\r\nstatus: active\r\n---\r\n\r\n# Win Suite\r\n"
+  );
+  const { nodes, loose } = { nodes: (await getSpecGraph(root)).nodes, loose: [] };
+  assert.ok(
+    nodes.some((n) => n.id === "win"),
+    `node missing: ${JSON.stringify(nodes)}`
+  );
+  const issues = await validateSpecs(root);
+  assert.ok(
+    !issues.some((issue) => issue.path.includes("win/suite") && issue.code === "loose-file"),
+    `wrongly loose: ${JSON.stringify(issues)}`
+  );
+});
+
+test("mid-path traversal in artifacts is flagged and never stat-ed (escapesRoot hardening)", async () => {
+  resetSpecIndexCache();
+  const root = await makeRoot();
+  await write(
+    root,
+    ".deeporca/specs/suite-c/design.md",
+    `---\nid: suite-c\ntype: design\nstatus: active\nartifacts:\n  - a/../../outside.md\n---\n\n# C\n`
+  );
+  const issues = await validateSpecs(root);
+  // The prefix-only check used to let `a/../../x` through (full-domain audit
+  // 2026-09) — gate B/C then stat-ed outside the registered root.
+  const escape = issues.find((issue) => issue.code === "artifact-escapes-root");
+  assert.ok(escape, `escapes-root missing: ${JSON.stringify(issues)}`);
+  assert.equal(escape.data?.artifact, "a/../../outside.md");
+});
+
 test("a parentless tasks node gets the <dir>#tasks info hint (not silence)", async () => {
   resetSpecIndexCache();
   const root = await makeRoot();

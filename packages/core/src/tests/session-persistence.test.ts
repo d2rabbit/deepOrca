@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import * as fs from "fs";
 import * as path from "path";
 import { GitFileHistory } from "../common/file-history";
-import { clearSessionState } from "../common/state";
+import { clearSessionState, hasSessionState, markFileRead } from "../common/state";
 import { SessionManager, type SessionMessage } from "../session";
 import {
   setHomeDir,
@@ -1481,4 +1481,51 @@ test("normalizeSessionEntry tolerates a missing or non-string workspaceDir", () 
   assert.equal(normalize({ id: "s1" }).workspaceDir, undefined);
   assert.equal(normalize({ id: "s2", workspaceDir: 42 }).workspaceDir, undefined);
   assert.equal(normalize({ id: "s3", workspaceDir: ".deeporca/sessions/s3" }).workspaceDir, ".deeporca/sessions/s3");
+});
+
+test("paused status round-trips through the index (normalizeSessionStatus whitelist)", async () => {
+  const workspace = createTempDir("deepcode-paused-roundtrip-workspace-");
+  const home = createTempDir("deepcode-paused-roundtrip-home-");
+  setHomeDir(home);
+  const manager = createMockedClientSessionManager(workspace);
+  const sessionId = await manager.createSession({ text: "hello" });
+  (manager as unknown as { markSessionPaused: (id: string) => void }).markSessionPaused(sessionId);
+  manager.flushSessionsIndex();
+  // A fresh manager over the same project dir reloads the index from disk.
+  const reloaded = createMockedClientSessionManager(workspace);
+  const entry = reloaded.listSessions().find((candidate) => candidate.id === sessionId);
+  assert.ok(entry, "session entry missing after reload");
+  // The whitelist used to drop "paused" → "pending" (full-domain audit 2026-09).
+  assert.equal(entry.status, "paused");
+});
+
+test("deleting a session drops its cached transcript (no ghost reads, no orphan resurrection)", async () => {
+  const workspace = createTempDir("deepcode-cache-ghost-workspace-");
+  const home = createTempDir("deepcode-cache-ghost-home-");
+  setHomeDir(home);
+  const manager = createMockedClientSessionManager(workspace);
+  const sessionId = await manager.createSession({ text: "hello" });
+  // Populate the in-memory message cache with a read.
+  assert.ok(manager.listSessionMessages(sessionId).length > 0, "messages should exist");
+  manager.deleteSession(sessionId);
+  // Stale cache hit used to return the deleted transcript (full-domain audit
+  // 2026-09); now it must degrade to empty.
+  assert.deepEqual(manager.listSessionMessages(sessionId), []);
+});
+
+test("dispose frees the module-level file-state maps for the manager's sessions", async () => {
+  const workspace = createTempDir("deepcode-dispose-state-workspace-");
+  const home = createTempDir("deepcode-dispose-state-home-");
+  setHomeDir(home);
+  const manager = createMockedClientSessionManager(workspace);
+  const sessionId = await manager.createSession({ text: "hello" });
+  markFileRead(sessionId, path.join(workspace, "some-file.ts"), {
+    content: "full file content that must not outlive the manager",
+    timestamp: Date.now(),
+  });
+  assert.equal(hasSessionState(sessionId), true);
+  manager.dispose();
+  // Desktop swaps managers per project switch — retired state used to leak
+  // for process life (full-domain audit 2026-09).
+  assert.equal(hasSessionState(sessionId), false);
 });

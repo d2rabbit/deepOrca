@@ -274,7 +274,11 @@ function isPrototypesArtifact(rel: string): boolean {
 
 function escapesRoot(rel: string): boolean {
   const normalized = toPosix(rel);
-  return normalized.startsWith("/") || normalized.startsWith("../") || normalized === ".." || /:[/\\]/.test(normalized);
+  // ANY `..` segment escapes, not just a leading one (full-domain audit
+  // 2026-09: `a/../../x` slipped past the prefix check and gave gate B/C a
+  // stat oracle outside the registered root).
+  if (normalized.split("/").includes("..")) return true;
+  return normalized.startsWith("/") || /:[/\\]/.test(normalized);
 }
 
 /** Build the current graph (revalidating first) with per-node drift findings. */
