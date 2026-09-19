@@ -285,3 +285,126 @@ test("compaction respects the family default when no override is set", async () 
     "no compaction below the family default — registry behavior unchanged"
   );
 });
+
+test("compactSession reports applied:false when the pairing guard rejects the range", async () => {
+  setHomeDir(createTempDir("deepcode-compact-guard-status-home-"));
+  const workspace = createTempDir("deepcode-compact-guard-status-workspace-");
+  const manager = new SessionManager({
+    projectRoot: workspace,
+    // A REAL client shape is required — compactSession's first early return
+    // fires on a null client and would mask the pairing guard entirely.
+    // create() throwing doubles as proof the guard turned back BEFORE any
+    // LLM summary call.
+    createOpenAIClient: () => ({
+      client: {
+        chat: {
+          completions: {
+            create: async () => {
+              throw new Error("pairing guard must turn back before any summary call");
+            },
+          },
+        },
+      } as never,
+      model: "test-model",
+      baseURL: "https://api.deepseek.com",
+      thinkingEnabled: false,
+    }),
+    getResolvedSettings: () => ({ model: "test-model" }),
+    renderMarkdown: (text) => text,
+    onAssistantMessage: () => {},
+  });
+  const sessionId = await manager.createSession({ text: "" });
+  const internal = manager as unknown as {
+    appendSessionMessage: (sessionId: string, message: unknown) => void;
+  };
+  const msg = (over: Partial<Record<string, unknown>> & { id: string; role: string }) => ({
+    sessionId,
+    contentParams: null,
+    messageParams: null,
+    compacted: false,
+    visible: true,
+    createTime: "2026-01-01T00:00:00.000Z",
+    updateTime: "2026-01-01T00:00:00.000Z",
+    ...over,
+  });
+  // ORPHAN tool result (no matching assistant tool_call) sits INSIDE the
+  // compactable middle — users before AND after it, so the range search puts
+  // it between startIndex and endIndex and the pairing guard must refuse to
+  // summarize across it → applied:false (wedge short-circuit's precondition,
+  // full-domain audit round-2). A trailing-only orphan never reaches the
+  // guard (endIndex lands before it) — fixture orientation is load-bearing.
+  for (let i = 0; i < 8; i += 1) {
+    internal.appendSessionMessage(sessionId, msg({ id: `u${i}`, role: "user", content: `m${i}` }));
+  }
+  internal.appendSessionMessage(
+    sessionId,
+    msg({ id: "orphan", role: "tool", content: "orphan result", messageParams: { tool_call_id: "no-such-call" } })
+  );
+  for (let i = 8; i < 12; i += 1) {
+    internal.appendSessionMessage(sessionId, msg({ id: `u${i}`, role: "user", content: `m${i}` }));
+  }
+  const outcome = await manager.compactSession(sessionId);
+  assert.equal(outcome.applied, false, "guard-rejected compaction must report applied:false");
+});
+
+test("compactSession reports applied:true when Stage A trimming alone suffices", async () => {
+  setHomeDir(createTempDir("deepcode-compact-stagea-status-home-"));
+  const workspace = createTempDir("deepcode-compact-stagea-status-workspace-");
+  const manager = new SessionManager({
+    projectRoot: workspace,
+    createOpenAIClient: () => ({
+      client: {
+        chat: {
+          completions: {
+            create: async () => {
+              throw new Error("stage A must skip the LLM summary entirely");
+            },
+          },
+        },
+      } as never,
+      model: "test-model",
+      baseURL: "https://api.deepseek.com",
+      thinkingEnabled: false,
+    }),
+    getResolvedSettings: () => ({ model: "test-model" }),
+    renderMarkdown: (text) => text,
+    onAssistantMessage: () => {},
+  });
+  const sessionId = await manager.createSession({ text: "" });
+  const internal = manager as unknown as {
+    buildAssistantMessage: (sessionId: string, content: string, toolCalls: unknown[]) => unknown;
+    appendSessionMessage: (sessionId: string, message: unknown) => void;
+  };
+  const toolCall = { id: "call-big", type: "function", function: { name: "bash", arguments: "{}" } };
+  internal.appendSessionMessage(sessionId, internal.buildAssistantMessage(sessionId, "running", [toolCall]));
+  for (let i = 0; i < 10; i += 1) {
+    internal.appendSessionMessage(sessionId, {
+      id: `tool-big-${i}`,
+      sessionId,
+      role: "tool",
+      content: "z".repeat(TOOL_RESULT_TRUNCATION_THRESHOLD_CHARS + 4096),
+      contentParams: null,
+      messageParams: { tool_call_id: "call-big" },
+      compacted: false,
+      visible: true,
+      createTime: "2026-01-01T00:00:00.000Z",
+      updateTime: "2026-01-01T00:00:00.000Z",
+    });
+  }
+  // Tail user message: the compaction range's endIndex search needs a
+  // non-tool closer after the tool cluster.
+  internal.appendSessionMessage(sessionId, {
+    id: "user-tail",
+    sessionId,
+    role: "user",
+    content: "continue",
+    contentParams: null,
+    messageParams: null,
+    compacted: false,
+    visible: true,
+    createTime: "2026-01-01T00:00:00.000Z",
+    updateTime: "2026-01-01T00:00:00.000Z",
+  });
+  const outcome = await manager.compactSession(sessionId);
+  assert.equal(outcome.applied, true, "Stage-A trim path must report applied:true");
+});

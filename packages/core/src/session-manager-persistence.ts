@@ -1371,6 +1371,26 @@ export abstract class SessionManagerPersistence extends SessionManagerSkills {
     return `${sessionId}:${String(processId)}`;
   }
 
+  /**
+   * Kill every live process tracked under `ownerId` (a session OR a
+   * background-task id — task bash children enter tracking since audit
+   * round-2). Used when a background task is cancelled mid-bash: the adopted
+   * abort stops the loop at the next call boundary, but the in-flight child
+   * used to be invisible to every kill path and ran to its own timeout.
+   */
+  protected killProcessesForOwner(ownerId: string): void {
+    const prefix = `${ownerId}:`;
+    for (const processControlKey of Array.from(this.liveProcessKeys)) {
+      if (!processControlKey.startsWith(prefix)) continue;
+      const processId = this.getProcessIdFromControlKey(processControlKey);
+      if (processId === null) {
+        this.liveProcessKeys.delete(processControlKey);
+        continue;
+      }
+      this.killTrackedProcess(processControlKey, processId);
+    }
+  }
+
   protected killLiveProcesses(): void {
     for (const processControlKey of Array.from(this.liveProcessKeys)) {
       const processId = this.getProcessIdFromControlKey(processControlKey);

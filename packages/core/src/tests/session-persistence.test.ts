@@ -1529,3 +1529,50 @@ test("dispose frees the module-level file-state maps for the manager's sessions"
   // for process life (full-domain audit 2026-09).
   assert.equal(hasSessionState(sessionId), false);
 });
+
+test("killProcessesForOwner kills only that owner's tracked processes (task-cancel path)", async () => {
+  const workspace = createTempDir("deepcode-kill-owner-workspace-");
+  const home = createTempDir("deepcode-kill-owner-home-");
+  setHomeDir(home);
+  const manager = createMockedClientSessionManager(workspace);
+  const internal = manager as unknown as {
+    addSessionProcess: (sessionId: string, pid: string | number, command: string) => void;
+    killProcessesForOwner: (ownerId: string) => void;
+    liveProcessKeys: Set<string>;
+  };
+  // Fake pids: kill attempts fail harmlessly (no such process) — the
+  // contract under test is TRACKING visibility + scoped cleanup, not signals.
+  internal.addSessionProcess("task-A", 99901, "bash sleep 300");
+  internal.addSessionProcess("task-A", 99902, "bash sleep 300");
+  internal.addSessionProcess("task-B", 99903, "bash sleep 300");
+  assert.equal(internal.liveProcessKeys.size, 3);
+  internal.killProcessesForOwner("task-A");
+  assert.deepEqual([...internal.liveProcessKeys].sort(), ["task-B:99903"], "only the owner's keys are cleared");
+});
+
+test("task bash tracking is wired into the background executor (source guard)", () => {
+  // Full-domain audit round-2: runBackgroundLlmTask's executeToolCalls used
+  // to pass ONLY shouldStop — an in-flight bash was invisible to every kill
+  // path after cancel. The four process hooks are load-bearing.
+  const src = fs.readFileSync(path.join(process.cwd(), "../session-manager-tasks.ts"), "utf8");
+  const call = src.slice(src.indexOf("this.toolExecutor.executeToolCalls("));
+  const wiring = call.slice(0, call.indexOf("pathGrant"));
+  for (const hook of ["onProcessStart", "onProcessExit", "onProcessStdout", "onProcessTimeoutControl"]) {
+    assert.ok(wiring.includes(hook), `task executor must wire ${hook}`);
+  }
+});
+
+test("interruptSession flushes the index (terminal decision bypasses the debounce)", async () => {
+  const workspace = createTempDir("deepcode-interrupt-flush-workspace-");
+  const home = createTempDir("deepcode-interrupt-flush-home-");
+  setHomeDir(home);
+  const manager = createMockedClientSessionManager(workspace);
+  const sessionId = await manager.createSession({ text: "hello" });
+  manager.interruptSession(sessionId);
+  // A FRESH manager reads the index from disk — the debounced write would
+  // still be pending and the on-disk entry would lag (audit round-2).
+  const reloaded = createMockedClientSessionManager(workspace);
+  const entry = reloaded.listSessions().find((candidate) => candidate.id === sessionId);
+  assert.ok(entry, "entry missing after reload");
+  assert.equal(entry.status, "interrupted", "interrupted status must be on disk immediately");
+});

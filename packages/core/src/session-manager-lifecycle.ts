@@ -739,7 +739,18 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
       this.onAssistantMessage(notice, false);
       if (category === "CONTEXT_WINDOW_EXCEEDED") {
         try {
-          await this.compactSession(sessionId, sessionController.signal);
+          const outcome = await this.compactSession(sessionId, sessionController.signal);
+          if (!outcome.applied) {
+            // Wedge short-circuit (full-domain audit round-2): a guard-rejected
+            // compaction is deterministic — re-running the loop would re-send
+            // the same oversized payload and fail the turn anyway, after two
+            // more doomed round-trips. Fail ONCE with an actionable cause.
+            throw new Error(
+              "Context window exceeded and auto-compaction could not apply " +
+                "(the conversation's middle is an unpairable tool-call/result cluster, or nothing was eligible). " +
+                "Summarize or prune the session history manually, then retry."
+            );
+          }
         } catch (compactionError) {
           if (this.isAbortLikeError(compactionError) || sessionController.signal.aborted) {
             throw compactionError;
@@ -752,30 +763,30 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
     }
   }
 
-  async compactSession(sessionId: string, signal?: AbortSignal): Promise<void> {
+  async compactSession(sessionId: string, signal?: AbortSignal): Promise<{ applied: boolean }> {
     this.throwIfAborted(signal);
     const { client: sessionClient, baseURL, debugLogEnabled, model: sessionModel } = this.createOpenAIClient();
     if (!sessionClient) {
-      return;
+      return { applied: false };
     }
     // Compaction runs on the resolved background LLM (the family's fast/cheap
     // lightweight model — summarization does not need the pro model's full
     // reasoning capability).
     const { client, model } = this.createBackgroundLlm();
     if (!client) {
-      return;
+      return { applied: false };
     }
     const thinkingEnabled = false;
     const reasoningEffort = undefined;
     const temperature = COMPACTION_TEMPERATURE;
     const sessionMessages = this.listSessionMessages(sessionId).filter((message) => !message.compacted);
     if (sessionMessages.length === 0) {
-      return;
+      return { applied: false };
     }
 
     const startIndex = sessionMessages.findIndex((message) => message.role !== "system");
     if (startIndex === -1) {
-      return;
+      return { applied: false };
     }
 
     const searchStart = Math.floor(startIndex + ((sessionMessages.length - startIndex) * 2) / 3);
@@ -787,13 +798,13 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
       }
     }
     if (endIndex === -1 || endIndex <= startIndex) {
-      return;
+      return { applied: false };
     }
 
     // Pairing guard (dsh P1-2): never summarize across a broken call/result
     // pairing — retry on the next trigger instead of corrupting history.
     if (!validateCompactionPairing(sessionMessages, startIndex, endIndex)) {
-      return;
+      return { applied: false };
     }
 
     // Stage A (dsh P1-2): model-free pre-truncation of oversized tool results
@@ -821,7 +832,7 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
         // Stage A sufficed — skip the LLM summary. Reset the meter; the next
         // request re-measures (same contract as the post-summary path below).
         this.updateSessionEntry(sessionId, (entry) => ({ ...entry, activeTokens: 0, updateTime: now }));
-        return;
+        return { applied: true };
       }
     }
 
@@ -882,6 +893,7 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
     };
     sessionMessages.splice(endIndex, 0, summaryMessage);
     this.saveSessionMessages(sessionId, sessionMessages);
+    return { applied: true };
   }
 
   protected getPromptToolOptions(): { model: string; webSearchEnabled: boolean } {
@@ -1051,6 +1063,11 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
       processes: null,
       updateTime: now,
     }));
+    // Terminal user decision — bypass the 250ms debounce (same discipline as
+    // create/delete/deny, audit round-2): a crash inside the window used to
+    // leave `processing` on disk, degrading resume synthesis's sharper
+    // "provably not-started" classification to conservative "outcome-unknown".
+    this.flushSessionsIndex();
 
     const contentParts = ["Interrupted."];
     if (killedPids.length > 0) {

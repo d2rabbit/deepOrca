@@ -813,7 +813,17 @@ export abstract class SessionManagerTasks extends SessionManagerLifecycle {
             ? await this.toolExecutor.executeToolCalls(
                 taskId,
                 screened,
-                { shouldStop: () => controller.signal.aborted },
+                {
+                  shouldStop: () => controller.signal.aborted,
+                  // Process tracking (full-domain audit round-2): a task's
+                  // bash children enter liveProcessKeys — cancel/dispose can
+                  // see and kill an in-flight child instead of it running to
+                  // its own timeout after the loop stopped caring.
+                  onProcessStart: (pid, command) => this.addSessionProcess(taskId, pid, command),
+                  onProcessExit: (pid) => this.removeSessionProcess(taskId, pid),
+                  onProcessStdout: (pid, chunk) => this.onProcessStdout?.(Number(pid), chunk),
+                  onProcessTimeoutControl: (pid, control) => this.setSessionProcessTimeoutControl(taskId, pid, control),
+                },
                 { pathGrant: backgroundTaskPathGrant(targetRoot) }
               )
             : [];
@@ -865,6 +875,12 @@ export abstract class SessionManagerTasks extends SessionManagerLifecycle {
       return { content: finalContent, iterations, toolDenials, lastValidate };
     } finally {
       this.backgroundTaskIds.delete(taskId);
+      // Cancelled mid-bash: the adopted abort only stops the loop at the next
+      // call boundary — kill whatever the task still has in flight (audit
+      // round-2; dispose's killLiveProcesses remains the global backstop).
+      if (controller.signal.aborted) {
+        this.killProcessesForOwner(taskId);
+      }
       opts.signal?.removeEventListener("abort", adoptExternalAbort);
       // A2UI surface flush (root-cause hardening 2026-08-31): persistSurfaces
       // now sweeps ONLY A2UI-surface-shaped JSON (content-discriminated via

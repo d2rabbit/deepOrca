@@ -41,11 +41,19 @@ architecture.md 工具列表）。以下为**登记未修**项，按优先级排
    artifact 名是 LLM 起的）。知识面的 verify-everything 调用方不传参、
    行为不变。纯函数 `filterArtifactsSince` 回归 ×4 + 变异 ×1。
 6. ~~**视觉回读 receipt 新鲜度**~~ **已修（并入 round-2 第 1 项：spawn 前 rmSync receipt）**。
-7. **compaction 守卫失败后重发超大 payload**：`lifecycle.ts:526-536` + autoRecovery
-   同型重试——不可配对簇会话楔死至历史变化。
-8. **后台 LLM 任务 bash 不入 liveProcessKeys**：`session-manager-tasks.ts:811-819`
-   缺 process 钩子，取消后子进程跑到自身超时。
-9. **interruptSession 不 flush 索引**：250ms 窗口崩溃降级 resume 合成保真度。
+7. ~~**compaction 守卫失败后重发超大 payload**~~ **已修（round-2）**：`compactSession`
+   返回 `{applied}` 状态；autoRecovery 在 CONTEXT_WINDOW_EXCEEDED 分支检测
+   `!applied` 即刻以可行动错误单次失败（不再两轮同型 doomed 往返后楔死）。
+   回归 ×2（孤儿 tool 中段→guard applied:false 且零 LLM 调用；Stage-A
+   trim-only→applied:true）+ 变异 ×1。
+8. ~~**后台 LLM 任务 bash 不入 liveProcessKeys**~~ **已修（round-2）**：任务
+   executeToolCalls 接全四个进程钩子（start/exit/stdout/timeout-control）；
+   新增 `killProcessesForOwner(ownerId)`（前缀作用域），任务 finally 在
+   aborted 时击杀在飞子进程（dispose 的 killLiveProcesses 仍为全局兜底）。
+   回归：owner 作用域只清自身键 + 四钩子接线源守卫；变异 ×1。
+9. ~~**interruptSession 不 flush 索引**~~ **已修（round-2）**：终态用户决策与
+   create/delete/deny 同纪律绕过 250ms 去抖；回归：interrupt 后新管理器从磁盘
+   直读即得 interrupted（变异 ×1 验证）。
 
 ## 死面清理（低，可批量）
 
