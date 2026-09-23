@@ -12,7 +12,7 @@
   - _Requirement: R8, R12_
 - [x] P0.2 目录派生函数（`model-capabilities.ts` 门面层）：`thinkingMandatoryFromCatalog`（values 无 none/off ⇒ 不可关；三源印证）与 `catalogEffortValues`；接线 `openai-thinking.ts`（不可关永不发关闭态）与档位菜单校验
   - _Requirement: R8, R12_
-- [x] P0.3 `reasoningReadFields` 改目录 `interleaved.field` 驱动（无目录回退现有双字段链），支持 `reasoning_details` 数组形状（取 summary）；`openai-message-converter.ts` 接线
+- [x] P0.3 `reasoningReadFields` 改目录 `interleaved.field` 驱动（无目录回退现有双字段链），支持 `reasoning_details` 数组形状（取 summary）；接线点实际为 `session-manager-base.ts`（`effectiveReasoningReadFields`，流式读取链消费 profile——converter 不感知家族差异）
   - _Requirement: R8_
 - [x] P0.4 temperature 门控读目录 `temperature`（无目录维持现状条件发送）——接线于 session-manager-lifecycle 主循环发送点（`catalogTemperatureBlocked`）
   - _Requirement: R8_
@@ -28,7 +28,7 @@
 
 - [x] P0.7 请求构造两段式改造——落地形态与立稿略异：两段式收敛为「构造期探针否决」（`openai-thinking.ts` 经 `shouldApplyWireOptimizations` 在 builder 内决定是否叠加 patch；`session-manager-base.ts` 流式读取链经 profile 决定字段）——patch 整体可丢弃语义由 openai-thinking 的条件分支承载，语义等价（patch 不可用时回到 caller 形状）
   - _Requirement: R9_
-- [x] P0.8 端点试探机制：可归因拒绝识别（§design 五）→ `(通道,模型,维度)` 禁用记账（会话内存）→ 同轮默认态重发一次 → 结构化降级日志；**归因精确性测试**（auth/quota/限流/溢出不触发禁用）
+- [x] P0.8 端点试探机制：可归因拒绝识别（§design 五）→ `(通道,模型)` 禁用记账（会话内存；**通道键=规范化 baseURL 全串**——同 host 不同路径入口如 stepfun `/v1` 与 `/step_plan/v1` 是不同网关栈；拒绝随新用户轮次过期重试）→ 同轮默认态重发一次 → 结构化降级日志；**归因精确性测试**（auth/quota/限流/溢出不触发禁用）。维度级记账（同一通道只禁被拒维度）列 backlog
   - _Requirement: R4, R5_
 - [x] P0.9 spec 合并（2026-09-22 用户拍板）：model-fleet-adaptation 已加「已被合并取代」横幅（以本 spec 为主）；X 线五红线与已落地基建由本 spec 继承；README 两处已更新
   - _Requirement: R13（model-fleet）_
@@ -44,7 +44,7 @@
 
 ## P1 压缩与缓存（3–4 天）
 
-- [x] P1.1 压缩三档阶梯 `{warn, auto, hard}`（在既有两级触发+0.9 预检上演进）+ 摘要副查询输出预算 + **输出预留从分母扣除**（ZCode 口径：否则请求预算与压缩窗口两套常量）；**C32 刚需化**——新代统一 1M 窗口下不落本项则 ~900K 才压缩；「跟随窗口比例 vs 经济上限」经 `settings.compactTokenThreshold` 暴露为产品可配置项（文档注明触发值≠窗口）
+- [x] P1.1 压缩三档阶梯 `{warn, auto, hard}`（在既有两级触发+0.9 预检上演进）+ 摘要副查询输出预算 + **输出预留从分母扣除**（ZCode 口径：否则请求预算与压缩窗口两套常量）；**C32 刚需化**——新代统一 1M 窗口下不落本项则 ~900K 才压缩；「跟随窗口比例 vs 经济上限」经 `settings.compactTokenThreshold` 暴露为产品可配置项（文档注明触发值≠窗口）。**复审语义修正（S2-F4）**：覆盖值口径=精确触发阈值（loop-top `> 覆盖值`、预检 `≥ 覆盖值×0.9`，沿用旧精确语义不做输出预留二次折减）；阶梯仅在**无覆盖**时生效（auto 驱动预检、hard 兜底 loop-top）
   - _Requirement: R6_
 - [x] P1.2 microcompact 增强：既有 Stage-A 上加保 N 组、媒体保护、**256-token 最小节省门槛**（不够省整体回滚）；**rapid-refill 熔断**（压缩后 3 工具回合又满×3 次 → 停止+「分块读取」提示）
   - _Requirement: R6_
@@ -96,7 +96,6 @@
 
 流式错误法学完整移植（qwen 分类器）、AUTO 模式 LLM 权限分类器、max-mode propose-only、bash 输出形状清洗（MiMo Token Efficient）、omni reactive-degrade、持久化重试投影、sandbox 拒绝即教学。
 
-
 ---
 
 # 实施落地记录（2026-09-23）
@@ -109,50 +108,54 @@
 
 ## 模块清单（新增 8 / 接线 5）
 
-| 模块 | 行数级 | 职责 |
-| --- | --- | --- |
-| `common/model-profile.ts` | 新 | 白名单五段命中 + 目录派生 + 第一方判定 + proseRatioGuard（零依赖） |
-| `common/model-probe.ts` | 新 | (通道,模型) 试探记账 + 可归因拒绝判定 + 事件缓冲 |
-| `common/compaction-ladder.ts` | 新 | 三档阶梯公式 + 输出预留扣分母 + rapid-refill 熔断状态机 |
-| `common/optimization-patches.ts` | 新 | 静态 patch 表：null 删除 + 深合并 + **路径冲突检测** |
-| `common/assembly-fingerprint.ts` | 新 | 装配指纹（排除历史/空白敏感/键序规范化）+ 变更 diff |
-| `common/repeat-breaker.ts` | 新 | 循环干预阶梯 3/5/8/12 + canonical key + 四级文案 |
-| `common/edit-selfheal.ts` | 新 | read→edit 自愈：行号前缀剥离 + Unicode 归一（NFKC/引号/连字符/空格） |
-| `common/input-guard.ts` | 新 | 退化图片守卫（PNG/GIF/JPEG 魔数读尺寸，8px 下限） |
-| `common/window-observation.ts` | 新 | 观察式窗口学习（413 探针 → min(目录,观察)） |
-| `common/cache-anchors.ts` | 新 | 三锚点 + TTL 单调归一 + skipCacheWrite 前移 |
-| `common/stream-commit-boundary.ts` | 新 | 流式提交边界（可见增量=提交）+ 重试判定 |
-| 接线：model-catalog / openai-thinking / session-manager-base / session-manager-lifecycle / tools/edit-handler / tools/bash-handler | 改 | 见 tasks 各条目 |
+| 模块                                                                                                                               | 行数级 | 职责                                                                 |
+| ---------------------------------------------------------------------------------------------------------------------------------- | ------ | -------------------------------------------------------------------- |
+| `common/model-profile.ts`                                                                                                          | 新     | 白名单五段命中 + 目录派生 + 第一方判定 + proseRatioGuard（零依赖）   |
+| `common/model-probe.ts`                                                                                                            | 新     | (通道,模型) 试探记账 + 可归因拒绝判定 + 事件缓冲                     |
+| `common/compaction-ladder.ts`                                                                                                      | 新     | 三档阶梯公式 + 输出预留扣分母 + rapid-refill 熔断状态机              |
+| `common/optimization-patches.ts`                                                                                                   | 新     | 静态 patch 表：null 删除 + 深合并 + **路径冲突检测**                 |
+| `common/assembly-fingerprint.ts`                                                                                                   | 新     | 装配指纹（排除历史/空白敏感/键序规范化）+ 变更 diff                  |
+| `common/repeat-breaker.ts`                                                                                                         | 新     | 循环干预阶梯 3/5/8/12 + canonical key + 四级文案                     |
+| `common/edit-selfheal.ts`                                                                                                          | 新     | read→edit 自愈：行号前缀剥离 + Unicode 归一（NFKC/引号/连字符/空格） |
+| `common/input-guard.ts`                                                                                                            | 新     | 退化图片守卫（PNG/GIF/JPEG 魔数读尺寸，8px 下限）                    |
+| `common/window-observation.ts`                                                                                                     | 新     | 观察式窗口学习（413 探针 → min(目录,观察)）                          |
+| `common/cache-anchors.ts`                                                                                                          | 新     | 三锚点 + TTL 单调归一 + skipCacheWrite 前移                          |
+| `common/stream-commit-boundary.ts`                                                                                                 | 新     | 流式提交边界（可见增量=提交）+ 重试判定                              |
+| 接线：model-catalog / openai-thinking / session-manager-base / session-manager-lifecycle / tools/edit-handler / tools/bash-handler | 改     | 见 tasks 各条目                                                      |
 
 ## 白名单落地（requirements 支持矩阵 → 注册表）
 
-| 家族 | 白名单（26 型号） |
-| --- | --- |
-| deepseek | flash / v4-flash / v4-pro / v4-flash-vision-exp |
-| stepfun | step-5-preview / step-3.7-flash / step-router-v1 |
-| kimi | kimi-k3 / kimi-k2.7-code(-highspeed) + 别名 kimi-for-coding/kimi-code/kimi-coding |
-| minimax | MiniMax-M3（**M3.1 隐藏**） |
-| qwen | qwen3.8-flash / -max / -plus / -max-preview |
-| glm | glm-5.3 / -flash / -flashx / -highspeed |
-| mimo | mimo-v2.5 / -v2.5-pro / -v2.5-pro-ultraspeed / v2.6-pro(-ultraspeed/-flash) |
+| 家族     | 白名单（26 型号）                                                                 |
+| -------- | --------------------------------------------------------------------------------- |
+| deepseek | flash / v4-flash / v4-pro / v4-flash-vision-exp                                   |
+| stepfun  | step-5-preview / step-3.7-flash / step-router-v1                                  |
+| kimi     | kimi-k3 / kimi-k2.7-code(-highspeed) + 别名 kimi-for-coding/kimi-code/kimi-coding |
+| minimax  | MiniMax-M3（**M3.1 隐藏**）                                                       |
+| qwen     | qwen3.8-flash / -max / -plus / -max-preview                                       |
+| glm      | glm-5.3 / -flash / -flashx / -highspeed                                           |
+| mimo     | mimo-v2.5 / -v2.5-pro / -v2.5-pro-ultraspeed / v2.6-pro(-ultraspeed/-flash)       |
 
 白名单外 → matchedBy:'family'（保守默认）或 'fallback'（兜底）——**全部与升级前逐字节一致**。
 
-## 延后项（不阻塞本轮，backlog）
-
-- P1.4 技能注入评估（涉及 prompt 装配链改造，量大；试探基础已就绪）
-- P2.2 工具面收窄（涉及工具注册链改造）
-- P3.3 流式重试的**缓冲/重放执行层**（纯函数判定已落，接入 createChatCompletionStream reduce 循环为后续增量）
-- 受限表达式 DSL 完整移植（静态 patch 表已承载核心语义）
-- 真机验证清单 V.1–V.8（需桌面环境 + 各厂商 key）
-
-
 # Backlog（四期实施后的明确延后项，全部有据）
 
-| 项 | 原任务 | 延后理由 |
-| --- | --- | --- |
-| 工具结果落盘指针（spill 工件） | P1.3 后半 | 现有截断即丢弃语义 + 续读协议已可导航；落盘需新的存储生命周期 |
-| 工具面收窄（MCP 披露/模态压制） | P2.2 | getRoutedMcpTools 注册链改造 + 真机验证兜底 |
-| 受限表达式 DSL 完整移植 | P3.1 后半 | 静态 patch 表已承载核心语义（null 删除/深合并/冲突检测） |
-| 流式重试缓冲/重放执行层 | P3.3 后半 | 纯函数判定已落（stream-commit-boundary），接入 reduce 循环为增量 |
-| 真机验证 V.1–V.8 | 收官门 | 需桌面环境 + 各厂商 key |
+| 项                              | 原任务    | 延后理由                                                                |
+| ------------------------------- | --------- | ----------------------------------------------------------------------- |
+| 工具结果落盘指针（spill 工件）  | P1.3 后半 | 现有截断即丢弃语义 + 续读协议已可导航；落盘需新的存储生命周期           |
+| 工具面收窄（MCP 披露/模态压制） | P2.2      | getRoutedMcpTools 注册链改造 + 真机验证兜底                             |
+| 受限表达式 DSL 完整移植         | P3.1 后半 | 静态 patch 表已承载核心语义（null 删除/深合并/冲突检测）                |
+| 流式重试缓冲/重放执行层         | P3.3 后半 | 纯函数判定已落（stream-commit-boundary），接入 reduce 循环为增量        |
+| 试探维度级记账                  | P0.8 后半 | `(通道,模型)` 二元已承载安全语义；维度级需归因字段匹配，收益/复杂度比低 |
+| 真机验证 V.1–V.8                | 收官门    | 需桌面环境 + 各厂商 key                                                 |
+
+# 复审闭合记录（2026-09-23，bug-hunt-swarm 四路调查 S1–S4）
+
+- **thinkingMandatory toggle 勘误（R11）**：`reasoning_options` 含 `{type:"toggle"}` ⇒ 可关（models.dev 实证：deepseek=[toggle,effort]、MiniMax M3=[toggle]）；仅纯 effort 阶梯且全档不含 none/off/disabled 才判不可关。`wireFor` 对目录实证条目显式落布尔（含 false），「实证可关」与「目录不可知」三态可区分。
+- **目录第一方优先**：`buildModelIndex` 同 id 冲突时 `FIRST_PARTY_PROVIDER_IDS` 优先，消除聚合源声明漂移。
+- **P1.1 覆盖语义**：恢复旧精确语义（见 P1.1 条目注），阶梯仅无覆盖时生效。
+- **rapid-refill 熔断改 per-session**：`Map<sessionId,state>` + `Set<sessionId> tripped`——manager 级共享会让无关会话互相污染，且一次熔断永久锁死整进程。
+- **openai-thinking 消费 offEffort**：stepfun「off→low」代发恢复（mandatory 探针否决态下以低档代关）。
+- **窗口学习接真值**：溢出恢复路径以 `session.activeTokens` 为观察样本（declared-as-estimate）；`effectiveWindowTokens` 的主循环消费点随 P2.2 一起观察真机效果后接入。
+- **console 违规清除**：装配指纹日志改走 host 注入的 `logOpenAIChatCompletionDebug`；限流/探针恢复提示走 `session-prompts` 双语目录（新增 `rateLimited`/`probeFallback` 键，替代误用的「compacting」文案）。
+- **探针通道键路径粒度**：`hostname` → 规范化 baseURL 全串（同 host 不同路径入口隔离；尾斜杠等价）。
+- 复审后门禁：core 套件 **1129 pass / 0 fail**；`npm run check` 全绿。

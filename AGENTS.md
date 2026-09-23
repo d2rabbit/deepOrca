@@ -236,7 +236,10 @@ Conventional Commits (`feat:`, `fix:`, `chore:`, `refactor:`, `style:`, `test:`,
    read for stats. Session entries still mirror local counts into
    `usage`/`usagePerModel` for UI compatibility, and `activeTokens` is the
    pre-flight count of the request payload (the main loop compacts BEFORE
-   sending at `PRE_COMPACT_RATIO` × threshold). Desktop reads the ledger
+   sending — via the three-tier compaction ladder in
+   `common/compaction-ladder.ts` when no user override is set, or at
+   `PRE_COMPACT_RATIO` × the override threshold when one is). Desktop reads
+   the ledger
    read-only beside the index (`main/tools/tokens-summary.ts`, incl. the
    one-time legacy migration) under the same registered-root rules.
 

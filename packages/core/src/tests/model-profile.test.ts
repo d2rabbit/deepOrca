@@ -23,6 +23,9 @@ beforeEach(() => {
 // ── ⓪ 别名层 ────────────────────────────────────────────────────────────────
 
 test("alias: kimi-for-coding resolves to the kimi family with catalog-driven generation", () => {
+  // models.dev 实测（moonshotai/kimi-k3）：toggle 与 effort 并存 → 有
+  // toggle 即可关 → mandatory=false。切换成纯 effort 阶梯（无 toggle）的
+  // 条目才派生 mandatory=true（见 ① 白名单 toggle 用例）。
   const profile = resolveModelProfile({
     model: "kimi-for-coding",
     catalogEntry: {
@@ -35,9 +38,26 @@ test("alias: kimi-for-coding resolves to the kimi family with catalog-driven gen
   });
   assert.equal(profile.vendor, "kimi");
   assert.equal(profile.matchedBy, "model");
-  // K2.8 口径：三档与 K3 对齐 → mandatory 派生为真（无 none/off）。
-  assert.equal(profile.wire.thinkingMandatory, true);
+  // toggle 在 → 可关（models.dev toggle 语义）。
+  assert.equal(profile.wire.thinkingMandatory, false);
   assert.deepEqual(profile.wire.effortValues, ["low", "high", "max"]);
+});
+
+test("derivation: effort-only ladder without toggle → thinkingMandatory=true (qwen3.8-max-preview 实测)", () => {
+  const profile = resolveModelProfile({
+    model: "qwen3.8-max-preview",
+    catalogEntry: {
+      id: "qwen3.8-max-preview",
+      reasoning: true,
+      toolCall: true,
+      multimodal: true,
+      reasoningOptions: [{ type: "effort", values: ["low", "medium", "xhigh"] }],
+    },
+  });
+  assert.equal(profile.vendor, "qwen");
+  assert.equal(profile.matchedBy, "model");
+  assert.equal(profile.wire.thinkingMandatory, true);
+  assert.deepEqual(profile.wire.effortValues, ["low", "medium", "xhigh"]);
 });
 
 test("alias: catalog unavailable still matches the family (conservative)", () => {
@@ -231,6 +251,11 @@ test("probe: optimistic until an attributable rejection is recorded for (channel
   assert.equal(first, true); // 首次 → 调用方据此同轮重发一次
   assert.equal(shouldApplyWireOptimizations("qwen3.8-max-preview", "https://api.example.com/v1"), false);
   assert.equal(shouldApplyWireOptimizations("qwen3.8-max-preview", "https://other.example.com/v1"), true); // 通道隔离
+  // 路径级隔离：同 host 不同路径入口（stepfun /v1 vs /step_plan/v1）是
+  // 不同网关栈，一处的拒绝不波及另一处。
+  assert.equal(shouldApplyWireOptimizations("qwen3.8-max-preview", "https://api.example.com/step_plan/v1"), true);
+  // 尾斜杠等价：规范化后同键。
+  assert.equal(shouldApplyWireOptimizations("qwen3.8-max-preview", "https://api.example.com/v1/"), false);
   assert.equal(shouldApplyWireOptimizations("qwen3.8-flash", "https://api.example.com/v1"), true); // 模型隔离
   const second = recordWireOptimizationRejection("qwen3.8-max-preview", "https://api.example.com/v1", "again");
   assert.equal(second, false); // 重复记录 → 不再触发重发

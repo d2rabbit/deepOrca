@@ -75,5 +75,11 @@ export function buildThinkingRequestOptions(
   const profile = model ? resolveModelProfile({ model, catalogEntry: catalogLookupModel(model) }) : null;
   const mandatoryStillProbed = profile?.wire.thinkingMandatory && shouldApplyWireOptimizations(model ?? "", baseURL);
   const effectiveEnabled = mandatoryStillProbed ? true : thinkingEnabled;
-  return builder(effectiveEnabled, nativeEffort);
+  // 强制思考 + 用户关思考 → 投影到该家族的「关闭等效」最弱档
+  // （stepfun off→low；glm-5.3 系端点无 off 档 → 保持用户档位）。
+  let effectiveEffort = nativeEffort;
+  if (mandatoryStillProbed && !thinkingEnabled && profile?.wire.offEffort) {
+    effectiveEffort = mapThinkLevel(spec.id, profile.wire.offEffort as ReasoningEffort) as ReasoningEffort;
+  }
+  return builder(effectiveEnabled, effectiveEffort);
 }

@@ -142,19 +142,58 @@ function buildModelIndex(): Map<string, { providerId: string; raw: RawModel }> |
   if (modelIndex !== null) return modelIndex;
   const providers = parseProviders();
   if (!providers) return null;
+  // specs/model-vendor-profiles 四期修正：同一 model id 常被多个 provider
+  // 声明（聚合商/自托管），且声明互相矛盾（如 glm-5.3 首条目是 bothub、
+  // deepseek-v4-pro 首条目的 effort 阶梯缺 low）。**厂商第一方条目优先**：
+  // 碰撞时第一方胜出，聚合商只在无第一方声明时兜底（维持 first-wins 语义）。
   const index = new Map<string, { providerId: string; raw: RawModel }>();
   for (const [providerId, provider] of providers) {
     const models = provider.models;
     if (!models || typeof models !== "object" || Array.isArray(models)) continue;
     for (const [modelId, model] of Object.entries(models as Record<string, unknown>)) {
       if (!model || typeof model !== "object" || Array.isArray(model)) continue;
-      if (!index.has(modelId)) {
+      const existing = index.get(modelId);
+      if (!existing) {
+        index.set(modelId, { providerId, raw: model as RawModel });
+        continue;
+      }
+      // 碰撞：第一方 provider 挤掉聚合商条目（同 id 时以第一方为准）。
+      if (isFirstPartyProvider(providerId) && !isFirstPartyProvider(existing.providerId)) {
         index.set(modelId, { providerId, raw: model as RawModel });
       }
     }
   }
   modelIndex = index;
   return index;
+}
+
+/** 厂商第一方 provider id（models.dev 命名实测；仅用于目录去重的优先级）。 */
+const FIRST_PARTY_PROVIDER_IDS = new Set([
+  "deepseek",
+  "moonshotai",
+  "moonshotai-cn",
+  "minimax",
+  "minimax-cn",
+  "minimax-coding-plan",
+  "alibaba",
+  "alibaba-cn",
+  "alibaba-token-plan",
+  "alibaba-coding-plan",
+  "alibaba-coding-plan-cn",
+  "zhipuai",
+  "zhipuai-coding-plan",
+  "zai",
+  "zai-coding-plan",
+  "xiaomi",
+  "xiaomi-token-plan-cn",
+  "xiaomi-token-plan-ams",
+  "xiaomi-token-plan-sgp",
+  "stepfun",
+  "stepfun-step-plan",
+]);
+
+export function isFirstPartyProvider(providerId: string): boolean {
+  return FIRST_PARTY_PROVIDER_IDS.has(providerId);
 }
 
 function asFiniteNumber(value: unknown): number | undefined {

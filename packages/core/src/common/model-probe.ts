@@ -5,17 +5,23 @@
  * （HTTP 400 类且非 auth/quota/限流/溢出——那些绝不判为「优化被拒」）时，
  * 对该 `(通道, 模型)` 记禁用并**同轮以默认形态重发一次**。
  *
- * 会话内内存记账（首期不做跨会话持久化——端点配置会变）；记满即静默
- * 降级到兜底，直到进程重启。诊断经 {@link drainProbeEvents} 输出。
+ * 会话内内存记账（首期不做跨会话持久化——端点配置会变）；记录后的
+ * 降级在**进程内存活**，并随新用户轮次重新乐观试探（{@link resetWireProbe}
+ * ——端点可能在两轮之间被修复）。诊断经 {@link drainProbeEvents} 输出。
  */
 
 import { classifyLlmError, getLlmErrorDetails } from "./llm-error";
 
-/** 通道键：endpoint host（无 baseURL 时用 ""——同一进程内仍按模型区分）。 */
+/**
+ * 通道键：规范化 baseURL 全串（去尾斜杠）。host 级粒度不够——同一厂商
+ * 的不同路径入口（如 stepfun `/v1` 与 `/step_plan/v1`）可能是不同网关栈，
+ * 一处的拒绝不应波及另一处的乐观试探。无 baseURL 时用 ""——同一进程内
+ * 仍按模型区分。
+ */
 function channelKeyOf(baseURL: string | undefined): string {
   if (!baseURL) return "";
   try {
-    return new URL(baseURL).hostname.toLowerCase();
+    return new URL(baseURL).toString().replace(/\/+$/, "");
   } catch {
     return "";
   }
@@ -81,4 +87,9 @@ export function isAttributableRejection(error: unknown): boolean {
   // 语义类别复核：命中任何已知非归因类别 → 不是「优化被拒」。
   const category = classifyLlmError(error);
   return category === "UNKNOWN";
+}
+
+/** 测试/新用户轮次复位（探针拒绝随用户轮次过期——端点配置可能已变）。 */
+export function resetWireProbe(): void {
+  rejected.clear();
 }

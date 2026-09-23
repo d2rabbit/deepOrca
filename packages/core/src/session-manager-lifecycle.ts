@@ -10,12 +10,14 @@ import {
 } from "./common/resume-synthesis";
 import { countConversationTokens, countRequestPayloadTokens } from "./common/token-counter";
 import {
+  PRE_COMPACT_RATIO,
   STAGE_A_SKIP_HEADROOM,
   truncateToolResultForCompaction,
   validateCompactionPairing,
   worthTrimming,
 } from "./common/compaction";
 import {
+  COMPACTION_OUTPUT_RESERVE_TOKENS,
   computeCompactionLadder,
   observeCompaction,
   observeToolTurn,
@@ -26,6 +28,7 @@ import {
 import { accumulateUsage, accumulateUsagePerModel } from "./session-usage";
 import { buildThinkingRequestOptions } from "./common/openai-thinking";
 import { catalogLookupModel } from "./common/model-catalog";
+import { resetWireProbe } from "./common/model-probe";
 import { recordObservedWindow } from "./common/window-observation";
 import { resolveModelProfile } from "./common/model-profile";
 import { fingerprintAssembly, diffAssemblyFingerprints, type AssemblyFingerprint } from "./common/assembly-fingerprint";
@@ -36,6 +39,7 @@ import {
 } from "./common/model-probe";
 import { getSnippet, rebuildSessionStateFromHistory } from "./common/state";
 import { describeLlmError, classifyLlmError } from "./common/llm-error";
+import { logOpenAIChatCompletionDebug } from "./common/debug-logger";
 import { detectBashSandboxBackend } from "./sandbox/backend/detect";
 import { formatSessionPrompt } from "./common/session-prompts";
 import {
@@ -93,28 +97,32 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
   protected readonly laneContexts = new Map<string, ComplexityVerdict | null>();
 
   // ── P1.2 rapid-refill circuit breaker (specs/model-vendor-profiles) ──────
-  // Per-manager (per-process) state — a refill streak is session-scoped in
-  // ZCode; keeping it manager-scoped is the conservative first cut (one
-  // pathological session trips, a fresh session resets).
-  private rapidRefillState: RapidRefillState = RAPID_REFILL_INITIAL;
-  private rapidRefillTripped = false;
+  // S2-F3 修正：状态**按会话隔离**（Map），manager 级共享会让无关会话的
+  // 工具回合互相污染计数；trip 也按会话——一个恶性会话熔断只影响它自己
+  // （其余会话的自动压缩照常工作）。
+  private readonly rapidRefillBySession = new Map<string, RapidRefillState>();
+  private readonly rapidRefillTrippedSessions = new Set<string>();
+
+  private getRapidRefillState(sessionId: string): RapidRefillState {
+    return this.rapidRefillBySession.get(sessionId) ?? RAPID_REFILL_INITIAL;
+  }
 
   /** Observe one applied compaction; trips the breaker on the 3rd fast refill. */
-  protected recordCompactionOutcome(applied: boolean): void {
+  protected recordCompactionOutcome(sessionId: string, applied: boolean): void {
     if (!applied) return;
-    const signal = observeCompaction(this.rapidRefillState);
+    const signal = observeCompaction(this.getRapidRefillState(sessionId));
     if (signal.kind === "none") return;
-    this.rapidRefillState = signal.state;
+    this.rapidRefillBySession.set(sessionId, signal.state);
     if (signal.kind === "tripped") {
-      this.rapidRefillTripped = true;
+      this.rapidRefillTrippedSessions.add(sessionId);
     }
   }
 
   /** Observe one assistant turn that executed ≥1 tool call. */
-  protected recordToolTurnForBreaker(): void {
-    const signal = observeToolTurn(this.rapidRefillState);
+  protected recordToolTurnForBreaker(sessionId: string): void {
+    const signal = observeToolTurn(this.getRapidRefillState(sessionId));
     if (signal.kind === "none") return;
-    this.rapidRefillState = signal.state;
+    this.rapidRefillBySession.set(sessionId, signal.state);
   }
 
   // ── P2.1 repeat breaker state (specs/model-vendor-profiles) ───────────────
@@ -138,7 +146,8 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
   protected observeAssemblyFingerprint(
     _sessionId: string,
     messages: ReadonlyArray<{ role?: string; content?: unknown }>,
-    tools: ReadonlyArray<unknown>
+    tools: ReadonlyArray<unknown>,
+    debugLogEnabled = false
   ): void {
     let systemPrompt = "";
     for (const message of messages) {
@@ -160,15 +169,17 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
       }));
     const current = fingerprintAssembly({ systemPrompt, tools: toolDefs });
     const changed = diffAssemblyFingerprints(this.lastAssemblyFingerprint, current);
-    if (this.lastAssemblyFingerprint !== null && changed.length > 0) {
-      // Structured change log — the local answer to "why did this turn miss
-      // the prefix cache" (MiniMax pi_llm_assembly_stability_total). Uses
-      // the host-injected logger seam when present, else console (no-console
-      // is off in this repo).
-      console.info(
-        `[deeporca:assembly-fingerprint] changed=${changed.join("+")} ` +
-          `system=${current.systemPrompt} tools=${current.tools}`
-      );
+    if (debugLogEnabled && this.lastAssemblyFingerprint !== null && changed.length > 0) {
+      logOpenAIChatCompletionDebug({
+        timestamp: new Date().toISOString(),
+        location: "assembly-fingerprint",
+        sessionId: _sessionId,
+        request: {
+          changed,
+          system: current.systemPrompt,
+          tools: current.tools,
+        },
+      });
     }
     this.lastAssemblyFingerprint = current;
   }
@@ -204,6 +215,9 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
     // P2.1: a user interjection resets the repeat chain — repetition across
     // it is a new task, not a loop (kimi toolDedupe semantics).
     this.resetRepeatBreaker();
+    // P0.8: probe rejections also expire per user turn — the endpoint config
+    // may have changed, and a fresh turn deserves a fresh optimistic attempt.
+    resetWireProbe();
 
     try {
       if (!this.activeSessionId || !this.getSession(this.activeSessionId)) {
@@ -599,28 +613,31 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
         }
 
         // User override (settings.compactTokenThreshold) wins over the
-        // per-model family registry default.
-        const compactPromptTokenThreshold =
-          this.getResolvedSettings().compactTokenThreshold ?? getCompactPromptTokenThreshold(model);
-        // specs/model-vendor-profiles P1.1: three-tier ladder with the
-        // output-reserve subtracted from the denominator (ZCode/qwen
-        // convergence — "provider 的 context window 是 input+output 共享
-        // 窗口"). The user override replaces the RAW window, so the ladder is
-        // computed from it identically; warn feeds the context meter, auto
-        // drives the pre-flight trigger below, hard is the recovery floor.
-        const compactionLadder = computeCompactionLadder(compactPromptTokenThreshold);
-        // P1.2 rapid-refill breaker: once tripped, auto-compaction stops for
-        // this session (ZCode semantics — deterministic doom-loop; one clean
-        // failure with an actionable message beats two more doomed round-trips).
-        if (this.rapidRefillTripped) {
+        // per-model family registry default. P1.1 语义修正（S2-F4）：该值
+        // 的文档口径是**触发阈值**（settings.ts "trigger threshold" /
+        // model-capabilities.ts "Active-context size at which the engine
+        // compacts"）而非原始窗口——覆盖时保留旧精确语义（loop-top >
+        // 覆盖值，预检 ≥ 覆盖值×0.9），不做输出预留二次折减；仅无覆盖时
+        // 走阶梯（阶梯以声明窗口为分母，含 20K 输出预留与 13K 缓冲）。
+        const userCompactOverride = this.getResolvedSettings().compactTokenThreshold;
+        const compactPromptTokenThreshold = userCompactOverride ?? getCompactPromptTokenThreshold(model);
+        const compactionLadder = computeCompactionLadder(
+          userCompactOverride ? userCompactOverride + COMPACTION_OUTPUT_RESERVE_TOKENS : compactPromptTokenThreshold
+        );
+        // P1.2 rapid-refill breaker: per-session state (S2-F3 — manager 级
+        // 共享会让无关会话互相污染计数，且一次熔断永久锁死整个进程).
+        const rapidRefill = this.getRapidRefillState(sessionId);
+        if (this.rapidRefillTrippedSessions.has(sessionId)) {
           throw new Error(RAPID_REFILL_TRIP_MESSAGE);
         }
-        if (session.activeTokens > compactionLadder.hard) {
+        // 触发点：有覆盖 → 旧精确语义；无覆盖 → 阶梯 hard 档（兜底）。
+        const loopTopTrigger = userCompactOverride ?? compactionLadder.hard;
+        if (session.activeTokens > loopTopTrigger) {
           const message = this.buildAssistantMessage(sessionId, formatSessionPrompt("compacting"), null);
           message.meta = { asThinking: true };
           this.onAssistantMessage(message, false);
           const outcome = await this.compactSession(sessionId, sessionController.signal);
-          this.recordCompactionOutcome(outcome.applied);
+          this.recordCompactionOutcome(sessionId, outcome.applied);
         }
 
         let messages = this.messageConverter.buildMessages(this.listSessionMessages(sessionId), thinkingEnabled, model);
@@ -639,7 +656,7 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
         // provider-visible cache surfaces (system prompt + tools); a change in
         // either is the prefix-cache invalidation point. Structured log names
         // the changed parts — the local answer to "why did this turn miss".
-        this.observeAssemblyFingerprint(sessionId, messages, tools);
+        this.observeAssemblyFingerprint(sessionId, messages, tools, debugLogEnabled);
         // specs/model-vendor-profiles P0.4: catalog-declared temperature
         // capability gate — models.dev `temperature: false` endpoints (e.g.
         // kimi-k3) reject the field, so omit it there. Absent catalog entry
@@ -649,16 +666,17 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
         // Pre-flight budget (P1): count the exact payload about to hit the
         // wire and compact BEFORE sending when it nears the threshold — the
         // first oversized request no longer has to hit the wall and recover
-        // via CONTEXT_WINDOW_EXCEEDED. P1.1: the trigger is now the ladder's
-        // AUTO tier (0.85 of the reserve-deducted window, ceiling-capped) —
-        // replaces the flat 0.9-of-raw-window ratio.
+        // via CONTEXT_WINDOW_EXCEEDED. P1.1：有覆盖 → 旧精确语义
+        // （≥ 覆盖值×0.9）；无覆盖 → 阶梯 auto 档。
+        const preflightTrigger =
+          userCompactOverride !== undefined ? userCompactOverride * PRE_COMPACT_RATIO : compactionLadder.auto;
         let promptTokens = countRequestPayloadTokens(model, { messages, tools });
-        if (promptTokens >= compactionLadder.auto) {
+        if (promptTokens >= preflightTrigger) {
           const notice = this.buildAssistantMessage(sessionId, formatSessionPrompt("compacting"), null);
           notice.meta = { asThinking: true };
           this.onAssistantMessage(notice, false);
           const outcome = await this.compactSession(sessionId, sessionController.signal);
-          this.recordCompactionOutcome(outcome.applied);
+          this.recordCompactionOutcome(sessionId, outcome.applied);
           if (this.isInterrupted(sessionId)) {
             return;
           }
@@ -696,7 +714,7 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
         // P1.2 breaker: every assistant turn that produced tool calls counts
         // as one "tool turn" for the rapid-refill window.
         if (toolCalls !== null && toolCalls.length > 0) {
-          this.recordToolTurnForBreaker();
+          this.recordToolTurnForBreaker(sessionId);
         }
         const rawThinking = (message as { reasoning_content?: unknown } | undefined)?.reasoning_content;
         const thinking = typeof rawThinking === "string" ? rawThinking : null;
@@ -880,7 +898,7 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
           )
         ) {
           if (!this.isInterrupted(sessionId)) {
-            const notice = this.buildAssistantMessage(sessionId, formatSessionPrompt("compacting"), null);
+            const notice = this.buildAssistantMessage(sessionId, formatSessionPrompt("probeFallback"), null);
             notice.meta = { asThinking: true };
             this.onAssistantMessage(notice, false);
             await runLoop();
@@ -899,9 +917,10 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
       if (category === "RATE_LIMIT") {
         // 瞬时限流：不压缩（上下文没有问题），直接重跑一轮——runLoop 的
         // 请求层自带退避（createChatCompletionStream 的重试通道），这里只
-        // 需要给用户一个可见提示并重试一次。
+        // 需要给用户一个可见提示并重试一次。文案必须区别于压缩提示
+        //（上下文没变长，误报「compacting」会误导用户）。
         if (!this.isInterrupted(sessionId)) {
-          const notice = this.buildAssistantMessage(sessionId, formatSessionPrompt("compacting"), null);
+          const notice = this.buildAssistantMessage(sessionId, formatSessionPrompt("rateLimited"), null);
           notice.meta = { asThinking: true };
           this.onAssistantMessage(notice, false);
           await runLoop();
@@ -927,8 +946,14 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
         // rejects image-too-large shapes). Subsequent ladders use the observed
         // value for this (model, channel) pair.
         const { model: overflowModel, baseURL: overflowBaseURL } = this.createOpenAIClient();
-        const observedDeclared = getCompactPromptTokenThreshold(overflowModel);
-        recordObservedWindow(overflowModel, overflowBaseURL, observedDeclared, observedDeclared);
+        // 估算值用失败请求的预检计量（session.activeTokens = 发送前的
+        // 真实载荷计数）——声明阈值只是目录数据，不代表端点实际溢出点。
+        const overflowSession = this.getSession(sessionId);
+        const overflowEstimate = Math.max(
+          overflowSession?.activeTokens ?? 0,
+          getCompactPromptTokenThreshold(overflowModel)
+        );
+        recordObservedWindow(overflowModel, overflowBaseURL, overflowEstimate, overflowEstimate);
         let compactionInapplicable = false;
         try {
           const outcome = await this.compactSession(sessionId, sessionController.signal);

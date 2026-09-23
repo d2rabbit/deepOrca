@@ -15,6 +15,8 @@ export type SessionPromptKey =
   | "compacting"
   | "compactRetryContextWindow"
   | "compactRetryStalled"
+  | "rateLimited"
+  | "probeFallback"
   | "requestFailed"
   | "apiKeyMissing"
   | "apiKeyMissingShort"
@@ -42,6 +44,14 @@ const CATALOG: Record<SessionPromptKey, Record<SessionPromptLocale, string>> = {
   compactRetryStalled: {
     en: "The model stream stalled — retrying the request…",
     zh: "模型响应停滞，正在重试请求……",
+  },
+  rateLimited: {
+    en: "Rate limited by the endpoint — retrying…",
+    zh: "端点限流中，正在重试……",
+  },
+  probeFallback: {
+    en: "Endpoint rejected the optimized request — retrying without it.",
+    zh: "端点拒绝了优化请求：正在去掉优化后重试。",
   },
   requestFailed: {
     en: "Request failed: {message}",

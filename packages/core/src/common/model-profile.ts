@@ -133,9 +133,21 @@ const EMPTY_PROFILE: ModelProfile = {
   evidence: [],
 };
 
-/** 目录派生：思考是否不可关（reasoning 且档位值全不含 none/off/disabled）。 */
+/**
+ * 目录派生：思考是否不可关。
+ *
+ * 判定规则（四期勘误后）：`reasoning_options` 中存在 `{type:"toggle"}` ⇒
+ * **可关闭**（toggle 的语义就是 on/off 开关——models.dev 实证：deepseek
+ * 官方条目 = [toggle, effort[low,high,max]]，deepseek-flash 可关；MiniMax
+ * M3 官方条目 = [toggle] 单独存在即 on/off 二元）。仅当**没有任何
+ * toggle 且 effort 阶梯存在且全部档位不含 none/off/disabled** 时才判
+ * 不可关（glm-5.3 = [low,high,max]、qwen3.8-max-preview = [low,medium,
+ * xhigh]+budget 均属此类——ZCode modelRules 与 qwen-code 预设双源印证）。
+ */
 export function thinkingMandatoryFromCatalog(entry?: CatalogModelEntry | null): boolean {
   if (!entry || !entry.reasoning || !entry.reasoningOptions || entry.reasoningOptions.length === 0) return false;
+  const hasToggle = entry.reasoningOptions.some((o) => o.type === "toggle");
+  if (hasToggle) return false;
   const efforts = entry.reasoningOptions.filter((o): o is Extract<typeof o, { type: "effort" }> => o.type === "effort");
   if (efforts.length === 0) return false;
   return efforts.every(
@@ -213,9 +225,11 @@ function wireFor(vendor: ModelVendorId, entry?: CatalogModelEntry | null): Profi
   const readFields = entry?.interleavedField
     ? [entry.interleavedField, "reasoning_content", "reasoning"]
     : base.reasoningReadFields;
+  // toggle 语义下显式落 false（而非缺省 undefined）——消费方按三态读取时
+  // 「目录实证可关」与「目录不可知」必须可区分。
   return {
     ...base,
-    ...(mandatory ? { thinkingMandatory: true } : {}),
+    ...(entry && entry.reasoning ? { thinkingMandatory: mandatory } : {}),
     ...(efforts ? { effortValues: efforts } : {}),
     ...(readFields ? { reasoningReadFields: readFields } : {}),
   };
