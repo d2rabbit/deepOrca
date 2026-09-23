@@ -20,7 +20,7 @@ test("content under the threshold is not spilled", () => {
   }
 });
 
-test("large output is spilled and readable back verbatim; the pointer names the path", () => {
+test("large output is spilled and readable back verbatim; the pointer names the path and line count", () => {
   const root = tempRoot();
   try {
     const content = `${"y".repeat(SPILL_THRESHOLD_CHARS + 10)}\nTAIL_MARKER`;
@@ -28,9 +28,25 @@ test("large output is spilled and readable back verbatim; the pointer names the 
     assert.ok(spillPath);
     assert.ok(spillPath!.startsWith(path.join(root, ".deeporca", "spill")));
     assert.equal(fs.readFileSync(spillPath!, "utf8"), content);
-    const note = buildSpillNote(spillPath!, content.length);
+    const note = buildSpillNote(spillPath!, content.length, content.split("\n").length);
     assert.match(note, new RegExp(spillPath!.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
     assert.match(note, /read tool/);
+    // 反 dsh 截断语义：指针是唯一恢复杠杆——文案绝不给「重跑命令」备选。
+    assert.doesNotMatch(note, /re-run/);
+    assert.match(note, /lines/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("minChars override: Stage-A alignment spills content between its trim floor and the default threshold", () => {
+  const root = tempRoot();
+  try {
+    const content = "x".repeat(SPILL_THRESHOLD_CHARS + 1); // 高于默认阈值
+    assert.ok(spillToolOutput(root, "stage-a", content));
+    const small = "x".repeat(9000); // 默认阈值之下、Stage-A 裁剪门槛之上
+    assert.equal(spillToolOutput(root, "stage-a", small), null, "default floor still applies");
+    assert.ok(spillToolOutput(root, "stage-a", small, 8192), "minChars=8192 closes the gap band");
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

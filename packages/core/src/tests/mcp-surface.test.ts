@@ -50,9 +50,9 @@ test("modality suppression never empties the surface (all-vision falls back to f
 
 test("disclosure: under budget → null (no change); over budget → per-server proxy tools", () => {
   const tools = [
-    mcpTool("serena", "find_symbol", "d"),
-    mcpTool("serena", "replace_symbol", "d"),
-    mcpTool("openwiki", "search", "d"),
+    mcpTool("serena", "find_symbol", "Find a symbol by name. Deep details."),
+    mcpTool("serena", "replace_symbol", "Replace a symbol body."),
+    mcpTool("openwiki", "search", "Search wiki pages."),
   ];
   const small = { toolTokens: 100, contextWindowTokens: 1_000_000 };
   assert.equal(disclosureProxiesIfOverBudget(tools, small), null);
@@ -66,6 +66,10 @@ test("disclosure: under budget → null (no change); over budget → per-server 
   assert.deepEqual(serena.function.parameters.required, ["tool"]);
   const enumValues = ((serena.function.parameters.properties.tool as { enum?: string[] }) ?? {}).enum;
   assert.deepEqual(enumValues, ["find_symbol", "replace_symbol"]);
+  // 意图保真（反 dsh 截断语义）：折叠丢的是参数 schema，不丢「工具是干
+  // 什么的」——描述清单带每个工具的首句，截断后续正文。
+  assert.match(serena.function.description ?? "", /- find_symbol: Find a symbol by name/);
+  assert.doesNotMatch(serena.function.description ?? "", /Deep details/);
 });
 
 test("disclosure proxy dispatch: two-segment name + tool arg resolves; real names and junk rejected", () => {

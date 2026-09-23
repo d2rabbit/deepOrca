@@ -345,11 +345,10 @@ function startBackgroundShellCommand(
       typeof code === "number" ? code : null,
       signal ?? null,
       shellPath,
-      cwd,
-      false,
-      undefined,
-      undefined,
-      context.projectRoot
+      cwd
+      // 后台命令不 spill：完整输出已由 writeFinalBackgroundOutput 落盘到
+      // BACKGROUND_OUTPUT_DIR/<taskId>.log 且路径在启动/完成消息里告知
+      // 模型——再落一份 spill 是重复工件（同链审查 2026-09-23）。
     );
     updateSessionCwd(context.sessionId, cwd, result.cwd);
     writeFinalBackgroundOutput(outputPath, finalOutput);
@@ -498,21 +497,21 @@ function truncateOutput(output: string, projectRoot?: string): { text: string; t
     return { text: output, truncated: false };
   }
   // P1.3 continuation protocol (specs/model-vendor-profiles; MiniMax
-  // output-limit.ts continuation_hint): a truncated result names the exact
-  // lever the model can pull to fetch the next segment, so a truncated bash
-  // output is a navigable cursor, not a dead end. P1.3 后半（spill 指针）：
-  // 完整原文落盘为项目工件，read 工具按 path 即可续读任意段——比重跑
-  // 命令（有副作用）更便宜的首选路径；重跑提示保留为备选。
+  // output-limit.ts continuation_hint) + P1.3 后半（spill 指针）。
+  // 审查约束（2026-09-23，反 dsh 截断语义）：截断摘录必须带**唯一、无歧义**
+  // 的恢复杠杆——spill 落盘 + read 续读。绝不与「重跑命令」并列为备选：
+  // 重跑有副作用（make/部署脚本会被再执行），非确定性命令重跑输出还会
+  // 发散——那正是「截断上下文导致意图不完整」的放大器。仅当 spill 不可用
+  //（无 projectRoot / 落盘失败）时才回退到旧的重跑提示。
   const kept = output.slice(0, MAX_OUTPUT_CHARS);
   const spillPath = projectRoot ? spillToolOutput(projectRoot, "bash", output) : null;
-  const spillNote = spillPath ? buildSpillNote(spillPath, output.length) : "";
-  return {
-    text:
-      `${kept}\n\n…[output truncated at ${MAX_OUTPUT_CHARS} chars of ${output.length}] ` +
-      `To view more, re-run the command with output redirection (e.g. append \` | tail -c +${
+  const recovery = spillPath
+    ? buildSpillNote(spillPath, output.length, output.split("\n").length)
+    : `To view more, re-run the command with output redirection (e.g. append \` | tail -c +${
         MAX_OUTPUT_CHARS + 1
-      }\`) or narrow the command scope.` +
-      spillNote,
+      }\`) or narrow the command scope.`;
+  return {
+    text: `${kept}\n\n…[output truncated at ${MAX_OUTPUT_CHARS} chars of ${output.length}] ${recovery}`,
     truncated: true,
   };
 }

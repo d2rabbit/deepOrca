@@ -190,6 +190,31 @@ DSL patch 应用复用 `optimization-patches.applyPatches`（不重写 merge/冲
 转红后恢复（DSL 结果校验禁用 / 模态压制禁用 / spill 清理禁用 / 维度记账退化
 通配 / wire chunk 形状识别删除 / option map 消费禁用）。
 
+## 反 dsh 截断语义审查（2026-09-23 用户拍板：不学 dsh「超长截断留在上下文」的毛病）
+
+审查判据：截断摘录必须带**唯一、无歧义**的恢复杠杆，且不得让模型在残缺
+数据上无感推理；同链红线复查（无重复工件/平行能力）。四处修正：
+
+1. **bash 截断文案单一杠杆化**：spill 落盘 + read 续读是唯一建议动作；
+   「重跑命令 + tail」降级为 spill 不可用时的兜底——重跑有副作用
+   （make/部署被再执行）、非确定性命令重跑输出发散，正是「截断导致意图
+   不完整」的放大器。指针附行数（read 的 offset/limit 是行号口径）。
+2. **后台命令去双写**：后台完整输出本就落盘
+   `BACKGROUND_OUTPUT_DIR/<taskId>.log` 且路径已告知模型——后台路径不再
+   走 spill（重复工件消除）。
+3. **Stage-A 阈值缝隙闭合**：spill 下限支持按调用方对齐——Stage-A 以
+   8192（其裁剪门槛）为 spill 下限，「凡被裁的都可找回」，消灭 8K–16K
+   「被裁但无处找回」缝隙带。
+4. **披露代理意图保真**：折叠丢的是参数 schema，不丢「工具是干什么的」
+   ——代理描述带每个工具的首句（截 120 字符）+ 名称 enum，模型仍能选对
+   工具、构造接近正确的参数，错误回包负责其余校正。
+
+复查后判定不动项：B4 静默重试的「reasoning 计入提交边界」保守语义保留
+（推理流对用户可见，静默换请求会造成可见内容重复）；内置工具
+（bash/read/edit）永不参与收窄，意图关键面不受 B2 影响。
+
+**门禁**：core 套件 **1158 pass / 0 fail**；`npm run check` 全绿。
+
 # 复审闭合记录（2026-09-23，bug-hunt-swarm 四路调查 S1–S4）
 
 - **thinkingMandatory toggle 勘误（R11）**：`reasoning_options` 含 `{type:"toggle"}` ⇒ 可关（models.dev 实证：deepseek=[toggle,effort]、MiniMax M3=[toggle]）；仅纯 effort 阶梯且全档不含 none/off/disabled 才判不可关。`wireFor` 对目录实证条目显式落布尔（含 false），「实证可关」与「目录不可知」三态可区分。

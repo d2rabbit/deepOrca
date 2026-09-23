@@ -12,6 +12,7 @@ import { countConversationTokens, countRequestPayloadTokens } from "./common/tok
 import {
   PRE_COMPACT_RATIO,
   STAGE_A_SKIP_HEADROOM,
+  TOOL_RESULT_TRUNCATION_THRESHOLD_CHARS,
   truncateToolResultForCompaction,
   validateCompactionPairing,
   worthTrimming,
@@ -1062,11 +1063,20 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
       if (truncated !== null && worthTrimming((message.content ?? "").length, truncated.length)) {
         // P1.3 后半（spill 指针）：Stage-A 丢掉的原文落盘为项目工件，
         // 摘录尾部附指针——历史中被压缩掉的内容模型仍可经 read 工具取回。
+        // minChars 对齐 Stage-A 裁剪门槛（8192）：凡被裁的都可找回，
+        // 不留「被裁但低于 spill 阈值」的缝隙带（审查 2026-09-23）。
         const original = message.content ?? "";
-        const spillPath = spillToolOutput(this.projectRoot, "stage-a", original);
+        const spillPath = spillToolOutput(
+          this.projectRoot,
+          "stage-a",
+          original,
+          TOOL_RESULT_TRUNCATION_THRESHOLD_CHARS
+        );
         sessionMessages[i] = {
           ...message,
-          content: spillPath ? `${truncated}${buildSpillNote(spillPath, original.length)}` : truncated,
+          content: spillPath
+            ? `${truncated}${buildSpillNote(spillPath, original.length, original.split("\n").length)}`
+            : truncated,
           updateTime: now,
         };
         trimmed = true;

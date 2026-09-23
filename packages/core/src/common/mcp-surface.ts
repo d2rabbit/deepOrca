@@ -79,19 +79,31 @@ export function disclosureProxiesIfOverBudget(
 
   const proxies: ToolDefinition[] = [];
   for (const [server, serverTools] of byServer) {
-    const toolNames = serverTools.map((tool) => mcpNameParts(tool.function.name)?.tool ?? tool.function.name);
+    // 意图保真（审查 2026-09-23）：折叠丢掉的是参数 schema，不该连「每个
+    // 工具是干什么的」一起丢——描述清单带每个工具的首句（截 120 字符），
+    // 模型仍能选对工具、构造接近正确的参数；错误回包负责其余校正。
+    const toolLines = serverTools.map((tool) => {
+      const name = mcpNameParts(tool.function.name)?.tool ?? tool.function.name;
+      const firstSentence = (tool.function.description ?? "").split(/[.\n]/)[0] ?? "";
+      const clipped = firstSentence.length > 120 ? `${firstSentence.slice(0, 117)}...` : firstSentence;
+      return clipped ? `- ${name}: ${clipped}` : `- ${name}`;
+    });
     proxies.push({
       type: "function",
       function: {
         name: `mcp__${server}`,
         description:
-          `Proxy for MCP server "${server}" — its full tool schemas are hidden to keep the ` +
-          `request compact. Call with tool=<name> and arguments=<object>. ` +
-          `Available tools: ${toolNames.join(", ")}.`,
+          `Proxy for MCP server "${server}" — full parameter schemas are hidden to keep the ` +
+          `request compact. Call with tool=<name> and arguments=<object>.\n` +
+          `Available tools:\n${toolLines.join("\n")}`,
         parameters: {
           type: "object",
           properties: {
-            tool: { type: "string", description: `One of: ${toolNames.join(", ")}`, enum: toolNames },
+            tool: {
+              type: "string",
+              description: "Tool name from the list above.",
+              enum: serverTools.map((tool) => mcpNameParts(tool.function.name)?.tool ?? tool.function.name),
+            },
             arguments: { type: "object", description: "Arguments object forwarded to the underlying tool." },
           },
           required: ["tool"],

@@ -32,8 +32,17 @@ function spillDirOf(projectRoot: string): string {
 /** 单调序号：同毫秒内多个工件也保持文件名字典序 = 创建序（prune 依赖）。 */
 let spillSequence = 0;
 
-export function spillToolOutput(projectRoot: string, tool: string, content: string): string | null {
-  if (!projectRoot || content.length < SPILL_THRESHOLD_CHARS) return null;
+/**
+ * @param minChars 落盘下限——调用方可按自己的裁剪阈值对齐（Stage-A 用
+ *   8192，与裁剪门槛同值：**凡被裁剪的都可找回**，不留缝隙带）。
+ */
+export function spillToolOutput(
+  projectRoot: string,
+  tool: string,
+  content: string,
+  minChars: number = SPILL_THRESHOLD_CHARS
+): string | null {
+  if (!projectRoot || content.length < minChars) return null;
   try {
     const dir = spillDirOf(projectRoot);
     fs.mkdirSync(dir, { recursive: true });
@@ -73,12 +82,17 @@ function pruneSpillDir(dir: string): void {
 }
 
 /**
- * 指针文案：追加到摘录之后，告诉模型完整原文在哪、怎么读。
- * 指针块自成一节，摘录照旧（不改动既有 head/tail 形状）。
+ * 指针文案：追加到摘录之后，告诉模型完整原文在哪、怎么续读。
+ *
+ * 设计约束（审查 2026-09-23，反 dsh 截断语义）：指针必须是**唯一的恢复
+ * 杠杆**且动作无歧义——不给「重跑命令」之类的备选暗示（重跑有副作用，
+ * 非确定性输出还会发散，模型会为了看日志去重跑 make/部署脚本）。行数
+ * 一并给出：read 的 offset/limit 是行号口径，模型可据此规划续读。
  */
-export function buildSpillNote(spillPath: string, totalChars: number): string {
+export function buildSpillNote(spillPath: string, totalChars: number, totalLines: number): string {
   return (
-    `\n\n[full output saved to ${spillPath} (${totalChars} chars)] ` +
-    `Use the read tool on that path to view any part of it (offset/limit supported).`
+    `\n\n[full output saved to ${spillPath} — ${totalChars} chars / ${totalLines} lines. ` +
+    `The excerpt above is head-only; use the read tool on that path to continue ` +
+    `(offset/limit are line numbers).]`
   );
 }
