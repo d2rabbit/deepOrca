@@ -30,10 +30,12 @@ import { buildThinkingRequestOptions } from "./common/openai-thinking";
 import { catalogLookupModel } from "./common/model-catalog";
 import { resetWireProbe } from "./common/model-probe";
 import { recordObservedWindow } from "./common/window-observation";
+import { buildSpillNote, spillToolOutput } from "./common/tool-spill";
 import { resolveModelProfile } from "./common/model-profile";
 import { fingerprintAssembly, diffAssemblyFingerprints, type AssemblyFingerprint } from "./common/assembly-fingerprint";
 import {
   isAttributableRejection,
+  matchRejectionAttribution,
   recordWireOptimizationRejection,
   shouldApplyWireOptimizations,
 } from "./common/model-probe";
@@ -626,7 +628,6 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
         );
         // P1.2 rapid-refill breaker: per-session state (S2-F3 — manager 级
         // 共享会让无关会话互相污染计数，且一次熔断永久锁死整个进程).
-        const rapidRefill = this.getRapidRefillState(sessionId);
         if (this.rapidRefillTrippedSessions.has(sessionId)) {
           throw new Error(RAPID_REFILL_TRIP_MESSAGE);
         }
@@ -877,10 +878,13 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
       }
       // specs/model-vendor-profiles P0.8 — endpoint probe: an attributable
       // 400-class rejection against a whitelist model whose wire patch was
-      // applied → record the rejection for (channel, model), then re-run the
-      // loop ONCE with the patch disabled (probe-vetoed build falls back to
-      // the caller's unpatched shape). Auth/quota/rate-limit/overflow/server
-      // never reach here (isAttributableRejection excludes them — R5).
+      // applied → attribute it (dimension-level记账, backlog 落地):
+      //   · 消息点名思考族字段 → 只禁 thinking 维度;
+      //   · 认不出 → 通配保守(禁全部);
+      //   · 点名无关字段(tools/temperature…) → 不记账不同轮重发——那不是
+      //     补丁的锅,原样重发必然再 400,按原始失败路径走(S1-F2)。
+      // Auth/quota/rate-limit/overflow/server never reach here
+      // (isAttributableRejection excludes them — R5).
       if (isAttributableRejection(error)) {
         const { model: probeModel, baseURL: probeBaseURL } = this.createOpenAIClient();
         const profile = resolveModelProfile({
@@ -888,22 +892,27 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
           catalogEntry: catalogLookupModel(probeModel),
         });
         const carriedPatch = profile.matchedBy === "model" && profile.wire.thinkingMandatory === true;
-        if (
-          carriedPatch &&
-          shouldApplyWireOptimizations(probeModel, probeBaseURL) &&
-          recordWireOptimizationRejection(
-            probeModel,
-            probeBaseURL,
-            `attributable 400 after wire patch: ${describeLlmError(error)}`
-          )
-        ) {
-          if (!this.isInterrupted(sessionId)) {
-            const notice = this.buildAssistantMessage(sessionId, formatSessionPrompt("probeFallback"), null);
-            notice.meta = { asThinking: true };
-            this.onAssistantMessage(notice, false);
-            await runLoop();
+        if (carriedPatch && shouldApplyWireOptimizations(probeModel, probeBaseURL, "thinking")) {
+          const attribution = matchRejectionAttribution(error);
+          if (attribution.kind !== "unrelated") {
+            const dimension = attribution.kind === "dimension" ? attribution.dimension : "*";
+            if (
+              recordWireOptimizationRejection(
+                probeModel,
+                probeBaseURL,
+                `attributable 400 after wire patch (${dimension}): ${describeLlmError(error)}`,
+                dimension
+              )
+            ) {
+              if (!this.isInterrupted(sessionId)) {
+                const notice = this.buildAssistantMessage(sessionId, formatSessionPrompt("probeFallback"), null);
+                notice.meta = { asThinking: true };
+                this.onAssistantMessage(notice, false);
+                await runLoop();
+              }
+              return;
+            }
           }
-          return;
         }
       }
       const category = classifyLlmError(error);
@@ -1051,7 +1060,15 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
       // P1.2 minimum-savings gate: a trim saving under 256 tokens (chars/4)
       // invalidates the prefix cache for near-zero benefit — skip it.
       if (truncated !== null && worthTrimming((message.content ?? "").length, truncated.length)) {
-        sessionMessages[i] = { ...message, content: truncated, updateTime: now };
+        // P1.3 后半（spill 指针）：Stage-A 丢掉的原文落盘为项目工件，
+        // 摘录尾部附指针——历史中被压缩掉的内容模型仍可经 read 工具取回。
+        const original = message.content ?? "";
+        const spillPath = spillToolOutput(this.projectRoot, "stage-a", original);
+        sessionMessages[i] = {
+          ...message,
+          content: spillPath ? `${truncated}${buildSpillNote(spillPath, original.length)}` : truncated,
+          updateTime: now,
+        };
         trimmed = true;
       }
     }

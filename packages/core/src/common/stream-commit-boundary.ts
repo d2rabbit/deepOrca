@@ -21,11 +21,25 @@ export type StreamEventLike = {
     reasoning?: unknown;
     tool_calls?: ReadonlyArray<unknown>;
   };
+  /** OpenAI wire chunk 形状（choices[0].delta）——与顶层 delta 二选一。 */
+  choices?: ReadonlyArray<{
+    delta?: {
+      content?: unknown;
+      reasoning_content?: unknown;
+      reasoning?: unknown;
+      tool_calls?: ReadonlyArray<unknown>;
+    };
+  }>;
 };
+
+/** 从事件里取 delta（顶层 delta 或 wire chunk 的 choices[0].delta）。 */
+function deltaOf(event: StreamEventLike): StreamEventLike["delta"] | undefined {
+  return event.delta ?? event.choices?.[0]?.delta;
+}
 
 /** 该事件是否携带「调用方可见」的内容（= 提交边界）。 */
 export function commitsOutput(event: StreamEventLike): boolean {
-  const delta = event.delta;
+  const delta = deltaOf(event);
   if (!delta) return false;
   if (typeof delta.content === "string" && delta.content.length > 0) return true;
   for (const field of ["reasoning_content", "reasoning"] as const) {

@@ -113,7 +113,8 @@ import {
 } from "./common/token-counter";
 import { appendUsageRecord, usageLedgerPath, type UsageRecord, type UsageSource } from "./common/usage-ledger";
 import { getUserConfigRoot } from "./common/app-dirs";
-import { getLlmErrorDetails } from "./common/llm-error";
+import { classifyLlmError, getLlmErrorDetails } from "./common/llm-error";
+import { canSilentlyRetry, commitsOutput, type StreamEventLike } from "./common/stream-commit-boundary";
 import { bindBehaviorContextCollector, bindKnownMemorySearch } from "./common/memory-seam";
 import { getSnippet } from "./common/state";
 import { isUsageRecord } from "./session-usage";
@@ -1038,29 +1039,32 @@ export abstract class SessionManagerBase {
       appendUsageRecord(usageLedgerPath(getUserConfigRoot(), this.projectRoot), record);
     };
 
-    let response: unknown;
-    try {
-      // Experimental AI SDK transport (specs/model-fleet-adaptation §七/X2.2).
-      // Default OFF: with the flag unset this branch is not taken and the
-      // request flows through the OpenAI SDK client exactly as before — the
-      // only added work on the legacy path is one boolean settings read.
-      // When ON, the AI SDK channel yields synthetic OpenAI-wire chunks, so
-      // EVERYTHING below (accounting, reduce, dirge, reassembly) is shared.
-      const useAiSdkTransport = this.getResolvedSettings().experimentalSdkTransport === true;
-      response = useAiSdkTransport
-        ? await runAiSdkChatCompletionStream(
-            streamRequest as unknown as Parameters<typeof runAiSdkChatCompletionStream>[0],
-            {
-              ...readOpenAIClientEndpoint(client),
-              signal: options && options.signal instanceof AbortSignal ? (options.signal as AbortSignal) : undefined,
-            }
-          )
-        : await (
+    // Experimental AI SDK transport (specs/model-fleet-adaptation §七/X2.2).
+    // Default OFF: with the flag unset this branch is not taken and the
+    // request flows through the OpenAI SDK client exactly as before — the
+    // only added work on the legacy path is one boolean settings read.
+    // When ON, the AI SDK channel yields synthetic OpenAI-wire chunks, so
+    // EVERYTHING below (accounting, reduce, dirge, reassembly) is shared.
+    const useAiSdkTransport = this.getResolvedSettings().experimentalSdkTransport === true;
+    // P3.3 执行层（specs/model-vendor-profiles；MiniMax llm-retry 移植）：
+    // 静默重试需要**原样**重建物理请求——创建收进闭包，供消费循环在
+    // 「未越过提交边界」的失败后重放（见下方 catch）。
+    const openStream = (): Promise<unknown> =>
+      useAiSdkTransport
+        ? runAiSdkChatCompletionStream(streamRequest as unknown as Parameters<typeof runAiSdkChatCompletionStream>[0], {
+            ...readOpenAIClientEndpoint(client),
+            signal: options && options.signal instanceof AbortSignal ? (options.signal as AbortSignal) : undefined,
+          })
+        : (
             client.chat.completions.create as unknown as (
               body: Record<string, unknown>,
               options?: Record<string, unknown>
             ) => Promise<unknown>
           )(streamRequest, options);
+
+    let response: unknown;
+    try {
+      response = await openStream();
     } catch (error) {
       this.logChatCompletionDebug(debug, {
         timestamp: new Date().toISOString(),
@@ -1144,6 +1148,13 @@ export abstract class SessionManagerBase {
       }
     >();
 
+    // P3.3 执行层：静默重试上限 1 次——失败发生在提交边界（首个可见增量）
+    // 之前且类别瞬态时，丢弃该物理请求原样重发一次，对调用方透明。
+    const MAX_SILENT_STREAM_RETRIES = 1;
+    // 仅瞬态类别值得静默重试；auth/quota/溢出/UNKNOWN 重发必然同样失败。
+    const SILENT_RETRY_CATEGORIES = new Set(["TIMEOUT", "RATE_LIMIT", "SERVER", "TRANSIENT"]);
+    let streamAttempt = 0;
+
     const trackText = (value: unknown) => {
       if (typeof value !== "string" || value.length === 0) {
         return;
@@ -1153,132 +1164,212 @@ export abstract class SessionManagerBase {
     };
 
     try {
-      for await (const chunk of withStreamIdleTimeout(
-        response as AsyncIterable<Record<string, unknown>>,
-        this.getStreamIdleTimeoutMs()
-      )) {
-        if (debug?.enabled) {
-          responseChunks.push(chunk);
-        }
-        if ("usage" in chunk && chunk.usage != null) {
-          usage = chunk.usage as ModelUsage;
-        }
-
-        const choices = Array.isArray(chunk.choices) ? chunk.choices : [];
-        for (const choice of choices) {
-          const delta = isUsageRecord(choice) && isUsageRecord(choice.delta) ? choice.delta : null;
-          if (!delta) {
-            continue;
-          }
-
-          const contentDelta = delta.content;
-          if (typeof contentDelta === "string") {
-            content += contentDelta;
-            trackText(contentDelta);
-            if (onDelta) onDelta(contentDelta);
-          }
-
-          // Nullish-coalescing chain over the reasoning read fields. Order:
-          // profile (whitelist/catalog-driven, specs/model-vendor-profiles
-          // P0.3 — includes models.dev interleaved.field and reasoning_details)
-          // → family registry chain (reasoning_content ?? reasoning).
-          let reasoningDelta: unknown;
-          for (const field of effectiveReasoningReadFields) {
-            const candidate = (delta as Record<string, unknown>)[field];
-            if (candidate !== null && candidate !== undefined) {
-              reasoningDelta = candidate;
-              break;
+      for (;;) {
+        streamAttempt += 1;
+        // 提交边界缓冲：提交前保留原始 chunk（canSilentlyRetry 以缓冲区
+        // 内容为唯一事实来源——提交 chunk 一旦入列即判「不可重试」）；
+        // 提交后停缓冲控内存。onDelta 已外发 = 对外已提交，同理禁止。
+        const bufferedEvents: StreamEventLike[] = [];
+        let committed = false;
+        let onDeltaObserved = false;
+        try {
+          for await (const chunk of withStreamIdleTimeout(
+            response as AsyncIterable<Record<string, unknown>>,
+            this.getStreamIdleTimeoutMs()
+          )) {
+            if (debug?.enabled) {
+              responseChunks.push(chunk);
             }
-          }
-          if (typeof reasoningDelta === "string") {
-            reasoningContent += reasoningDelta;
-            trackText(reasoningDelta);
-          } else if (Array.isArray(reasoningDelta)) {
-            // OpenRouter-style `reasoning_details` deltas: an array of
-            // {type, summary?, encrypted?} elements — surface the summary
-            // text; encrypted blobs are intentionally opaque (kimi-code
-            // reasoning-key.ts convertReasoningDetails semantics).
-            for (const element of reasoningDelta) {
-              if (!element || typeof element !== "object") continue;
-              const summary = (element as Record<string, unknown>).summary;
-              if (typeof summary === "string" && summary.length > 0) {
-                reasoningContent += summary;
-                trackText(summary);
-              }
+            if (!committed) {
+              bufferedEvents.push(chunk as StreamEventLike);
+              if (commitsOutput(chunk as StreamEventLike)) committed = true;
             }
-          }
+            if ("usage" in chunk && chunk.usage != null) {
+              usage = chunk.usage as ModelUsage;
+            }
 
-          if (typeof delta.refusal === "string") {
-            refusal = `${refusal ?? ""}${delta.refusal}`;
-            trackText(delta.refusal);
-          }
-
-          const rawToolCalls = delta.tool_calls;
-          if (Array.isArray(rawToolCalls)) {
-            for (const rawToolCall of rawToolCalls) {
-              if (!isUsageRecord(rawToolCall)) {
+            const choices = Array.isArray(chunk.choices) ? chunk.choices : [];
+            for (const choice of choices) {
+              const delta = isUsageRecord(choice) && isUsageRecord(choice.delta) ? choice.delta : null;
+              if (!delta) {
                 continue;
               }
-              const index = typeof rawToolCall.index === "number" ? rawToolCall.index : toolCallsByIndex.size;
-              const current = toolCallsByIndex.get(index) ?? {};
-              if (typeof rawToolCall.id === "string") {
-                current.id = rawToolCall.id;
-              }
-              if (typeof rawToolCall.type === "string") {
-                current.type = rawToolCall.type;
-              }
-              const rawFunction = isUsageRecord(rawToolCall.function) ? rawToolCall.function : null;
-              if (rawFunction) {
-                current.function = current.function ?? {};
-                if (typeof rawFunction.name === "string") {
-                  current.function.name = `${current.function.name ?? ""}${rawFunction.name}`;
-                  trackText(rawFunction.name);
-                }
-                if (typeof rawFunction.arguments === "string") {
-                  current.function.arguments = `${current.function.arguments ?? ""}${rawFunction.arguments}`;
-                  trackText(rawFunction.arguments);
+
+              const contentDelta = delta.content;
+              if (typeof contentDelta === "string") {
+                content += contentDelta;
+                trackText(contentDelta);
+                if (onDelta) {
+                  onDeltaObserved = true;
+                  onDelta(contentDelta);
                 }
               }
-              toolCallsByIndex.set(index, current);
+
+              // Nullish-coalescing chain over the reasoning read fields. Order:
+              // profile (whitelist/catalog-driven, specs/model-vendor-profiles
+              // P0.3 — includes models.dev interleaved.field and reasoning_details)
+              // → family registry chain (reasoning_content ?? reasoning).
+              let reasoningDelta: unknown;
+              for (const field of effectiveReasoningReadFields) {
+                const candidate = (delta as Record<string, unknown>)[field];
+                if (candidate !== null && candidate !== undefined) {
+                  reasoningDelta = candidate;
+                  break;
+                }
+              }
+              if (typeof reasoningDelta === "string") {
+                reasoningContent += reasoningDelta;
+                trackText(reasoningDelta);
+              } else if (Array.isArray(reasoningDelta)) {
+                // OpenRouter-style `reasoning_details` deltas: an array of
+                // {type, summary?, encrypted?} elements — surface the summary
+                // text; encrypted blobs are intentionally opaque (kimi-code
+                // reasoning-key.ts convertReasoningDetails semantics).
+                for (const element of reasoningDelta) {
+                  if (!element || typeof element !== "object") continue;
+                  const summary = (element as Record<string, unknown>).summary;
+                  if (typeof summary === "string" && summary.length > 0) {
+                    reasoningContent += summary;
+                    trackText(summary);
+                  }
+                }
+              }
+
+              if (typeof delta.refusal === "string") {
+                refusal = `${refusal ?? ""}${delta.refusal}`;
+                trackText(delta.refusal);
+              }
+
+              const rawToolCalls = delta.tool_calls;
+              if (Array.isArray(rawToolCalls)) {
+                for (const rawToolCall of rawToolCalls) {
+                  if (!isUsageRecord(rawToolCall)) {
+                    continue;
+                  }
+                  const index = typeof rawToolCall.index === "number" ? rawToolCall.index : toolCallsByIndex.size;
+                  const current = toolCallsByIndex.get(index) ?? {};
+                  if (typeof rawToolCall.id === "string") {
+                    current.id = rawToolCall.id;
+                  }
+                  if (typeof rawToolCall.type === "string") {
+                    current.type = rawToolCall.type;
+                  }
+                  const rawFunction = isUsageRecord(rawToolCall.function) ? rawToolCall.function : null;
+                  if (rawFunction) {
+                    current.function = current.function ?? {};
+                    if (typeof rawFunction.name === "string") {
+                      current.function.name = `${current.function.name ?? ""}${rawFunction.name}`;
+                      trackText(rawFunction.name);
+                    }
+                    if (typeof rawFunction.arguments === "string") {
+                      current.function.arguments = `${current.function.arguments ?? ""}${rawFunction.arguments}`;
+                      trackText(rawFunction.arguments);
+                    }
+                  }
+                  toolCallsByIndex.set(index, current);
+                }
+              }
             }
+          }
+          break;
+        } catch (error) {
+          const aborted = options?.signal instanceof AbortSignal && (options.signal as AbortSignal).aborted;
+          const decision = canSilentlyRetry(bufferedEvents);
+          if (
+            streamAttempt > MAX_SILENT_STREAM_RETRIES ||
+            aborted ||
+            onDeltaObserved ||
+            !decision.committable ||
+            !SILENT_RETRY_CATEGORIES.has(classifyLlmError(error))
+          ) {
+            this.logChatCompletionDebug(debug, {
+              timestamp: new Date().toISOString(),
+              location: debug?.location ?? "SessionManager.createChatCompletionStream:stream",
+              requestId,
+              sessionId,
+              model: typeof request.model === "string" ? request.model : undefined,
+              baseURL: debug?.baseURL,
+              durationMs: Date.now() - startedAtMs,
+              params: { ...debug?.params, options: summarizeCompletionOptions(options) },
+              request: streamRequest,
+              responseChunks,
+              error: normalizeDebugError(error),
+            });
+            logApiError({
+              timestamp: new Date().toISOString(),
+              location: "SessionManager.createChatCompletionStream:stream",
+              requestId,
+              sessionId,
+              model: typeof request.model === "string" ? request.model : undefined,
+              error: getLlmErrorDetails(error),
+              request: streamRequest,
+            });
+            // Mid-stream failure: the request bytes were already sent — count the
+            // prompt in full plus whatever completion arrived before the error.
+            appendAccounting(
+              countCompletionTokens(requestModel, {
+                content,
+                reasoning: reasoningContent,
+                refusal,
+                toolCalls: Array.from(toolCallsByIndex.values()),
+              }),
+              usage
+            );
+            throw error;
+          }
+          // 静默重试：失败的物理请求按「字节已发出」口径记账（供应商可能
+          // 已计费），然后丢弃整个尝试原样重发——调用方无感（未提交 =
+          // 无任何可见增量外发过）。
+          appendAccounting(
+            countCompletionTokens(requestModel, {
+              content,
+              reasoning: reasoningContent,
+              refusal,
+              toolCalls: Array.from(toolCallsByIndex.values()),
+            }),
+            usage
+          );
+          this.logChatCompletionDebug(debug, {
+            timestamp: new Date().toISOString(),
+            location: `${debug?.location ?? "SessionManager.createChatCompletionStream"}:silent-retry`,
+            requestId,
+            sessionId,
+            model: typeof request.model === "string" ? request.model : undefined,
+            baseURL: debug?.baseURL,
+            durationMs: Date.now() - startedAtMs,
+            params: { ...debug?.params, options: summarizeCompletionOptions(options) },
+            request: streamRequest,
+            error: normalizeDebugError(error),
+          });
+          // 复位累积器后原样重建物理请求。create 阶段失败从这里直接向上
+          // 抛——静默阶段已结束，交给上层恢复通道。
+          content = "";
+          reasoningContent = "";
+          refusal = null;
+          usage = null;
+          toolCallsByIndex.clear();
+          estimatedTokens = 0;
+          responseChunks.length = 0;
+          this.emitLlmStreamProgress(requestId, startedAt, 0, "start", sessionId);
+          response = await openStream();
+          // 复用的预循环 non-streaming 回退检查不会重跑——重试响应若是
+          // 非流式形状，合成单 chunk 流过同一消费循环（完整 message 作为
+          // 一个 delta：content 直接累加、完整 tool_calls 走既有拼接语义）。
+          if (
+            !response ||
+            typeof (response as { [Symbol.asyncIterator]?: unknown })[Symbol.asyncIterator] !== "function"
+          ) {
+            const fallbackMessage = (
+              response as {
+                choices?: Array<{ message?: Record<string, unknown> }>;
+              }
+            )?.choices?.[0]?.message;
+            response = (async function* singleChunk() {
+              yield { choices: [{ delta: fallbackMessage ?? {} }] };
+            })();
           }
         }
       }
-    } catch (error) {
-      this.logChatCompletionDebug(debug, {
-        timestamp: new Date().toISOString(),
-        location: debug?.location ?? "SessionManager.createChatCompletionStream:stream",
-        requestId,
-        sessionId,
-        model: typeof request.model === "string" ? request.model : undefined,
-        baseURL: debug?.baseURL,
-        durationMs: Date.now() - startedAtMs,
-        params: { ...debug?.params, options: summarizeCompletionOptions(options) },
-        request: streamRequest,
-        responseChunks,
-        error: normalizeDebugError(error),
-      });
-      logApiError({
-        timestamp: new Date().toISOString(),
-        location: "SessionManager.createChatCompletionStream:stream",
-        requestId,
-        sessionId,
-        model: typeof request.model === "string" ? request.model : undefined,
-        error: getLlmErrorDetails(error),
-        request: streamRequest,
-      });
-      // Mid-stream failure: the request bytes were already sent — count the
-      // prompt in full plus whatever completion arrived before the error.
-      appendAccounting(
-        countCompletionTokens(requestModel, {
-          content,
-          reasoning: reasoningContent,
-          refusal,
-          toolCalls: Array.from(toolCallsByIndex.values()),
-        }),
-        usage
-      );
-      throw error;
     } finally {
       this.emitLlmStreamProgress(requestId, startedAt, estimatedTokens, "end", sessionId);
     }

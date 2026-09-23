@@ -11,8 +11,10 @@ import {
 import type { CatalogModelEntry as CatalogModelEntryLike } from "../common/model-catalog";
 import {
   isAttributableRejection,
+  matchRejectionAttribution,
   recordWireOptimizationRejection,
   resetWireOptimizationProbe,
+  resetWireProbe,
   shouldApplyWireOptimizations,
 } from "../common/model-probe";
 
@@ -291,4 +293,48 @@ test("attribution: OpenAI-shaped invalid_request_error without status", () => {
     isAttributableRejection(errWith(undefined, "Requests rate limit exceeded", "invalid_request_error")),
     false
   );
+});
+
+// ── 试探：维度级记账（backlog 落地；S1-F2 归因加强）─────────────────────────
+
+test("dimension accounting: a thinking-named rejection disables only the thinking dimension", () => {
+  const attribution = matchRejectionAttribution(errWith(400, "Invalid parameter: reasoning_effort"));
+  assert.deepEqual(attribution, { kind: "dimension", dimension: "thinking" });
+  const first = recordWireOptimizationRejection(
+    "glm-5.3",
+    "https://d.example.com/v1",
+    "e",
+    attribution.kind === "dimension" ? attribution.dimension : "*"
+  );
+  assert.equal(first, true);
+  // thinking 维度被禁；同通道该模型的其他维度查询不受通配影响。
+  assert.equal(shouldApplyWireOptimizations("glm-5.3", "https://d.example.com/v1", "thinking"), false);
+  // 无维度参数的查询 = 通配意图：仅维度被记时保持乐观（未记通配键）。
+  assert.equal(shouldApplyWireOptimizations("glm-5.3", "https://d.example.com/v1"), true);
+});
+
+test("dimension accounting: a wildcard rejection disables everything for (channel, model)", () => {
+  const attribution = matchRejectionAttribution(errWith(400, "Bad Request"));
+  assert.deepEqual(attribution, { kind: "unknown" });
+  recordWireOptimizationRejection("glm-5.3", "https://d.example.com/v2", "e", "*");
+  assert.equal(shouldApplyWireOptimizations("glm-5.3", "https://d.example.com/v2", "thinking"), false);
+  assert.equal(shouldApplyWireOptimizations("glm-5.3", "https://d.example.com/v2"), false);
+});
+
+test("dimension accounting: rejections naming unrelated fields are NOT recorded (S1-F2)", () => {
+  // tools / temperature / max_tokens 等字段不是我们补丁写的——归因为 unrelated。
+  assert.deepEqual(matchRejectionAttribution(errWith(400, "Invalid schema for tool 'read'")), { kind: "unrelated" });
+  assert.deepEqual(matchRejectionAttribution(errWith(400, "temperature does not support 0.7")), { kind: "unrelated" });
+  // 同轮处理：unrelated → 不记账 → 优化保持开启。
+  // (record 只应由 lifecycle 在 attribution.kind !== "unrelated" 时调用。)
+});
+
+test("dimension accounting: per-turn expiry clears dimension and wildcard keys", () => {
+  recordWireOptimizationRejection("glm-5.3", "https://d.example.com/v3", "e", "thinking");
+  recordWireOptimizationRejection("glm-5.3", "https://d.example.com/v4", "e", "*");
+  assert.equal(shouldApplyWireOptimizations("glm-5.3", "https://d.example.com/v3", "thinking"), false);
+  assert.equal(shouldApplyWireOptimizations("glm-5.3", "https://d.example.com/v4", "thinking"), false);
+  resetWireProbe(); // 新用户轮次
+  assert.equal(shouldApplyWireOptimizations("glm-5.3", "https://d.example.com/v3", "thinking"), true);
+  assert.equal(shouldApplyWireOptimizations("glm-5.3", "https://d.example.com/v4", "thinking"), true);
 });

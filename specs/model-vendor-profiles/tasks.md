@@ -60,7 +60,7 @@
 
 - [x] P2.1 循环干预阶梯：kimi 3/5/8/12 文案采纳 + 同 key 同步去重空占位；工具语义化判定（归一化命令重试计数）
   - _Requirement: R6_
-- [ ] P2.2 工具面收窄（**延后至 backlog**：涉及 getRoutedMcpTools 工具注册链改造，需真机验证兜底行为后再上）：MCP 披露（估算 > 15%×contextWindow → 代理工具）+ 模态压制（原生模态删除回退上传工具）
+- [x] P2.2 工具面收窄：MCP 披露（估算 > 15%×contextWindow → 代理工具）+ 模态压制（原生模态删除回退上传工具）。**2026-09-23 backlog 落地**——挂 `computeRoutedMcpTools` 同链后置阶段（先路由后收窄、一起会话冻结），见「五项 Backlog 落地记录」#2；真机兜底行为并入 V.4
   - _Requirement: R6, R8_
 - [x] P2.3 兜捞意图守卫：`scavengeToolCalls` 加 `proseRatioGuard`（qwen 0.8 同构：显式区域扣除后散文占比过高则放弃）
   - _Requirement: R6_
@@ -73,11 +73,11 @@
 
 ## P3 表达层与锚点（2–4 天）
 
-- [x] P3.1 静态 patch 表 + **路径冲突检测**（ZCode merge-patch 语义：null=删除、重叠路径抛错）；受限表达式 DSL 完整移植为可选后续
+- [x] P3.1 静态 patch 表 + **路径冲突检测**（ZCode merge-patch 语义：null=删除、重叠路径抛错）；受限表达式 DSL 完整移植 **2026-09-23 落地**（`common/option-map.ts`，见「五项 Backlog 落地记录」#3）
   - _Requirement: R14_
 - [x] P3.2 cache_control 三锚点（system/tool/user.last）+ per-anchor TTL（ephemeral|'1h'）+ 单调归一 + skipCacheWrite（摘要锚点前移）
   - _Requirement: R6_
-- [x] P3.3 流式重试提交边界：「可见增量=提交边界」+ 缓冲重放（对调用方透明）
+- [x] P3.3 流式重试提交边界：「可见增量=提交边界」+ 缓冲重放（对调用方透明）；**执行层 2026-09-23 落地**（接入 createChatCompletionStream，见「五项 Backlog 落地记录」#4）
 - [x] P3.4 观察式窗口学习：413 探针 → per-(模型,通道) 观察值 → 阈值 min(目录,观察)；恢复原地重试+上限
   - _Requirement: R10_
 
@@ -137,16 +137,58 @@
 
 白名单外 → matchedBy:'family'（保守默认）或 'fallback'（兜底）——**全部与升级前逐字节一致**。
 
-# Backlog（四期实施后的明确延后项，全部有据）
+# Backlog（四期实施后的明确延后项）
 
-| 项                              | 原任务    | 延后理由                                                                |
+> **2026-09-23 更新**：前五项已全部落地（见「五项 Backlog 落地记录」），仅剩真机验证 V.1–V.8。
+
+| 项                              | 原任务    | 状态                                                                     |
 | ------------------------------- | --------- | ----------------------------------------------------------------------- |
-| 工具结果落盘指针（spill 工件）  | P1.3 后半 | 现有截断即丢弃语义 + 续读协议已可导航；落盘需新的存储生命周期           |
-| 工具面收窄（MCP 披露/模态压制） | P2.2      | getRoutedMcpTools 注册链改造 + 真机验证兜底                             |
-| 受限表达式 DSL 完整移植         | P3.1 后半 | 静态 patch 表已承载核心语义（null 删除/深合并/冲突检测）                |
-| 流式重试缓冲/重放执行层         | P3.3 后半 | 纯函数判定已落（stream-commit-boundary），接入 reduce 循环为增量        |
-| 试探维度级记账                  | P0.8 后半 | `(通道,模型)` 二元已承载安全语义；维度级需归因字段匹配，收益/复杂度比低 |
-| 真机验证 V.1–V.8                | 收官门    | 需桌面环境 + 各厂商 key                                                 |
+| 工具结果落盘指针（spill 工件）  | P1.3 后半 | **已落地**（`common/tool-spill.ts`，bash 截断 + Stage-A 双钩子）          |
+| 工具面收窄（MCP 披露/模态压制） | P2.2      | **已落地**（`common/mcp-surface.ts`，挂 `computeRoutedMcpTools` 同链）    |
+| 受限表达式 DSL 完整移植         | P3.1 后半 | **已落地**（`common/option-map.ts` + glm 四拼写 map，openai-thinking 消费）|
+| 流式重试缓冲/重放执行层         | P3.3 后半 | **已落地**（接入 `createChatCompletionStream`，提交边界静默重试 ×1）      |
+| 试探维度级记账                  | P0.8 后半 | **已落地**（归因字段匹配：thinking/unrelated/unknown 三态）               |
+| 真机验证 V.1–V.8                | 收官门    | 待办：需桌面环境 + 各厂商 key                                            |
+
+# 五项 Backlog 落地记录（2026-09-23）
+
+**同链原则（用户红线）的落实**：工具/MCP/skill 面的一切收窄都挂在既有
+`getRoutedMcpTools → RoutingFacade.decideToolRoute → 会话冻结` 这**一条链**
+里作为后置阶段（`computeRoutedMcpTools` 内先路由、后收窄、一起冻结）——
+没有第二套路由器；落盘续读复用既有 `read` 工具（不新增工具/协议）；
+DSL patch 应用复用 `optimization-patches.applyPatches`（不重写 merge/冲突检测）。
+
+1. **工具结果落盘指针（B1）**：`common/tool-spill.ts`——超阈值工具输出原文
+   落盘 `<projectRoot>/.deeporca/spill/`（保留最新 20 件，失败 fail-open），
+   消息留摘录 + 指针，模型用 read 工具按 path 续读。钩子：bash
+   `truncateOutput`（截断时 spill）与 Stage-A 压缩（trim 时 spill）。
+2. **工具面收窄（B2）**：`common/mcp-surface.ts` 纯模块两阶段——①模态压制
+   （目录 `multimodal: true` → 剔除 vision 代理服务器工具，全 vision 面不剔）；
+   ②MCP 披露（schema 估算 > 15%×窗口 → 每服务器折叠为 `mcp__<server>` 代理
+   工具，`{tool, arguments}` 参数 + 工具名 enum）。执行侧
+   `asDisclosureProxyCall` 在 executor 的 MCP 分发旁路解析，且对**解析后的
+   真实三段名**做 `isMcpTool` 守卫（畸形调用无法伪装成代理）。
+3. **受限表达式 DSL（B3）**：`common/option-map.ts`——ZCode
+   `@zcode/model-option-map` 的完整移植（tokenizer/parser/compiler/evaluator +
+   进程级 memo + 深冻结 + 三元分支对象结果校验；词法含 `< <= > >= %` 一元 `+`）。
+   消费缝隙：`ProfileWire.optionMaps`，声明了 `reasoningLevel` map 的家族由
+   **数据形态替代**代码 builder（同一能力两种形态，只走其一，绝不叠加写同名
+   字段）；编译/求值失败 fail-open 回 builder。glm 家族登记 ZCode 内置
+   openai-chat 四拼写默认规则（D9.5 原型），受 P0.8 试探看守。
+4. **流式重试执行层（B4）**：`createChatCompletionStream` 消费循环——提交前
+   缓冲原始 chunk（`canSilentlyRetry` 以缓冲区为唯一事实来源），瞬态类别
+   （TIMEOUT/RATE_LIMIT/SERVER/TRANSIENT）失败且未提交/未外发 onDelta →
+   丢弃物理请求**原样重发一次**（对调用方透明；失败尝试按「字节已发出」
+   口径记账）；已提交 → 保持原尝试抛错，走上层恢复通道。`commitsOutput`
+   补齐 wire chunk（choices[0].delta）形状识别。
+5. **试探维度级记账（B5）**：`model-probe.ts`——拒绝消息**点名思考族字段**
+   → 只禁 `thinking` 维度；**点名无关字段**（tools/temperature/max_tokens…）
+   → 不记账不同轮重发（S1-F2 误禁消除——那是补丁的锅之外的原因，原样重发
+   必然再 400）；认不出 → 通配保守禁全部。维度/通配键都随新用户轮次过期。
+
+**门禁**：core 套件 **1157 pass / 0 fail**（+28 例）；mutation-check ×6 全部
+转红后恢复（DSL 结果校验禁用 / 模态压制禁用 / spill 清理禁用 / 维度记账退化
+通配 / wire chunk 形状识别删除 / option map 消费禁用）。
 
 # 复审闭合记录（2026-09-23，bug-hunt-swarm 四路调查 S1–S4）
 

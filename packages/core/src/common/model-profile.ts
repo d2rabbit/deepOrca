@@ -36,6 +36,14 @@ export type ProfileWire = {
   effortValues?: readonly string[];
   /** 流式 reasoning 的字段回退链（含数组形状时取 summary）。 */
   reasoningReadFields?: readonly string[];
+  /**
+   * 数据驱动的请求形状映射（P3.1 后半：受限表达式 DSL，common/option-map.ts）。
+   * 键 = 选项名；值 = 受限 CEL 源串（输入为该选项值，输出必须是 JSON 对象
+   * patch）。声明了 `reasoningLevel` map 的家族由 map **替代**代码 builder
+   * 生成思考形状（同一能力的数据形态，不叠加不冲突）；编译/求值失败一律
+   * fail-open 回 builder。
+   */
+  optionMaps?: Readonly<{ reasoningLevel?: string }>;
 };
 
 /** B 类：纯本地优化（模型匹配即生效，不参与试探）。 */
@@ -123,6 +131,22 @@ const WIRE_POLICIES: Partial<Record<ModelVendorId, ProfileWire>> = {
   stepfun: { offEffort: "low" }, // 思考不可关，off 投影 low（openai-thinking stepfunBuilder 既有行为）
   kimi: { reasoningReadFields: ["reasoning_content", "reasoning_details", "reasoning"] },
   minimax: { reasoningReadFields: ["reasoning_content", "reasoning_details", "reasoning"] },
+  // glm（zai-org/ZCode 第一方）：zcode-builtin.json openai-chat-completions
+  // 默认规则的**一次写四种拼写**（调研报告 D9.5 原文）——网关兼容最大化。
+  // 数据驱动形态经 option-map DSL 编译执行；端点拒绝任一拼写 → P0.8 试探
+  // 同轮禁用回落 builder 形状。档位归一化直接写在表达式里（disabled/none
+  // → 关闭形状；enabled → high；其余原样透传）。
+  glm: {
+    optionMaps: {
+      reasoningLevel:
+        "{" +
+        '"thinking": {"type": input == "disabled" || input == "none" ? "disabled" : "enabled"},' +
+        '"enable_thinking": input != "disabled" && input != "none",' +
+        '"reasoning_effort": input == "disabled" ? "none" : input == "enabled" ? "high" : input,' +
+        '"reasoning": {"effort": input == "disabled" ? "none" : input == "enabled" ? "high" : input}' +
+        "}",
+    },
+  },
 };
 
 const EMPTY_PROFILE: ModelProfile = {

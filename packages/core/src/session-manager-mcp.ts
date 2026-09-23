@@ -29,6 +29,12 @@ import { LSP_BRIDGE_MCP_SERVER_NAME } from "./common/lsp-bridge-mcp";
 import { gitmcpSlugFromServerName, isGitmcpPlaceholderConfig, isGitmcpServerName } from "./gitmcp/resolve";
 import { logRoutingEvent } from "./routing";
 import { ROUTING_LOAD_RETRY_BACKOFF_MS } from "./session-constants";
+import { getCompactPromptTokenThreshold, supportsMultimodal } from "./common/model-capabilities";
+import {
+  disclosureProxiesIfOverBudget,
+  estimateToolSurfaceTokens,
+  suppressRedundantModalityTools,
+} from "./common/mcp-surface";
 import { SERENA_MCP_SERVER_NAME, isSerenaDisabled } from "./common/serena-mcp";
 import { SessionManagerBase } from "./session-manager-base";
 import { SKILL_SPECTOR_MCP_SERVER_NAME, isSkillSpectorDisabled } from "./common/skill-spector";
@@ -312,10 +318,36 @@ If the query is simple (single intent), respond with a single-element array.`;
 
       const selectedNames = new Set(decision.selected.map((t) => t.name));
       const filtered = all.filter((t) => selectedNames.has(t.function.name));
-      return filtered.length > 0 ? filtered : all;
+      const routed = filtered.length > 0 ? filtered : all;
+      // P2.2 工具面收窄（同链后置阶段，随同一次决策冻结——不是第二套路由）：
+      // 模态压制 → MCP 披露代理。见 common/mcp-surface.ts。
+      return this.narrowToolSurface(routed);
     } catch {
       return all; // fail-open
     }
+  }
+
+  /**
+   * P2.2: deterministic post-routing narrowing of the already-routed MCP
+   * tool surface. Stage ① drops the vision-proxy tools when the active model
+   * is natively multimodal; stage ② collapses per-server tool lists into
+   * proxy tools when the schema estimate exceeds the disclosure budget.
+   * Both run inside the session-frozen decision, so the tool prefix the
+   * provider caches stays byte-stable across turns.
+   */
+  protected narrowToolSurface(tools: ToolDefinition[]): ToolDefinition[] {
+    const { model } = this.createOpenAIClient();
+    const modelMultimodal = supportsMultimodal(model);
+    let narrowed = suppressRedundantModalityTools(tools, {
+      modelMultimodal,
+      visionServerName: VISION_MCP_SERVER_NAME,
+    });
+    const proxies = disclosureProxiesIfOverBudget(narrowed, {
+      toolTokens: estimateToolSurfaceTokens(narrowed),
+      contextWindowTokens: getCompactPromptTokenThreshold(model),
+    });
+    if (proxies) narrowed = proxies;
+    return narrowed;
   }
 
   /**

@@ -7,6 +7,7 @@ import * as os from "os";
 import * as path from "path";
 import { DEFAULT_BASH_TIMEOUT_MS, clampBashTimeoutMs } from "../common/bash-timeout";
 import { killProcessTree } from "../common/process-tree";
+import { buildSpillNote, spillToolOutput } from "../common/tool-spill";
 import type { ProcessTimeoutControl, ProcessTimeoutInfo, ToolExecutionContext, ToolExecutionResult } from "./executor";
 import {
   buildDisableExtglobCommand,
@@ -77,7 +78,8 @@ export async function handleBashTool(
     startCwd,
     execution.timedOut,
     execution.timeoutMs,
-    execution.deadlineAtMs
+    execution.deadlineAtMs,
+    context.projectRoot
   );
   updateSessionCwd(context.sessionId, startCwd, result.cwd);
 
@@ -343,7 +345,11 @@ function startBackgroundShellCommand(
       typeof code === "number" ? code : null,
       signal ?? null,
       shellPath,
-      cwd
+      cwd,
+      false,
+      undefined,
+      undefined,
+      context.projectRoot
     );
     updateSessionCwd(context.sessionId, cwd, result.cwd);
     writeFinalBackgroundOutput(outputPath, finalOutput);
@@ -432,11 +438,12 @@ function buildToolCommandResult(
   startCwd: string,
   timedOut: boolean = false,
   timeoutMs?: number,
-  deadlineAtMs?: number
+  deadlineAtMs?: number,
+  projectRoot?: string
 ): ToolCommandResult {
   const { output: cleanedStdout, cwd } = stripMarker(stdout, marker);
   const combined = joinOutput(cleanedStdout, stderr);
-  const { text, truncated } = truncateOutput(combined);
+  const { text, truncated } = truncateOutput(combined, projectRoot);
   return {
     ok: exitCode === 0 && signal === null,
     output: text,
@@ -486,21 +493,26 @@ function joinOutput(stdout: string, stderr: string): string {
   return trimmedStdout || trimmedStderr;
 }
 
-function truncateOutput(output: string): { text: string; truncated: boolean } {
+function truncateOutput(output: string, projectRoot?: string): { text: string; truncated: boolean } {
   if (output.length <= MAX_OUTPUT_CHARS) {
     return { text: output, truncated: false };
   }
   // P1.3 continuation protocol (specs/model-vendor-profiles; MiniMax
   // output-limit.ts continuation_hint): a truncated result names the exact
   // lever the model can pull to fetch the next segment, so a truncated bash
-  // output is a navigable cursor, not a dead end.
+  // output is a navigable cursor, not a dead end. P1.3 后半（spill 指针）：
+  // 完整原文落盘为项目工件，read 工具按 path 即可续读任意段——比重跑
+  // 命令（有副作用）更便宜的首选路径；重跑提示保留为备选。
   const kept = output.slice(0, MAX_OUTPUT_CHARS);
+  const spillPath = projectRoot ? spillToolOutput(projectRoot, "bash", output) : null;
+  const spillNote = spillPath ? buildSpillNote(spillPath, output.length) : "";
   return {
     text:
       `${kept}\n\n…[output truncated at ${MAX_OUTPUT_CHARS} chars of ${output.length}] ` +
       `To view more, re-run the command with output redirection (e.g. append \` | tail -c +${
         MAX_OUTPUT_CHARS + 1
-      }\`) or narrow the command scope.`,
+      }\`) or narrow the command scope.` +
+      spillNote,
     truncated: true,
   };
 }

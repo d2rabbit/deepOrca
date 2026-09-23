@@ -24,6 +24,7 @@ import type {
 } from "../common/tool-types";
 import type { PathGrant } from "../common/path-boundary";
 import type { BashSandboxSpawner } from "../common/tool-types";
+import { asDisclosureProxyCall } from "../common/mcp-surface";
 
 export type {
   CreateOpenAIClient,
@@ -238,6 +239,16 @@ export class ToolExecutor {
     const handlerName = BUILT_IN_TOOL_NAME_ALIASES.get(toolName) ?? toolName;
     const handler = this.toolHandlers.get(handlerName);
     if (!handler) {
+      // P2.2 disclosure proxy: `mcp__<server>` (two-segment) carries
+      // {tool, arguments} and dispatches to the real three-segment MCP tool.
+      // Resolved right beside the direct MCP dispatch — same chain, and the
+      // isMcpTool guard on the RESOLVED name means a malformed call can never
+      // masquerade as a proxy for a tool that does not exist.
+      const proxyParsed = this.parseToolArguments(toolCall.function.arguments);
+      const proxy = asDisclosureProxyCall(toolName, proxyParsed.ok ? proxyParsed.args : {});
+      if (proxy && this.mcpManager?.isMcpTool(`mcp__${proxy.server}__${proxy.tool}`)) {
+        return this.mcpManager.executeMcpTool(`mcp__${proxy.server}__${proxy.tool}`, proxy.toolArguments);
+      }
       if (this.mcpManager?.isMcpTool(toolName)) {
         const parsedArgs = this.parseToolArguments(toolCall.function.arguments);
         const args = parsedArgs.ok ? parsedArgs.args : {};
