@@ -249,13 +249,21 @@ export function endpointQuotaKind(baseURL: string | undefined): EndpointQuotaKin
  * empty list. An endpoint whose family can't be determined falls back to the
  * union of every family's list (see endpointModelFamily).
  */
+/**
+ * Curated known model ids per family — the desktop settings pool binds each
+ * endpoint's add-model suggestion list to the endpoint's family through this
+ * table (family ↔ model-list binding). Aligned with the model-vendor-profiles
+ * whitelist (2026-09-22 user decision): the current generation's official
+ * endpoint ids only — MiniMax-M3.1 stays hidden (unreleased), old generations
+ * (kimi k2.5/k2.6, minimax M2.x, glm ≤5.2, step 3.5) are not suggested.
+ */
 export const FAMILY_MODEL_SUGGESTIONS: Readonly<Record<ModelFamilyId, readonly string[]>> = {
   deepseek: ["deepseek-flash", "deepseek-v4-pro", "deepseek-v4-flash"],
-  stepfun: ["step-3.7-flash", "step-router-v1"],
-  glm: [],
-  kimi: [],
-  minimax: [],
-  qwen: [],
+  stepfun: ["step-5-preview", "step-3.7-flash", "step-router-v1"],
+  glm: ["glm-5.3", "glm-5.3-flash", "glm-5.3-flashx"],
+  kimi: ["kimi-k3", "kimi-k2.7-code", "kimi-k2.7-code-highspeed"],
+  minimax: ["MiniMax-M3"],
+  qwen: ["qwen3.8-max", "qwen3.8-flash", "qwen3.8-plus"],
   unknown: [],
 };
 

@@ -10,13 +10,30 @@ import {
 } from "./common/resume-synthesis";
 import { countConversationTokens, countRequestPayloadTokens } from "./common/token-counter";
 import {
-  PRE_COMPACT_RATIO,
   STAGE_A_SKIP_HEADROOM,
   truncateToolResultForCompaction,
   validateCompactionPairing,
+  worthTrimming,
 } from "./common/compaction";
+import {
+  computeCompactionLadder,
+  observeCompaction,
+  observeToolTurn,
+  RAPID_REFILL_INITIAL,
+  RAPID_REFILL_TRIP_MESSAGE,
+  type RapidRefillState,
+} from "./common/compaction-ladder";
 import { accumulateUsage, accumulateUsagePerModel } from "./session-usage";
 import { buildThinkingRequestOptions } from "./common/openai-thinking";
+import { catalogLookupModel } from "./common/model-catalog";
+import { recordObservedWindow } from "./common/window-observation";
+import { resolveModelProfile } from "./common/model-profile";
+import { fingerprintAssembly, diffAssemblyFingerprints, type AssemblyFingerprint } from "./common/assembly-fingerprint";
+import {
+  isAttributableRejection,
+  recordWireOptimizationRejection,
+  shouldApplyWireOptimizations,
+} from "./common/model-probe";
 import { getSnippet, rebuildSessionStateFromHistory } from "./common/state";
 import { describeLlmError, classifyLlmError } from "./common/llm-error";
 import { detectBashSandboxBackend } from "./sandbox/backend/detect";
@@ -50,6 +67,8 @@ import {
   parseToolCallForPermissions,
 } from "./common/permissions";
 import type { ToolCallExecution, ToolExecutionHooks } from "./tools/executor";
+import type { ToolExecutionResult } from "./common/tool-types";
+import { canonicalToolCallKey, reminderForTier, repeatTierFor, REPEAT_VETO_TEXT } from "./common/repeat-breaker";
 import type { BashSandboxSpawner } from "./common/tool-types";
 import type { PermissionSettings } from "./settings";
 import type { SandboxBackend, SandboxProbeResult } from "./sandbox/backend/interface";
@@ -72,6 +91,87 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
    * persisted (SessionEntry.lane).
    */
   protected readonly laneContexts = new Map<string, ComplexityVerdict | null>();
+
+  // ── P1.2 rapid-refill circuit breaker (specs/model-vendor-profiles) ──────
+  // Per-manager (per-process) state — a refill streak is session-scoped in
+  // ZCode; keeping it manager-scoped is the conservative first cut (one
+  // pathological session trips, a fresh session resets).
+  private rapidRefillState: RapidRefillState = RAPID_REFILL_INITIAL;
+  private rapidRefillTripped = false;
+
+  /** Observe one applied compaction; trips the breaker on the 3rd fast refill. */
+  protected recordCompactionOutcome(applied: boolean): void {
+    if (!applied) return;
+    const signal = observeCompaction(this.rapidRefillState);
+    if (signal.kind === "none") return;
+    this.rapidRefillState = signal.state;
+    if (signal.kind === "tripped") {
+      this.rapidRefillTripped = true;
+    }
+  }
+
+  /** Observe one assistant turn that executed ≥1 tool call. */
+  protected recordToolTurnForBreaker(): void {
+    const signal = observeToolTurn(this.rapidRefillState);
+    if (signal.kind === "none") return;
+    this.rapidRefillState = signal.state;
+  }
+
+  // ── P2.1 repeat breaker state (specs/model-vendor-profiles) ───────────────
+  private readonly repeatCounts = new Map<string, number>();
+
+  /** User interjection resets the chain — "repetition across it is not a loop" (kimi). */
+  protected resetRepeatBreaker(): void {
+    this.repeatCounts.clear();
+  }
+
+  // ── P1.5 assembly fingerprint (specs/model-vendor-profiles) ────────────────
+  private lastAssemblyFingerprint: AssemblyFingerprint | null = null;
+
+  /**
+   * Hash the cache-relevant assembly surfaces before each request and diff
+   * against the previous request's fingerprint. `messages` is only read for
+   * the leading system prompt (the stable part of the prefix); conversation
+   * history is deliberately NOT part of the fingerprint (append-only growth
+   * is cache-safe, assembly churn is not).
+   */
+  protected observeAssemblyFingerprint(
+    _sessionId: string,
+    messages: ReadonlyArray<{ role?: string; content?: unknown }>,
+    tools: ReadonlyArray<unknown>
+  ): void {
+    let systemPrompt = "";
+    for (const message of messages) {
+      if (message.role === "system" && typeof message.content === "string") {
+        systemPrompt = message.content;
+        break;
+      }
+    }
+    const toolDefs = (
+      tools as ReadonlyArray<{
+        function?: { name?: string; description?: string; parameters?: unknown };
+      }>
+    )
+      .filter((tool) => tool?.function?.name)
+      .map((tool) => ({
+        name: tool.function?.name ?? "",
+        description: tool.function?.description ?? "",
+        parameters: tool.function?.parameters,
+      }));
+    const current = fingerprintAssembly({ systemPrompt, tools: toolDefs });
+    const changed = diffAssemblyFingerprints(this.lastAssemblyFingerprint, current);
+    if (this.lastAssemblyFingerprint !== null && changed.length > 0) {
+      // Structured change log — the local answer to "why did this turn miss
+      // the prefix cache" (MiniMax pi_llm_assembly_stability_total). Uses
+      // the host-injected logger seam when present, else console (no-console
+      // is off in this repo).
+      console.info(
+        `[deeporca:assembly-fingerprint] changed=${changed.join("+")} ` +
+          `system=${current.systemPrompt} tools=${current.tools}`
+      );
+    }
+    this.lastAssemblyFingerprint = current;
+  }
 
   /**
    * Depth-lane hook: overidden by the depth layer (session-manager-depth.ts)
@@ -101,6 +201,9 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
   async handleUserPrompt(userPrompt: UserPromptContent): Promise<void> {
     const controller = new AbortController();
     this.activePromptController = controller;
+    // P2.1: a user interjection resets the repeat chain — repetition across
+    // it is a new task, not a loop (kimi toolDedupe semantics).
+    this.resetRepeatBreaker();
 
     try {
       if (!this.activeSessionId || !this.getSession(this.activeSessionId)) {
@@ -499,11 +602,25 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
         // per-model family registry default.
         const compactPromptTokenThreshold =
           this.getResolvedSettings().compactTokenThreshold ?? getCompactPromptTokenThreshold(model);
-        if (session.activeTokens > compactPromptTokenThreshold) {
+        // specs/model-vendor-profiles P1.1: three-tier ladder with the
+        // output-reserve subtracted from the denominator (ZCode/qwen
+        // convergence — "provider 的 context window 是 input+output 共享
+        // 窗口"). The user override replaces the RAW window, so the ladder is
+        // computed from it identically; warn feeds the context meter, auto
+        // drives the pre-flight trigger below, hard is the recovery floor.
+        const compactionLadder = computeCompactionLadder(compactPromptTokenThreshold);
+        // P1.2 rapid-refill breaker: once tripped, auto-compaction stops for
+        // this session (ZCode semantics — deterministic doom-loop; one clean
+        // failure with an actionable message beats two more doomed round-trips).
+        if (this.rapidRefillTripped) {
+          throw new Error(RAPID_REFILL_TRIP_MESSAGE);
+        }
+        if (session.activeTokens > compactionLadder.hard) {
           const message = this.buildAssistantMessage(sessionId, formatSessionPrompt("compacting"), null);
           message.meta = { asThinking: true };
           this.onAssistantMessage(message, false);
-          await this.compactSession(sessionId, sessionController.signal);
+          const outcome = await this.compactSession(sessionId, sessionController.signal);
+          this.recordCompactionOutcome(outcome.applied);
         }
 
         let messages = this.messageConverter.buildMessages(this.listSessionMessages(sessionId), thinkingEnabled, model);
@@ -518,16 +635,30 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
           ...(this.memoryProvider?.isAvailable() ? (this.memoryProvider.getToolDefinitions?.() ?? []) : []),
         ]);
         const thinkingOptions = buildThinkingRequestOptions(thinkingEnabled, baseURL, reasoningEffort, model);
+        // P1.5 assembly fingerprint (specs/model-vendor-profiles): hash the
+        // provider-visible cache surfaces (system prompt + tools); a change in
+        // either is the prefix-cache invalidation point. Structured log names
+        // the changed parts — the local answer to "why did this turn miss".
+        this.observeAssemblyFingerprint(sessionId, messages, tools);
+        // specs/model-vendor-profiles P0.4: catalog-declared temperature
+        // capability gate — models.dev `temperature: false` endpoints (e.g.
+        // kimi-k3) reject the field, so omit it there. Absent catalog entry
+        // keeps today's conditional-send behavior unchanged.
+        const catalogTemperatureBlocked = catalogLookupModel(model)?.temperature === false;
+        const sendTemperature = catalogTemperatureBlocked ? undefined : temperature;
         // Pre-flight budget (P1): count the exact payload about to hit the
         // wire and compact BEFORE sending when it nears the threshold — the
         // first oversized request no longer has to hit the wall and recover
-        // via CONTEXT_WINDOW_EXCEEDED.
+        // via CONTEXT_WINDOW_EXCEEDED. P1.1: the trigger is now the ladder's
+        // AUTO tier (0.85 of the reserve-deducted window, ceiling-capped) —
+        // replaces the flat 0.9-of-raw-window ratio.
         let promptTokens = countRequestPayloadTokens(model, { messages, tools });
-        if (promptTokens >= compactPromptTokenThreshold * PRE_COMPACT_RATIO) {
+        if (promptTokens >= compactionLadder.auto) {
           const notice = this.buildAssistantMessage(sessionId, formatSessionPrompt("compacting"), null);
           notice.meta = { asThinking: true };
           this.onAssistantMessage(notice, false);
-          await this.compactSession(sessionId, sessionController.signal);
+          const outcome = await this.compactSession(sessionId, sessionController.signal);
+          this.recordCompactionOutcome(outcome.applied);
           if (this.isInterrupted(sessionId)) {
             return;
           }
@@ -541,7 +672,7 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
           client,
           {
             model,
-            ...(temperature !== undefined ? { temperature } : {}),
+            ...(sendTemperature !== undefined ? { temperature: sendTemperature } : {}),
             messages,
             tools,
             ...thinkingOptions,
@@ -562,6 +693,11 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
         const content = typeof rawContent === "string" ? rawContent : "";
         const rawToolCalls = (message as { tool_calls?: unknown[] } | undefined)?.tool_calls ?? null;
         toolCalls = this.normalizeLlmToolCalls(rawToolCalls);
+        // P1.2 breaker: every assistant turn that produced tool calls counts
+        // as one "tool turn" for the rapid-refill window.
+        if (toolCalls !== null && toolCalls.length > 0) {
+          this.recordToolTurnForBreaker();
+        }
         const rawThinking = (message as { reasoning_content?: unknown } | undefined)?.reasoning_content;
         const thinking = typeof rawThinking === "string" ? rawThinking : null;
         const refusal = (message as { refusal?: string } | undefined)?.refusal ?? null;
@@ -721,9 +857,56 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
       if (this.isAbortLikeError(error) || sessionController.signal.aborted) {
         throw error;
       }
+      // specs/model-vendor-profiles P0.8 — endpoint probe: an attributable
+      // 400-class rejection against a whitelist model whose wire patch was
+      // applied → record the rejection for (channel, model), then re-run the
+      // loop ONCE with the patch disabled (probe-vetoed build falls back to
+      // the caller's unpatched shape). Auth/quota/rate-limit/overflow/server
+      // never reach here (isAttributableRejection excludes them — R5).
+      if (isAttributableRejection(error)) {
+        const { model: probeModel, baseURL: probeBaseURL } = this.createOpenAIClient();
+        const profile = resolveModelProfile({
+          model: probeModel,
+          catalogEntry: catalogLookupModel(probeModel),
+        });
+        const carriedPatch = profile.matchedBy === "model" && profile.wire.thinkingMandatory === true;
+        if (
+          carriedPatch &&
+          shouldApplyWireOptimizations(probeModel, probeBaseURL) &&
+          recordWireOptimizationRejection(
+            probeModel,
+            probeBaseURL,
+            `attributable 400 after wire patch: ${describeLlmError(error)}`
+          )
+        ) {
+          if (!this.isInterrupted(sessionId)) {
+            const notice = this.buildAssistantMessage(sessionId, formatSessionPrompt("compacting"), null);
+            notice.meta = { asThinking: true };
+            this.onAssistantMessage(notice, false);
+            await runLoop();
+          }
+          return;
+        }
+      }
       const category = classifyLlmError(error);
-      if (category !== "CONTEXT_WINDOW_EXCEEDED" && category !== "TIMEOUT") {
+      // P2.6 (specs/model-vendor-profiles; C25 四厂商实证)：QUOTA（配额/余额
+      // 耗尽）永不重试——「同为 429，配额 vs 限流要分流」。现有分类器已把
+      // QUOTA 与 RATE_LIMIT 分开；此处把 QUOTA 明确列入 fail-fast（不进
+      // 压缩重试通道——那只会再撞一次墙，烧两次上下文成本）。
+      if (category !== "CONTEXT_WINDOW_EXCEEDED" && category !== "TIMEOUT" && category !== "RATE_LIMIT") {
         throw error;
+      }
+      if (category === "RATE_LIMIT") {
+        // 瞬时限流：不压缩（上下文没有问题），直接重跑一轮——runLoop 的
+        // 请求层自带退避（createChatCompletionStream 的重试通道），这里只
+        // 需要给用户一个可见提示并重试一次。
+        if (!this.isInterrupted(sessionId)) {
+          const notice = this.buildAssistantMessage(sessionId, formatSessionPrompt("compacting"), null);
+          notice.meta = { asThinking: true };
+          this.onAssistantMessage(notice, false);
+          await runLoop();
+        }
+        return;
       }
       if (this.isInterrupted(sessionId)) {
         return;
@@ -738,6 +921,14 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
       notice.meta = { asThinking: true };
       this.onAssistantMessage(notice, false);
       if (category === "CONTEXT_WINDOW_EXCEEDED") {
+        // P3.4 observed-window learning (specs/model-vendor-profiles): the
+        // overflow IS a window probe — a declared 1M window that the endpoint
+        // actually rejects at ~128K is learned here (min semantics; predicate
+        // rejects image-too-large shapes). Subsequent ladders use the observed
+        // value for this (model, channel) pair.
+        const { model: overflowModel, baseURL: overflowBaseURL } = this.createOpenAIClient();
+        const observedDeclared = getCompactPromptTokenThreshold(overflowModel);
+        recordObservedWindow(overflowModel, overflowBaseURL, observedDeclared, observedDeclared);
         let compactionInapplicable = false;
         try {
           const outcome = await this.compactSession(sessionId, sessionController.signal);
@@ -832,7 +1023,9 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
         continue;
       }
       const truncated = truncateToolResultForCompaction(message.content);
-      if (truncated !== null) {
+      // P1.2 minimum-savings gate: a trim saving under 256 tokens (chars/4)
+      // invalidates the prefix cache for near-zero benefit — skip it.
+      if (truncated !== null && worthTrimming((message.content ?? "").length, truncated.length)) {
         sessionMessages[i] = { ...message, content: truncated, updateTime: now };
         trimmed = true;
       }
@@ -1337,6 +1530,36 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
       if (hooks.shouldStop?.()) {
         break;
       }
+      // P2.1 repeat breaker (specs/model-vendor-profiles; kimi 3/5/8/12):
+      // canonical key = name + deep-key-sorted args; DENIED calls count too
+      // (a model hammering a denied call is exactly the loop worth breaking).
+      // A malformed-args string keys on the raw string (parse failure is part
+      // of the identity being repeated).
+      let repeatArgs: unknown;
+      try {
+        repeatArgs = JSON.parse(toolCall.function.arguments || "{}");
+      } catch {
+        repeatArgs = toolCall.function.arguments;
+      }
+      const repeatKey = canonicalToolCallKey(toolCall.function.name, repeatArgs);
+      const repeatCount = (this.repeatCounts.get(repeatKey) ?? 0) + 1;
+      this.repeatCounts.set(repeatKey, repeatCount);
+      const tier = repeatTierFor(repeatCount);
+      if (tier === 4) {
+        // L4: refuse to execute + a text-only veto result (kimi HANDOFF_VETO).
+        const vetoResult: ToolExecutionResult = {
+          ok: false,
+          name: toolCall.function.name,
+          error: REPEAT_VETO_TEXT,
+          awaitUserResponse: false,
+        };
+        toolExecutions.push({
+          toolCallId: toolCall.id,
+          content: JSON.stringify(vetoResult),
+          result: vetoResult,
+        });
+        continue;
+      }
       const blockedResult = buildPermissionToolExecution(toolCall, options);
       if (blockedResult) {
         toolExecutions.push(blockedResult);
@@ -1348,6 +1571,15 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
         pathGrant,
         bashSandbox,
       });
+      // L1–L3: append the tier reminder into the FIRST result of this call —
+      // the model sees the guidance next to the result it just produced
+      // (kimi injects at the tool-result tail; same position, one mechanism).
+      const reminder = reminderForTier(tier);
+      if (reminder !== null && executions.length > 0) {
+        const first = executions[0]!;
+        const decorated = `${first.content}\n\n<system-reminder>\n${reminder}\n</system-reminder>`;
+        executions[0] = { ...first, content: decorated };
+      }
       toolExecutions.push(...executions);
       // Batch pause (full-domain audit round-2): once a tool in this turn
       // asks the user a question, the REMAINING calls must not execute while

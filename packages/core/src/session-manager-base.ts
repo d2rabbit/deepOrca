@@ -103,6 +103,8 @@ import { createSecondaryClient as defaultCreateSecondaryClient, createEndpointCl
 import { readOpenAIClientEndpoint, runAiSdkChatCompletionStream } from "./common/ai-sdk-transport";
 import { DEFAULT_STREAM_IDLE_TIMEOUT_MS } from "./settings";
 import { findModelRegistration, resolveBackgroundLlm, resolveModelSpec } from "./common/model-capabilities";
+import { resolveModelProfile } from "./common/model-profile";
+import { catalogLookupModel } from "./common/model-catalog";
 import {
   countCompletionTokens,
   countRequestPayloadTokens,
@@ -953,6 +955,17 @@ export abstract class SessionManagerBase {
     const modelSpec = resolveModelSpec({
       model: typeof request.model === "string" ? request.model : "",
     });
+    // specs/model-vendor-profiles P0.3: whitelist/catalog-driven read fields
+    // (models.dev interleaved.field + reasoning_details array shape) override
+    // the registry chain; non-whitelist models keep the registry chain as-is.
+    const modelProfile = resolveModelProfile({
+      model: typeof request.model === "string" ? request.model : "",
+      catalogEntry: catalogLookupModel(typeof request.model === "string" ? request.model : ""),
+    });
+    const effectiveReasoningReadFields: readonly string[] =
+      modelProfile.matchedBy === "model" && modelProfile.wire.reasoningReadFields
+        ? modelProfile.wire.reasoningReadFields
+        : modelSpec.reasoningReadFields;
 
     const streamRequest = {
       ...request,
@@ -1165,10 +1178,12 @@ export abstract class SessionManagerBase {
             if (onDelta) onDelta(contentDelta);
           }
 
-          // Nullish-coalescing chain over the family's reasoning read fields
-          // (defaults to reasoning_content ?? reasoning — pre-registry order).
+          // Nullish-coalescing chain over the reasoning read fields. Order:
+          // profile (whitelist/catalog-driven, specs/model-vendor-profiles
+          // P0.3 — includes models.dev interleaved.field and reasoning_details)
+          // → family registry chain (reasoning_content ?? reasoning).
           let reasoningDelta: unknown;
-          for (const field of modelSpec.reasoningReadFields) {
+          for (const field of effectiveReasoningReadFields) {
             const candidate = (delta as Record<string, unknown>)[field];
             if (candidate !== null && candidate !== undefined) {
               reasoningDelta = candidate;
@@ -1178,6 +1193,19 @@ export abstract class SessionManagerBase {
           if (typeof reasoningDelta === "string") {
             reasoningContent += reasoningDelta;
             trackText(reasoningDelta);
+          } else if (Array.isArray(reasoningDelta)) {
+            // OpenRouter-style `reasoning_details` deltas: an array of
+            // {type, summary?, encrypted?} elements — surface the summary
+            // text; encrypted blobs are intentionally opaque (kimi-code
+            // reasoning-key.ts convertReasoningDetails semantics).
+            for (const element of reasoningDelta) {
+              if (!element || typeof element !== "object") continue;
+              const summary = (element as Record<string, unknown>).summary;
+              if (typeof summary === "string" && summary.length > 0) {
+                reasoningContent += summary;
+                trackText(summary);
+              }
+            }
           }
 
           if (typeof delta.refusal === "string") {
@@ -1275,7 +1303,12 @@ export abstract class SessionManagerBase {
             ...(this.memoryProvider?.isAvailable() ? (this.memoryProvider.getToolDefinitions?.() ?? []) : []),
           ]).map((tool) => tool.function.name)
         );
-        const scavenged = scavengeToolCalls(scavengeText, allowed);
+        // P2.3: per-model prose-ratio guard — whitelist families that ship an
+        // intent guard in their first-party agent (qwen 0.8) enable it here;
+        // everyone else keeps the historical always-scavenge behavior.
+        const scavengeGuard =
+          modelProfile.matchedBy === "model" ? (modelProfile.local.toolTextFallback?.proseRatioGuard ?? 0) : 0;
+        const scavenged = scavengeToolCalls(scavengeText, allowed, undefined, scavengeGuard);
         if (scavenged.calls.length > 0) {
           normalizedToolCalls = scavenged.calls.map((call) => ({
             id: this.generateToolCallId(),

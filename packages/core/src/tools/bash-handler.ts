@@ -490,7 +490,19 @@ function truncateOutput(output: string): { text: string; truncated: boolean } {
   if (output.length <= MAX_OUTPUT_CHARS) {
     return { text: output, truncated: false };
   }
-  return { text: output.slice(0, MAX_OUTPUT_CHARS), truncated: true };
+  // P1.3 continuation protocol (specs/model-vendor-profiles; MiniMax
+  // output-limit.ts continuation_hint): a truncated result names the exact
+  // lever the model can pull to fetch the next segment, so a truncated bash
+  // output is a navigable cursor, not a dead end.
+  const kept = output.slice(0, MAX_OUTPUT_CHARS);
+  return {
+    text:
+      `${kept}\n\n…[output truncated at ${MAX_OUTPUT_CHARS} chars of ${output.length}] ` +
+      `To view more, re-run the command with output redirection (e.g. append \` | tail -c +${
+        MAX_OUTPUT_CHARS + 1
+      }\`) or narrow the command scope.`,
+    truncated: true,
+  };
 }
 
 function buildErrorMessage(exitCode: number | null, signal: string | null, error?: string, timedOut = false): string {

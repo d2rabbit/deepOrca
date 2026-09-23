@@ -1284,3 +1284,26 @@ test("Write appends the diagnostic hint only for code extensions", async () => {
   assert.equal(txtWrite.ok, true);
   assert.ok(typeof txtWrite.output === "string" && !txtWrite.output.includes("诊断检查"), txtWrite.output);
 });
+
+test("Edit self-heals line-number prefixed blocks (specs/model-vendor-profiles P2.5)", async () => {
+  const workspace = createTempWorkspace();
+  const filePath = path.join(workspace, "linenum.ts");
+  fs.writeFileSync(filePath, ["function heal() {", "  return 42;", "}"].join("\n") + "\n", "utf8");
+
+  const sessionId = "edit-self-heal-linenum";
+  const snippet = await readSnippet(filePath, sessionId, workspace);
+
+  // The model copied the read output's line-number prefixes into old_string.
+  const editResult = await handleEditTool(
+    {
+      snippet_id: snippet.id,
+      old_string: "1→ function heal() {\n2→   return 42;\n3→ }",
+      new_string: "1→ function heal() {\n2→   return 43;\n3→ }",
+    },
+    createContext(sessionId, workspace)
+  );
+
+  assert.equal(editResult.ok, true);
+  assert.equal(editResult.metadata?.matched_via, "self_heal");
+  assert.ok(fs.readFileSync(filePath, "utf8").includes("return 43;"));
+});

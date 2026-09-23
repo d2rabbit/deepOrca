@@ -18,6 +18,11 @@
  */
 
 /** Data-only view over one models.dev model entry (fields we consume). */
+export type CatalogReasoningOption =
+  | { type: "toggle" }
+  | { type: "effort"; values: readonly string[] }
+  | { type: "budget_tokens"; min?: number; max?: number };
+
 export type CatalogModelEntry = {
   id: string;
   name?: string;
@@ -32,6 +37,22 @@ export type CatalogModelEntry = {
   costOutputPerMTok?: number;
   costCacheReadPerMTok?: number;
   providerId?: string;
+  // ── P0.1 extension (specs/model-vendor-profiles): vendor-claimable fields
+  // previously present in the snapshot but never parsed. All optional + fail-open.
+  /** Provider-declared AI SDK package (`@ai-sdk/openai-compatible` …). */
+  npm?: string;
+  /** Provider API base URL (first-party host derivation / diagnostics). */
+  api?: string;
+  /** models.dev `interleaved.field` — the wire key reasoning streams in. */
+  interleavedField?: string;
+  /** Structured reasoning control declaration (toggle / effort ladder / budget). */
+  reasoningOptions?: readonly CatalogReasoningOption[];
+  /** Whether the endpoint accepts a `temperature` field. */
+  temperature?: boolean;
+  /** Structured (JSON schema) output support. */
+  structuredOutput?: boolean;
+  /** models.dev `family` — the sub-family key (kimi-k2 vs kimi-k3, glm vs glm-flash …). */
+  family?: string;
 };
 
 /** Suggestion record for the settings model picker (X3.3). */
@@ -144,12 +165,36 @@ function asBoolean(value: unknown): boolean {
   return value === true;
 }
 
+/** Parse models.dev `reasoning_options[]` (tolerantly — unknown types dropped). */
+function toReasoningOptions(value: unknown): CatalogReasoningOption[] | undefined {
+  if (!Array.isArray(value) || value.length === 0) return undefined;
+  const out: CatalogReasoningOption[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== "object") continue;
+    const record = item as Record<string, unknown>;
+    if (record.type === "toggle") {
+      out.push({ type: "toggle" });
+    } else if (record.type === "effort" && Array.isArray(record.values)) {
+      const values = record.values.filter((v): v is string => typeof v === "string");
+      if (values.length > 0) out.push({ type: "effort", values });
+    } else if (record.type === "budget_tokens") {
+      const min = asFiniteNumber(record.min);
+      const max = asFiniteNumber(record.max);
+      out.push({ type: "budget_tokens", ...(min !== undefined ? { min } : {}), ...(max !== undefined ? { max } : {}) });
+    }
+  }
+  return out.length > 0 ? out : undefined;
+}
+
 function toEntry(providerId: string, raw: RawModel, modelId: string): CatalogModelEntry | null {
   const limit = raw.limit && typeof raw.limit === "object" ? (raw.limit as Record<string, unknown>) : {};
   const cost = raw.cost && typeof raw.cost === "object" ? (raw.cost as Record<string, unknown>) : {};
   const modalities =
     raw.modalities && typeof raw.modalities === "object" ? (raw.modalities as Record<string, unknown>) : {};
   const input = Array.isArray(modalities.input) ? modalities.input : [];
+  const interleaved =
+    raw.interleaved && typeof raw.interleaved === "object" ? (raw.interleaved as Record<string, unknown>) : {};
+  const reasoningOptions = toReasoningOptions(raw.reasoning_options);
   return {
     id: modelId,
     ...(typeof raw.name === "string" ? { name: raw.name } : {}),
@@ -162,6 +207,13 @@ function toEntry(providerId: string, raw: RawModel, modelId: string): CatalogMod
     ...(asFiniteNumber(cost.output) ? { costOutputPerMTok: cost.output as number } : {}),
     ...(asFiniteNumber(cost.cache_read) ? { costCacheReadPerMTok: cost.cache_read as number } : {}),
     providerId,
+    ...(typeof raw.npm === "string" ? { npm: raw.npm } : {}),
+    ...(typeof raw.api === "string" ? { api: raw.api } : {}),
+    ...(typeof interleaved.field === "string" ? { interleavedField: interleaved.field } : {}),
+    ...(reasoningOptions ? { reasoningOptions } : {}),
+    ...(raw.temperature === true || raw.temperature === false ? { temperature: raw.temperature } : {}),
+    ...(asBoolean(raw.structured_output) ? { structuredOutput: true } : {}),
+    ...(typeof raw.family === "string" ? { family: raw.family } : {}),
   };
 }
 

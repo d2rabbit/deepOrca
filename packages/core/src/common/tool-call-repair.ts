@@ -1,3 +1,4 @@
+import { exceedsProseRatioGuard } from "./model-profile";
 /**
  * Tool-call self-healing — repair + scavenge for weaker models.
  *
@@ -396,7 +397,8 @@ function coerceToToolCall(candidate: string, allowed: ReadonlySet<string>): Scav
 export function scavengeToolCalls(
   text: string | null | undefined,
   allowedToolNames: ReadonlySet<string>,
-  maxCalls = DEFAULT_MAX_CALLS
+  maxCalls = DEFAULT_MAX_CALLS,
+  proseRatioGuard = 0
 ): ScavengeResult {
   if (!text || text.length === 0 || allowedToolNames.size === 0) {
     return { calls: [], notes: [], unknownNames: [] };
@@ -409,6 +411,26 @@ export function scavengeToolCalls(
     };
   }
 
+  // P2.3 intent guard (specs/model-vendor-profiles; qwen xml-tool-call-fallback
+  // 0.8): when the text is mostly prose AROUND the explicit call regions, the
+  // model is explaining or quoting the tool protocol, not emitting a call —
+  // scavenging would dispatch a hallucinated call. Enabled per-model via
+  // profile.local.toolTextFallback.proseRatioGuard (qwen family ships 0.8);
+  // 0 keeps the historical behavior for every other model.
+  const regions = findCallRegions(text);
+  if (proseRatioGuard > 0) {
+    const regionChars = regions.reduce((sum, region) => sum + region.body.length, 0);
+    if (exceedsProseRatioGuard(text, regionChars, proseRatioGuard)) {
+      return {
+        calls: [],
+        notes: [
+          `scavenge skipped: prose dominates (guard ${proseRatioGuard}) — the model is likely describing the protocol, not calling a tool`,
+        ],
+        unknownNames: [],
+      };
+    }
+  }
+
   const cap = maxCalls > 0 ? maxCalls : DEFAULT_MAX_CALLS;
   const notes: string[] = [];
   const calls: ScavengedToolCall[] = [];
@@ -416,7 +438,7 @@ export function scavengeToolCalls(
 
   // Pattern B first: explicit regions, then cut them out of the raw scan.
   let remainder = text;
-  for (const region of findCallRegions(text)) {
+  for (const region of regions) {
     if (calls.length >= cap) {
       break;
     }

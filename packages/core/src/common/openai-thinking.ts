@@ -1,6 +1,9 @@
 import type { ReasoningEffort } from "../settings";
 import { mapThinkLevel } from "./think-level";
 import { resolveModelSpec, type ThinkingProtocolId } from "./model-capabilities";
+import { resolveModelProfile } from "./model-profile";
+import { catalogLookupModel } from "./model-catalog";
+import { shouldApplyWireOptimizations } from "./model-probe";
 
 type ThinkingConfig = {
   type: "enabled" | "disabled";
@@ -61,5 +64,16 @@ export function buildThinkingRequestOptions(
   // unregistered families; DeepSeek folds medium/xhigh into high server-side
   // — common/think-level.ts).
   const nativeEffort = mapThinkLevel(spec.id, reasoningEffort) as ReasoningEffort;
-  return builder(thinkingEnabled, nativeEffort);
+  // specs/model-vendor-profiles P0.2: catalog-derived thinkingMandatory —
+  // whitelist models whose effort ladder has no off value (qwen3.8-max-preview,
+  // glm-5.3, MiniMax-M3.1 …) reject the disabled shape with a 400, so never
+  // emit it on the wire. deepseek/stepfun behavior is unchanged (their
+  // builders either already force-enable or the catalog has none/off values).
+  // P0.8: the endpoint probe can veto the patch after an attributable
+  // rejection was recorded for this (model, channel) — then we fall back to
+  // the caller's unpatched shape (same-turn retry semantics).
+  const profile = model ? resolveModelProfile({ model, catalogEntry: catalogLookupModel(model) }) : null;
+  const mandatoryStillProbed = profile?.wire.thinkingMandatory && shouldApplyWireOptimizations(model ?? "", baseURL);
+  const effectiveEnabled = mandatoryStillProbed ? true : thinkingEnabled;
+  return builder(effectiveEnabled, nativeEffort);
 }

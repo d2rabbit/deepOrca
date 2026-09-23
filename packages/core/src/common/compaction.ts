@@ -57,6 +57,21 @@ export function truncateToolResultForCompaction(content: string | null): string 
 }
 
 /**
+ * P1.2 minimum-savings gate (specs/model-vendor-profiles; ZCode microcompact
+ * DEFAULT_MICROCOMPACT_MIN_TOKEN_SAVINGS=256): a deterministic trim whose
+ * projected saving does not clear this floor is NOT worth applying — every
+ * rewrite invalidates the provider prefix cache from the first changed
+ * token, so a near-zero saving is a net negative. Chars/4 ≈ the repo's
+ * coarse token estimate. Returns true when the trim SHOULD be applied.
+ */
+export const MIN_SAVINGS_TOKENS = 256;
+
+export function worthTrimming(originalChars: number, trimmedChars: number): boolean {
+  const savedTokens = (originalChars - trimmedChars) / 4;
+  return savedTokens >= MIN_SAVINGS_TOKENS;
+}
+
+/**
  * Rough token projection over persisted conversation messages. Kept as an
  * export for the stage-A tests and any legacy caller; live call sites use
  * countConversationTokens (family-routed, tool-call aware) directly.

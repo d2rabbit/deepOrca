@@ -14,6 +14,7 @@ import {
 import { executeValidatedTool, semanticBoolean } from "../common/validate";
 import { gateWrite } from "../common/path-boundary";
 import { appendDiagnosticHint } from "./code-extensions";
+import { healEditStrings } from "../common/edit-selfheal";
 import {
   createSnippet,
   getFileState,
@@ -203,6 +204,7 @@ export async function handleEditTool(
           | "exact"
           | "empty_file"
           | "line_leading_tab_correction"
+          | "self_heal"
           | "loose_escape"
           | "llm_escape_correction" = "exact";
         let replacementOldString = oldString;
@@ -241,6 +243,24 @@ export async function handleEditTool(
               matchedVia = "line_leading_tab_correction";
               replacementOldString = tabStrippedOldString;
               replacementNewString = stripReadResultLineTabs(newString);
+            }
+          }
+        }
+
+        // P2.5 read→edit self-heal (specs/model-vendor-profiles): the model
+        // copied read-output line-number prefixes or typographic Unicode into
+        // oldString. One deterministic repair attempt — strip prefixes when
+        // the WHOLE block is prefix-shaped, then normalize smart quotes /
+        // dashes / special spaces — before the expensive LLM diagnosis path.
+        if (matches.length === 0) {
+          const healed = healEditStrings(oldString, newString, raw.slice(scope.startOffset, scope.endOffset));
+          if (healed.healed) {
+            const healedMatches = findOccurrences(raw, healed.oldString, scope);
+            if (healedMatches.length === 1) {
+              matches = healedMatches;
+              matchedVia = "self_heal";
+              replacementOldString = healed.oldString;
+              replacementNewString = healed.newString;
             }
           }
         }

@@ -1,4 +1,6 @@
-# 模型舰队收官适配 — 需求（requirements）
+# 模型舰队收官适配 — 需求（requirements）【已被合并取代】
+
+> **⚠️ 2026-09-22 合并声明（用户拍板）**：本 spec 已被 [`specs/model-vendor-profiles`](../../model-vendor-profiles/requirements.md) **吸收合并（以该方案为主）**。R1–R12 已落地部分（注册表骨架、X0–X3 传输线/目录数据轨）继续有效并归该 spec 维护；R13 及后续模型接入路线**废止**，由 model-vendor-profiles 的**白名单制**取代。本目录文件作为工件保留（流转口径 #8）。
 
 > 对应设计：[design.md](./design.md) / 任务：[tasks.md](./tasks.md)。
 > 2026-08-21 立稿（随抽象设计深化稿一并补齐，未实施）；**2026-09-17 扩展**：吸收 ai-sdk-experimental-adapter（工件 `./ai-sdk-experimental-adapter/`），新增 **R9–R12**（实验性 AI SDK 传输线，三项用户拍板见 design §七）；同日 git mv 至活跃区。

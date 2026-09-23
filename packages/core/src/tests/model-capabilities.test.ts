@@ -161,7 +161,15 @@ test("FAMILY_MODEL_SUGGESTIONS covers every family id without legacy ids", () =>
   assert.equal(FAMILY_MODEL_SUGGESTIONS.deepseek[0], "deepseek-flash");
   assert.ok(FAMILY_MODEL_SUGGESTIONS.deepseek.includes("deepseek-v4-flash"));
   assert.ok(!FAMILY_MODEL_SUGGESTIONS.deepseek.includes("deepseek-v4-flash-vision-exp"));
-  assert.deepEqual(FAMILY_MODEL_SUGGESTIONS.stepfun, ["step-3.7-flash", "step-router-v1"]);
+  // specs/model-vendor-profiles whitelist alignment (2026-09-22 user
+  // decision): current-generation official ids only; step-5-preview leads
+  // the stepfun list; the other families serve their whitelisted generation.
+  assert.deepEqual(FAMILY_MODEL_SUGGESTIONS.stepfun, ["step-5-preview", "step-3.7-flash", "step-router-v1"]);
+  assert.deepEqual(FAMILY_MODEL_SUGGESTIONS.kimi, ["kimi-k3", "kimi-k2.7-code", "kimi-k2.7-code-highspeed"]);
+  assert.deepEqual(FAMILY_MODEL_SUGGESTIONS.minimax, ["MiniMax-M3"]);
+  assert.ok(!FAMILY_MODEL_SUGGESTIONS.minimax.includes("MiniMax-M3.1")); // hidden, unreleased
+  assert.deepEqual(FAMILY_MODEL_SUGGESTIONS.qwen, ["qwen3.8-max", "qwen3.8-flash", "qwen3.8-plus"]);
+  assert.deepEqual(FAMILY_MODEL_SUGGESTIONS.glm, ["glm-5.3", "glm-5.3-flash", "glm-5.3-flashx"]);
 });
 
 test("stepfun family resolves by api.stepfun.com baseURL hint when the model name is opaque", () => {

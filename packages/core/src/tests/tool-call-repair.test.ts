@@ -214,3 +214,35 @@ test("scavenge: nested OpenAI function shape is recognized", () => {
   assert.equal(r.calls.length, 1);
   assert.equal(r.calls[0]!.name, "edit");
 });
+
+// ---------------------------------------------------------------------------
+// P2.3 scavenge intent guard (per-model proseRatioGuard; qwen 0.8).
+// ---------------------------------------------------------------------------
+
+test("scavenge: prose-ratio guard abandons extraction when prose dominates", () => {
+  const prose =
+    "The tool protocol works as follows: you emit a JSON object with the tool name and arguments. " +
+    "For example, to list files you would write something like the snippet below. " +
+    "Note that this is only an illustration for documentation purposes — do not actually execute it. ".repeat(6);
+  const text = `${prose}\n<tool_call>{"name":"bash","arguments":{"command":"ls -la"}}</tool_call>`;
+  // Guard off (default / non-whitelist model): historical behavior — extracts.
+  const unguarded = scavengeToolCalls(text, ALLOWED);
+  assert.equal(unguarded.calls.length, 1);
+  // Guard 0.8 (qwen): prose ≈ 95% → abandons with a structured note.
+  const guarded = scavengeToolCalls(text, ALLOWED, undefined, 0.8);
+  assert.equal(guarded.calls.length, 0);
+  assert.ok(guarded.notes.some((n) => n.includes("prose dominates")));
+});
+
+test("scavenge: guard passes when the call regions dominate the text", () => {
+  const text = '<tool_call>{"name":"bash","arguments":{"command":"pwd"}}</tool_call>';
+  const guarded = scavengeToolCalls(text, ALLOWED, undefined, 0.8);
+  assert.equal(guarded.calls.length, 1);
+});
+
+test("scavenge: guard=0 keeps the historical always-scavenge behavior", () => {
+  const prose = "Documentation example — never execute this. ".repeat(40);
+  const text = `${prose}\n<tool_call>{"name":"bash","arguments":{"command":"ls"}}</tool_call>`;
+  const result = scavengeToolCalls(text, ALLOWED, undefined, 0);
+  assert.equal(result.calls.length, 1);
+});
