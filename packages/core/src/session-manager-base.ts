@@ -159,6 +159,13 @@ import type {
   LlmStreamProgress,
 } from "./session-types";
 
+/**
+ * P3.3 执行层：允许「提交边界前静默重发」的失败类别。RATE_LIMIT 刻意缺席
+ *（swarm round-2 F7）——mid-stream 429 零退避立即重发是对已限流端点的
+ * 毫秒级连发，交给上层限流通道处理。导出仅为测试钉住语义。
+ */
+export const SILENT_STREAM_RETRY_CATEGORIES: ReadonlySet<string> = new Set(["TIMEOUT", "SERVER", "TRANSIENT"]);
+
 export abstract class SessionManagerBase {
   protected readonly projectRoot: string;
 
@@ -258,9 +265,13 @@ export abstract class SessionManagerBase {
    * ONCE per session and then stays byte-identical — per-iteration re-routing
    * changed the request prefix every turn, killing DeepSeek's prefix cache and
    * occasionally dropping tools mid-task. Invalidated when the discovered tool
-   * set changes (tools/list, reconnect) or the session is deleted.
+   * set changes (tools/list, reconnect) or the session is deleted. The frozen
+   * decision records the model it was made for: the narrowing stages read
+   * model capabilities (multimodal gate, disclosure budget), so a mid-session
+   * model switch re-decides instead of inheriting a stale snapshot
+   * (swarm round-2 F9).
    */
-  protected frozenToolRoutes = new Map<string, ToolDefinition[]>();
+  protected frozenToolRoutes = new Map<string, { model: string; tools: ToolDefinition[] }>();
 
   /**
    * ActionRegistry — owns the defineAction primitive's registered actions for
@@ -1150,9 +1161,9 @@ export abstract class SessionManagerBase {
 
     // P3.3 执行层：静默重试上限 1 次——失败发生在提交边界（首个可见增量）
     // 之前且类别瞬态时，丢弃该物理请求原样重发一次，对调用方透明。
+    // 类别集合 SILENT_STREAM_RETRY_CATEGORIES 在模块顶层（RATE_LIMIT 刻意
+    // 不在其中，见其注释）。
     const MAX_SILENT_STREAM_RETRIES = 1;
-    // 仅瞬态类别值得静默重试；auth/quota/溢出/UNKNOWN 重发必然同样失败。
-    const SILENT_RETRY_CATEGORIES = new Set(["TIMEOUT", "RATE_LIMIT", "SERVER", "TRANSIENT"]);
     let streamAttempt = 0;
 
     const trackText = (value: unknown) => {
@@ -1280,7 +1291,7 @@ export abstract class SessionManagerBase {
             aborted ||
             onDeltaObserved ||
             !decision.committable ||
-            !SILENT_RETRY_CATEGORIES.has(classifyLlmError(error))
+            !SILENT_STREAM_RETRY_CATEGORIES.has(classifyLlmError(error))
           ) {
             this.logChatCompletionDebug(debug, {
               timestamp: new Date().toISOString(),
@@ -1339,10 +1350,14 @@ export abstract class SessionManagerBase {
             durationMs: Date.now() - startedAtMs,
             params: { ...debug?.params, options: summarizeCompletionOptions(options) },
             request: streamRequest,
+            // 被弃尝试的 wire 证据随条目保留——下方清空缓冲后排障仍可追溯
+            //（swarm round-2 F7）。
+            responseChunks,
             error: normalizeDebugError(error),
           });
-          // 复位累积器后原样重建物理请求。create 阶段失败从这里直接向上
-          // 抛——静默阶段已结束，交给上层恢复通道。
+          // 复位累积器后原样重建物理请求。重建的 create 若再失败：与首次
+          // create 失败同口径记账（prompt 字节已可能到端）+ 日志后上抛
+          //（swarm round-2 F5）——静默阶段已结束，交给上层恢复通道。
           content = "";
           reasoningContent = "";
           refusal = null;
@@ -1351,21 +1366,38 @@ export abstract class SessionManagerBase {
           estimatedTokens = 0;
           responseChunks.length = 0;
           this.emitLlmStreamProgress(requestId, startedAt, 0, "start", sessionId);
-          response = await openStream();
+          try {
+            response = await openStream();
+          } catch (reopenError) {
+            appendAccounting(0, null);
+            logApiError({
+              timestamp: new Date().toISOString(),
+              location: "SessionManager.createChatCompletionStream:silent-retry:create",
+              requestId,
+              sessionId,
+              model: typeof request.model === "string" ? request.model : undefined,
+              error: getLlmErrorDetails(reopenError),
+              request: streamRequest,
+            });
+            throw reopenError;
+          }
           // 复用的预循环 non-streaming 回退检查不会重跑——重试响应若是
           // 非流式形状，合成单 chunk 流过同一消费循环（完整 message 作为
           // 一个 delta：content 直接累加、完整 tool_calls 走既有拼接语义）。
+          // usage 一并随 chunk 带入，API 计费/缓存字段与首路径回退同口径
+          //（swarm round-2 F6）。
           if (
             !response ||
             typeof (response as { [Symbol.asyncIterator]?: unknown })[Symbol.asyncIterator] !== "function"
           ) {
-            const fallbackMessage = (
-              response as {
-                choices?: Array<{ message?: Record<string, unknown> }>;
-              }
-            )?.choices?.[0]?.message;
+            const fallback = response as {
+              choices?: Array<{ message?: Record<string, unknown> }>;
+              usage?: ModelUsage | null;
+            };
+            const fallbackMessage = fallback?.choices?.[0]?.message;
+            const fallbackUsage = fallback?.usage ?? null;
             response = (async function* singleChunk() {
-              yield { choices: [{ delta: fallbackMessage ?? {} }] };
+              yield { choices: [{ delta: fallbackMessage ?? {} }], usage: fallbackUsage };
             })();
           }
         }

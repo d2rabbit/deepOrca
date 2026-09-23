@@ -63,6 +63,9 @@ export function shouldApplyWireOptimizations(model: string, baseURL?: string, di
   return true;
 }
 
+/** 事件缓冲上限（环形丢弃最旧）：长命进程内拒绝事件有界（swarm round-2 F10）。 */
+const EVENTS_LIMIT = 64;
+
 /**
  * 记录一次可归因拒绝：此后该 (通道, 模型[, 维度]) 的 wire 优化在本进程内禁用。
  * @returns true 若是该键首次记录（调用方据此决定是否同轮重发一次）。
@@ -83,6 +86,7 @@ export function recordWireOptimizationRejection(
     evidence,
     at: new Date().toISOString(),
   });
+  if (events.length > EVENTS_LIMIT) events.splice(0, events.length - EVENTS_LIMIT);
   return true;
 }
 
@@ -118,13 +122,17 @@ export function isAttributableRejection(error: unknown): boolean {
 /**
  * ★ 归因精确化（维度级记账的判定核心）：
  * 在拒绝消息里找「补丁字段名」与「已知无关字段名」。
- *   - 点名无关字段（tools/temperature/max_tokens/messages/response_format）
- *     → `unrelated`：不是补丁的锅，绝不记账（S1-F2 误禁消除）；
- *   - 点名思考族字段（thinking/reasoning_effort/enable_thinking/reasoning）
- *     → `dimension: "thinking"`：精确禁用该维度；
+ *   - 点名思考族字段（thinking / enable_thinking / reasoning_effort /
+ *     reasoning）→ `dimension: "thinking"`：精确禁用该维度并同轮重发；
+ *   - 仅点名无关字段（tools/temperature/max_tokens/messages/response_format）
+ *     → `unrelated`：不是补丁的锅，不记账不重发（S1-F2 误禁消除）；
  *   - 都不匹配 → `unknown`：保守通配（禁用全部维度）。
- * unrelated 先判：一条消息同时点名两类字段时，无关字段的存在说明拒绝
- * 面不止补丁，按不记账处理（重发同请求无意义）。
+ * 思考字段**先判**（swarm round-2 F3 修正）：混合措辞（"enable_thinking
+ * cannot be used together with tools"）说明补丁在拒绝面内——禁用补丁后
+ * 重发可能直接修复；若按 unrelated 跳过，该会话将每轮必败且永不自愈。
+ * 最坏情形（真正肇因是 tools）：多付一次必败重试后错误照常上抛，代价
+ * 有界。字段匹配用**精确词形**（两端 \b，含下划线全名）——swarm round-2
+ * F4：词干匹配会把 "no valid reason given" 之类散文误归 thinking。
  */
 export type RejectionAttribution =
   | { kind: "dimension"; dimension: WireDimension }
@@ -133,16 +141,13 @@ export type RejectionAttribution =
 
 const UNRELATED_FIELD_PATTERN =
   /\b(tools?|tool_calls|temperature|top_p|max_tokens|max_completion_tokens|messages|response_format|stream)\b/i;
-// 思考族字段（thinking / enable_thinking / reasoning_effort / reasoning.*）
-// 在错误消息里出现任一片段即算点名——enable_thinking 里的下划线让 \b 失效，
-// 所以用词干匹配。
-const THINKING_FIELD_PATTERN = /\b(think|reason)/i;
+const THINKING_FIELD_PATTERN = /\b(enable_thinking|thinking|reasoning_effort|reasoning)\b/i;
 
 export function matchRejectionAttribution(error: unknown): RejectionAttribution {
   const details = getLlmErrorDetails(error);
   const message = `${details.message ?? ""} ${details.type ?? ""}`;
-  if (UNRELATED_FIELD_PATTERN.test(message)) return { kind: "unrelated" };
   if (THINKING_FIELD_PATTERN.test(message)) return { kind: "dimension", dimension: "thinking" };
+  if (UNRELATED_FIELD_PATTERN.test(message)) return { kind: "unrelated" };
   return { kind: "unknown" };
 }
 

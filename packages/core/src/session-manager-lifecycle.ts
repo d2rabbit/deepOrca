@@ -32,7 +32,8 @@ import { catalogLookupModel } from "./common/model-catalog";
 import { resetWireProbe } from "./common/model-probe";
 import { recordObservedWindow } from "./common/window-observation";
 import { buildSpillNote, spillToolOutput } from "./common/tool-spill";
-import { resolveModelProfile } from "./common/model-profile";
+import { carriesThinkingWirePatch, resolveModelProfile } from "./common/model-profile";
+import { logRoutingEvent } from "./routing";
 import { fingerprintAssembly, diffAssemblyFingerprints, type AssemblyFingerprint } from "./common/assembly-fingerprint";
 import {
   isAttributableRejection,
@@ -880,10 +881,11 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
       // specs/model-vendor-profiles P0.8 — endpoint probe: an attributable
       // 400-class rejection against a whitelist model whose wire patch was
       // applied → attribute it (dimension-level记账, backlog 落地):
-      //   · 消息点名思考族字段 → 只禁 thinking 维度;
+      //   · 点名思考族字段 → 只禁 thinking 维度（swarm round-2 F3：混合
+      //     措辞也归 thinking——补丁在拒绝面内，禁用后重发可能直接修复）;
       //   · 认不出 → 通配保守(禁全部);
-      //   · 点名无关字段(tools/temperature…) → 不记账不同轮重发——那不是
-      //     补丁的锅,原样重发必然再 400,按原始失败路径走(S1-F2)。
+      //   · 仅点名无关字段(tools/temperature…) → 不记账不同轮重发——那不是
+      //     补丁的锅(S1-F2)。注意：仅「纯无关」才跳过，混合措辞不复此途。
       // Auth/quota/rate-limit/overflow/server never reach here
       // (isAttributableRejection excludes them — R5).
       if (isAttributableRejection(error)) {
@@ -892,8 +894,10 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
           model: probeModel,
           catalogEntry: catalogLookupModel(probeModel),
         });
-        const carriedPatch = profile.matchedBy === "model" && profile.wire.thinkingMandatory === true;
-        if (carriedPatch && shouldApplyWireOptimizations(probeModel, probeBaseURL, "thinking")) {
+        // 记账门必须镜像 wire 应用谓词（swarm round-2 F1）：补丁有
+        // mandatory 投影与 optionMaps 数据形态两种——只认前者会让 glm 系
+        // map 补丁被 400 后永不记账（会话对该端点持续失败）。
+        if (carriesThinkingWirePatch(profile) && shouldApplyWireOptimizations(probeModel, probeBaseURL, "thinking")) {
           const attribution = matchRejectionAttribution(error);
           if (attribution.kind !== "unrelated") {
             const dimension = attribution.kind === "dimension" ? attribution.dimension : "*";
@@ -905,6 +909,11 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
                 dimension
               )
             ) {
+              logRoutingEvent({
+                stage: "probe",
+                outcome: "fallback",
+                detail: `${probeModel}@${probeBaseURL ?? ""} dim=${dimension} — wire patch rejected, retrying unpatched`,
+              });
               if (!this.isInterrupted(sessionId)) {
                 const notice = this.buildAssistantMessage(sessionId, formatSessionPrompt("probeFallback"), null);
                 notice.meta = { asThinking: true };

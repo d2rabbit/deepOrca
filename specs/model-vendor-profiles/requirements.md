@@ -45,7 +45,7 @@ DeepOrca 的模型语义层目前只覆盖 deepseek/stepfun 两家族；GLM/Kimi
 - **R4 优化优先与试探**：命中家族的 A 类（wire 可见）优化 shall 先按优化态构造请求（乐观）；端点产生**可归因拒绝**（HTTP 400 且满足 §design 6.3 归因判据之一）时，shall 仅禁用该 (通道,模型,维度) 并同轮以默认态重发一次。
 - **R5 归因精确性**：auth/配额/限流/内容过滤/上下文溢出类错误 shall not 触发任何优化禁用。
 - **R6 B 类直通**：纯本地类优化（压缩策略/循环干预/装配指纹等）shall 随模型匹配直接生效，不参与试探。
-- **R7 兜底等价**：未命中家族或 `applied=false` 时，请求与行为 shall 与升级前逐字节相同。
+- **R7 兜底等价**：未命中家族或 `applied=false` 时，请求与行为 shall 与升级前逐字节相同。**范围澄清（2026-09-23 swarm round-2 F8）**：本条约束的是**画像/请求形状层**（P0.x A 类优化——思考形状、temperature 门控、reasoning 字段链）；B1 spill 落盘指针、B2 工具面收窄、B4 流式静默重试是**模型无关的 harness 层行为**（成本/可靠性优化，对所有模型一致生效），不在本条约束面内。
 - **R8 数据外置**：模型能力（窗口/模态/档位值/reasoning 字段名/temperature）shall 全部来自 models.dev 目录（`model-catalog.ts` 扩展解析）或端点运行时元数据；画像模块内 shall not 含能力常量。
 - **R9 请求两段式**：请求构造 shall 拆为 `buildBaseRequest()` + `applyOptimizations(base, profile, probeState)`，后者为纯函数、产出可枚举字段集（供拒绝归因）。
 - **R10 窗口动态校准**：可归因的 413/上下文溢出（过防误触谓词）shall 记入 per-(模型,通道) 观察值，此后阈值取 min(目录窗口, 观察值)；恢复 shall 压缩后原地重试且有次数上限。

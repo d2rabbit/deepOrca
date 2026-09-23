@@ -34,6 +34,9 @@ test("large output is spilled and readable back verbatim; the pointer names the 
     // 反 dsh 截断语义：指针是唯一恢复杠杆——文案绝不给「重跑命令」备选。
     assert.doesNotMatch(note, /re-run/);
     assert.match(note, /lines/);
+    // F2：目录自 gitignore（`*`），工件绝不被用户 `git add -A` 收进历史。
+    const selfIgnore = path.join(root, ".deeporca", "spill", ".gitignore");
+    assert.equal(fs.readFileSync(selfIgnore, "utf8"), "*\n");
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -62,7 +65,7 @@ test("spill dir is pruned to the newest SPILL_KEEP_FILES artifacts", () => {
       assert.ok(p);
       paths.push(p!);
     }
-    const remaining = fs.readdirSync(path.join(root, ".deeporca", "spill"));
+    const remaining = fs.readdirSync(path.join(root, ".deeporca", "spill")).filter((name) => name.endsWith(".txt"));
     assert.equal(remaining.length, SPILL_KEEP_FILES);
     // 最旧的三个应被清理，最新的保留。
     for (const oldest of paths.slice(0, 3)) {

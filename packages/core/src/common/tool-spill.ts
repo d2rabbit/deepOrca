@@ -46,6 +46,7 @@ export function spillToolOutput(
   try {
     const dir = spillDirOf(projectRoot);
     fs.mkdirSync(dir, { recursive: true });
+    ensureSelfIgnoring(dir);
     const safeTool = tool.replace(/[^A-Za-z0-9_-]/g, "_").slice(0, 24) || "tool";
     const stamp = new Date().toISOString().replace(/[:.]/g, "-");
     spillSequence += 1;
@@ -58,6 +59,23 @@ export function spillToolOutput(
     return file;
   } catch {
     return null;
+  }
+}
+
+/**
+ * spill 目录自 gitignore（swarm round-2 F2）：工件含完整工具输出（可能
+ * 携带环境敏感信息），绝不该被用户 `git add -A` 收进历史。git 支持目录级
+ * .gitignore——在**我们自己的子目录内**放一个 `*`，不碰用户任何文件，
+ * 幂等（已存在即跳过），写失败不影响落盘主流程。
+ */
+function ensureSelfIgnoring(dir: string): void {
+  const marker = path.join(dir, ".gitignore");
+  try {
+    if (!fs.existsSync(marker)) {
+      fs.writeFileSync(marker, "*\n", "utf8");
+    }
+  } catch {
+    // gitignore 写失败不阻断 spill（worst case 退回未忽略状态）
   }
 }
 

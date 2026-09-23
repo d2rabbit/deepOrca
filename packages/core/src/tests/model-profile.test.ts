@@ -3,6 +3,7 @@
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import {
+  carriesThinkingWirePatch,
   resolveModelProfile,
   thinkingMandatoryFromCatalog,
   catalogEffortValues,
@@ -327,6 +328,58 @@ test("dimension accounting: rejections naming unrelated fields are NOT recorded 
   assert.deepEqual(matchRejectionAttribution(errWith(400, "temperature does not support 0.7")), { kind: "unrelated" });
   // 同轮处理：unrelated → 不记账 → 优化保持开启。
   // (record 只应由 lifecycle 在 attribution.kind !== "unrelated" 时调用。)
+});
+
+test("attribution: mixed wording (thinking + unrelated field) blames the thinking patch (F3 self-heal)", () => {
+  // 混合措辞说明补丁在拒绝面内——禁用补丁后重发可能直接修复；若判
+  // unrelated 跳过，该会话每轮必败且永不自愈。
+  assert.deepEqual(matchRejectionAttribution(errWith(400, "'enable_thinking' cannot be used together with tools")), {
+    kind: "dimension",
+    dimension: "thinking",
+  });
+});
+
+test("attribution: field names are matched exactly — prose 'reason' is NOT blamed (F4)", () => {
+  assert.deepEqual(matchRejectionAttribution(errWith(400, "no valid reason given")), { kind: "unknown" });
+  assert.deepEqual(matchRejectionAttribution(errWith(400, "unreasonable request shape")), { kind: "unknown" });
+  // 完整字段名（含下划线拼写）仍然命中。
+  assert.deepEqual(matchRejectionAttribution(errWith(400, "Invalid parameter: enable_thinking")), {
+    kind: "dimension",
+    dimension: "thinking",
+  });
+});
+
+// ── 试探记账门：carriesThinkingWirePatch（F1——镜像 wire 应用谓词）──────────
+
+test("accounting gate: optionMaps-only profiles carry the patch even without catalog (glm F1 seam)", () => {
+  // 目录缺席（models.dev 快照缺失是文档化常态）→ thinkingMandatory 缺失，
+  // 但 glm map 补丁照发 wire——记账门必须认它，否则 400 后永不记账。
+  const noCatalog = resolveModelProfile({ model: "glm-5.3", catalogEntry: null });
+  assert.equal(noCatalog.wire.thinkingMandatory, undefined);
+  assert.ok(noCatalog.wire.optionMaps?.reasoningLevel);
+  assert.equal(carriesThinkingWirePatch(noCatalog), true);
+});
+
+test("accounting gate: mandatory projection and clean fallback profiles", () => {
+  const mandatory = resolveModelProfile({
+    model: "qwen3.8-max-preview",
+    catalogEntry: {
+      id: "qwen3.8-max-preview",
+      reasoning: true,
+      toolCall: true,
+      multimodal: false,
+      reasoningOptions: [{ type: "effort", values: ["low", "medium", "xhigh"] }],
+    },
+  });
+  assert.equal(carriesThinkingWirePatch(mandatory), true);
+
+  // 无补丁画像：deepseek（无 mandatory 无 map）、家族兜底、UNKNOWN。
+  assert.equal(carriesThinkingWirePatch(resolveModelProfile({ model: "deepseek-v4-pro", catalogEntry: null })), false);
+  assert.equal(
+    carriesThinkingWirePatch(resolveModelProfile({ model: "deepseek-legacy-x", catalogEntry: null })),
+    false
+  );
+  assert.equal(carriesThinkingWirePatch(resolveModelProfile({ model: "gpt-who-knows", catalogEntry: null })), false);
 });
 
 test("dimension accounting: per-turn expiry clears dimension and wildcard keys", () => {

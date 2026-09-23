@@ -249,7 +249,9 @@ Conventional Commits (`feat:`, `fix:`, `chore:`, `refactor:`, `style:`, `test:`,
 2. When a tool call arrives, it checks the handler map first. Bash tool calls also get
    alias resolution (`Bash` → `bash`, etc.).
 3. If no built-in handler matches, it falls through to `mcpManager.isMcpTool()` — MCP tools
-   are checked by name and executed via `mcpManager.executeMcpTool()`.
+   are checked by name and executed via `mcpManager.executeMcpTool()`. A two-segment
+   `mcp__<server>` name is resolved as a disclosure proxy call (P2.2: `{tool, arguments}`
+   forwarded to the real three-segment tool, guarded by `isMcpTool` on the resolved name).
 4. Tool arguments are parsed from JSON strings; parse errors return structured error responses
    with `InputParseError:` prefix.
 5. Tool results are serialized to JSON with `{ ok, name, output?, error?, metadata? }` format.

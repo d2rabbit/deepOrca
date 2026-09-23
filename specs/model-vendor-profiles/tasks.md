@@ -226,3 +226,52 @@ DSL patch 应用复用 `optimization-patches.applyPatches`（不重写 merge/冲
 - **console 违规清除**：装配指纹日志改走 host 注入的 `logOpenAIChatCompletionDebug`；限流/探针恢复提示走 `session-prompts` 双语目录（新增 `rateLimited`/`probeFallback` 键，替代误用的「compacting」文案）。
 - **探针通道键路径粒度**：`hostname` → 规范化 baseURL 全串（同 host 不同路径入口隔离；尾斜杠等价）。
 - 复审后门禁：core 套件 **1129 pass / 0 fail**；`npm run check` 全绿。
+
+# swarm round-2 审查记录（2026-09-23，bug-hunt-swarm S1–S4 对 89daffde + 2106ffc6）
+
+四路只读调查（复现边界/代码接缝/回归面/证明计划）对五项 Backlog 落地与
+反 dsh 闭合做断言级审查。**查后判净**：Stage-A 无孤儿工件（spill 在
+worthTrimming 门内，8192 算术自洽）、DSL 语义与 fail-open 闭合、熔断
+per-session 隔离正确、披露预算 `<=` 边界正确、executor 分发无影子效应、
+冻结路由三处失效路径齐全、测试无弱化、i18n 双语齐备。**确认成立并已修**：
+
+- **F1【高】glm optionMaps 补丁的记账死缝**：lifecycle 记账门只认
+  `thinkingMandatory === true`，而 glm map 形态（无目录条目时 mandatory
+  缺失）的补丁照发 wire——400 后不记账不同轮重发，会话对该端点持续失败。
+  修复：新增 `carriesThinkingWirePatch(profile)`（镜像 wire 应用谓词：
+  mandatory **或** optionMaps 任一在 wire 上即算携带补丁），lifecycle 改用。
+- **F2【高】spill 工件污染用户 git 工作树**：`.deeporca/spill/` 无
+  gitignore 覆盖，`git add -A` 会把含敏感输出的工件收进历史。修复：spill
+  目录自 gitignore（目录内写 `.gitignore`=`*`，不碰用户文件、幂等）；
+  本仓 .gitignore 同步补行。
+- **F3【中高】混合措辞 400 楔死**：归因 unrelated 先判使「enable_thinking
+  … with tools」类混合措辞不记账不重发——补丁明明在拒绝面内却永不自愈。
+  修复：思考字段先判（混合措辞归 thinking 维度、禁用后重发）；仅**纯**
+  无关措辞才跳过。最坏情形代价有界（一次必败重试后错误照常上抛）。
+- **F4【中】字段匹配词干误伤散文**：`\b(think|reason)` 把 "no valid
+  reason given" 判成 thinking 维度。修复：精确词形两端 \b
+  （enable_thinking/thinking/reasoning_effort/reasoning）。
+- **F5【低中】静默重试的二次 create 失败零日志零记账**：与首次 create
+  失败「按字节已发」契约不一致。修复：重建 openStream 包 try/catch，
+  appendAccounting(0,null) + logApiError 后上抛。
+- **F6【低】重试非流式回退丢 usage**：合成 chunk 不带 usage → apiUsage
+  恒 null。修复：usage 随 chunk 带入消费循环（含缓存字段合并路径）。
+- **F7【低】RATE_LIMIT 零退避静默重发**：mid-stream 429 立即重发是对
+  已限流端点的连发。修复：RATE_LIMIT 移出静默重试集合（导出
+  `SILENT_STREAM_RETRY_CATEGORIES` 供测试钉住），交上层限流通道。
+- **F9【中】模型切换继承冻结收窄快照**：narrowToolSurface 的模态门/披露
+  预算是模型感知的，冻结面却不含模型维度——热切模型后新模型继承旧快照
+  （多模态→纯文本会丢唯一视觉通道）。修复：冻结条目带 `{model, tools}`，
+  模型变更即重算（同模型仍字节稳定，R1 前缀缓存语义不受影响）。
+- **F10【低】probe 事件缓冲无界 + drainProbeEvents 零生产消费**：修复：
+  事件缓冲封顶 64（环形丢最旧）；探针降级经 `logRoutingEvent({stage:
+  "probe", outcome: "fallback"})` 进入 host 注入的 routing logger（新增
+  stage 值，可观测性落地）。
+- **F8【文档】R7「逐字节一致」范围澄清**：该承诺约束画像/请求形状层；
+  B1/B2/B4 是模型无关的 harness 层行为（对所有模型一致生效），不在此面。
+  requirements.md R7 补范围注；AGENTS.md 工具路由段补披露代理解析一行。
+
+**门禁**：core 套件全绿（0 fail）；`npm run check` 全绿。遗留观察项（不
+阻塞）：narrowToolSurface/exec 代理分发的集成级测试仍以纯函数测试 +
+typecheck 覆盖（G2 缺口，真机 V.4 承接）；静默重试双 ledger 记录为既定
+「按物理请求计费」口径（UI 聚合如需折叠逻辑轮次属产品决策）。

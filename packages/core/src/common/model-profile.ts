@@ -259,6 +259,22 @@ function wireFor(vendor: ModelVendorId, entry?: CatalogModelEntry | null): Profi
   };
 }
 
+/**
+ * 该画像本轮是否真的往 wire 上放了思考族补丁（试探记账的前置门）。
+ *
+ * 判定必须**镜像 wire 应用谓词**（openai-thinking）：补丁有两种形态——
+ * ① `thinkingMandatory === true`（强制思考投影，builder 路径）；②
+ * `optionMaps.reasoningLevel`（数据驱动形状，map 路径，glm 系）。只认 ①
+ * 会让 map 形态的拒绝无法记账（swarm round-2 F1：目录缺席的 glm 400 后
+ * 不记账不同轮重发，会话对该端点持续失败）。
+ */
+export function carriesThinkingWirePatch(profile: ModelProfile): boolean {
+  return (
+    profile.matchedBy === "model" &&
+    (profile.wire.thinkingMandatory === true || profile.wire.optionMaps?.reasoningLevel !== undefined)
+  );
+}
+
 // ── 第一方通道判定（试探加速专用，不参与正确性）────────────────────────────
 
 /** 各家族第一方域名（hostname 后缀匹配）。不可判定 → false（保守）。 */

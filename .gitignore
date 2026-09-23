@@ -74,5 +74,5 @@ vendor-src/
 .deeporca/crg/
 .deeporca/reviews/
 .deeporca/prototypes/
+.deeporca/spill/
 .codegraph
-

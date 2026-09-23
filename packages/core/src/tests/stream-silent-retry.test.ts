@@ -6,6 +6,9 @@ import assert from "node:assert/strict";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
+import { SILENT_STREAM_RETRY_CATEGORIES } from "../session-manager-base";
+import { getUserConfigRoot } from "../common/app-dirs";
+import { readUsageLedger, usageLedgerPath } from "../common/usage-ledger";
 import {
   createChatResponse,
   createMockedClientSessionManagerWithClient,
@@ -78,6 +81,20 @@ test("silent retry: a transient mid-stream failure before the commit boundary re
     .filter((message) => message.role === "assistant")
     .at(-1);
   assert.equal(typeof assistant?.content === "string" ? assistant.content : "", "recovered");
+  // F6：重试返回非流式形状时，usage 随合成 chunk 带入消费循环——记账保留
+  // API 用量（与首路径非流式回退同口径），不再恒为 null。
+  const records = readUsageLedger(usageLedgerPath(getUserConfigRoot(), workspace));
+  assert.ok(
+    records.some((record) => (record.apiUsage as Record<string, unknown> | null)?.prompt_tokens === 10),
+    "the retried non-streaming response's usage must reach the ledger"
+  );
+});
+
+test("RATE_LIMIT is not in the silent-retry set (zero-backoff resend against a throttled endpoint is harmful)", () => {
+  assert.equal(SILENT_STREAM_RETRY_CATEGORIES.has("RATE_LIMIT"), false);
+  assert.equal(SILENT_STREAM_RETRY_CATEGORIES.has("TIMEOUT"), true);
+  assert.equal(SILENT_STREAM_RETRY_CATEGORIES.has("SERVER"), true);
+  assert.equal(SILENT_STREAM_RETRY_CATEGORIES.has("TRANSIENT"), true);
 });
 
 test("no silent retry after the commit boundary: the visible attempt is kept and the error surfaces", async () => {

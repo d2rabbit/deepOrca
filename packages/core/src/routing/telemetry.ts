@@ -12,7 +12,10 @@
 
 // "G0" = the complexity gate (specs/depth-lane): emits hit (deep) / skip
 // (express) / fallback (fail-open) with the TPCR totals in `counts`.
-export type RoutingStage = "embedding" | "G0" | "G1" | "G2" | "G3" | "SAD" | "server";
+// "probe" = endpoint-probe fallback (specs/model-vendor-profiles P0.8): a
+// wire optimization was rejected by the endpoint and the request retried
+// unpatched — emits "fallback" with the model/channel/dimension in `detail`.
+export type RoutingStage = "embedding" | "G0" | "G1" | "G2" | "G3" | "SAD" | "server" | "probe";
 export type RoutingOutcome = "hit" | "fallback" | "skip";
 
 export interface RoutingEvent {

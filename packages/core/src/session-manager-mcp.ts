@@ -262,12 +262,17 @@ If the query is simple (single intent), respond with a single-element array.`;
 
     // Session-frozen (R1): decide once, reuse byte-identical for the whole
     // session — protects the DeepSeek prefix cache across turns/iterations.
+    // Exception (swarm round-2 F9): a mid-session model switch re-decides —
+    // the narrowing stages are model-aware (multimodal gate, disclosure
+    // budget) and inheriting another model's snapshot could hide the only
+    // vision channel or freeze a stale budget.
+    const { model } = this.createOpenAIClient();
     const frozen = this.frozenToolRoutes.get(sessionId);
-    if (frozen) {
-      return frozen;
+    if (frozen && frozen.model === model) {
+      return frozen.tools;
     }
     const routed = await this.computeRoutedMcpTools(sessionId, all);
-    this.frozenToolRoutes.set(sessionId, routed);
+    this.frozenToolRoutes.set(sessionId, { model, tools: routed });
     return routed;
   }
 
