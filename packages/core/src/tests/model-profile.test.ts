@@ -85,12 +85,43 @@ test("whitelist: all seven families resolve with matchedBy=model", () => {
     ["qwen3.8-plus", "qwen"],
     ["glm-5.3-flash", "glm"],
     ["mimo-v2.6-pro", "mimo"],
+    ["agnes-2.5-flash", "agnes"],
+    ["agnes-3.0-flash", "agnes"],
   ];
   for (const [model, vendor] of cases) {
     const profile = resolveModelProfile({ model });
     assert.equal(profile.vendor, vendor, model);
     assert.equal(profile.matchedBy, "model", model);
   }
+});
+
+// ── agnes 家族（2026-09-24 新增；思考形状走 optionMap 数据路径）──────────────
+
+test("agnes: whitelist models carry the chat_template_kwargs option map (F1 seam covered)", () => {
+  for (const model of ["agnes-2.5-flash", "agnes-3.0-flash"]) {
+    const profile = resolveModelProfile({ model, catalogEntry: null });
+    assert.equal(profile.vendor, "agnes", model);
+    assert.equal(profile.matchedBy, "model", model);
+    // 思考开关 = enable_thinking 布尔（opt-in，非 mandatory、非 effort 阶梯）。
+    assert.equal(profile.wire.thinkingMandatory, undefined, model);
+    assert.match(profile.wire.optionMaps?.reasoningLevel ?? "", /chat_template_kwargs/);
+    // 记账门认 map 形态——400 后可禁用同轮重发（F1 语义对新家族即刻生效）。
+    assert.equal(carriesThinkingWirePatch(profile), true, model);
+  }
+});
+
+test("agnes: non-whitelist family models fall back conservatively (2.5-pro / image / video)", () => {
+  for (const model of ["agnes-2.5-pro", "agnes-image-25-flash", "agnes-video-25"]) {
+    const profile = resolveModelProfile({ model });
+    assert.equal(profile.vendor, "agnes", model);
+    assert.equal(profile.matchedBy, "family", model);
+    assert.deepEqual(profile.wire, {}, model);
+  }
+});
+
+test("agnes: first-party channel detection for the official apihub host", () => {
+  assert.equal(isFirstPartyChannel({ vendor: "agnes", baseURL: "https://apihub.agnes-ai.com/v1" }), true);
+  assert.equal(isFirstPartyChannel({ vendor: "agnes", baseURL: "https://some-proxy.example.com/v1" }), false);
 });
 
 test("whitelist: qwen3.8-max-preview derives thinkingMandatory from catalog", () => {

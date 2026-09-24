@@ -13,7 +13,7 @@
  * behavior of another family or of the UNKNOWN fallback.
  */
 
-export type ModelFamilyId = "deepseek" | "stepfun" | "glm" | "kimi" | "minimax" | "qwen" | "unknown";
+export type ModelFamilyId = "deepseek" | "stepfun" | "glm" | "kimi" | "minimax" | "qwen" | "agnes" | "unknown";
 
 // Unified thinking-effort scale + per-family native mappings (think-level.ts).
 // Only the symbols the renderer consumes are re-exported here — the
@@ -264,6 +264,7 @@ export const FAMILY_MODEL_SUGGESTIONS: Readonly<Record<ModelFamilyId, readonly s
   kimi: ["kimi-k3", "kimi-k2.7-code", "kimi-k2.7-code-highspeed"],
   minimax: ["MiniMax-M3"],
   qwen: ["qwen3.8-max", "qwen3.8-flash", "qwen3.8-plus"],
+  agnes: ["agnes-3.0-flash", "agnes-2.5-flash"],
   unknown: [],
 };
 

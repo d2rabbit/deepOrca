@@ -113,3 +113,26 @@ test("glm map path honors the thinking-mandatory gate (catalog: effort-only ladd
     resetWireOptimizationProbe();
   }
 });
+
+// ── agnes 家族（chat_template_kwargs.enable_thinking，纯数据路径）────────────
+
+test("agnes whitelist models toggle thinking via chat_template_kwargs (docs 2026-09-24)", () => {
+  // 开思考：enable_thinking=true，无 thinking 信封、无 effort 字段——
+  // 官方 OpenAI 兼容形状只有这一个扩展键。
+  assert.deepEqual(buildThinkingRequestOptions(true, "https://apihub.agnes-ai.com/v1", "high", "agnes-3.0-flash"), {
+    chat_template_kwargs: { enable_thinking: true },
+  });
+  // 关思考：显式 false（opt-in 开关，显式恒定确定）。
+  assert.deepEqual(buildThinkingRequestOptions(false, "https://apihub.agnes-ai.com/v1", "high", "agnes-2.5-flash"), {
+    chat_template_kwargs: { enable_thinking: false },
+  });
+});
+
+test("agnes map falls back to the generic builder shape after a thinking-dimension rejection", () => {
+  recordWireOptimizationRejection("agnes-3.0-flash", "https://apihub.agnes-ai.com/v1", "test", "thinking");
+  assert.deepEqual(buildThinkingRequestOptions(true, "https://apihub.agnes-ai.com/v1", "high", "agnes-3.0-flash"), {
+    thinking: { type: "enabled" },
+    extra_body: { reasoning_effort: "high" },
+  });
+  resetWireOptimizationProbe();
+});

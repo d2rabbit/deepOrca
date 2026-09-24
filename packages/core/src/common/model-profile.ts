@@ -24,7 +24,7 @@
 
 import type { CatalogModelEntry } from "./model-catalog";
 
-export type ModelVendorId = "deepseek" | "stepfun" | "kimi" | "minimax" | "qwen" | "mimo" | "glm" | "unknown";
+export type ModelVendorId = "deepseek" | "stepfun" | "kimi" | "minimax" | "qwen" | "mimo" | "glm" | "agnes" | "unknown";
 
 /** A 类：wire 可见优化（受端点试探约束）。 */
 export type ProfileWire = {
@@ -101,6 +101,10 @@ const WHITELIST: Readonly<Record<string, ModelVendorId>> = {
   "glm-5.3-flash": "glm",
   "glm-5.3-flashx": "glm",
   "glm-5.3-highspeed": "glm",
+  // agnes（本代 flash 双子；2.5-pro 系不入单——Agnes 文档仅 3.0 与
+  // 2.5-flash 明确 Agent/工具链路定位，wiki.agnes-ai.com 2026-09-24）
+  "agnes-2.5-flash": "agnes",
+  "agnes-3.0-flash": "agnes",
   // mimo（v2.5/v2.6 一代 1M 系；v2-flash / v2-omni 旧代不入单）
   "mimo-v2.5": "mimo",
   "mimo-v2.5-pro": "mimo",
@@ -119,6 +123,9 @@ const FAMILY_PATTERNS: ReadonlyArray<{ vendor: ModelVendorId; pattern: RegExp }>
   { vendor: "qwen", pattern: /^qwen/i },
   { vendor: "mimo", pattern: /^mimo/i },
   { vendor: "glm", pattern: /^glm/i },
+  // 图像/视频型号（agnes-image-* / agnes-video-*）也落家族兜底——文本 agent
+  // 画像对它们不适用，但 vendor 归属正确。
+  { vendor: "agnes", pattern: /^agnes-/i },
 ];
 
 /** 各家族 B 类本地策略（仅白名单命中时生效；evidence 见调研报告）。 */
@@ -145,6 +152,16 @@ const WIRE_POLICIES: Partial<Record<ModelVendorId, ProfileWire>> = {
         '"reasoning_effort": input == "disabled" ? "none" : input == "enabled" ? "high" : input,' +
         '"reasoning": {"effort": input == "disabled" ? "none" : input == "enabled" ? "high" : input}' +
         "}",
+    },
+  },
+  // agnes（wiki.agnes-ai.com agnes-25-flash / agnes-30-flash，2026-09-24）：
+  // 思考开关是 `chat_template_kwargs.enable_thinking` 布尔（无 effort 阶梯、
+  // 无 thinking.type 信封）——P3.1 DSL 的数据驱动形态**替代**代码 builder，
+  // 走与 glm 同一条 map 缝隙；被端点拒绝 → P0.8 试探同轮禁用回落 builder。
+  // 开/关都是显式布尔（文档口径为 opt-in 开关，显式 false 恒定确定）。
+  agnes: {
+    optionMaps: {
+      reasoningLevel: '{"chat_template_kwargs": {"enable_thinking": input != "disabled" && input != "none"}}',
     },
   },
 };
@@ -286,6 +303,7 @@ const FIRST_PARTY_HOSTS: Readonly<Record<ModelVendorId, readonly string[]>> = {
   qwen: ["aliyuncs.com"],
   mimo: ["xiaomimimo.com"],
   glm: ["bigmodel.cn", "z.ai"],
+  agnes: ["agnes-ai.com"],
   unknown: [],
 };
 

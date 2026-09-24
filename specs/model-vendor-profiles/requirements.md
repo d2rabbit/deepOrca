@@ -5,17 +5,18 @@
 >
 > ### 支持矩阵（白名单）
 >
-> | 家族 | 白名单型号 | 隐藏/走兜底 |
-> | --- | --- | --- |
-> | deepseek | `deepseek-flash` `deepseek-v4-flash` `deepseek-v4-pro` `deepseek-v4-flash-vision-exp` | chat/reasoner 已停用（保留 override 兼容） |
-> | stepfun | `step-5-preview` `step-3.7-flash` `step-router-v1` | 3.5 系（旧代） |
-> | kimi | `kimi-k3` `kimi-k2.7-code` `kimi-k2.7-code-highspeed` + 别名 `kimi-for-coding`/`kimi-code`/`kimi-coding`（K2.8 经别名，运行时元数据定代际） | k2.5 / k2.6（旧代） |
-> | minimax | `MiniMax-M3` | **M3.1（隐藏未发布）**、M2 全系 |
-> | qwen | `qwen3.8-flash` `qwen3.8-max` `qwen3.8-plus` `qwen3.8-max-preview` | 3.8 权重版本（flash-next 等第三方 id） |
-> | glm | `glm-5.3` `glm-5.3-flash` `glm-5.3-flashx` `glm-5.3-highspeed` | 5.2 及更早 |
-> | mimo | `mimo-v2.5` `mimo-v2.5-pro` `mimo-v2.5-pro-ultraspeed` `mimo-v2.6-pro` `mimo-v2.6-pro-ultraspeed` `mimo-v2.6-flash`（1M 新代） | `mimo-v2-flash` `mimo-v2-omni`（256K 旧代） |
+> | 家族     | 白名单型号                                                                                                                                                                                                                  | 隐藏/走兜底                                                              |
+> | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+> | deepseek | `deepseek-flash` `deepseek-v4-flash` `deepseek-v4-pro` `deepseek-v4-flash-vision-exp`                                                                                                                                       | chat/reasoner 已停用（保留 override 兼容）                               |
+> | stepfun  | `step-5-preview` `step-3.7-flash` `step-router-v1`                                                                                                                                                                          | 3.5 系（旧代）                                                           |
+> | kimi     | `kimi-k3` `kimi-k2.7-code` `kimi-k2.7-code-highspeed` + 别名 `kimi-for-coding`/`kimi-code`/`kimi-coding`（K2.8 经别名，运行时元数据定代际）                                                                                 | k2.5 / k2.6（旧代）                                                      |
+> | minimax  | `MiniMax-M3`                                                                                                                                                                                                                | **M3.1（隐藏未发布）**、M2 全系                                          |
+> | qwen     | `qwen3.8-flash` `qwen3.8-max` `qwen3.8-plus` `qwen3.8-max-preview`                                                                                                                                                          | 3.8 权重版本（flash-next 等第三方 id）                                   |
+> | glm      | `glm-5.3` `glm-5.3-flash` `glm-5.3-flashx` `glm-5.3-highspeed`                                                                                                                                                              | 5.2 及更早                                                               |
+> | mimo     | `mimo-v2.5` `mimo-v2.5-pro` `mimo-v2.5-pro-ultraspeed` `mimo-v2.6-pro` `mimo-v2.6-pro-ultraspeed` `mimo-v2.6-flash`（1M 新代）                                                                                              | `mimo-v2-flash` `mimo-v2-omni`（256K 旧代）                              |
+> | agnes    | `agnes-2.5-flash` `agnes-3.0-flash`（**2026-09-24 用户指令新增**；官方端点 `apihub.agnes-ai.com/v1`，512K 窗口 / 65536 输出，图像 URL 输入，思考开关 `chat_template_kwargs.enable_thinking` 布尔——数据驱动 optionMap 承载） | 2.5-pro 系（文档未明确 Agent 定位）、image/video 型号（非文本 agent 面） |
 >
-> 2026-09-22 立稿。上游依据：[docs/research/2026-09-22-model-optimization-plan.md](../../docs/research/2026-09-22-model-optimization-plan.md)（v5.1 终稿）与 [调研报告](../../docs/research/2026-09-22-vendor-code-agent-model-optimizations.md)（七家四期调研，3473 行证据链）。
+> 2026-09-22 立稿；agnes 家族 2026-09-24 依官方 wiki（wiki.agnes-ai.com agnes-25-flash / agnes-30-flash 页）增补。上游依据：[docs/research/2026-09-22-model-optimization-plan.md](../../docs/research/2026-09-22-model-optimization-plan.md)（v5.1 终稿）与 [调研报告](../../docs/research/2026-09-22-vendor-code-agent-model-optimizations.md)（七家四期调研，3473 行证据链）。
 > **用户拍板（2026-09-22）**：方案方向已认可（"我认可你的方案"）；含对 [`specs/review-ing/model-fleet-adaptation`](../review-ing/model-fleet-adaptation/requirements.md) **R13 的修订**（见 §4）。
 
 ## 1. 问题与范围

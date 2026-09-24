@@ -190,6 +190,8 @@ const FIRST_PARTY_PROVIDER_IDS = new Set([
   "xiaomi-token-plan-sgp",
   "stepfun",
   "stepfun-step-plan",
+  "agnes",
+  "agnes-ai",
 ]);
 
 export function isFirstPartyProvider(providerId: string): boolean {

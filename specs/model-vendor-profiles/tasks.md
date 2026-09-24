@@ -125,7 +125,7 @@
 
 ## 白名单落地（requirements 支持矩阵 → 注册表）
 
-| 家族     | 白名单（26 型号）                                                                 |
+| 家族     | 白名单（28 型号）                                                                 |
 | -------- | --------------------------------------------------------------------------------- |
 | deepseek | flash / v4-flash / v4-pro / v4-flash-vision-exp                                   |
 | stepfun  | step-5-preview / step-3.7-flash / step-router-v1                                  |
@@ -134,21 +134,45 @@
 | qwen     | qwen3.8-flash / -max / -plus / -max-preview                                       |
 | glm      | glm-5.3 / -flash / -flashx / -highspeed                                           |
 | mimo     | mimo-v2.5 / -v2.5-pro / -v2.5-pro-ultraspeed / v2.6-pro(-ultraspeed/-flash)       |
+| agnes    | agnes-2.5-flash / agnes-3.0-flash（**2026-09-24 新增**，官方 wiki 增补）          |
 
 白名单外 → matchedBy:'family'（保守默认）或 'fallback'（兜底）——**全部与升级前逐字节一致**。
+
+## agnes 家族落地记录（2026-09-24，用户指令「模型适配增加 Agnes 家族的 2.5f 和 3.0f」）
+
+- **证据**（第一方官方文档，wiki.agnes-ai.com）：`agnes-2.5-flash` /
+  `agnes-3.0-flash`，端点 `https://apihub.agnes-ai.com/v1`（OpenAI 兼容
+  chat completions + Anthropic 兼容 messages + responses 三协议）；上下文
+  512K / 最大输出 65,536；输入文本 + 图像 URL；工具调用 OpenAI 形状；
+  **思考开关 = `chat_template_kwargs.enable_thinking` 布尔**（无 effort
+  阶梯、无 thinking.type 信封——OpenAI 兼容协议下独此一家）。
+- **落地形态**（全部走既有机制，零新概念）：vendor id `agnes` 入
+  `ModelVendorId`/`ModelFamilyId`；白名单 ×2；家族 pattern `^agnes-/i`
+  （2.5-pro 与 image/video 型号落家族兜底）；第一方 host `agnes-ai.com`；
+  `FIRST_PARTY_PROVIDER_IDS` 补 `agnes`/`agnes-ai`；`FAMILY_MODEL_SUGGESTIONS`
+  补 agnes 行。**思考形状是 P3.1 DSL 的第一个纯数据落地家族**——
+  `WIRE_POLICIES.agnes.optionMaps.reasoningLevel =
+'{"chat_template_kwargs":{"enable_thinking": input != "disabled" && input
+!= "none"}}'`，经 openai-thinking 既有 map 缝隙生效，P0.8 试探看守
+  （carriesThinkingWirePatch 对 map 形态即刻生效——swarm round-2 F1 修复
+  保证了新家族从第一天就有完整记账/同轮重发语义）。能力面（窗口/多模态）
+  不入 FAMILIES 注册表，走 models.dev 目录 fail-open（R8 数据外置，与
+  glm/kimi/qwen 同例）。
+- **测试**：白名单解析 ×2、思考形状（开/关布尔）、试探后回落通用 builder、
+  家族兜底（2.5-pro / image / video）、第一方通道判定；套件全绿。
 
 # Backlog（四期实施后的明确延后项）
 
 > **2026-09-23 更新**：前五项已全部落地（见「五项 Backlog 落地记录」），仅剩真机验证 V.1–V.8。
 
-| 项                              | 原任务    | 状态                                                                     |
-| ------------------------------- | --------- | ----------------------------------------------------------------------- |
-| 工具结果落盘指针（spill 工件）  | P1.3 后半 | **已落地**（`common/tool-spill.ts`，bash 截断 + Stage-A 双钩子）          |
-| 工具面收窄（MCP 披露/模态压制） | P2.2      | **已落地**（`common/mcp-surface.ts`，挂 `computeRoutedMcpTools` 同链）    |
-| 受限表达式 DSL 完整移植         | P3.1 后半 | **已落地**（`common/option-map.ts` + glm 四拼写 map，openai-thinking 消费）|
-| 流式重试缓冲/重放执行层         | P3.3 后半 | **已落地**（接入 `createChatCompletionStream`，提交边界静默重试 ×1）      |
-| 试探维度级记账                  | P0.8 后半 | **已落地**（归因字段匹配：thinking/unrelated/unknown 三态）               |
-| 真机验证 V.1–V.8                | 收官门    | 待办：需桌面环境 + 各厂商 key                                            |
+| 项                              | 原任务    | 状态                                                                        |
+| ------------------------------- | --------- | --------------------------------------------------------------------------- |
+| 工具结果落盘指针（spill 工件）  | P1.3 后半 | **已落地**（`common/tool-spill.ts`，bash 截断 + Stage-A 双钩子）            |
+| 工具面收窄（MCP 披露/模态压制） | P2.2      | **已落地**（`common/mcp-surface.ts`，挂 `computeRoutedMcpTools` 同链）      |
+| 受限表达式 DSL 完整移植         | P3.1 后半 | **已落地**（`common/option-map.ts` + glm 四拼写 map，openai-thinking 消费） |
+| 流式重试缓冲/重放执行层         | P3.3 后半 | **已落地**（接入 `createChatCompletionStream`，提交边界静默重试 ×1）        |
+| 试探维度级记账                  | P0.8 后半 | **已落地**（归因字段匹配：thinking/unrelated/unknown 三态）                 |
+| 真机验证 V.1–V.8                | 收官门    | 待办：需桌面环境 + 各厂商 key                                               |
 
 # 五项 Backlog 落地记录（2026-09-23）
 
@@ -265,7 +289,7 @@ per-session 隔离正确、披露预算 `<=` 边界正确、executor 分发无�
   模型变更即重算（同模型仍字节稳定，R1 前缀缓存语义不受影响）。
 - **F10【低】probe 事件缓冲无界 + drainProbeEvents 零生产消费**：修复：
   事件缓冲封顶 64（环形丢最旧）；探针降级经 `logRoutingEvent({stage:
-  "probe", outcome: "fallback"})` 进入 host 注入的 routing logger（新增
+"probe", outcome: "fallback"})` 进入 host 注入的 routing logger（新增
   stage 值，可观测性落地）。
 - **F8【文档】R7「逐字节一致」范围澄清**：该承诺约束画像/请求形状层；
   B1/B2/B4 是模型无关的 harness 层行为（对所有模型一致生效），不在此面。
