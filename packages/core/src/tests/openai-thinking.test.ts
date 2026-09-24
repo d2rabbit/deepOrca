@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { buildThinkingRequestOptions } from "../common/openai-thinking";
 import { resolveModelProfile } from "../common/model-profile";
 import { recordWireOptimizationRejection, resetWireOptimizationProbe } from "../common/model-probe";
+import { configureModelCatalog } from "../common/model-catalog";
 
 test("buildThinkingRequestOptions explicitly disables thinking", () => {
   assert.deepEqual(buildThinkingRequestOptions(false, "https://api.deepseek.com"), {
@@ -82,13 +83,41 @@ test("glm whitelist models use the data-driven four-spelling map instead of the 
   });
 });
 
-test("glm map falls back to the builder shape after a thinking-dimension rejection", () => {
+test("glm map veto: falls back to NO thinking keys (round-3 G2), never an unverified generic shape", () => {
   recordWireOptimizationRejection("glm-5.3", "https://api.example.com/v2", "test", "thinking");
-  assert.deepEqual(buildThinkingRequestOptions(true, "https://api.example.com/v2", "high", "glm-5.3"), {
-    thinking: { type: "enabled" },
-    extra_body: { reasoning_effort: "high" },
-  });
+  // round-3 G2：map 家族的思考形状是该端点的唯一文档形状；被 veto 后回落
+  // 「不发任何思考键」——绝不再发从未被该端点验证过的通用 builder 形状。
+  assert.deepEqual(buildThinkingRequestOptions(true, "https://api.example.com/v2", "high", "glm-5.3"), {});
   resetWireOptimizationProbe();
+});
+
+test("mandatory models keep the enabled projection even after a probe veto (round-3 G1)", () => {
+  // 目录实证 effort-only 阶梯 → mandatory；veto 记账后用户关思考仍不得回落
+  // disabled 形状（目录已证伪）。mandatory 是保护不是补丁，不随 veto 解除。
+  recordWireOptimizationRejection("glm-5.3", "https://api.example.com/v3", "test", "*");
+  try {
+    configureModelCatalog(
+      JSON.stringify({
+        p: {
+          models: {
+            "glm-5.3": {
+              reasoning: true,
+              reasoning_options: [{ type: "effort", values: ["low", "high", "max"] }],
+            },
+          },
+        },
+        // 灌满 sanity floor（providers.size >= 20）的哑 provider。
+        ...Object.fromEntries(Array.from({ length: 19 }, (_, i) => [`filler${i}`, { models: {} }])),
+      })
+    );
+    assert.deepEqual(buildThinkingRequestOptions(false, "https://api.example.com/v3", "high", "glm-5.3"), {
+      thinking: { type: "enabled" },
+      extra_body: { reasoning_effort: "high" },
+    });
+  } finally {
+    configureModelCatalog(null);
+    resetWireOptimizationProbe();
+  }
 });
 
 test("glm map path honors the thinking-mandatory gate (catalog: effort-only ladder)", () => {
@@ -128,11 +157,10 @@ test("agnes whitelist models toggle thinking via chat_template_kwargs (docs 2026
   });
 });
 
-test("agnes map falls back to the generic builder shape after a thinking-dimension rejection", () => {
+test("agnes map veto: falls back to NO thinking keys (round-3 G2)", () => {
   recordWireOptimizationRejection("agnes-3.0-flash", "https://apihub.agnes-ai.com/v1", "test", "thinking");
-  assert.deepEqual(buildThinkingRequestOptions(true, "https://apihub.agnes-ai.com/v1", "high", "agnes-3.0-flash"), {
-    thinking: { type: "enabled" },
-    extra_body: { reasoning_effort: "high" },
-  });
+  // Agnes 官方端点唯一文档形状是 chat_template_kwargs.enable_thinking；
+  // veto 后不发任何思考键（服务端默认），不发未验证的通用形状。
+  assert.deepEqual(buildThinkingRequestOptions(true, "https://apihub.agnes-ai.com/v1", "high", "agnes-3.0-flash"), {});
   resetWireOptimizationProbe();
 });

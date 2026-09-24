@@ -37,8 +37,25 @@ export type WireDimension = "thinking";
 /** "*" = 通配（归因不出具体维度的保守记账——禁用该 (通道,模型) 全部维度）。 */
 export type WireDimensionOrWildcard = WireDimension | "*";
 
-/** `(channel|model[*|dimension])` → true（该组合的 wire 优化已被端点拒绝）。 */
-const rejected = new Set<string>();
+/**
+ * `(channel|model[*|dimension])` → true（该组合的 wire 优化已被端点拒绝）。
+ *
+ * round-3 G5：记账按**会话隔离**（Map<sessionId, Set<key>>）——此前是进程级
+ * 全局 Set，任一会话的用户轮（resetWireProbe）会清掉其它会话刚记的坏端点
+ * 记账，导致该会话逐请求重燃必败补丁（S2-F3 熔断 per-session 化的同款
+ * 先例）。无 sessionId 的调用（测试/辅助）落 "" 桶。
+ */
+const rejectedBySession = new Map<string, Set<string>>();
+
+function rejectedSetOf(sessionId: string | undefined): Set<string> {
+  const key = sessionId ?? "";
+  let set = rejectedBySession.get(key);
+  if (!set) {
+    set = new Set<string>();
+    rejectedBySession.set(key, set);
+  }
+  return set;
+}
 
 export interface ProbeEvent {
   model: string;
@@ -56,7 +73,13 @@ const events: ProbeEvent[] = [];
  * 是否仍应对该 (模型, 通道[, 维度]) 应用 A 类 wire 优化。
  * 通配（"*"）被记 → 全禁；仅某维度被记 → 只禁该维度；未记录 → true（乐观）。
  */
-export function shouldApplyWireOptimizations(model: string, baseURL?: string, dimension?: WireDimension): boolean {
+export function shouldApplyWireOptimizations(
+  model: string,
+  baseURL?: string,
+  dimension?: WireDimension,
+  sessionId?: string
+): boolean {
+  const rejected = rejectedSetOf(sessionId);
   const channel = channelKeyOf(baseURL);
   if (rejected.has(`${channel}|${model}|*`)) return false;
   if (dimension && rejected.has(`${channel}|${model}|${dimension}`)) return false;
@@ -74,8 +97,10 @@ export function recordWireOptimizationRejection(
   model: string,
   baseURL: string | undefined,
   evidence: string,
-  dimension: WireDimensionOrWildcard = "*"
+  dimension: WireDimensionOrWildcard = "*",
+  sessionId?: string
 ): boolean {
+  const rejected = rejectedSetOf(sessionId);
   const key = `${channelKeyOf(baseURL)}|${model}|${dimension}`;
   if (rejected.has(key)) return false;
   rejected.add(key);
@@ -98,8 +123,31 @@ export function drainProbeEvents(): ProbeEvent[] {
 
 /** 测试复位。 */
 export function resetWireOptimizationProbe(): void {
-  rejected.clear();
+  rejectedBySession.clear();
   events.length = 0;
+}
+
+// ── 请求来源标记（round-3 G4）──────────────────────────────────────────────
+// 失败请求自身的 (model, baseURL) 由 createChatCompletionStream 的 create
+// 错误路径盖上——上层探针记账据此按键，不再用 catch 处主客户端的坐标
+//（失败可能来自压缩/后台的跨模型请求，错键会把 veto 记到无辜模型头上）。
+
+export interface LlmRequestOrigin {
+  model: string;
+  baseURL: string | undefined;
+}
+
+const ORIGIN_SYMBOL = Symbol.for("deeporca.llmRequestOrigin");
+
+export function stampLlmRequestOrigin(error: unknown, model: string, baseURL: string | undefined): void {
+  if (!(error instanceof Error)) return;
+  (error as Error & { [ORIGIN_SYMBOL]?: LlmRequestOrigin })[ORIGIN_SYMBOL] = { model, baseURL };
+}
+
+export function readLlmRequestOrigin(error: unknown): LlmRequestOrigin | null {
+  if (!(error instanceof Error)) return null;
+  const origin = (error as Error & { [ORIGIN_SYMBOL]?: LlmRequestOrigin })[ORIGIN_SYMBOL];
+  return origin ?? null;
 }
 
 /**
@@ -151,7 +199,15 @@ export function matchRejectionAttribution(error: unknown): RejectionAttribution 
   return { kind: "unknown" };
 }
 
-/** 测试/新用户轮次复位（探针拒绝随用户轮次过期——端点配置可能已变）。 */
-export function resetWireProbe(): void {
-  rejected.clear();
+/**
+ * 新用户轮次复位（探针拒绝随用户轮次过期——端点配置可能已变）。
+ * round-3 G5：只清**当前会话**的记账——进程级全清会让其它活跃会话的坏
+ * 端点记账被无关用户轮抹掉，该会话逐请求重燃必败补丁。
+ */
+export function resetWireProbe(sessionId?: string): void {
+  if (sessionId === undefined) {
+    rejectedBySession.clear();
+    return;
+  }
+  rejectedBySession.delete(sessionId);
 }

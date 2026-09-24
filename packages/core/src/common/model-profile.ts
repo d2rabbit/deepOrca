@@ -196,6 +196,23 @@ export function thinkingMandatoryFromCatalog(entry?: CatalogModelEntry | null): 
   );
 }
 
+/**
+ * 三态派生（round-3 G8）：目录对该模型的思考可控性说了什么。
+ *   "known"    —— 有控制形状声明（toggle 或 effort 阶梯）：实证可判；
+ *   "unknown"  —— reasoning 声明与控制形状矛盾/缺失（reasoning:true 但
+ *                 reasoning_options 为空——目录没给形状，**不是**实证可关）。
+ * thinkingMandatory 的语义是「目录实证不可关」；unknown 时必须落
+ * undefined（不可知）而不是 false——否则 kimi-k2.7（文档 always-thinking、
+ * 目录空 options）会被盖章为「实证可关」，下游万一消费假值就踩坑。
+ */
+export type ThinkingControlKnowledge = "known" | "unknown";
+
+export function thinkingControlKnowledge(entry?: CatalogModelEntry | null): ThinkingControlKnowledge {
+  if (!entry || !entry.reasoning) return "unknown";
+  if (!entry.reasoningOptions || entry.reasoningOptions.length === 0) return "unknown";
+  return "known";
+}
+
 /** 目录派生：effort 档位值集合（首个 effort 项）。 */
 export function catalogEffortValues(entry?: CatalogModelEntry | null): readonly string[] | undefined {
   if (!entry?.reasoningOptions) return undefined;
@@ -266,11 +283,14 @@ function wireFor(vendor: ModelVendorId, entry?: CatalogModelEntry | null): Profi
   const readFields = entry?.interleavedField
     ? [entry.interleavedField, "reasoning_content", "reasoning"]
     : base.reasoningReadFields;
-  // toggle 语义下显式落 false（而非缺省 undefined）——消费方按三态读取时
-  // 「目录实证可关」与「目录不可知」必须可区分。
+  // 三态（round-3 G8）：thinkingMandatory 只在目录**给出控制形状**时落值
+  //（true=实证不可关 / false=实证可关）；reasoning:true 但 reasoning_options
+  // 为空 = 目录不可知 → undefined（绝不盖章 false）。「实证可关」与
+  // 「目录不可知」必须可区分。
+  const controlKnown = thinkingControlKnowledge(entry) === "known";
   return {
     ...base,
-    ...(entry && entry.reasoning ? { thinkingMandatory: mandatory } : {}),
+    ...(controlKnown ? { thinkingMandatory: mandatory } : {}),
     ...(efforts ? { effortValues: efforts } : {}),
     ...(readFields ? { reasoningReadFields: readFields } : {}),
   };

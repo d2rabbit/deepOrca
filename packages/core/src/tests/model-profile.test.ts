@@ -10,6 +10,7 @@ import {
   isFirstPartyChannel,
 } from "../common/model-profile";
 import type { CatalogModelEntry as CatalogModelEntryLike } from "../common/model-catalog";
+import { catalogLookupModel, configureModelCatalog } from "../common/model-catalog";
 import {
   isAttributableRejection,
   matchRejectionAttribution,
@@ -421,4 +422,68 @@ test("dimension accounting: per-turn expiry clears dimension and wildcard keys",
   resetWireProbe(); // 新用户轮次
   assert.equal(shouldApplyWireOptimizations("glm-5.3", "https://d.example.com/v3", "thinking"), true);
   assert.equal(shouldApplyWireOptimizations("glm-5.3", "https://d.example.com/v4", "thinking"), true);
+});
+
+// ── round-3 G5/G7/G8：per-session 记账隔离 / 目录大小写回退 / 三态派生 ────────
+
+test("probe accounting is session-scoped: another session's reset never re-arms my vetoes (G5)", () => {
+  recordWireOptimizationRejection("glm-5.3", "https://d.example.com/v1", "e", "thinking", "session-A");
+  assert.equal(shouldApplyWireOptimizations("glm-5.3", "https://d.example.com/v1", "thinking", "session-A"), false);
+  // 会话 B 的用户轮只清自己的记账——A 的 veto 存活。
+  resetWireProbe("session-B");
+  assert.equal(shouldApplyWireOptimizations("glm-5.3", "https://d.example.com/v1", "thinking", "session-A"), false);
+  // A 自己的新用户轮过期自己的记账（端点可能在两轮之间被修复）。
+  resetWireProbe("session-A");
+  assert.equal(shouldApplyWireOptimizations("glm-5.3", "https://d.example.com/v1", "thinking", "session-A"), true);
+});
+
+test("catalog lookup falls back case-insensitively (G7: minimax-m3 vs MiniMax-M3)", () => {
+  configureModelCatalog(
+    JSON.stringify({
+      minimax: {
+        api: "https://api.minimax.test/v1",
+        models: {
+          "MiniMax-M3": {
+            reasoning: true,
+            tool_call: true,
+            reasoning_options: [{ type: "effort", values: ["low", "high", "max"] }],
+          },
+        },
+      },
+      ...Object.fromEntries(Array.from({ length: 19 }, (_, i) => [`filler${i}`, { models: {} }])),
+    })
+  );
+  try {
+    const pascal = catalogLookupModel("MiniMax-M3");
+    const lower = catalogLookupModel("minimax-m3");
+    assert.ok(pascal && lower, "both spellings must resolve");
+    // 白名单小写命中后，目录派生必须同源——不同拼写不得拿到不同 wire。
+    const viaPascal = resolveModelProfile({ model: "MiniMax-M3", catalogEntry: pascal });
+    const viaLower = resolveModelProfile({ model: "minimax-m3", catalogEntry: lower });
+    assert.equal(viaPascal.wire.thinkingMandatory, viaLower.wire.thinkingMandatory);
+    assert.deepEqual(viaPascal.wire.effortValues, viaLower.wire.effortValues);
+  } finally {
+    configureModelCatalog(null);
+  }
+});
+
+test("tri-state: reasoning:true with EMPTY reasoning_options is unknown, never stamped false (G8)", () => {
+  // kimi-k2.7 生产形态（moonshotai-cn 空声明）——目录没给控制形状。
+  const profile = resolveModelProfile({
+    model: "kimi-k2.7-code",
+    catalogEntry: { id: "kimi-k2.7-code", reasoning: true, toolCall: true, multimodal: false },
+  });
+  assert.equal(profile.wire.thinkingMandatory, undefined, "no control shape declared → unknown, not known-off");
+  // 对照：有形状声明（纯 effort 阶梯）→ 实证不可关 true。
+  const known = resolveModelProfile({
+    model: "kimi-k2.7-code",
+    catalogEntry: {
+      id: "kimi-k2.7-code",
+      reasoning: true,
+      toolCall: true,
+      multimodal: false,
+      reasoningOptions: [{ type: "effort", values: ["low", "high"] }],
+    },
+  });
+  assert.equal(known.wire.thinkingMandatory, true);
 });

@@ -62,7 +62,8 @@ export function buildThinkingRequestOptions(
   thinkingEnabled: boolean,
   baseURL?: string,
   reasoningEffort: ReasoningEffort = "high",
-  model?: string
+  model?: string,
+  sessionId?: string
 ): Record<string, unknown> {
   const spec = resolveModelSpec({ model: model ?? "", baseURL });
   const builder = THINKING_BUILDERS[spec.thinkingProtocol] ?? openAiCompatibleBuilder;
@@ -75,27 +76,26 @@ export function buildThinkingRequestOptions(
   // glm-5.3, MiniMax-M3.1 …) reject the disabled shape with a 400, so never
   // emit it on the wire. deepseek/stepfun behavior is unchanged (their
   // builders either already force-enable or the catalog has none/off values).
-  // P0.8: the endpoint probe can veto the patch after an attributable
-  // rejection was recorded for this (model, channel, dimension) — then we
-  // fall back to the caller's unpatched shape (same-turn retry semantics).
+  // swarm round-3 G1 修正：mandatory 是**目录实证的保护**（该端点发 disabled
+  // 必 400），不受探针 veto 影响——veto 只该解除「优化补丁」，把保护也
+  // 解除会让 veto 后的同轮重发携带目录已证伪的 disabled 形状，二次 400
+  // 后整轮死。veto 真正作用的对象只有 map/补丁应用（下方 mapSource 门）。
   const profile = model ? resolveModelProfile({ model, catalogEntry: catalogLookupModel(model) }) : null;
-  const mandatoryStillProbed =
-    profile?.wire.thinkingMandatory === true && shouldApplyWireOptimizations(model ?? "", baseURL, "thinking");
-  const effectiveEnabled = mandatoryStillProbed ? true : thinkingEnabled;
+  const mandatory = profile?.wire.thinkingMandatory === true;
+  const probeAllowsThinking = shouldApplyWireOptimizations(model ?? "", baseURL, "thinking", sessionId);
+  const effectiveEnabled = mandatory ? true : thinkingEnabled;
   // 强制思考 + 用户关思考 → 投影到该家族的「关闭等效」最弱档
   // （stepfun off→low；glm-5.3 系端点无 off 档 → 保持用户档位）。
   let effectiveEffort = nativeEffort;
-  if (mandatoryStillProbed && !thinkingEnabled && profile?.wire.offEffort) {
+  if (mandatory && !thinkingEnabled && profile?.wire.offEffort) {
     effectiveEffort = mapThinkLevel(spec.id, profile.wire.offEffort as ReasoningEffort) as ReasoningEffort;
   }
 
   // P3.1 后半（数据驱动形状）：白名单画像声明了 reasoningLevel 选项映射 →
   // 编译（memo）后用本轮冻结的档位求值，**替代**代码 builder——map 与
   // builder 是同一能力的两种形态，二者只走其一，绝不叠加写同名字段。
-  const mapSource =
-    profile?.matchedBy === "model" && shouldApplyWireOptimizations(model ?? "", baseURL, "thinking")
-      ? profile.wire.optionMaps?.reasoningLevel
-      : undefined;
+  const hasMap = profile?.matchedBy === "model" && profile.wire.optionMaps?.reasoningLevel !== undefined;
+  const mapSource = hasMap && probeAllowsThinking ? profile?.wire.optionMaps?.reasoningLevel : undefined;
   if (mapSource) {
     try {
       // 输入用 effective 态（mandatory 已把关思考抬成开），否则不可关模型
@@ -103,8 +103,14 @@ export function buildThinkingRequestOptions(
       const level = effectiveEnabled ? effectiveEffort : "disabled";
       return compileOptionMap(mapSource).evaluate(level);
     } catch {
-      // fail-open：坏配置绝不杀会话——回落代码 builder 形状。
+      // fail-open：坏配置绝不杀会话——落入下方回落。
     }
   }
+  // round-3 G2：map 家族（agnes/glm 系）的思考形状是该端点的唯一文档
+  // 形状，通用 builder 形状从未被其验证——map 存在但被探针 veto（或求值
+  // 失败）时，回落目标是「不发任何思考键」（端点按服务端默认），不是
+  // 「发通用形状」。mandatory 模型例外：disabled 已被目录证伪，仍走
+  // builder 的 enabled 投影（G1）。
+  if (hasMap && !mandatory) return {};
   return builder(effectiveEnabled, effectiveEffort);
 }

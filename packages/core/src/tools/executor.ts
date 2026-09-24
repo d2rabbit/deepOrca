@@ -241,12 +241,14 @@ export class ToolExecutor {
     if (!handler) {
       // P2.2 disclosure proxy: `mcp__<server>` (two-segment) carries
       // {tool, arguments} and dispatches to the real three-segment MCP tool.
-      // Resolved right beside the direct MCP dispatch — same chain, and the
-      // isMcpTool guard on the RESOLVED name means a malformed call can never
-      // masquerade as a proxy for a tool that does not exist.
+      // Resolved right beside the direct MCP dispatch — same chain. round-3
+      // G12: the guard is a REAL existence check (hasMcpTool) — isMcpTool is
+      // a prefix test that would pass any three-segment shape, so a malformed
+      // proxy call must fall to the clean unknown-tool error instead of the
+      // executor's internal error path.
       const proxyParsed = this.parseToolArguments(toolCall.function.arguments);
       const proxy = asDisclosureProxyCall(toolName, proxyParsed.ok ? proxyParsed.args : {});
-      if (proxy && this.mcpManager?.isMcpTool(`mcp__${proxy.server}__${proxy.tool}`)) {
+      if (proxy && this.mcpManager?.hasMcpTool(`mcp__${proxy.server}__${proxy.tool}`)) {
         return this.mcpManager.executeMcpTool(`mcp__${proxy.server}__${proxy.tool}`, proxy.toolArguments);
       }
       if (this.mcpManager?.isMcpTool(toolName)) {

@@ -125,7 +125,7 @@
 
 ## 白名单落地（requirements 支持矩阵 → 注册表）
 
-| 家族     | 白名单（28 型号）                                                                 |
+| 家族     | 白名单（27 型号 + 3 别名）                                                        |
 | -------- | --------------------------------------------------------------------------------- |
 | deepseek | flash / v4-flash / v4-pro / v4-flash-vision-exp                                   |
 | stepfun  | step-5-preview / step-3.7-flash / step-router-v1                                  |
@@ -299,3 +299,49 @@ per-session 隔离正确、披露预算 `<=` 边界正确、executor 分发无�
 阻塞）：narrowToolSurface/exec 代理分发的集成级测试仍以纯函数测试 +
 typecheck 覆盖（G2 缺口，真机 V.4 承接）；静默重试双 ledger 记录为既定
 「按物理请求计费」口径（UI 聚合如需折叠逻辑轮次属产品决策）。
+
+# swarm round-3 审查记录（2026-09-24，bug-hunt-swarm 对 89108cae..0f35898e 六笔全链）
+
+四路只读调查（语义正确性/同链接缝/回归面/证明实跑）对画像 P0–P3 → 五项
+Backlog → 反 dsh → round-2 → agnes 六笔做全链断言级审查。**查后判净**：
+agnes 思考形状双态安全、frozenToolRoutes 新形状全触点适配、静默重试循环
+复位语义、executor 分发顺序无影子、deepseek R11 golden 在锁、测试无恒真。
+**确认成立并已修**：
+
+- **G1【高】veto 语义反转**：探针记账后 `mandatoryStillProbed=false`，
+  mandatory 模型用户关思考回落发目录已证伪的 disabled 形状，同轮再 400
+  后整轮死。修复：mandatory 是**目录实证的保护**，不随 veto 解除（veto
+  只作用于 map/补丁应用层）。
+- **G2【高】map 家族 veto 回落形状**：agnes/glm 的思考形状是端点唯一文档
+  形状，通用 builder 形状从未被其验证。修复：map 被 veto（或求值失败）
+  时回落「不发任何思考键」（服务端默认），非 mandatory 模型绝不发未验证
+  形状。
+- **G3【高】目录碰撞抢占**：第一方间 first-wins 使 kimi-k3 的 mandatory
+  派生取自 alibaba-cn 转售条目（effort-only）而非 moonshotai 自家
+  （toggle+effort）——用户关思考被强制打开。修复：碰撞解析加**自有序**
+  （model id 前缀 → 厂商自家 provider，rank 2 > 第一方 rank 1 > 聚合 0）。
+- **G4【高】探针错键**：catch 处用主客户端坐标记账，失败可能来自压缩/
+  后台的跨模型请求——veto 记到无辜模型。修复：create 错误路径给 error
+  盖章本次请求自身的 (model, baseURL)（symbol 附加），lifecycle 优先读章。
+- **G5【中】记账进程级全清**：任一会话的用户轮清掉其它会话的坏端点记账，
+  该会话逐请求重燃必败补丁。修复：per-session Map 隔离 +
+  resetWireProbe(sessionId)（同 S2-F3 熔断先例）。
+- **G6【中】temperature 门控越界**：对任意模型生效（586 个非白名单被静默
+  剔除），违反 R7 画像层承诺。修复：门加 matchedBy==="model"（与 P0.3 同
+  口径）。
+- **G7【中】目录大小写不对称**：白名单 toLowerCase 比对 vs 目录精确键，
+  minimax-m3 小写拼写丢全部目录派生。修复：精确 miss 后全表大小写不敏感
+  回退（条目缓存消化，非热路径）。
+- **G8【中】三态盖章**：reasoning:true + 空 reasoning_options 被落成
+  「实证可关 false」（kimi-k2.7 生产形态，文档 always-thinking）。修复：
+  thinkingControlKnowledge 三态——无控制形状 → undefined（不可知），
+  绝不盖章。
+- **G9【低】白名单计数勘误**：28 → 27 型号 + 3 别名。
+- **G12【低】代理守卫空转**：isMcpTool 是前缀判定，恒真于三段名。修复：
+  mcpManager.hasMcpTool 真实存在性检查。
+- **G10/G11 记录不修**（低危/既定口径）：双记账跨面不一致（spec 已承认为
+  产品决策项）；spill 20 件滚动对存活指针无感知（ENOENT 可自愈——read
+  报标准 file-not-found，repeat-breaker 兜底；按会话分子目录留待真机观察）。
+
+**门禁**：core 套件全绿（0 fail）；`npm run check` 全绿。V.x 真机清单追加：
+agnes 官方端点对 `thinking.type` 信封的容忍度（G2 回落路径的真机面）。

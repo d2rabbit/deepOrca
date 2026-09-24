@@ -138,6 +138,31 @@ function parseProviders(): Map<string, RawProvider> | null {
   }
 }
 
+/**
+ * 模型 id 前缀 → 厂商自有 provider id（swarm round-3 G3）：多个**第一方**
+ * 之间也会碰撞——转售渠道（alibaba-cn/alibaba-token-plan 的 kimi/deepseek
+ * 条目）与厂商自家条目（moonshotai/deepseek）对同一 model id 的声明可以
+ * 互相矛盾（转售版常丢 toggle）。自有序在 FIRST_PARTY_PROVIDER_IDS 之上：
+ * 碰撞时 model id 归属厂商的条目胜出，转售/聚合一律让位。
+ */
+const SELF_OWNED_PROVIDER_BY_MODEL_PREFIX: ReadonlyArray<readonly [RegExp, string]> = [
+  [/^deepseek/i, "deepseek"],
+  [/^kimi/i, "moonshotai"],
+  [/^minimax/i, "minimax"],
+  [/^qwen/i, "alibaba"],
+  [/^glm/i, "zhipuai"],
+  [/^mimo/i, "xiaomi"],
+  [/^step-/i, "stepfun"],
+  [/^agnes/i, "agnes"],
+];
+
+function selfOwnedProviderFor(modelId: string): string | null {
+  for (const [pattern, providerId] of SELF_OWNED_PROVIDER_BY_MODEL_PREFIX) {
+    if (pattern.test(modelId)) return providerId;
+  }
+  return null;
+}
+
 function buildModelIndex(): Map<string, { providerId: string; raw: RawModel }> | null {
   if (modelIndex !== null) return modelIndex;
   const providers = parseProviders();
@@ -146,7 +171,15 @@ function buildModelIndex(): Map<string, { providerId: string; raw: RawModel }> |
   // 声明（聚合商/自托管），且声明互相矛盾（如 glm-5.3 首条目是 bothub、
   // deepseek-v4-pro 首条目的 effort 阶梯缺 low）。**厂商第一方条目优先**：
   // 碰撞时第一方胜出，聚合商只在无第一方声明时兜底（维持 first-wins 语义）。
+  // round-3 G3：第一方之间（转售渠道 vs 厂商自家）再按 **model id 归属**
+  // 优先——kimi-k3 必须以 moonshotai 的 toggle 声明为准，而不是
+  // alibaba-cn 的 effort-only 转售声明（后者会把 kimi-k3 误判 mandatory）。
   const index = new Map<string, { providerId: string; raw: RawModel }>();
+  const rankOf = (providerId: string, modelId: string): number => {
+    if (providerId === selfOwnedProviderFor(modelId)) return 2; // 厂商自家
+    if (isFirstPartyProvider(providerId)) return 1; // 第一方（含转售）
+    return 0; // 聚合商
+  };
   for (const [providerId, provider] of providers) {
     const models = provider.models;
     if (!models || typeof models !== "object" || Array.isArray(models)) continue;
@@ -157,8 +190,8 @@ function buildModelIndex(): Map<string, { providerId: string; raw: RawModel }> |
         index.set(modelId, { providerId, raw: model as RawModel });
         continue;
       }
-      // 碰撞：第一方 provider 挤掉聚合商条目（同 id 时以第一方为准）。
-      if (isFirstPartyProvider(providerId) && !isFirstPartyProvider(existing.providerId)) {
+      // 碰撞：先自有序、再第一方序，高序胜出；同序保持 first-wins。
+      if (rankOf(providerId, modelId) > rankOf(existing.providerId, modelId)) {
         index.set(modelId, { providerId, raw: model as RawModel });
       }
     }
@@ -269,7 +302,22 @@ export function catalogLookupModel(model: string): CatalogModelEntry | null {
   if (entryCache.has(model)) return entryCache.get(model) ?? null;
   const index = buildModelIndex();
   let entry: CatalogModelEntry | null = null;
-  const hit = index?.get(model);
+  // round-3 G7：大小写不敏感回退——白名单命中是 toLowerCase 比对（MiniMax-M3
+  // 官方 PascalCase id 可用 minimax-m3 命中），目录却是精确键。不做这层
+  // 回退，同一模型的不同拼写拿到不同 wire（小写拼写丢全部目录派生）。
+  // 目录键的实际大小写不可知（PascalCase/小写/混合都有），toLowerCase
+  // 单向探测不够——精确键 miss 后做一次全表大小写不敏感扫描（索引构建
+  // 一次、条目缓存消化后续调用，扫描不是热路径）。
+  let hit = index?.get(model);
+  if (!hit && index) {
+    const lowered = model.toLowerCase();
+    for (const [key, value] of index) {
+      if (key.toLowerCase() === lowered) {
+        hit = value;
+        break;
+      }
+    }
+  }
   if (hit) {
     entry = toEntry(hit.providerId, hit.raw, model);
   }

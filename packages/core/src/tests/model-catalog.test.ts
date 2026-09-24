@@ -137,3 +137,59 @@ test("slim hints (renderer leg): facades enrich from hints when no full catalog 
   configureCatalogHints(null);
   assert.equal(getCompactPromptTokenThreshold("glm-5-plus"), 200 * 1024);
 });
+
+// ── round-3 G3：同 id 多第一方碰撞——厂商自有序在第一方序之上 ────────────────
+
+test("collision: the vendor's OWN entry beats a first-party reseller entry (kimi-k3 seam)", () => {
+  // 复刻生产快照的碰撞形态：alibaba-cn（第一方转售）声明 effort-only 阶梯，
+  // moonshotai（厂商自家）声明 toggle+effort。自有序必须让 moonshotai 胜出
+  // ——否则 kimi-k3 被误判 thinkingMandatory=true，用户关思考被强制打开。
+  const providers: Record<string, unknown> = {};
+  for (let i = 0; i < 17; i += 1) {
+    providers[`filler-${i}`] = { id: `filler-${i}`, api: `https://filler-${i}.test`, models: {} };
+  }
+  // 文件序上转售渠道在前——自有序必须穿透 first-wins。
+  providers["alibaba-cn"] = {
+    id: "alibaba-cn",
+    api: "https://dashscope.cn",
+    models: {
+      "kimi-k3": {
+        id: "kimi-k3",
+        reasoning: true,
+        tool_call: true,
+        temperature: false,
+        reasoning_options: [{ type: "effort", values: ["low", "high", "max"] }],
+      },
+    },
+  };
+  providers["moonshotai"] = {
+    id: "moonshotai",
+    api: "https://api.moonshot.ai/v1",
+    models: {
+      "kimi-k3": {
+        id: "kimi-k3",
+        reasoning: true,
+        tool_call: true,
+        reasoning_options: [{ type: "toggle" }, { type: "effort", values: ["low", "high", "max"] }],
+      },
+    },
+  };
+  providers["bothub"] = {
+    id: "bothub",
+    api: "https://bothub.test",
+    models: {
+      // 聚合商条目永远兜底——不参与前两序。
+      "kimi-k3": { id: "kimi-k3", reasoning: false, tool_call: false },
+    },
+  };
+  configureModelCatalog(JSON.stringify(providers));
+
+  // 判定面：toggle 在场 → thinkingMandatory 必须为 false（moonshotai 胜出）。
+  const entry = catalogLookupModel("kimi-k3");
+  assert.ok(entry, "kimi-k3 must resolve");
+  assert.deepEqual(
+    entry?.reasoningOptions?.map((option) => option.type),
+    ["toggle", "effort"],
+    "the vendor's own entry (toggle+effort) must win over the reseller's effort-only claim"
+  );
+});

@@ -38,6 +38,7 @@ import { fingerprintAssembly, diffAssemblyFingerprints, type AssemblyFingerprint
 import {
   isAttributableRejection,
   matchRejectionAttribution,
+  readLlmRequestOrigin,
   recordWireOptimizationRejection,
   shouldApplyWireOptimizations,
 } from "./common/model-probe";
@@ -221,7 +222,9 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
     this.resetRepeatBreaker();
     // P0.8: probe rejections also expire per user turn — the endpoint config
     // may have changed, and a fresh turn deserves a fresh optimistic attempt.
-    resetWireProbe();
+    // round-3 G5: 只清本会话——进程级全清会互删其它活跃会话的记账，令其
+    // 逐请求重燃必败补丁。
+    resetWireProbe(this.activeSessionId ?? undefined);
 
     try {
       if (!this.activeSessionId || !this.getSession(this.activeSessionId)) {
@@ -654,7 +657,13 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
           // executor's memory bridge; no permission gate (pure reads).
           ...(this.memoryProvider?.isAvailable() ? (this.memoryProvider.getToolDefinitions?.() ?? []) : []),
         ]);
-        const thinkingOptions = buildThinkingRequestOptions(thinkingEnabled, baseURL, reasoningEffort, model);
+        const thinkingOptions = buildThinkingRequestOptions(
+          thinkingEnabled,
+          baseURL,
+          reasoningEffort,
+          model,
+          sessionId
+        );
         // P1.5 assembly fingerprint (specs/model-vendor-profiles): hash the
         // provider-visible cache surfaces (system prompt + tools); a change in
         // either is the prefix-cache invalidation point. Structured log names
@@ -664,7 +673,13 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
         // capability gate — models.dev `temperature: false` endpoints (e.g.
         // kimi-k3) reject the field, so omit it there. Absent catalog entry
         // keeps today's conditional-send behavior unchanged.
-        const catalogTemperatureBlocked = catalogLookupModel(model)?.temperature === false;
+        // round-3 G6：门按白名单画像（matchedBy==="model"）——与 P0.3 的
+        // reasoningReadFields 消费同口径。此前对任意模型生效（586 个非白
+        // 名单模型被静默剔除 temperature），违反 R7「非白名单逐字节一致」
+        // 的画像/请求形状层约束。
+        const whitelistProfile = resolveModelProfile({ model, catalogEntry: catalogLookupModel(model) });
+        const catalogTemperatureBlocked =
+          whitelistProfile.matchedBy === "model" && catalogLookupModel(model)?.temperature === false;
         const sendTemperature = catalogTemperatureBlocked ? undefined : temperature;
         // Pre-flight budget (P1): count the exact payload about to hit the
         // wire and compact BEFORE sending when it nears the threshold — the
@@ -889,7 +904,12 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
       // Auth/quota/rate-limit/overflow/server never reach here
       // (isAttributableRejection excludes them — R5).
       if (isAttributableRejection(error)) {
-        const { model: probeModel, baseURL: probeBaseURL } = this.createOpenAIClient();
+        // round-3 G4：记账坐标优先取**失败请求自身**的 (model, baseURL)
+        // （createChatCompletionStream 盖章）——压缩/后台请求可能是跨模型
+        // 的，用主客户端坐标会把 veto 记到无辜模型头上。无章（历史路径/
+        // 测试直抛）回退主客户端坐标。
+        const stamped = readLlmRequestOrigin(error);
+        const { model: probeModel, baseURL: probeBaseURL } = stamped ?? this.createOpenAIClient();
         const profile = resolveModelProfile({
           model: probeModel,
           catalogEntry: catalogLookupModel(probeModel),
@@ -897,7 +917,10 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
         // 记账门必须镜像 wire 应用谓词（swarm round-2 F1）：补丁有
         // mandatory 投影与 optionMaps 数据形态两种——只认前者会让 glm 系
         // map 补丁被 400 后永不记账（会话对该端点持续失败）。
-        if (carriesThinkingWirePatch(profile) && shouldApplyWireOptimizations(probeModel, probeBaseURL, "thinking")) {
+        if (
+          carriesThinkingWirePatch(profile) &&
+          shouldApplyWireOptimizations(probeModel, probeBaseURL, "thinking", sessionId)
+        ) {
           const attribution = matchRejectionAttribution(error);
           if (attribution.kind !== "unrelated") {
             const dimension = attribution.kind === "dimension" ? attribution.dimension : "*";
@@ -906,7 +929,8 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
                 probeModel,
                 probeBaseURL,
                 `attributable 400 after wire patch (${dimension}): ${describeLlmError(error)}`,
-                dimension
+                dimension,
+                sessionId
               )
             ) {
               logRoutingEvent({
@@ -1104,7 +1128,7 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
     }
 
     const compactPrompt = getCompactPrompt(sessionMessages.slice(startIndex, endIndex));
-    const thinkingOptions = buildThinkingRequestOptions(thinkingEnabled, baseURL, reasoningEffort, model);
+    const thinkingOptions = buildThinkingRequestOptions(thinkingEnabled, baseURL, reasoningEffort, model, sessionId);
     const response = await this.createChatCompletionStream(
       client,
       {

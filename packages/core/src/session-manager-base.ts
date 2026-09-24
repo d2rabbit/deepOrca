@@ -115,6 +115,7 @@ import { appendUsageRecord, usageLedgerPath, type UsageRecord, type UsageSource 
 import { getUserConfigRoot } from "./common/app-dirs";
 import { classifyLlmError, getLlmErrorDetails } from "./common/llm-error";
 import { canSilentlyRetry, commitsOutput, type StreamEventLike } from "./common/stream-commit-boundary";
+import { stampLlmRequestOrigin } from "./common/model-probe";
 import { bindBehaviorContextCollector, bindKnownMemorySearch } from "./common/memory-seam";
 import { getSnippet } from "./common/state";
 import { isUsageRecord } from "./session-usage";
@@ -1077,6 +1078,11 @@ export abstract class SessionManagerBase {
     try {
       response = await openStream();
     } catch (error) {
+      // round-3 G4：给错误盖上**本次请求自身**的 (model, baseURL)——上层
+      // 恢复通道（P0.8 探针记账）据此按键。此前 lifecycle 用主客户端的
+      // (model, baseURL) 记账，而失败可能来自压缩/后台的跨模型请求——
+      // veto 会记到无辜模型头上，真正的肇事模型继续带补丁。
+      stampLlmRequestOrigin(error, requestModel, readOpenAIClientEndpoint(client).baseURL);
       this.logChatCompletionDebug(debug, {
         timestamp: new Date().toISOString(),
         location: debug?.location ?? "SessionManager.createChatCompletionStream:create",

@@ -705,6 +705,16 @@ export class McpManager {
     return name.startsWith("mcp__");
   }
 
+  /**
+   * round-3 G12：真实存在性检查（isMcpTool 只是 `mcp__` 前缀判定，恒真于
+   * 一切三段名）。披露代理分发（executor）用它守卫「解析后的真实工具名」，
+   * 前缀检查在那里是空转——畸形代理调用应得到干净的 unknown-tool 错误，
+   * 而不是落到 executeMcpTool 内部的错误路径。
+   */
+  hasMcpTool(name: string): boolean {
+    return this.tools.some((t) => t.namespacedName === name);
+  }
+
   async executeMcpTool(
     name: string,
     args: Record<string, unknown>,
