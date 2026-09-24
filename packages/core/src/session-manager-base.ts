@@ -1332,6 +1332,9 @@ export abstract class SessionManagerBase {
               }),
               usage
             );
+            // round-4 H6：流中失败（网关 200+SSE error 可携带可归因 400）
+            // 与 create 期同口径盖章——探针记账用本次请求自身坐标。
+            stampLlmRequestOrigin(error, requestModel, readOpenAIClientEndpoint(client).baseURL);
             throw error;
           }
           // 静默重试：失败的物理请求按「字节已发出」口径记账（供应商可能
@@ -1385,6 +1388,8 @@ export abstract class SessionManagerBase {
               error: getLlmErrorDetails(reopenError),
               request: streamRequest,
             });
+            // round-4 H6：重建 create 失败也带坐标章上抛（同口径）。
+            stampLlmRequestOrigin(reopenError, requestModel, readOpenAIClientEndpoint(client).baseURL);
             throw reopenError;
           }
           // 复用的预循环 non-streaming 回退检查不会重跑——重试响应若是

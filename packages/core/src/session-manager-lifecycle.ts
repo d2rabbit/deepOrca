@@ -222,9 +222,10 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
     this.resetRepeatBreaker();
     // P0.8: probe rejections also expire per user turn — the endpoint config
     // may have changed, and a fresh turn deserves a fresh optimistic attempt.
-    // round-3 G5: 只清本会话——进程级全清会互删其它活跃会话的记账，令其
-    // 逐请求重燃必败补丁。
-    resetWireProbe(this.activeSessionId ?? undefined);
+    // round-3 G5: 只清本会话；round-4 H1：无 active 会话（新会话首条消息，
+    // activeSessionId=null）时**跳过**——新会话的桶本来就是空的，任何形式
+    // 的全清都会互删其它活跃会话的记账（G5 修复在主入口上的复活洞）。
+    if (this.activeSessionId) resetWireProbe(this.activeSessionId);
 
     try {
       if (!this.activeSessionId || !this.getSession(this.activeSessionId)) {
@@ -933,10 +934,12 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
                 sessionId
               )
             ) {
+              // round-4 L12：日志 detail 只留 origin+path——baseURL query 可能
+              // 内嵌凭证（?key=…），绝不可进日志面。
               logRoutingEvent({
                 stage: "probe",
                 outcome: "fallback",
-                detail: `${probeModel}@${probeBaseURL ?? ""} dim=${dimension} — wire patch rejected, retrying unpatched`,
+                detail: `${probeModel}@${(probeBaseURL ?? "").split("?")[0]} dim=${dimension} — wire patch rejected, retrying unpatched`,
               });
               if (!this.isInterrupted(sessionId)) {
                 const notice = this.buildAssistantMessage(sessionId, formatSessionPrompt("probeFallback"), null);

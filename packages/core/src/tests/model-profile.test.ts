@@ -487,3 +487,44 @@ test("tri-state: reasoning:true with EMPTY reasoning_options is unknown, never s
   });
   assert.equal(known.wire.thinkingMandatory, true);
 });
+
+// ── round-4 H5/M7/M10：联合读 / 会话删除回收 / budget-only 三态 ─────────────
+
+test("unkeyed queries consult ALL session buckets (H5): aux calls honor any session's veto", () => {
+  recordWireOptimizationRejection("glm-5.3", "https://u.example.com/v1", "e", "thinking", "session-A");
+  // 无 sessionId（辅助调用形态）：联合读命中 A 的记账。
+  assert.equal(shouldApplyWireOptimizations("glm-5.3", "https://u.example.com/v1", "thinking"), false);
+  // 有 sessionId 的其它会话：只读自己的桶，不受 A 影响（主循环语义不变）。
+  assert.equal(shouldApplyWireOptimizations("glm-5.3", "https://u.example.com/v1", "thinking", "session-B"), true);
+  // A 过期自己的记账后，最后一个持有者消失 → 联合读恢复乐观。
+  resetWireProbe("session-A");
+  assert.equal(shouldApplyWireOptimizations("glm-5.3", "https://u.example.com/v1", "thinking"), true);
+});
+
+test("resetWireProbe(undefined) only clears the unkeyed bucket — never other sessions (H1)", () => {
+  recordWireOptimizationRejection("glm-5.3", "https://u2.example.com/v1", "e", "*", "session-A");
+  recordWireOptimizationRejection("glm-5.3", "https://u2.example.com/v1", "e", "*", undefined);
+  resetWireProbe(undefined);
+  // "" 桶被清；A 的桶存活。
+  assert.equal(shouldApplyWireOptimizations("glm-5.3", "https://u2.example.com/v1", "thinking", "session-A"), false);
+});
+
+test("budget-only reasoning_options is unknown, never known-off (M10)", () => {
+  const profile = resolveModelProfile({
+    model: "kimi-k3",
+    catalogEntry: {
+      id: "kimi-k3",
+      reasoning: true,
+      toolCall: true,
+      multimodal: false,
+      reasoningOptions: [{ type: "budget_tokens" } as never],
+    },
+  });
+  assert.equal(profile.wire.thinkingMandatory, undefined, "budget-only control shape is not evidence of off-ability");
+});
+
+test("channel key strips query strings (L12): key-in-query never lands in probe keys", () => {
+  recordWireOptimizationRejection("glm-5.3", "https://api.example.com/v1?key=SECRET", "e", "thinking", "s");
+  // 无 query 的同 origin+path 查询命中同一键——证明键本身剥了 query。
+  assert.equal(shouldApplyWireOptimizations("glm-5.3", "https://api.example.com/v1", "thinking", "s"), false);
+});

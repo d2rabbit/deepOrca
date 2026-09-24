@@ -227,7 +227,7 @@ If the query is simple (single intent), respond with a single-element array.`;
                     { role: "user", content: userContent },
                   ],
                   response_format: { type: "json_object" },
-                  ...buildThinkingRequestOptions(false, baseURL, "max", model),
+                  ...buildThinkingRequestOptions(false, baseURL, "max", model, options?.sessionId),
                 },
                 options?.signal ? { signal: options.signal } : undefined,
                 options?.sessionId,

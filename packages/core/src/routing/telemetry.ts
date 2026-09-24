@@ -15,7 +15,9 @@
 // "probe" = endpoint-probe fallback (specs/model-vendor-profiles P0.8): a
 // wire optimization was rejected by the endpoint and the request retried
 // unpatched — emits "fallback" with the model/channel/dimension in `detail`.
-export type RoutingStage = "embedding" | "G0" | "G1" | "G2" | "G3" | "SAD" | "server" | "probe";
+// "option-map" = the data-driven thinking shape (P3.1) failed to compile or
+// evaluate — emits "fallback" so a silently degraded map leaves a trace.
+export type RoutingStage = "embedding" | "G0" | "G1" | "G2" | "G3" | "SAD" | "server" | "probe" | "option-map";
 export type RoutingOutcome = "hit" | "fallback" | "skip";
 
 export interface RoutingEvent {

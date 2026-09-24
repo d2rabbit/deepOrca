@@ -210,7 +210,11 @@ export type ThinkingControlKnowledge = "known" | "unknown";
 export function thinkingControlKnowledge(entry?: CatalogModelEntry | null): ThinkingControlKnowledge {
   if (!entry || !entry.reasoning) return "unknown";
   if (!entry.reasoningOptions || entry.reasoningOptions.length === 0) return "unknown";
-  return "known";
+  // round-4 M10：非空 options 但**既无 toggle 也无 effort**（如仅 budget
+  // 声明）= 只有预算控制形状、没有可关性声明——不是「实证可关」，落
+  // unknown（否则 thinkingMandatoryFromCatalog 的 every 空真值会盖章 false）。
+  const hasControlShape = entry.reasoningOptions.some((o) => o.type === "toggle" || o.type === "effort");
+  return hasControlShape ? "known" : "unknown";
 }
 
 /** 目录派生：effort 档位值集合（首个 effort 项）。 */

@@ -182,14 +182,68 @@ test("collision: the vendor's OWN entry beats a first-party reseller entry (kimi
       "kimi-k3": { id: "kimi-k3", reasoning: false, tool_call: false },
     },
   };
-  configureModelCatalog(JSON.stringify(providers));
+  try {
+    configureModelCatalog(JSON.stringify(providers));
 
-  // 判定面：toggle 在场 → thinkingMandatory 必须为 false（moonshotai 胜出）。
-  const entry = catalogLookupModel("kimi-k3");
-  assert.ok(entry, "kimi-k3 must resolve");
-  assert.deepEqual(
-    entry?.reasoningOptions?.map((option) => option.type),
-    ["toggle", "effort"],
-    "the vendor's own entry (toggle+effort) must win over the reseller's effort-only claim"
-  );
+    // 判定面：toggle 在场 → thinkingMandatory 必须为 false（moonshotai 胜出）。
+    const entry = catalogLookupModel("kimi-k3");
+    assert.ok(entry, "kimi-k3 must resolve");
+    assert.deepEqual(
+      entry?.reasoningOptions?.map((option) => option.type),
+      ["toggle", "effort"],
+      "the vendor's own entry (toggle+effort) must win over the reseller's effort-only claim"
+    );
+  } finally {
+    configureModelCatalog(null);
+  }
+});
+
+// ── round-4 H4：大小写变体的精确键不得绕过排名（折叠视图）──────────────────
+
+test("case-variant exact keys do not bypass ranking: lowercase minimax-m3 must resolve to the vendor entry", () => {
+  // 复刻生产形态：聚合商（ollama-cloud）持有**小写精确键** minimax-m3（512K），
+  // 厂商（minimax）持有 PascalCase 键 MiniMax-M3（1M）。精确命中即返回会
+  // 让用户拿到聚合商条目——排名必须经折叠视图介入两种拼写。
+  const providers: Record<string, unknown> = {};
+  for (let i = 0; i < 18; i += 1) {
+    providers[`filler-${i}`] = { id: `filler-${i}`, api: `https://filler-${i}.test`, models: {} };
+  }
+  providers["ollama-cloud"] = {
+    id: "ollama-cloud",
+    api: "https://ollama-cloud.test",
+    models: {
+      "minimax-m3": {
+        id: "minimax-m3",
+        reasoning: true,
+        tool_call: true,
+        limit: { context: 512_000, output: 32_000 },
+      },
+    },
+  };
+  providers["minimax"] = {
+    id: "minimax",
+    api: "https://api.minimax.test/v1",
+    models: {
+      "MiniMax-M3": {
+        id: "MiniMax-M3",
+        reasoning: true,
+        tool_call: true,
+        limit: { context: 1_048_576, output: 64_000 },
+      },
+    },
+  };
+  try {
+    configureModelCatalog(JSON.stringify(providers));
+    // 小写拼写（白名单命中路径）必须拿到厂商 1M 条目，不是聚合商 512K。
+    const viaLower = catalogLookupModel("minimax-m3");
+    assert.equal(
+      viaLower?.contextTokens,
+      1_048_576,
+      "lowercase spelling must win the vendor entry via the folded view"
+    );
+    // PascalCase 拼写同源。
+    assert.equal(catalogLookupModel("MiniMax-M3")?.contextTokens, 1_048_576);
+  } finally {
+    configureModelCatalog(null);
+  }
 });

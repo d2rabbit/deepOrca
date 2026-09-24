@@ -65,7 +65,7 @@ let catalogJson: string | null = null;
 /** Parsed lazily; null when unset or malformed (fail-open). */
 let parsedProviders: Map<string, RawProvider> | null = null;
 /** Exact model-id index across all providers (first provider wins). */
-let modelIndex: Map<string, { providerId: string; raw: RawModel }> | null = null;
+let modelIndex: Map<string, IndexedModelEntry> | null = null;
 /** Memoized entry conversions (catalogLookupModel). */
 let entryCache: Map<string, CatalogModelEntry | null> | null = null;
 
@@ -144,6 +144,8 @@ function parseProviders(): Map<string, RawProvider> | null {
  * 条目）与厂商自家条目（moonshotai/deepseek）对同一 model id 的声明可以
  * 互相矛盾（转售版常丢 toggle）。自有序在 FIRST_PARTY_PROVIDER_IDS 之上：
  * 碰撞时 model id 归属厂商的条目胜出，转售/聚合一律让位。
+ * round-4 M8：映射到厂商**通道 id 家族**（基 id + `-` 派生通道全算自家，
+ * 如 alibaba-cn/alibaba-coding-plan；stepfun 的真实基 id 是 `stepfun-ai`）。
  */
 const SELF_OWNED_PROVIDER_BY_MODEL_PREFIX: ReadonlyArray<readonly [RegExp, string]> = [
   [/^deepseek/i, "deepseek"],
@@ -152,18 +154,23 @@ const SELF_OWNED_PROVIDER_BY_MODEL_PREFIX: ReadonlyArray<readonly [RegExp, strin
   [/^qwen/i, "alibaba"],
   [/^glm/i, "zhipuai"],
   [/^mimo/i, "xiaomi"],
-  [/^step-/i, "stepfun"],
+  [/^step-/i, "stepfun-ai"],
   [/^agnes/i, "agnes"],
 ];
 
-function selfOwnedProviderFor(modelId: string): string | null {
-  for (const [pattern, providerId] of SELF_OWNED_PROVIDER_BY_MODEL_PREFIX) {
-    if (pattern.test(modelId)) return providerId;
+function selfOwnedProviderFor(providerId: string, modelId: string): boolean {
+  for (const [pattern, base] of SELF_OWNED_PROVIDER_BY_MODEL_PREFIX) {
+    if (pattern.test(modelId)) {
+      // 基 id 本体或其 `-` 派生通道（coding-plan/token-plan/-cn）都算厂商自家。
+      return providerId === base || providerId.startsWith(`${base}-`);
+    }
   }
-  return null;
+  return false;
 }
 
-function buildModelIndex(): Map<string, { providerId: string; raw: RawModel }> | null {
+type IndexedModelEntry = { providerId: string; raw: RawModel; rank: number };
+
+function buildModelIndex(): Map<string, IndexedModelEntry> | null {
   if (modelIndex !== null) return modelIndex;
   const providers = parseProviders();
   if (!providers) return null;
@@ -174,9 +181,11 @@ function buildModelIndex(): Map<string, { providerId: string; raw: RawModel }> |
   // round-3 G3：第一方之间（转售渠道 vs 厂商自家）再按 **model id 归属**
   // 优先——kimi-k3 必须以 moonshotai 的 toggle 声明为准，而不是
   // alibaba-cn 的 effort-only 转售声明（后者会把 kimi-k3 误判 mandatory）。
-  const index = new Map<string, { providerId: string; raw: RawModel }>();
+  // rank 随条目存入索引：round-4 H4 的折叠视图要在**不同大小写键**之间
+  // 比较排名，若每次重算会对每个折叠键跑一遍前缀正则。
+  const index = new Map<string, IndexedModelEntry>();
   const rankOf = (providerId: string, modelId: string): number => {
-    if (providerId === selfOwnedProviderFor(modelId)) return 2; // 厂商自家
+    if (selfOwnedProviderFor(providerId, modelId)) return 2; // 厂商自家通道
     if (isFirstPartyProvider(providerId)) return 1; // 第一方（含转售）
     return 0; // 聚合商
   };
@@ -185,19 +194,42 @@ function buildModelIndex(): Map<string, { providerId: string; raw: RawModel }> |
     if (!models || typeof models !== "object" || Array.isArray(models)) continue;
     for (const [modelId, model] of Object.entries(models as Record<string, unknown>)) {
       if (!model || typeof model !== "object" || Array.isArray(model)) continue;
+      const rank = rankOf(providerId, modelId);
       const existing = index.get(modelId);
       if (!existing) {
-        index.set(modelId, { providerId, raw: model as RawModel });
+        index.set(modelId, { providerId, raw: model as RawModel, rank });
         continue;
       }
       // 碰撞：先自有序、再第一方序，高序胜出；同序保持 first-wins。
-      if (rankOf(providerId, modelId) > rankOf(existing.providerId, modelId)) {
-        index.set(modelId, { providerId, raw: model as RawModel });
+      if (rank > existing.rank) {
+        index.set(modelId, { providerId, raw: model as RawModel, rank });
       }
     }
   }
+  buildFoldedIndex(index);
   modelIndex = index;
   return index;
+}
+
+/**
+ * round-4 H4：大小写折叠视图（lowerKey → 同族最高排名条目）。白名单命中是
+ * toLowerCase 比对，而目录键大小写不可知——`minimax-m3`（小写）在
+ * ollama-cloud 聚合商下有**精确键**，精确命中即返回会让排名永远不介入
+ * （G7 的动机案例）：用户拿到聚合商的 512K 窗口而非厂商的 1M。折叠视图
+ * 建一次（随主索引 memo），lookup 在精确命中 rank 低于折叠胜者时改取折叠
+ * 胜者——同键（大小写一致）时折叠胜者就是自身，行为不变。
+ */
+const foldedIndex = new Map<string, IndexedModelEntry>();
+
+function buildFoldedIndex(index: Map<string, IndexedModelEntry>): void {
+  foldedIndex.clear();
+  for (const [modelId, entry] of index) {
+    const lowerKey = modelId.toLowerCase();
+    const existing = foldedIndex.get(lowerKey);
+    if (!existing || entry.rank > existing.rank) {
+      foldedIndex.set(lowerKey, entry);
+    }
+  }
 }
 
 /** 厂商第一方 provider id（models.dev 命名实测；仅用于目录去重的优先级）。 */
@@ -222,6 +254,7 @@ const FIRST_PARTY_PROVIDER_IDS = new Set([
   "xiaomi-token-plan-ams",
   "xiaomi-token-plan-sgp",
   "stepfun",
+  "stepfun-ai", // round-4 M8：step 厂商在 models.dev 的真实基 id（无 stepfun 通道时）
   "stepfun-step-plan",
   "agnes",
   "agnes-ai",
@@ -302,22 +335,13 @@ export function catalogLookupModel(model: string): CatalogModelEntry | null {
   if (entryCache.has(model)) return entryCache.get(model) ?? null;
   const index = buildModelIndex();
   let entry: CatalogModelEntry | null = null;
-  // round-3 G7：大小写不敏感回退——白名单命中是 toLowerCase 比对（MiniMax-M3
-  // 官方 PascalCase id 可用 minimax-m3 命中），目录却是精确键。不做这层
-  // 回退，同一模型的不同拼写拿到不同 wire（小写拼写丢全部目录派生）。
-  // 目录键的实际大小写不可知（PascalCase/小写/混合都有），toLowerCase
-  // 单向探测不够——精确键 miss 后做一次全表大小写不敏感扫描（索引构建
-  // 一次、条目缓存消化后续调用，扫描不是热路径）。
-  let hit = index?.get(model);
-  if (!hit && index) {
-    const lowered = model.toLowerCase();
-    for (const [key, value] of index) {
-      if (key.toLowerCase() === lowered) {
-        hit = value;
-        break;
-      }
-    }
-  }
+  // round-3 G7 + round-4 H4：大小写不敏感解析——白名单命中是 toLowerCase
+  // 比对（MiniMax-M3 官方 PascalCase id 可用 minimax-m3 命中），目录键的
+  // 实际大小写不可知。且**精确键命中不能直接赢**：`minimax-m3`（小写）在
+  // 聚合商下有精确键，若精确即返回，G3 的排名永远不介入大小写变体——
+  // 统一经折叠视图解析：折叠胜者（同族最高 rank，含精确键自身）胜出。
+  // 同键时折叠胜者即自身，行为与精确命中完全一致。
+  const hit = index ? (foldedIndex.get(model.toLowerCase()) ?? undefined) : undefined;
   if (hit) {
     entry = toEntry(hit.providerId, hit.raw, model);
   }

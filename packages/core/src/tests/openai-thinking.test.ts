@@ -91,9 +91,16 @@ test("glm map veto: falls back to NO thinking keys (round-3 G2), never an unveri
   resetWireOptimizationProbe();
 });
 
-test("mandatory models keep the enabled projection even after a probe veto (round-3 G1)", () => {
-  // 目录实证 effort-only 阶梯 → mandatory；veto 记账后用户关思考仍不得回落
-  // disabled 形状（目录已证伪）。mandatory 是保护不是补丁，不随 veto 解除。
+test("veto → no thinking keys for EVERY family shape (round-4 H2/H3 unified matrix)", () => {
+  // round-4 H2/H3：veto 生效 → 一律不发思考键（服务端默认）。三族都断言：
+  // ①mandatory+无 map（qwen 系）——round-3 会重发逐字节相同的请求，二连
+  //   400 后整轮死；②mandatory+map（带目录的 glm-5.3）——round-3 会落回
+  //   未验证的通用信封；③map+非 mandatory 的用户**关**思考态。`{}` 不是
+  //   disabled 形状，G1 的「绝不发目录证伪形状」继续成立。
+  recordWireOptimizationRejection("qwen3.8-max-preview", "https://api.example.com/q", "test", "thinking");
+  assert.deepEqual(buildThinkingRequestOptions(false, "https://api.example.com/q", "high", "qwen3.8-max-preview"), {});
+  resetWireOptimizationProbe();
+
   recordWireOptimizationRejection("glm-5.3", "https://api.example.com/v3", "test", "*");
   try {
     configureModelCatalog(
@@ -110,14 +117,17 @@ test("mandatory models keep the enabled projection even after a probe veto (roun
         ...Object.fromEntries(Array.from({ length: 19 }, (_, i) => [`filler${i}`, { models: {} }])),
       })
     );
-    assert.deepEqual(buildThinkingRequestOptions(false, "https://api.example.com/v3", "high", "glm-5.3"), {
-      thinking: { type: "enabled" },
-      extra_body: { reasoning_effort: "high" },
-    });
+    // 用户关思考（mandatory 抬升为开）与开思考两态都落 {}。
+    assert.deepEqual(buildThinkingRequestOptions(false, "https://api.example.com/v3", "high", "glm-5.3"), {});
+    assert.deepEqual(buildThinkingRequestOptions(true, "https://api.example.com/v3", "high", "glm-5.3"), {});
   } finally {
     configureModelCatalog(null);
     resetWireOptimizationProbe();
   }
+
+  recordWireOptimizationRejection("agnes-3.0-flash", "https://apihub.agnes-ai.com/v1", "test", "thinking");
+  assert.deepEqual(buildThinkingRequestOptions(false, "https://apihub.agnes-ai.com/v1", "high", "agnes-3.0-flash"), {});
+  resetWireOptimizationProbe();
 });
 
 test("glm map path honors the thinking-mandatory gate (catalog: effort-only ladder)", () => {

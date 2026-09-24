@@ -5,6 +5,7 @@ import { resolveModelProfile } from "./model-profile";
 import { catalogLookupModel } from "./model-catalog";
 import { shouldApplyWireOptimizations } from "./model-probe";
 import { compileOptionMap } from "./option-map";
+import { logRoutingEvent } from "../routing/telemetry";
 
 type ThinkingConfig = {
   type: "enabled" | "disabled";
@@ -102,15 +103,24 @@ export function buildThinkingRequestOptions(
       // 上关思考仍会把 disabled 形状发给端点。
       const level = effectiveEnabled ? effectiveEffort : "disabled";
       return compileOptionMap(mapSource).evaluate(level);
-    } catch {
-      // fail-open：坏配置绝不杀会话——落入下方回落。
+    } catch (error) {
+      // fail-open：坏配置绝不杀会话。round-4 M9：坏 map（编译/求值失败）
+      // 与 veto 同样落「不发思考键」，但必须留下观测痕迹——否则思考开关
+      // 静默消失且无案可查（手工维护的 DSL 串一处笔误即整族失效）。
+      logRoutingEvent({
+        stage: "option-map",
+        outcome: "fallback",
+        detail: `${model ?? ""}: option map failed (${error instanceof Error ? error.message : String(error)}) — no thinking keys emitted`,
+      });
     }
   }
-  // round-3 G2：map 家族（agnes/glm 系）的思考形状是该端点的唯一文档
-  // 形状，通用 builder 形状从未被其验证——map 存在但被探针 veto（或求值
-  // 失败）时，回落目标是「不发任何思考键」（端点按服务端默认），不是
-  // 「发通用形状」。mandatory 模型例外：disabled 已被目录证伪，仍走
-  // builder 的 enabled 投影（G1）。
-  if (hasMap && !mandatory) return {};
+  // round-4 H2/H3（统一回落矩阵）：veto 生效 → 一律「不发任何思考键」，
+  // 不分 map/builder、不分 mandatory。三条理由：①`{}` 不是 disabled 形状，
+  // G1 的「mandatory 绝不发目录证伪形状」继续成立（服务端默认兜底）；
+  // ②重试形状保证与被拒请求不同——round-3 的 mandatory+无map 组合（qwen
+  // 系）会重发**逐字节相同**的请求，二连 400 后整轮死且 probeFallback
+  // 文案撒谎；③mandatory+map 组合（glm-5.3 快照实测）round-3 会落回
+  // 「从未被该端点验证」的通用 builder 信封——正是 G2 要避免的形状。
+  if (!probeAllowsThinking) return {};
   return builder(effectiveEnabled, effectiveEffort);
 }

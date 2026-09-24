@@ -345,3 +345,50 @@ agnes 思考形状双态安全、frozenToolRoutes 新形状全触点适配、静
 
 **门禁**：core 套件全绿（0 fail）；`npm run check` 全绿。V.x 真机清单追加：
 agnes 官方端点对 `thinking.type` 信封的容忍度（G2 回落路径的真机面）。
+
+# round-4 审查记录（2026-09-25，code-bug-analyzer 四维并行对 90a76753）
+
+四路分析（静态/逻辑/安全/质量）审查 round-3 修复本身——「修 bug 的代码也会
+引入 bug」。安全组判净（五条攻击链全部不可达，本链是净安全增益）；其余三
+组确认**修复自伤四条高危**并全修：
+
+- **H1【高】G5 修复在主入口复活**：`resetWireProbe(activeSessionId ?? undefined)`
+  在新会话首条消息（activeSessionId=null，desktop 新建聊天的常态）落
+  undefined → 进程级全清。修复：无 active 会话时跳过（新会话桶本就为空）。
+- **H2/H3【高】veto 回落矩阵漏两格（统一修）**：mandatory+无map（qwen 系）
+  veto 后重发**逐字节相同**请求（二连 400 整轮死，probeFallback 文案撒谎）；
+  mandatory+map（glm-5.3 快照实测）veto 后落回「从未被验证」的通用信封
+  （G1 豁免反噬 G2 原则）。修复：veto 生效一律返回 `{}`（不发任何思考键，
+  非 disabled 不违 G1；重试形状保证可变；服务端默认兜底）。
+- **H4【高】G7 的动机案例实际未修复**：大小写回退只在精确键**不存在**时
+  触发，而 minimax-m3（小写）在聚合商下有精确键——排名从不介入，用户
+  拿到聚合商 512K 而非厂商 1M。修复：建期**折叠视图**（lowerKey→同族
+  最高 rank），lookup 统一经折叠解析。
+- **H5【中】G5 覆盖回归**：辅助调用（技能/分解/depth/后台）无 sessionId
+  → 只读 "" 桶 → 任何会话的 veto 对它们不可见，整会话重发已证伪形状。
+  修复：无坐标查询读**全桶联合**（尊重任一会话学到的证据；各会话按轮
+  过期/删除清桶语义不变）+ skills/mcp 两处手边 sessionId 直接透传。
+- **H6【中】盖章缺口**：流中错误与静默重试 reopen 失败未盖章（网关
+  200+SSE error 可携带可归因 400）。修复：两处补盖章。
+- **M7【中】probe Map 泄漏**：deleteSession 不清桶 + 读路径物化空 Set
+  （每个静默 subagent 永久占位）。修复：deleteSession 清桶 + 读不物化。
+- **M8【中】厂商通道 id 家族化**：stepfun-ai（step 真实基 id）不在任何
+  表被当聚合商；自有序改基 id + `-` 派生通道前缀匹配。
+- **M9【中】坏 optionMap 静默退化**：编译/求值失败与 veto 同落 `{}` 但
+  零痕迹。修复：catch 落 logRoutingEvent(stage:"option-map")。
+- **M10【中】budget-only 三态**：options 仅 budget_tokens 非空被盖
+  「known」→ mandatory 落 false（空真）。修复：无 toggle 无 effort →
+  unknown。
+- **L12【低】key-in-query 入日志**：通道键/日志 detail 改 origin+path
+  （剥 query）。
+- **L13【低】死代码清除**：events 环形缓冲 + drainProbeEvents 零消费者，
+  移除（诊断走 logRoutingEvent）。
+
+记录不修：minimax-m3 无第一方声明者（13 家聚合商互相矛盾，first-wins
+今日取 ollama-cloud 的 toggle 声明——上游键序变更可翻转 mandatory；
+spec 明文容忍聚合商兜底，真机 V 项观察）；resolveModelProfile 每请求
+~3 次（微秒级 vs 网络百毫秒，判不值得 memo）；G1×G5 交互下 mandatory
+模型 veto 后每轮 1 次必败 + 提示（H2 统一 `{}` 后重试可变，可自愈）。
+
+**门禁**：core 套件 **1178 pass / 0 fail**；`npm run check` 全绿。
+V.x 真机清单追加：GLM 官方端点缺省思考键行为（H2 统一回落的真机面）。

@@ -5,28 +5,32 @@
  * （HTTP 400 类且非 auth/quota/限流/溢出——那些绝不判为「优化被拒」）时，
  * 对该 `(通道,模型[,维度])` 记禁用并**同轮以默认形态重发一次**。
  *
- * 维度级记账（backlog 落地）：拒绝消息**点名了我们补过的字段**（thinking /
+ * 维度级记账：拒绝消息**点名了我们补过的字段**（thinking /
  * reasoning_effort / enable_thinking）→ 只禁该维度；**点名了与补丁无关的
  * 字段**（tools / temperature / max_tokens…）→ 不记账（S1-F2：那不是优化
- * 的锅，同轮原样重发必然再 400）；认不出 → 通配保守（禁用全部维度）。
+ * 的锅，同轮原样重发必然再 400）；认不出 → 通配保守。
  *
- * 会话内内存记账（首期不做跨会话持久化——端点配置会变）；记录后的
- * 降级在**进程内存活**，并随新用户轮次重新乐观试探（{@link resetWireProbe}
- * ——端点可能在两轮之间被修复）。诊断经 {@link drainProbeEvents} 输出。
+ * 会话内内存记账（不跨会话持久化——端点配置会变）；记录后的降级随**该
+ * 会话**的新用户轮次重新乐观试探（{@link resetWireProbe}——端点可能在
+ * 两轮之间被修复）。降级诊断经调用方 `logRoutingEvent(stage:"probe")`
+ * 走 host 注入的 routing logger。
  */
 
 import { classifyLlmError, getLlmErrorDetails } from "./llm-error";
 
 /**
- * 通道键：规范化 baseURL 全串（去尾斜杠）。host 级粒度不够——同一厂商
- * 的不同路径入口（如 stepfun `/v1` 与 `/step_plan/v1`）可能是不同网关栈，
- * 一处的拒绝不应波及另一处的乐观试探。无 baseURL 时用 ""——同一进程内
- * 仍按模型区分。
+ * 通道键：origin + path（剥 query/hash，去尾斜杠）。host 级粒度不够——
+ * 同一厂商的不同路径入口（如 stepfun `/v1` 与 `/step_plan/v1`）可能是
+ * 不同网关栈，一处的拒绝不应波及另一处的乐观试探。剥 query 是安全要求
+ * （round-4 L12）：OpenAI 兼容生态常见 key-in-query 约定（?key=…），
+ * 通道键会进日志 detail——query 一律不入键、不入日志。无 baseURL 时用
+ * ""——同一进程内仍按模型区分。
  */
 function channelKeyOf(baseURL: string | undefined): string {
   if (!baseURL) return "";
   try {
-    return new URL(baseURL).toString().replace(/\/+$/, "");
+    const url = new URL(baseURL);
+    return `${url.origin}${url.pathname}`.replace(/\/+$/, "");
   } catch {
     return "";
   }
@@ -42,36 +46,21 @@ export type WireDimensionOrWildcard = WireDimension | "*";
  *
  * round-3 G5：记账按**会话隔离**（Map<sessionId, Set<key>>）——此前是进程级
  * 全局 Set，任一会话的用户轮（resetWireProbe）会清掉其它会话刚记的坏端点
- * 记账，导致该会话逐请求重燃必败补丁（S2-F3 熔断 per-session 化的同款
- * 先例）。无 sessionId 的调用（测试/辅助）落 "" 桶。
+ * 记账。round-4 M7：读路径**不物化**空 Set（否则每个发起过请求的会话——
+ * 含即建即删的静默 subagent——都在模块级 Map 里永久占位）；会话删除时由
+ * deleteSession 显式清桶。无 sessionId 的调用（测试/辅助）落 "" 桶。
  */
 const rejectedBySession = new Map<string, Set<string>>();
-
-function rejectedSetOf(sessionId: string | undefined): Set<string> {
-  const key = sessionId ?? "";
-  let set = rejectedBySession.get(key);
-  if (!set) {
-    set = new Set<string>();
-    rejectedBySession.set(key, set);
-  }
-  return set;
-}
-
-export interface ProbeEvent {
-  model: string;
-  channel: string;
-  /** "*" 或具体维度。 */
-  dimension: WireDimensionOrWildcard;
-  evidence: string;
-  at: string;
-}
-
-/** 结构化降级日志缓冲（drain 后清空；主进程写日志/遥测用）。 */
-const events: ProbeEvent[] = [];
 
 /**
  * 是否仍应对该 (模型, 通道[, 维度]) 应用 A 类 wire 优化。
  * 通配（"*"）被记 → 全禁；仅某维度被记 → 只禁该维度；未记录 → true（乐观）。
+ *
+ * round-4 H5：**无 sessionId 的查询读全部桶的联合**——辅助调用（技能匹配/
+ * 分解/depth/后台）拿不到会话坐标，若只读 "" 桶则任何会话的 veto 对它们
+ * 都不可见，整会话持续重发已证伪形状（G5 引入的覆盖回归）。联合读让无坐标
+ * 消费方尊重任一会话学到的端点证据；各会话的按轮过期/删除清桶语义不变
+ * （最后一个持有者过期后辅助调用也随之重新乐观）。
  */
 export function shouldApplyWireOptimizations(
   model: string,
@@ -79,18 +68,23 @@ export function shouldApplyWireOptimizations(
   dimension?: WireDimension,
   sessionId?: string
 ): boolean {
-  const rejected = rejectedSetOf(sessionId);
   const channel = channelKeyOf(baseURL);
-  if (rejected.has(`${channel}|${model}|*`)) return false;
-  if (dimension && rejected.has(`${channel}|${model}|${dimension}`)) return false;
+  const wildcardKey = `${channel}|${model}|*`;
+  const dimensionKey = dimension ? `${channel}|${model}|${dimension}` : null;
+  const buckets =
+    sessionId !== undefined
+      ? [rejectedBySession.get(sessionId)]
+      : [rejectedBySession.get(""), ...rejectedBySession.values()];
+  for (const bucket of buckets) {
+    if (!bucket) continue;
+    if (bucket.has(wildcardKey)) return false;
+    if (dimensionKey && bucket.has(dimensionKey)) return false;
+  }
   return true;
 }
 
-/** 事件缓冲上限（环形丢弃最旧）：长命进程内拒绝事件有界（swarm round-2 F10）。 */
-const EVENTS_LIMIT = 64;
-
 /**
- * 记录一次可归因拒绝：此后该 (通道, 模型[, 维度]) 的 wire 优化在本进程内禁用。
+ * 记录一次可归因拒绝：此后该 (通道, 模型[, 维度]) 的 wire 优化在本会话内禁用。
  * @returns true 若是该键首次记录（调用方据此决定是否同轮重发一次）。
  */
 export function recordWireOptimizationRejection(
@@ -100,37 +94,37 @@ export function recordWireOptimizationRejection(
   dimension: WireDimensionOrWildcard = "*",
   sessionId?: string
 ): boolean {
-  const rejected = rejectedSetOf(sessionId);
+  const bucketKey = sessionId ?? "";
+  let rejected = rejectedBySession.get(bucketKey);
+  if (!rejected) {
+    rejected = new Set<string>();
+    rejectedBySession.set(bucketKey, rejected);
+  }
   const key = `${channelKeyOf(baseURL)}|${model}|${dimension}`;
   if (rejected.has(key)) return false;
   rejected.add(key);
-  events.push({
-    model,
-    channel: channelKeyOf(baseURL),
-    dimension,
-    evidence,
-    at: new Date().toISOString(),
-  });
-  if (events.length > EVENTS_LIMIT) events.splice(0, events.length - EVENTS_LIMIT);
   return true;
 }
 
-/** 取出并清空降级事件（每次请求收尾或会话收尾时调用）。 */
-export function drainProbeEvents(): ProbeEvent[] {
-  if (events.length === 0) return [];
-  return events.splice(0, events.length);
+/**
+ * 新用户轮次复位（探针拒绝随用户轮次过期——端点配置可能已变）。
+ * round-3 G5：只清**当前会话**的记账；round-4 H1：`undefined` 与其它两个
+ * 函数的语义对齐——只清 "" 桶（进程级全清曾是 G5 修复的复活洞：新会话
+ * 首条消息 activeSessionId=null → ?? undefined → 误清所有会话）。
+ */
+export function resetWireProbe(sessionId?: string): void {
+  rejectedBySession.delete(sessionId ?? "");
 }
 
-/** 测试复位。 */
+/** 测试复位（清全部会话桶）。 */
 export function resetWireOptimizationProbe(): void {
   rejectedBySession.clear();
-  events.length = 0;
 }
 
 // ── 请求来源标记（round-3 G4）──────────────────────────────────────────────
-// 失败请求自身的 (model, baseURL) 由 createChatCompletionStream 的 create
-// 错误路径盖上——上层探针记账据此按键，不再用 catch 处主客户端的坐标
-//（失败可能来自压缩/后台的跨模型请求，错键会把 veto 记到无辜模型头上）。
+// 失败请求自身的 (model, baseURL) 由 createChatCompletionStream 的错误路径
+// 盖上——上层探针记账据此按键，不再用 catch 处主客户端的坐标（失败可能
+// 来自压缩的跨模型请求，错键会把 veto 记到无辜模型头上）。
 
 export interface LlmRequestOrigin {
   model: string;
@@ -140,6 +134,9 @@ export interface LlmRequestOrigin {
 const ORIGIN_SYMBOL = Symbol.for("deeporca.llmRequestOrigin");
 
 export function stampLlmRequestOrigin(error: unknown, model: string, baseURL: string | undefined): void {
+  // round-4 H6：空 model 不盖章（空章会抑制 lifecycle 的主客户端回退，
+  // 让该类请求的可归因 400 静默不记 veto）。
+  if (!model) return;
   if (!(error instanceof Error)) return;
   (error as Error & { [ORIGIN_SYMBOL]?: LlmRequestOrigin })[ORIGIN_SYMBOL] = { model, baseURL };
 }
@@ -197,17 +194,4 @@ export function matchRejectionAttribution(error: unknown): RejectionAttribution 
   if (THINKING_FIELD_PATTERN.test(message)) return { kind: "dimension", dimension: "thinking" };
   if (UNRELATED_FIELD_PATTERN.test(message)) return { kind: "unrelated" };
   return { kind: "unknown" };
-}
-
-/**
- * 新用户轮次复位（探针拒绝随用户轮次过期——端点配置可能已变）。
- * round-3 G5：只清**当前会话**的记账——进程级全清会让其它活跃会话的坏
- * 端点记账被无关用户轮抹掉，该会话逐请求重燃必败补丁。
- */
-export function resetWireProbe(sessionId?: string): void {
-  if (sessionId === undefined) {
-    rejectedBySession.clear();
-    return;
-  }
-  rejectedBySession.delete(sessionId);
 }

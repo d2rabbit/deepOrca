@@ -18,6 +18,7 @@ import {
   PLAN_MODE_OFF_STATUS_MESSAGE,
 } from "./session-constants";
 import { clearSessionState } from "./common/state";
+import { resetWireProbe } from "./common/model-probe";
 import { clearSessionWorkingDir } from "./tools/bash-handler";
 import { getCodegraphController } from "./actions/codegraph-controller";
 import { getCrgController } from "./actions/crg-controller";
@@ -283,6 +284,9 @@ export abstract class SessionManagerPersistence extends SessionManagerSkills {
   deleteSession(sessionId: string): boolean {
     this.frozenToolRoutes.delete(sessionId);
     this.taskRecallHinted.delete(sessionId);
+    // round-4 M7：探针记账桶随会话回收（长命进程不泄漏；会话已删，
+    // 该桶的 veto 语义也随之失效）。
+    resetWireProbe(sessionId);
     const index = this.loadSessionsIndex();
     const targetEntry = index.entries.find((entry) => entry.id === sessionId) ?? null;
     const nextEntries = index.entries.filter((entry) => entry.id !== sessionId);
