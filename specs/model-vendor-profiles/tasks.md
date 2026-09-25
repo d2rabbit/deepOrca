@@ -392,3 +392,30 @@ spec 明文容忍聚合商兜底，真机 V 项观察）；resolveModelProfile �
 
 **门禁**：core 套件 **1178 pass / 0 fail**；`npm run check` 全绿。
 V.x 真机清单追加：GLM 官方端点缺省思考键行为（H2 统一回落的真机面）。
+
+# 功能层面测试（2026-09-25，用户指令「你自己进行功能层面测试」）
+
+新增 `tests/profiles-engine-functional.test.ts`（5 例，全套件内常驻）——
+单测之上的引擎回路验证，全部用**真实组件**（SessionManager 完整
+activateSession / 真实 bash+read 工具 / 真实 executor / 真实 vendored
+models.dev 快照），只有网关是录制 mock：
+
+1. **探针引擎回路**：glm-5.3（mandatory）+ 录制网关首调抛可归因 400 →
+   引擎记账 → 同轮重发请求**零思考键**（round-4 统一矩阵的真机形态）→
+   会话 completed；首请求断言四拼写补丁全量 + mandatory 抬升（用户关
+   思考仍开）+ 温度字段保留。
+2. **温度门控（G6 引擎面）**：kimi-k3（白名单+目录 temperature:false）→
+   请求无 temperature；非白名单模型同声明 → 字段保留（R7 画像层承诺）。
+3. **真实快照数据驱动**（文件缺席自动跳过）：生产数据上验证 G3（kimi-k3
+   取 moonshotai toggle）、H4（minimax-m3 小写→厂商 1M）、glm-5.3
+   mandatory、agnes 双子 ~512K、25 个白名单拼写逐 id matchedBy=model。
+4. **spill→read 回环**：真实 bash 工具 40K 输出 → 截断+落盘+指针 →
+   read 工具取回尾部标记；反 dsh 文案断言（无 re-run）；自忽略 .gitignore。
+5. **披露代理经 executor**：`{tool, arguments}` 转发真实三段名；解析后
+   真名不存在 → 结构化错误、零分发。
+
+**过程发现**（mock 保真度问题，非产品缺陷）：录制网关必须带 baseURL 属性
+（G4 盖章从 client 内省读，通道键一致性依赖它）；stub executeMcpTool 须
+镜像真实管理器的未知名报错。这也反向验证了断言的有效性。
+
+**门禁**：core 套件 **1183 pass / 0 fail**（+5 例）；`npm run check` 全绿。
