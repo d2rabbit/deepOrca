@@ -35,13 +35,13 @@ const VERSION: DesignSuiteVersion = {
   versionId: "version-a",
   savedAt: "2026-09-06T00:00:00.000Z",
   status: "ready",
-  content: { openui: "element Root" },
+  content: { moonviz: "moonviz:artboard root" },
 };
 const HISTORICAL_VERSION: DesignSuiteVersion = {
   versionId: "version-history",
   savedAt: "2026-09-05T00:00:00.000Z",
   status: "draft",
-  content: { openui: "historical-source" },
+  content: { moonviz: "moonviz:artboard history" },
 };
 const SUITE: DesignSuite = {
   schemaVersion: 2,
@@ -117,6 +117,7 @@ function createHarness(
     listSuites: (root, kind?: DesignSuiteKind) =>
       root === ROOT_A && (kind === undefined || kind === SUITE.kind) ? [SUMMARY] : [],
     readSuite: storeOverrides.readSuite ?? ((root, id) => (root === ROOT_A && id === SUITE.id ? SUITE : null)),
+    readSuitePreviewHtml: () => null,
     readSuiteVersion:
       storeOverrides.readSuiteVersion ??
       ((root, id, versionId) => {
@@ -208,8 +209,8 @@ describe("design suite IPC root pinning", () => {
     );
     assert.equal(result.ok, true);
     assert.ok(harness.calls.savedPackage);
-    assert.ok(harness.calls.savedPackage.includes(Buffer.from("historical-source", "utf8")));
-    assert.equal(harness.calls.savedPackage.includes(Buffer.from("element Root", "utf8")), false);
+    assert.ok(harness.calls.savedPackage.includes(Buffer.from("moonviz:artboard history", "utf8")));
+    assert.equal(harness.calls.savedPackage.includes(Buffer.from("moonviz:artboard root", "utf8")), false);
   });
 
   test("suite change emits one rich event instead of a duplicate root-only event", async () => {
@@ -487,7 +488,7 @@ describe("leafer canvas append (DesignSuiteAppendLeafer)", () => {
     assert.ok(appended, "the append must reach the store");
     const content = appended;
     assert.equal(content.leafer, EDITED_LEAFER, "the edited document is what gets stored");
-    assert.equal(content.openui, undefined, "canvas commits never resurrect the legacy openui field");
+    assert.equal("moonviz" in content, false, "canvas commits never carry the prototype-stack field");
     const findings = content.quality?.lintFindings ?? [];
     assert.ok(
       findings.some((finding) => finding.ruleId === "out-of-bounds"),

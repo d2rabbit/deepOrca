@@ -78,6 +78,8 @@ import {
   prototypeReviseRun,
   prototypeArchDefinition,
   prototypeArchRun,
+  prototypeExportDdpDefinition,
+  prototypeExportDdpRun,
   taskCreateDefinition,
   taskCreateRun,
   taskStepDefinition,
@@ -505,6 +507,8 @@ export abstract class SessionManagerBase {
     this.actionRegistry.register(prototypeVerifyDefinition, prototypeVerifyRun);
     this.actionRegistry.register(prototypeArchDefinition, prototypeArchRun);
     this.actionRegistry.register(prototypeReviseDefinition, prototypeReviseRun);
+    // specs/moonviz-engine-replacement T3.3：canonical → .ddp 设计包。
+    this.actionRegistry.register(prototypeExportDdpDefinition, prototypeExportDdpRun);
     // ── Phase 3: task trajectory actions (specs/task-tree P0) ────────────────
     // The tree service is the single writer of .deeporca/task-trees/** and is
     // exposed to actions via the context (accept-dependencies rule).

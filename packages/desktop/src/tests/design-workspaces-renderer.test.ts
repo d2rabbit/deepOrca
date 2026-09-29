@@ -118,10 +118,8 @@ after(() => {
 });
 
 test("directory forwards workspace and suite clicks (click + keyboard) to open the matching surface", async () => {
-  const proto = suite("prototype", [version("latest", { spec: "# Scope", openui: "root = Text('ok')" })]);
-  const ui = suite("ui", [
-    version("latest", { openui: 'root = Screen("UI")\nhero = Card(data-sem="hero") { Text("Hero") }' }),
-  ]);
+  const proto = suite("prototype", [version("latest", { spec: "# Scope", moonviz: "root = Text('ok')" })]);
+  const ui = suite("ui", [version("latest", { leafer: '{"tag":"Leafer"}' })]);
   overrides.listWorkspaceSessions = async () => ({
     workspaces: [
       { root: "/work/current", label: "current", projectCode: "current", sessions: [] },
@@ -228,10 +226,10 @@ test("shared frame keeps one version selection across tabs and locks old version
 
 test("prototype workspace runs spec, materialize and verify with suite version parameters; old versions stay read-only", async () => {
   const prototype = suite("prototype", [
-    version("old", { spec: "# Scope\nOld requirements", openui: "root = Text('old')" }),
+    version("old", { spec: "# Scope\nOld requirements", moonviz: "root = Text('old')" }),
     version("latest", {
       spec: "# Scope\nLatest requirements",
-      openui: "root = Text('latest')",
+      moonviz: "root = Text('latest')",
       verification: { status: "passed", checks: [{ id: "c1", label: "Loads", status: "passed" }] },
     }),
   ]);
@@ -275,11 +273,11 @@ test("prototype workspace runs spec, materialize and verify with suite version p
 
 test("design workspace requires a concrete prototype version, exposes nine systems, and sends linked materialize params", async () => {
   const prototype = suite("prototype", [
-    version("proto-v1", { spec: "# Scope", openui: "root = Text('v1')" }),
-    version("proto-v2", { spec: "# Scope", openui: "root = Text('v2')" }),
+    version("proto-v1", { spec: "# Scope", moonviz: "root = Text('v1')" }),
+    version("proto-v2", { spec: "# Scope", moonviz: "root = Text('v2')" }),
   ]);
   const baseContent: UiSuiteContent = {
-    openui: 'root = Screen("UI")\nhero = Card(data-sem="hero") { Text("Hero") }',
+    leafer: '{"tag":"Leafer","width":1440,"children":[]}',
     tokens: { accent: "blue", spacing: 8 },
     components: [{ name: "Button" }],
     sourcePrototype: { suiteId: prototype.id, versionId: "proto-v2" },
@@ -440,8 +438,8 @@ test("version rail displays newest-first with vN labels matching store identity"
 
 test("background suite events refresh without resetting the viewed version", async () => {
   const prototype = suite("prototype", [
-    version("old", { spec: "# Scope\nOld requirements", openui: "root = Text('old')" }),
-    version("latest", { spec: "# Scope\nLatest requirements", openui: "root = Text('latest')" }),
+    version("old", { spec: "# Scope\nOld requirements", moonviz: "root = Text('old')" }),
+    version("latest", { spec: "# Scope\nLatest requirements", moonviz: "root = Text('latest')" }),
   ]);
   overrides.designSuiteList = async () => [summary(prototype)];
   overrides.designSuiteRead = async () => prototype;
@@ -477,7 +475,7 @@ test("待确认 items confirm page-local and gate materialize until cleared", as
   const prototype = suite("prototype", [
     version("latest", {
       spec: "# Scope\n\n## 待确认\n- Add dark mode\n- Add search",
-      openui: "root = Text('latest')",
+      moonviz: "root = Text('latest')",
     }),
   ]);
   overrides.designSuiteList = async () => [summary(prototype)];
@@ -530,7 +528,7 @@ test("system palettes cover the nine bundled ids with --ds-* material", () => {
 });
 
 test("deep link initialTab opens the workspace on the requested segment", async () => {
-  const prototype = suite("prototype", [version("latest", { spec: "# Scope", openui: "root = Text('x')" })]);
+  const prototype = suite("prototype", [version("latest", { spec: "# Scope", moonviz: "root = Text('x')" })]);
   overrides.designSuiteList = async () => [summary(prototype)];
   overrides.designSuiteRead = async () => prototype;
   const out = renderWithI18n(
@@ -545,7 +543,7 @@ test("deep link initialTab opens the workspace on the requested segment", async 
 });
 
 test("floating agent surfaces the conversation body, typing state and the ack bubble", async () => {
-  const prototype = suite("prototype", [version("latest", { spec: "# Scope", openui: "root = Text('x')" })]);
+  const prototype = suite("prototype", [version("latest", { spec: "# Scope", moonviz: "root = Text('x')" })]);
   overrides.designSuiteList = async () => [summary(prototype)];
   overrides.designSuiteRead = async () => prototype;
   overrides.designSuiteReadVersion = async (_root: string, _id: string, id: string) =>
@@ -594,13 +592,13 @@ test("floating agent surfaces the conversation body, typing state and the ack bu
 });
 
 test("design toolbar shows the version badge with a localized status", async () => {
-  const prototype = suite("prototype", [version("proto-v1", { spec: "# Scope", openui: "root = Text('v1')" })]);
+  const prototype = suite("prototype", [version("proto-v1", { spec: "# Scope", moonviz: "root = Text('v1')" })]);
   // Re-review L15: two versions — a single-version fixture cannot
   // discriminate head-labeling conventions (both label the sole item v1).
   const ui = suite("ui", [
-    version("ui-v1", { openui: 'root = Screen("UI v1")' }),
+    version("ui-v1", { leafer: '{"tag":"Leafer"}' }),
     version("ui-v2", {
-      openui: 'root = Screen("UI")',
+      leafer: '{"tag":"Leafer"}',
       tokens: { accent: "blue" },
       quality: { lintFindings: [], runtimeChecks: [] },
     }),
@@ -616,7 +614,7 @@ test("design toolbar shows the version badge with a localized status", async () 
 });
 
 test("leafer versions route to the leafer canvas, not the legacy OpenUI stage", async () => {
-  const prototype = suite("prototype", [version("proto-v1", { spec: "# Scope", openui: "root = Text('v1')" })]);
+  const prototype = suite("prototype", [version("proto-v1", { spec: "# Scope", moonviz: "root = Text('v1')" })]);
   const leaferDoc = JSON.stringify({
     tag: "Leafer",
     width: 1440,
@@ -651,18 +649,7 @@ test("leafer versions route to the leafer canvas, not the legacy OpenUI stage", 
   );
 });
 
-test("legacy openui-only versions keep the read-only OpenUI stage with the legacy badge", async () => {
-  const prototype = suite("prototype", [version("proto-v1", { spec: "# Scope", openui: "root = Text('v1')" })]);
-  const ui = suite("ui", [version("ui-v1", { openui: 'root = Screen("UI v1")' })]);
-  overrides.designSuiteList = async (_root: string, kind?: string) =>
-    kind === "prototype" ? [summary(prototype)] : [summary(ui)];
-  overrides.designSuiteRead = async (_root: string, id: string) => (id === prototype.id ? prototype : ui);
-  const out = renderWithI18n(ReactPkg.createElement(DesignWorkspace, { root: "/work/current", suiteId: ui.id }));
-  await settle();
-  const chip = out.container.querySelector(".ui-design-legacy-chip");
-  assert.ok(chip, "openui-only version must show the legacy view-only badge (EARS 15)");
-  assert.match(chip.textContent ?? "", /Legacy OpenUI canvas/);
-});
+// 旧栈 read-only legacy stage 随 MoonViz 替换移除（openui-only 版本作废，不渲染）。
 
 test("progress-label maps every core emit code both ways and handles format/terminal", async () => {
   const { PROGRESS_KEYS, progressLabel, isTerminalProgress } =
@@ -741,7 +728,7 @@ test("hash deep link opens the most-recent workspace root with the tab segment a
 // ── PRD 主题层（specs/prd-theme-layer）───────────────────────────────────────
 
 test("directory ignores an old load after switching workspace context", async () => {
-  const current = suite("ui", [version("first", { openui: 'root = Screen("Current")' })]);
+  const current = suite("ui", [version("first", { leafer: '{"tag":"Leafer"}' })]);
   let release: ((value: DesignSuite) => void) | undefined;
   overrides.listWorkspaceSessions = async () => ({ workspaces: [] });
   overrides.designSuiteList = async (_root: string, kind?: string) => (kind === "ui" ? [summary(current)] : []);
@@ -774,7 +761,7 @@ test("directory ignores an old load after switching workspace context", async ()
 });
 
 test("directory events refresh preview details and reject out-of-order snapshots", async () => {
-  const first = version("first", { openui: 'root = Screen("First")' });
+  const first = version("first", { leafer: '{"tag":"Leafer"}' });
   let current = suite("ui", [first]);
   let release: ((value: DesignSuite) => void) | undefined;
   let deferRead = false;
@@ -802,7 +789,7 @@ test("directory events refresh preview details and reject out-of-order snapshots
   };
   await settle();
   assert.ok(preview().includes("v1"));
-  const second = version("second", { openui: 'root = Screen("Second")' });
+  const second = version("second", { leafer: '{"tag":"Leafer"}' });
   current = suite("ui", [first, second]);
   await emit();
   assert.ok(preview().includes("v2"), "event updates the actual preview version");
@@ -810,7 +797,7 @@ test("directory events refresh preview details and reject out-of-order snapshots
   await emit();
   assert.ok(release, "older detail request is pending");
   const stale = current;
-  current = suite("ui", [first, second, version("third", { openui: 'root = Screen("Third")' })]);
+  current = suite("ui", [first, second, version("third", { leafer: '{"tag":"Leafer"}' })]);
   await emit();
   assert.ok(preview().includes("v3"));
   await rtl.act(async () => {
@@ -827,7 +814,7 @@ test("directory events refresh preview details and reject out-of-order snapshots
 });
 
 test("directory retains suite cards when one detail read fails", async () => {
-  const healthy = suite("ui", [version("healthy-v1", { openui: 'root = Screen("Healthy")' })]);
+  const healthy = suite("ui", [version("healthy-v1", { leafer: '{"tag":"Leafer"}' })]);
   overrides.listWorkspaceSessions = async () => ({ workspaces: [{ root: "/work/current", label: "current" }] });
   overrides.designSuiteList = async (_root: string, kind?: string) =>
     kind === "ui" ? [summary(healthy), { ...summary(healthy), id: "unavailable", title: "Unavailable suite" }] : [];
@@ -853,8 +840,8 @@ test("directory retains suite cards when one detail read fails", async () => {
 });
 
 test("directory groups suites by requirement theme and shows relations", async () => {
-  const prototypeSuite = suite("prototype", [version("proto-v1", { spec: "# Scope", openui: "root = Text('v1')" })]);
-  const uiSuite = suite("ui", [version("ui-v1", { openui: 'root = Screen("UI v1")', designSystemId: "dark-tech" })]);
+  const prototypeSuite = suite("prototype", [version("proto-v1", { spec: "# Scope", moonviz: "root = Text('v1')" })]);
+  const uiSuite = suite("ui", [version("ui-v1", { leafer: '{"tag":"Leafer"}', designSystemId: "dark-tech" })]);
   const theme = {
     id: "theme-login",
     title: "登录",
@@ -896,9 +883,9 @@ test("directory groups suites by requirement theme and shows relations", async (
 });
 
 test("theme groups default collapsed; only the active theme opens; theme titles navigate", async () => {
-  const prototype = suite("prototype", [version("proto-v1", { spec: "# Scope", openui: "root = Text('v1')" })]);
-  const uiA = suite("ui", [version("ui-a1", { openui: 'root = Screen("A")' })]);
-  const uiB = suite("ui", [version("ui-b1", { openui: 'root = Screen("B")' })]);
+  const prototype = suite("prototype", [version("proto-v1", { spec: "# Scope", moonviz: "root = Text('v1')" })]);
+  const uiA = suite("ui", [version("ui-a1", { leafer: '{"tag":"Leafer"}' })]);
+  const uiB = suite("ui", [version("ui-b1", { leafer: '{"tag":"Leafer"}' })]);
   const themeA = {
     id: "t-a",
     title: "登录",
@@ -983,7 +970,7 @@ test("theme groups default collapsed; only the active theme opens; theme titles 
 });
 
 test("directory keeps the flat list when the workspace has no themes (zero regression)", async () => {
-  const uiSuite = suite("ui", [version("ui-v1", { openui: 'root = Screen("UI v1")' })]);
+  const uiSuite = suite("ui", [version("ui-v1", { leafer: '{"tag":"Leafer"}' })]);
   overrides.listWorkspaceSessions = async () => ({ workspaces: [{ root: "/work/current", label: "current" }] });
   overrides.designSuiteList = async () => [summary(uiSuite)];
   overrides.designSuiteRead = async () => uiSuite;
@@ -1004,7 +991,7 @@ test("ThemeStrip hides without theme meta and renders theme/stage/relation chips
   const themes = [
     { id: "t1", title: "登录", createdAt: "2026-09-10T00:00:00.000Z", updatedAt: "2026-09-10T00:00:00.000Z" },
   ];
-  const plain = suite("ui", [version("ui-v1", { openui: "root = Screen()" })]) as DesignSuite;
+  const plain = suite("ui", [version("ui-v1", { leafer: '{"tag":"Leafer"}' })]) as DesignSuite;
   const themed = {
     ...plain,
     themeId: "t1",
@@ -1032,7 +1019,7 @@ test("spec page exposes the prompt-doc view and the regenerate entry (specs/prom
     version("latest", {
       spec: "# Scope",
       pmDesign: "# 登录原型设计提示\n\n## 页面结构\n- 登录页：账号密码表单",
-      openui: "root = Text('v1')",
+      moonviz: "root = Text('v1')",
     }),
   ]);
   overrides.designSuiteList = async () => [summary(prototype)];
@@ -1063,8 +1050,8 @@ test("spec page exposes the prompt-doc view and the regenerate entry (specs/prom
 });
 
 test("cross-review: theme groups collapse via summary; composer creates themes inline and threads context (specs cross-review)", async () => {
-  const prototype = suite("prototype", [version("latest", { spec: "# Scope", openui: "root = Text('v1')" })]);
-  const uiSuite = suite("ui", [version("ui-v1", { openui: 'root = Screen("UI v1")', designSystemId: "dark-tech" })]);
+  const prototype = suite("prototype", [version("latest", { spec: "# Scope", moonviz: "root = Text('v1')" })]);
+  const uiSuite = suite("ui", [version("ui-v1", { leafer: '{"tag":"Leafer"}', designSystemId: "dark-tech" })]);
   const theme = {
     id: "t1",
     title: "登录",
@@ -1142,7 +1129,7 @@ test("cross-review: theme groups collapse via summary; composer creates themes i
 });
 
 test("cross-review: theme CRUD failures surface an error instead of a silent no-op", async () => {
-  const uiSuite = suite("ui", [version("ui-v1", { openui: 'root = Screen("UI v1")' })]);
+  const uiSuite = suite("ui", [version("ui-v1", { leafer: '{"tag":"Leafer"}' })]);
   overrides.listWorkspaceSessions = async () => ({ workspaces: [{ root: "/work/current", label: "current" }] });
   overrides.designSuiteList = async () => [summary(uiSuite)];
   overrides.designSuiteRead = async () => uiSuite;

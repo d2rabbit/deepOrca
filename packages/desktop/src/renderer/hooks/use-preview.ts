@@ -1,17 +1,18 @@
 import { useCallback, useState } from "react";
 import { clearSurfaces as clearA2uiSurfaces } from "../a2ui/processor";
-import { detectPrototypeArtifact } from "../openui/detect-artifact";
+import { detectPrototypeArtifact } from "../moonviz/detect-artifact";
 import type { SessionMessage } from "../../shared/ipc";
 
 /**
- * Preview surfaces: A2UI prototypes, OpenUI Lang code, DeepDesign (.dd) documents
- * and the CodeGraph architecture HTML.
+ * Preview surfaces: A2UI prototypes, MoonViz prototype documents (specs/
+ * moonviz-engine-replacement — the retired OpenUI mode's successor),
+ * DeepDesign (.dd) documents and the CodeGraph architecture HTML.
  *
  * Extracted from App.tsx verbatim. The tool-result detection previously lived
  * inline inside the boot effect's onAssistantMessage handler (~60 lines);
  * `applyToolMessage` keeps only the state transitions — which pipeline a tool
  * result belongs to (and with which payload) is decided by the pure
- * `detectPrototypeArtifact` function (see openui/detect-artifact.ts).
+ * `detectPrototypeArtifact` function (see moonviz/detect-artifact.ts).
  *
  * Both `applyToolMessage` and `resetForSession` keep an empty dep array: the first
  * is called from the boot effect (whose dep array must stay identity-stable or the
@@ -19,8 +20,9 @@ import type { SessionMessage } from "../../shared/ipc";
  */
 export type PreviewState = {
   prototypeJson: string | null;
-  prototypeMode: "a2ui" | "openui" | "design" | "spec";
-  prototypeOpenuiCode: string;
+  prototypeMode: "a2ui" | "moonviz" | "design" | "spec";
+  /** Canonical MoonViz `.mbt.md` document carried by the preview. */
+  prototypeMoonvizDoc: string;
   designContent: string | null;
   graphHtml: string | null;
   /** Returned raw — passed straight to CodeReviewPanel's onShowGraph. */
@@ -31,7 +33,7 @@ export type PreviewState = {
   /** Auto-open the matching preview when a render/update tool result arrives. */
   applyToolMessage: (message: SessionMessage) => void;
   /** Open a stored design artifact in the preview (from DesignPanel). */
-  openDesignArtifact: (pipeline: "openui" | "design" | "spec", content: string) => void;
+  openDesignArtifact: (pipeline: "moonviz" | "design" | "spec", content: string) => void;
   /** Clear preview state (and cached A2UI surfaces) when switching sessions. */
   resetForSession: () => void;
   closePreview: () => void;
@@ -39,8 +41,8 @@ export type PreviewState = {
 
 export function usePreview(): PreviewState {
   const [prototypeJson, setPrototypeJson] = useState<string | null>(null);
-  const [prototypeMode, setPrototypeMode] = useState<"a2ui" | "openui" | "design" | "spec">("openui");
-  const [prototypeOpenuiCode, setPrototypeOpenuiCode] = useState<string>("");
+  const [prototypeMode, setPrototypeMode] = useState<"a2ui" | "moonviz" | "design" | "spec">("moonviz");
+  const [prototypeMoonvizDoc, setPrototypeMoonvizDoc] = useState<string>("");
   const [designContent, setDesignContent] = useState<string | null>(null);
   const [graphHtml, setGraphHtml] = useState<string | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -62,9 +64,9 @@ export function usePreview(): PreviewState {
       setDesignContent(artifact.payload);
       setPreviewOpen(true);
       setPreviewTab(artifact.mode === "spec" ? "prd" : "design");
-    } else if (artifact.mode === "openui") {
-      setPrototypeMode("openui");
-      setPrototypeOpenuiCode(artifact.payload);
+    } else if (artifact.mode === "moonviz") {
+      setPrototypeMode("moonviz");
+      setPrototypeMoonvizDoc(artifact.payload);
       setPreviewOpen(true);
       setPreviewTab("prototype");
     } else {
@@ -84,7 +86,7 @@ export function usePreview(): PreviewState {
     // F3: reset prototype panel state so switching sessions doesn't reopen
     // the preview with stale content from the prior session.
     setPrototypeJson(null);
-    setPrototypeOpenuiCode("");
+    setPrototypeMoonvizDoc("");
     setPrototypeMode("a2ui");
     setPreviewOpen(false);
     setDesignContent(null);
@@ -93,16 +95,16 @@ export function usePreview(): PreviewState {
   const closePreview = useCallback(() => {
     setPreviewOpen(false);
     setPrototypeJson(null);
-    setPrototypeOpenuiCode("");
+    setPrototypeMoonvizDoc("");
     setDesignContent(null);
   }, []);
 
   /** Open a stored design artifact in the preview panel (from DesignPanel / task hub). */
-  const openDesignArtifact = useCallback((pipeline: "openui" | "design" | "spec", content: string) => {
+  const openDesignArtifact = useCallback((pipeline: "moonviz" | "design" | "spec", content: string) => {
     setGraphHtml(null);
-    if (pipeline === "openui") {
-      setPrototypeMode("openui");
-      setPrototypeOpenuiCode(content);
+    if (pipeline === "moonviz") {
+      setPrototypeMode("moonviz");
+      setPrototypeMoonvizDoc(content);
       setPreviewTab("prototype");
     } else if (pipeline === "spec") {
       // PRD → its own tab; the Design tab stays UI-visual-draft only.
@@ -120,7 +122,7 @@ export function usePreview(): PreviewState {
   return {
     prototypeJson,
     prototypeMode,
-    prototypeOpenuiCode,
+    prototypeMoonvizDoc,
     designContent,
     graphHtml,
     setGraphHtml,

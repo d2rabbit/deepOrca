@@ -349,7 +349,7 @@ export const en = {
   "builtin.deep-design.desc":
     "Design-grade web artifacts in the .dd (OrcaDesign) format — YAML front-matter + HTML body, self-contained and deliverable outside the host.",
   "builtin.pm-designer-openui.desc":
-    "PM-focused prototypes in OpenUI Lang — a compact, streaming-first language for interactive UI prototypes.",
+    "PM-focused prototypes on the MoonViz engine — one canonical document, many artboards, op-plan driven.",
   "builtin.taste.desc":
     "Front-end design quality discipline — anti-slop methodology for layout, typography, spacing, color and animation.",
   "builtin.book-distill.desc":
@@ -447,9 +447,13 @@ export const en = {
   "slash.desc.exit": "Quit DeepOrca",
   "slash.desc.settings": "Open settings panel",
   "slash.desc.pmDesign": "PM-Design: create an interactive A2UI prototype",
-  "slash.desc.pmDesignOpenui": "PM-Design (OpenUI Lang): prototype with compact syntax",
+  "slash.desc.pmDesignOpenui": "PM-Design (MoonViz): prototype from a PRD/pm-design doc",
   "slash.desc.prototype": "Alias for /pm-design",
   "slash.desc.openui": "Alias for /pm-design-openui",
+  "moonvizPreview.artboards": "artboards",
+  "moonvizPreview.missing": "Preview not generated yet",
+  "moonvizPreview.missingHint":
+    "The interactive preview is exported by the engine at save time and was unavailable — re-run materialize/revise, or read the canonical document below.",
   "slash.desc.deepDesign": "DeepDesign: generate a web design in .dd format",
   "slash.desc.design": "Alias for /deep-design",
 
@@ -1625,8 +1629,7 @@ export const en = {
   "designWorkspace.backToConversation": "Back to conversation",
   "designWorkspace.scopeHint": "Version {version} · Basis {basis} · Theme {theme}",
   "designWorkspace.versionCapDesign": "Versions · one version = one set (visual + design system + quality)",
-  "designWorkspace.setOpenui": "Visual",
-  "designWorkspace.setLeafer": "Canvas",
+  "designWorkspace.setLeafer": "Visual",
   "designWorkspace.legacyOpenui": "Legacy OpenUI canvas · view only, revise via composer",
   "designWorkspace.leaferCanvasError":
     "The canvas engine failed to initialize in this window. Regenerate the design or restart the app.",
@@ -1801,6 +1804,7 @@ export const en = {
   "prototypeWorkspace.progressRepair": "Repairing the prototype from official-parser feedback…",
   "prototypeWorkspace.progressMaterialize":
     "Generating the full interactive prototype — this can take a few minutes; keep the window open…",
+  "prototypeWorkspace.progressVerifyEngine": "Running engine verification",
   "prototypeWorkspace.progressMaterializeSaved": "Interactive prototype saved — acceptance pending",
   "prototypeWorkspace.vbadgeNote": "Acceptance {passed}/{total} · healed {heal}",
   "prototypeWorkspace.reportMeta": "Version {version} · generated {time}",

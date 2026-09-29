@@ -16,7 +16,6 @@
  * 单测——这是"测试通过≠没问题"交叉审查后的核心教训：深度/遵守必须机械执行。
  */
 
-import { parsePageList, extractProgramPages } from "../common/openui-pages";
 import { classifyLlmError } from "../common/llm-error";
 import type { ActionProgress, RunSubagentOptions } from "./types";
 
@@ -252,66 +251,6 @@ export function archSectionsAudit(markdown: string): string[] {
   if (moduleRows < 3) findings.push(`模块拆分表仅 ${moduleRows} 行（需 ≥3 行 模块/职责/依赖）`);
   const riskRows = countTableDataRows(sectionBody(markdown, "风险"));
   if (riskRows < 2) findings.push(`风险与对策表仅 ${riskRows} 行（需 ≥2 行 风险/对策）`);
-  return findings;
-}
-
-// ── 原型页面覆盖门 ───────────────────────────────────────────────────────────
-
-/**
- * PRD 页面清单 vs OpenUI 程序页面集合的覆盖比对（specs/prototype-reliability
- * WP0 的 verify 逻辑前置到 materialize——持久化前机械拦截漏页）。
- * 返回缺失页面 id 列表（空 = 全覆盖或 PRD 无页面清单）。
- */
-export function pageCoverageFindings(spec: string, program: string): string[] {
-  const pageList = parsePageList(spec);
-  if (!pageList || !pageList.hasIds) return [];
-  const pages = extractProgramPages(program);
-  const declared = new Set<string>();
-  for (const page of pageList.pages) {
-    if (page.id) declared.add(page.id);
-  }
-  const missing: string[] = [];
-  for (const id of declared) {
-    // $page 初始值或比较值任一出现即可。
-    if (pages.initial === id || pages.comparisons.has(id)) continue;
-    missing.push(id);
-  }
-  return missing;
-}
-
-// ── 原型交互密度门（specs/design-stage-gates S4）────────────────────────────
-
-/** 程序页面并集基数（初始页 + 全部比较值）。 */
-export function programPageCount(program: string): number {
-  const pages = extractProgramPages(program);
-  const union = new Set<string>(pages.comparisons);
-  if (pages.initial) union.add(pages.initial);
-  return union.size;
-}
-
-/**
- * OpenUI 程序交互密度审计（页面覆盖门之外的第二层，全部机械可判定）：
- * 组件调用总数下限（空壳拦截）、`Action(` 交互数下限（死按钮拦截）、每个
- * 声明页面可达（初始页或存在 `@Set($page,…)` 导航边——孤岛页拦截）。
- * findings 注入修复环契约（fail-open 层，verify 阶段兜底）。
- */
-export function openuiInteractivityFindings(spec: string, program: string): string[] {
-  const findings: string[] = [];
-  const componentCalls = [...program.matchAll(/\b[A-Z][A-Za-z0-9_]*\s*\(/g)].length;
-  if (componentCalls < 10) findings.push(`程序组件调用仅 ${componentCalls} 处（交互密度不足，需 ≥10）`);
-  const pageList = parsePageList(spec);
-  const pageCount = pageList?.hasIds ? pageList.pages.filter((page) => page.id).length : programPageCount(program);
-  const actions = [...program.matchAll(/\bAction\s*\(/g)].length;
-  const minActions = Math.max(2, pageCount);
-  if (actions < minActions) findings.push(`Action 交互仅 ${actions} 处（需 ≥${minActions}——每页至少一处真实交互）`);
-  if (pageList?.hasIds) {
-    const pages = extractProgramPages(program);
-    for (const page of pageList.pages) {
-      if (!page.id) continue;
-      if (pages.initial === page.id || pages.navTargets.has(page.id)) continue;
-      findings.push(`页面 ${page.id} 不可达（非初始页且无 @Set($page) 导航边）`);
-    }
-  }
   return findings;
 }
 

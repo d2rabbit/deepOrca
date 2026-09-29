@@ -310,7 +310,12 @@ export {
 // 不能是孤岛). Desktop injects the server builder at boot; the pure store
 // readers live in common/kb-store.ts.
 export { KB_MCP_SERVER_NAME, configureKbServerBuilder, getKbServerBuilder, type KbServerBuilder } from "./mcp/kb-seam";
-export { findDeadButtons, prototypeMaterializeRun } from "./actions/prototype";
+export {
+  prototypeMaterializeRun,
+  prototypeVerifyRun,
+  prototypeReviseRun,
+  prototypeExportDdpRun,
+} from "./actions/prototype";
 // specs/design-md-collection：设计系统三源解析（bundled / project DESIGN.md / vendored 收藏集）。
 export {
   BUNDLED_DESIGN_SYSTEM_IDS,
@@ -477,8 +482,10 @@ export {
   isWikiVariantFile,
   archScanRunDefinition,
   archScanRunRun,
-  OPENUI_CREATE_CONTRACT,
-  OPENUI_PRESERVE_CONTRACT,
+  MOONVIZ_CREATE_CONTRACT,
+  MOONVIZ_PRESERVE_CONTRACT,
+  MOONVIZ_QUALITY_CONTRACT,
+  MOONVIZ_SEED_DOC,
   LEAFER_CREATE_CONTRACT,
   LEAFER_PRESERVE_CONTRACT,
   lintLeaferDocument,
@@ -488,8 +495,6 @@ export {
   selfCheckLeaferDocument,
   canonicalLeaferText,
   looksLikeArchDoc,
-  openuiIssueCount,
-  formatOpenuiFeedback,
   configureArchifyPaths,
   getArchifyPaths,
   configureArchRenderer,
@@ -543,7 +548,6 @@ export type {
   CrgRiskNode,
   CrgRiskEdge,
   CrgCommunity,
-  OpenuiVerdict,
 } from "./actions";
 
 export type {
@@ -568,3 +572,5 @@ export { SPEC_NODE_STATUSES, SPEC_NODE_TYPES, getSpecGraph, listSpecs, validateS
 export type { SpecDriftFinding, SpecDriftGate, SpecDriftState, SpecGraph, SpecIssue, SpecNode } from "./specs";
 export { ensureDesignChainRegistration } from "./specs";
 export type { DesignChainRegistration, DesignChainRegistrationResult } from "./specs";
+
+export { encryptDdp, decryptDdp, DdpError, DDP_ERROR_SAMPLES } from "./common/ddp-codec";

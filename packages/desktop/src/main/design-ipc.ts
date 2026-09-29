@@ -34,7 +34,6 @@ import type {
 import {
   buildDdpPackage,
   buildDduLeaferPackage,
-  buildDduOpenuiPackage,
   buildDduPackage,
   resolveLeaferRuntimeBundle,
   type PackageVerification,
@@ -55,6 +54,7 @@ import {
   readDesignArtifact,
   readDesignSuite,
   readDesignSuiteVersion,
+  readSuitePreviewHtml,
   readFormState,
   saveFormState,
   updateDesignTheme,
@@ -85,6 +85,7 @@ export interface DesignStoreOps {
   listSuites(root: string, kind?: DesignSuiteKind): DesignSuiteSummary[];
   readSuite(root: string, id: string): DesignSuite | null;
   readSuiteVersion(root: string, id: string, versionId: string): DesignSuiteVersion | null;
+  readSuitePreviewHtml(root: string, id: string): string | null;
   deleteSuite(root: string, id: string): boolean;
   /** Append a version built from a full suite content (canvas-edit seam). */
   appendSuiteVersion(
@@ -121,6 +122,7 @@ const defaultStore: DesignStoreOps = {
   listSuites: listDesignSuites,
   readSuite: readDesignSuite,
   readSuiteVersion: readDesignSuiteVersion,
+  readSuitePreviewHtml: readSuitePreviewHtml,
   deleteSuite: deleteDesignSuite,
   appendSuiteVersion: appendDesignSuiteVersion,
   saveFormState,
@@ -262,17 +264,17 @@ export interface SuiteExportExtras {
   verification?: PackageVerification;
   tokens?: unknown;
   components?: unknown;
-  /** WP4.1:prototype 套件的平台变体(mobile/tablet 源码)——随 .ddp 导出。 */
-  variants?: { mobile?: string; tablet?: string };
+  /** 交互预览缓存（prototype.html）——随 .ddp 导出作免依赖查看器。 */
+  previewHtml?: string;
 }
 
 /** Export targets are per-module deliverables: prototype → .ddp, UI design → .ddu.
- *  UI suite versions route by their content field (specs/leafer-ui-engine EARS 17):
- *  `leafer` exports the interactive leafer package, legacy `openui` the source
- *  package; .dd remains only on legacy artifacts (standalone compiled render). */
+ *  UI suite versions route by their content field (specs/leafer-ui-engine):
+ *  `leafer` exports the interactive leafer package; .dd remains only on
+ *  legacy artifacts (standalone compiled render). */
 function buildPackage(
   artifact: { id: string; title: string },
-  format: "ddp" | "ddu-dd" | "ddu-openui" | "ddu-leafer",
+  format: "ddp" | "ddu-dd" | "ddu-leafer",
   content: string,
   extras?: SuiteExportExtras
 ): { data: Buffer; options: DesignPackageSaveOptions } {
@@ -280,7 +282,7 @@ function buildPackage(
   const exportedAt = new Date().toISOString();
   const data =
     format === "ddp"
-      ? buildDdpPackage(artifact, content, exportedAt, extras?.verification, extras?.variants)
+      ? buildDdpPackage(artifact, content, exportedAt, extras?.verification, extras?.previewHtml)
       : format === "ddu-dd"
         ? buildDduPackage(
             artifact,
@@ -313,7 +315,10 @@ function buildPackage(
               }
               return buildDduLeaferPackage(artifact, content, exportedAt, runtimes, extras, clay);
             })()
-          : buildDduOpenuiPackage(artifact, content, exportedAt, extras);
+          : // format ∈ {ddp, ddu-dd, ddu-leafer}——尾分支不可达（ddu-openui 退场）。
+            (() => {
+              throw new Error(`unsupported export format: ${format}`);
+            })();
   const ext = isDesign ? "ddu" : "ddp";
   const label = isDesign ? "UI-Design" : "PM-Design";
   return {
@@ -327,20 +332,20 @@ function buildPackage(
 }
 
 /** Suite → export projection. Formats are per-module deliverables:
- *  prototype suites export .ddp; UI-design suites export .ddu — the leafer
- *  interactive package for leafer versions, the OpenUI source package for
- *  legacy versions (field-level routing, EARS 17). */
+ *  prototype suites export .ddp (canonical doc.mbt.md + interactive
+ *  prototype.html viewer — specs/moonviz-engine-replacement T2.4); UI-design
+ *  suites export the leafer interactive .ddu (leafer-only since MoonViz took
+ *  over the prototype stack). */
 function suiteProjection(
   kind: DesignSuiteKind,
   content: PrototypeSuiteContent | UiSuiteContent
-): { format: "ddp" | "ddu-openui" | "ddu-leafer"; content: string } | null {
+): { format: "ddp" | "ddu-leafer"; content: string } | null {
   if (kind === "prototype") {
-    const openui = (content as PrototypeSuiteContent).openui;
-    return typeof openui === "string" ? { format: "ddp", content: openui } : null;
+    const moonviz = (content as PrototypeSuiteContent).moonviz;
+    return typeof moonviz === "string" ? { format: "ddp", content: moonviz } : null;
   }
   const ui = content as UiSuiteContent;
   if (typeof ui.leafer === "string" && ui.leafer.trim()) return { format: "ddu-leafer", content: ui.leafer };
-  if (typeof ui.openui === "string" && ui.openui.trim()) return { format: "ddu-openui", content: ui.openui };
   return null;
 }
 
@@ -398,7 +403,18 @@ export function registerDesignIpc(helpers: DesignIpcHelpers, deps: DesignIpcDeps
   });
   handle(IpcRequest.DesignSuiteRead, (root: string, id: string) => {
     const resolved = pinned(root);
-    return resolved ? store.readSuite(resolved, id) : null;
+    if (!resolved) return null;
+    const suite = store.readSuite(resolved, id);
+    if (!suite) return null;
+    // specs/moonviz-engine-replacement T2.2: attach the interactive preview
+    // cache (prototype.html) — prototype suites only; absent cache = lazy
+    // re-export never ran (engine unavailable), the renderer falls back.
+    // Reference-stability: no cache → return the store object as-is.
+    if (suite.kind === "prototype") {
+      const previewHtml = store.readSuitePreviewHtml(resolved, id);
+      return previewHtml ? { ...suite, previewHtml } : suite;
+    }
+    return suite;
   });
   handle(IpcRequest.DesignSuiteReadVersion, (root: string, id: string, versionId: string) => {
     const resolved = pinned(root);
@@ -444,7 +460,8 @@ export function registerDesignIpc(helpers: DesignIpcHelpers, deps: DesignIpcDeps
       const content: UiSuiteContent = {
         ...base,
         leafer: leaferJson,
-        openui: undefined,
+        // 单栈不变量（正向）：leafer 写入接管版本栈——UI 套件不存在原型栈
+        // 字段，结构上不可能混写。
         quality: { ...base.quality, lintFindings, runtimeChecks: [] },
       };
       const updated = store.appendSuiteVersion(resolved, {
@@ -564,7 +581,7 @@ export function registerDesignIpc(helpers: DesignIpcHelpers, deps: DesignIpcDeps
       projection.format === "ddp"
         ? {
             verification: prototypeContent?.verification,
-            variants: prototypeContent?.openuiVariants,
+            previewHtml: store.readSuitePreviewHtml(resolved, id) ?? undefined,
           }
         : {
             tokens: (version.content as UiSuiteContent).tokens,

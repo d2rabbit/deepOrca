@@ -2,7 +2,7 @@
  * design-store — unified persistence for Designer module artifacts.
  *
  * Serves both Designer pipelines:
- *   - PM-Design (OpenUI prototypes, pipeline="openui" → .txt)
+ *   - PM-Design (MoonViz prototypes, pipeline="moonviz" → doc.mbt.md)
  *   - UI-Design (.dd design documents, pipeline="design" → .dd)
  *
  * Layout (per specs/pm-design-v2 §8, simplified):
@@ -10,7 +10,7 @@
  *   ├── index.json                     # artifact index
  *   └── <uuid>/
  *       ├── meta.json                  # {id, title, pipeline, createdAt, updatedAt}
- *       └── prototype.openui.txt | prototype.dd
+ *       └── doc.mbt.md | prototype.dd
  *
  * All operations are best-effort — failures are swallowed to never
  * block the tool pipeline (matching persistSurfaces' error model).
@@ -21,7 +21,8 @@ import * as path from "node:path";
 import { randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 
-export type DesignPipeline = "openui" | "design" | "spec";
+/** "openui" 仅为存量工件只读保留（specs/moonviz-engine-replacement：随替换作废）。 */
+export type DesignPipeline = "openui" | "moonviz" | "design" | "spec";
 
 /** Prior content snapshot, taken automatically when a save changes the content. */
 export interface DesignArtifactVersion {
@@ -103,10 +104,10 @@ export interface DesignQualityResult {
 export interface PrototypeSuiteContent {
   requirement?: string;
   spec?: string;
-  openui?: string;
-  /** 平台变体(user ask 2026-09-09):mobile/tablet 的结构性独立程序;desktop
-   *  即 openui 本体。与 core 的 PrototypeSuiteContent 镜像(评审 F11 已知)。 */
-  openuiVariants?: Partial<Record<"desktop" | "mobile" | "tablet", string>>;
+  /** specs/moonviz-engine-replacement：canonical `.mbt.md` 唯一事实源（单
+   *  文档多画板，三端 = `<page>@<device>` 画板）。与 core 的
+   *  PrototypeSuiteContent 镜像(评审 F11 已知)。 */
+  moonviz?: string;
   verification?: PrototypeVerificationResult;
   /** Technical architecture document (user ask 2026-09-08 技术架构模块). */
   arch?: string;
@@ -117,10 +118,9 @@ export interface PrototypeSuiteContent {
 
 export interface UiSuiteContent {
   requirement?: string;
-  openui?: string;
   /** specs/leafer-ui-engine: UI-Design 新栈产物（Leafer JSON 场景树字符串）。
-   *  字段级双栈路由：有 leafer → Leafer 栈；仅 openui → 旧栈只读；同一
-   *  suite 版本不混写两种字段。与 core 的 UiSuiteContent 镜像（已知）。 */
+   *  MoonViz 接管原型栈后 UI 套件是 leafer-only（旧 openui 字段随栈作废）。
+   *  与 core 的 UiSuiteContent 镜像（已知）。 */
   leafer?: string;
   /** specs/prompt-doc-chain: ui-design.md——原型转 UI 的视觉强化提示词
    *  （pm-design 的视觉翻译），随 design.materialize 落盘。 */
@@ -266,9 +266,45 @@ const INDEX_VERSION = 1;
 const MAX_VERSIONS = 20;
 const FILE_BY_PIPELINE: Record<DesignPipeline, string> = {
   openui: "prototype.openui.txt",
+  moonviz: "doc.mbt.md",
   design: "prototype.dd",
   spec: "spec.md",
 };
+
+// ── Interactive preview cache (specs/moonviz-engine-replacement T2.2) ───────
+// `prototype.html` lives next to the suite (head-level cache, overwritten per
+// save); the renderer embeds it in a sandboxed iframe. Best-effort by design:
+// a missing cache means the read path re-exports lazily.
+
+function suiteDir(root: string, id: string): string {
+  return path.join(getDesignsDir(root), id);
+}
+
+/** Absolute path of the suite's cached interactive preview (may not exist). */
+export function suitePreviewHtmlPath(root: string, suiteId: string): string {
+  return path.join(suiteDir(root, suiteId), "prototype.html");
+}
+
+/** Write the cached preview HTML (best-effort caller side). */
+export function writeSuitePreviewHtml(root: string, suiteId: string, html: string): void {
+  if (!isSafeDesignId(suiteId)) return;
+  try {
+    fs.mkdirSync(suiteDir(root, suiteId), { recursive: true });
+    fs.writeFileSync(suitePreviewHtmlPath(root, suiteId), html, "utf8");
+  } catch {
+    /* best-effort */
+  }
+}
+
+/** Read the cached preview HTML (null = absent — the caller may re-export). */
+export function readSuitePreviewHtml(root: string, suiteId: string): string | null {
+  if (!isSafeDesignId(suiteId)) return null;
+  try {
+    return fs.readFileSync(suitePreviewHtmlPath(root, suiteId), "utf8");
+  } catch {
+    return null;
+  }
+}
 
 // ── Change notification ──────────────────────────────────────────────────────
 // Design artifacts are written by the a2ui MCP tools mid-agent-run, not by
@@ -618,7 +654,10 @@ export function readDesignSuiteKind(root: string, id: string): DesignSuiteKind |
   const candidate = parsed as { id?: unknown; pipeline?: unknown };
   if (
     candidate.id === id &&
-    (candidate.pipeline === "openui" || candidate.pipeline === "design" || candidate.pipeline === "spec")
+    (candidate.pipeline === "openui" ||
+      candidate.pipeline === "moonviz" ||
+      candidate.pipeline === "design" ||
+      candidate.pipeline === "spec")
   ) {
     return legacyKind(candidate.pipeline);
   }
@@ -715,11 +754,10 @@ function syncSuiteProjections(dir: string, kind: DesignSuiteKind, content: Desig
     // 旧名投影一并清除，避免双文件漂移（undefined = 删除，与下方 dd 同规）。
     writeProjectionFile(dir, "pm-design.md", prototype.pmDesign);
     writeProjectionFile(dir, "pd-design.md", undefined);
-    writeProjectionFile(dir, "prototype.openui.txt", prototype.openui);
-    // WP4.1:平台变体投影——desktop 即本体文件,变体单独成文件,任何按文件
-    // 消费的下游(简报/外部工具)都能拿到每端程序。
-    writeProjectionFile(dir, "prototype.openui.mobile.txt", prototype.openuiVariants?.mobile);
-    writeProjectionFile(dir, "prototype.openui.tablet.txt", prototype.openuiVariants?.tablet);
+    // specs/moonviz-engine-replacement：canonical 文档投影（doc.mbt.md）；
+    // 旧 openui 三文件投影（prototype.openui*.txt）随替换停写（存量文件
+    // 留在盘上无害，读取面不再消费）。
+    writeProjectionFile(dir, "doc.mbt.md", prototype.moonviz);
     writeProjectionFile(dir, "prototype.dd", undefined);
     writeJsonProjection(dir, "design.leafer.json", undefined);
     writeJsonProjection(dir, "tokens.json", undefined);
@@ -741,7 +779,7 @@ function syncSuiteProjections(dir: string, kind: DesignSuiteKind, content: Desig
     leaferProjection = undefined;
   }
   writeJsonProjection(dir, "design.leafer.json", leaferProjection);
-  writeProjectionFile(dir, "prototype.openui.txt", ui.openui);
+  // 旧栈 ui.openui 投影随替换移除（存量套件作废，不渲染）。
   // specs/prompt-doc-chain: ui-design.md 强化提示词投影。
   writeProjectionFile(dir, "ui-design.md", ui.uiDesign);
   writeJsonProjection(dir, "tokens.json", ui.tokens);
@@ -755,14 +793,21 @@ function legacyKind(pipeline: DesignPipeline): DesignSuiteKind {
 
 function legacyContent(artifact: DesignArtifact): DesignSuiteContent {
   if (artifact.pipeline === "design") {
+    // 存量 design 工件曾映射到旧 openui 字段；该字段已随栈作废，UI 套件
+    // leafer-only——旧内容不再投影为可渲染字段。
     return {
       ...(artifact.requirement !== undefined ? { requirement: artifact.requirement } : {}),
-      openui: artifact.content,
     } satisfies UiSuiteContent;
   }
   return {
     ...(artifact.requirement !== undefined ? { requirement: artifact.requirement } : {}),
-    ...(artifact.pipeline === "spec" ? { spec: artifact.content } : { openui: artifact.content }),
+    // 存量 moonviz 管线工件（替换期产生）携带 canonical 文档；旧 openui
+    // 管线工件内容作废（不迁移、不渲染）。
+    ...(artifact.pipeline === "spec"
+      ? { spec: artifact.content }
+      : artifact.pipeline === "moonviz"
+        ? { moonviz: artifact.content }
+        : {}),
   } satisfies PrototypeSuiteContent;
 }
 

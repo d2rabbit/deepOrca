@@ -381,6 +381,12 @@ configureVisionServerBuilder(buildVisionServer);
 // The builder + surface lifecycle are injected here; core connects via seam.
 configureA2uiServerBuilder(a2uiServerBuilder);
 
+// MoonViz engine (specs/moonviz-engine-replacement): the ONLY vendor-path
+// derivation lives in moonviz-runtime; importing it binds the lazy seam into
+// core at boot (worker + wasm-gc instance boot on first engine call).
+import "./moonviz-runtime.js";
+import { disposeMoonvizEngine } from "./moonviz-runtime.js";
+
 // specs/design-md-collection: vendored DESIGN.md 收藏集根注入（与所有 vendor
 // 根同纪律——只有宿主知道跑在 repo checkout 还是打包应用）。缺失（未
 // vendor/离线）时 core 的三源解析自然只剩 bundled + project。
@@ -2549,6 +2555,12 @@ app.on("before-quit", (event) => {
       // and worker threads that would otherwise keep the process alive (exactly
       // the "open handles block later launches" failure the watchdog guards).
       await closeEmbeddingService();
+    } catch {
+      // Best-effort — never block exit on cleanup failure.
+    }
+    try {
+      // MoonViz engine worker (lazy-booted) — same open-handle discipline.
+      await disposeMoonvizEngine();
     } catch {
       // Best-effort — never block exit on cleanup failure.
     }

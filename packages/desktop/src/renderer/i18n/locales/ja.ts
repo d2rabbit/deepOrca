@@ -343,7 +343,7 @@ export const ja: Record<MessageKey, string> = {
   "builtin.deep-design.desc":
     ".dd（OrcaDesign）形式のデザイングレード Web 成果物 — YAML front-matter + HTML ボディで自己完結し、ホスト外へもそのまま納品可能。",
   "builtin.pm-designer-openui.desc":
-    "OpenUI Lang による PM 向けプロトタイプ — インタラクティブ UI プロトタイプ用の、コンパクトでストリーミングファーストな言語。",
+    "MoonViz エンジン駆動の PM プロトタイプ——1 つの canonical ドキュメント・複数アートボード・op 計画駆動。",
   "builtin.taste.desc":
     "フロントエンドのデザイン品質規律 — レイアウト・タイポグラフィ・間隔・配色・アニメーションのための anti-slop 手法。",
   "builtin.book-distill.desc":
@@ -447,9 +447,13 @@ export const ja: Record<MessageKey, string> = {
   "slash.desc.exit": "DeepOrca を終了",
   "slash.desc.settings": "設定パネルを開く",
   "slash.desc.pmDesign": "PM-Design：インタラクティブな A2UI プロトタイプを作成",
-  "slash.desc.pmDesignOpenui": "PM-Design（OpenUI Lang）：コンパクト構文のプロトタイプ",
+  "slash.desc.pmDesignOpenui": "PM-Design（MoonViz）：PRD/pm-design ドキュメントからプロトタイプを生成",
   "slash.desc.prototype": "/pm-design のエイリアス",
   "slash.desc.openui": "/pm-design-openui のエイリアス",
+  "moonvizPreview.artboards": "アートボード",
+  "moonvizPreview.missing": "インタラクティブプレビューは未生成",
+  "moonvizPreview.missingHint":
+    "プレビューは保存時にエンジンがエクスポートしますが、その時点で利用できませんでした——materialize/revise を再実行するか、下の canonical ドキュメントを参照してください。",
   "slash.desc.deepDesign": "DeepDesign：.dd 形式で Web デザインを生成",
   "slash.desc.design": "/deep-design のエイリアス",
 
@@ -1626,8 +1630,7 @@ export const ja: Record<MessageKey, string> = {
   "designWorkspace.backToConversation": "会話に戻る",
   "designWorkspace.scopeHint": "バージョン {version} · ベース {basis} · テーマ {theme}",
   "designWorkspace.versionCapDesign": "バージョン · 1バージョン = 1セット（ビジュアル + デザインシステム + 品質）",
-  "designWorkspace.setOpenui": "ビジュアル",
-  "designWorkspace.setLeafer": "キャンバス",
+  "designWorkspace.setLeafer": "ビジュアル",
   "designWorkspace.legacyOpenui": "旧 OpenUI キャンバス · 閲覧専用（編集はチャットから）",
   "designWorkspace.leaferCanvasError":
     "キャンバスエンジンの初期化に失敗しました。デザインを再生成するかアプリを再起動してください。",
@@ -1801,6 +1804,7 @@ export const ja: Record<MessageKey, string> = {
   "prototypeWorkspace.progressRepair": "公式パーサーのフィードバックに基づきプロトタイプを修復中…",
   "prototypeWorkspace.progressMaterialize":
     "インタラクティブプロトタイプ全体を生成中です。数分かかることがあります。ウィンドウは閉じないでください…",
+  "prototypeWorkspace.progressVerifyEngine": "エンジン検証を実行中",
   "prototypeWorkspace.progressMaterializeSaved": "プロトタイプを保存しました · 受け入れ待ち",
   "prototypeWorkspace.vbadgeNote": "受け入れ {passed}/{total} · 自己修復 {heal}",
   "prototypeWorkspace.reportMeta": "バージョン {version} · 生成 {time}",

@@ -28,6 +28,8 @@ import type {
   UiSuiteContent,
 } from "../main/tools/design-store";
 
+const MOCK_DOC = "moonviz:artboard home doc";
+
 const tempRoots: string[] = [];
 
 function tempRoot(): string {
@@ -45,13 +47,13 @@ afterEach(() => {
 
 test("save + list + read + delete round-trips an artifact", () => {
   const root = tempRoot();
-  const meta = saveDesignArtifact(root, { title: "Login", pipeline: "openui", content: "root = Column([])" });
+  const meta = saveDesignArtifact(root, { title: "Login", pipeline: "moonviz", content: "root = Column([])" });
   assert.ok(meta);
 
   assert.equal(listDesignArtifacts(root).length, 1);
   const artifact = readDesignArtifact(root, meta!.id);
   assert.equal(artifact?.content, "root = Column([])");
-  assert.equal(artifact?.pipeline, "openui");
+  assert.equal(artifact?.pipeline, "moonviz");
 
   assert.equal(deleteDesignArtifact(root, meta!.id), true);
   assert.equal(listDesignArtifacts(root).length, 0);
@@ -65,7 +67,7 @@ test("readDesignSuiteKind derives the kind from a legacy pipeline meta without r
   // would default to "prototype" and reject legacy "design" artifacts).
   const design = saveDesignArtifact(root, { title: "Dash", pipeline: "design", content: "---\nname: dash\n---" });
   assert.equal(readDesignSuiteKind(root, design!.id), "ui");
-  const proto = saveDesignArtifact(root, { title: "Proto", pipeline: "openui", content: "root = Column([])" });
+  const proto = saveDesignArtifact(root, { title: "Proto", pipeline: "moonviz", content: "root = Column([])" });
   assert.equal(readDesignSuiteKind(root, proto!.id), "prototype");
   const spec = saveDesignArtifact(root, { title: "Spec", pipeline: "spec", content: "# Requirements" });
   assert.equal(readDesignSuiteKind(root, spec!.id), "prototype");
@@ -77,7 +79,7 @@ test("authoringLibrary stamps at creation, survives appends, and stays absent wh
   const stamped = createDesignSuite(root, {
     title: "Official",
     kind: "prototype",
-    content: { openui: 'root = Stack([Button("Go", Action([@Set($p, "home")]))])' },
+    content: { moonviz: 'root = Stack([Button("Go", Action([@Set($p, "home")]))])' },
     authoringLibrary: "official",
   });
   assert.equal(readDesignSuite(root, stamped!.id)?.authoringLibrary, "official");
@@ -86,7 +88,7 @@ test("authoringLibrary stamps at creation, survives appends, and stays absent wh
   // not silently dropped (a dropped stamp degrades routing to the heuristic).
   appendDesignSuiteVersion(root, {
     suiteId: stamped!.id,
-    content: { openui: 'root = Stack([Button("Back", Action([@Set($p, "root")]))])' },
+    content: { moonviz: 'root = Stack([Button("Back", Action([@Set($p, "root")]))])' },
     status: "ready",
   });
   assert.equal(readDesignSuite(root, stamped!.id)?.authoringLibrary, "official");
@@ -94,7 +96,7 @@ test("authoringLibrary stamps at creation, survives appends, and stays absent wh
   const unstamped = createDesignSuite(root, {
     title: "Seed",
     kind: "ui",
-    content: { openui: 'root = Stack([Card([TextContent("hi")])])' },
+    content: { leafer: '{"tag":"Leafer"}' },
   });
   assert.equal(
     readDesignSuite(root, unstamped!.id)?.authoringLibrary,
@@ -105,20 +107,20 @@ test("authoringLibrary stamps at creation, survives appends, and stays absent wh
 
 test("content changes snapshot the previous version; same content does not", () => {
   const root = tempRoot();
-  const first = saveDesignArtifact(root, { title: "Proto", pipeline: "openui", content: "v1" });
+  const first = saveDesignArtifact(root, { title: "Proto", pipeline: "moonviz", content: "v1" });
   assert.ok(first);
   assert.equal(first?.versions, undefined);
 
   // Unchanged content → no new version.
-  const same = saveDesignArtifact(root, { id: first!.id, title: "Proto", pipeline: "openui", content: "v1" });
+  const same = saveDesignArtifact(root, { id: first!.id, title: "Proto", pipeline: "moonviz", content: "v1" });
   assert.equal(same?.versions?.length ?? 0, 0);
 
   // Changed content → previous content becomes a version.
-  const second = saveDesignArtifact(root, { id: first!.id, title: "Proto", pipeline: "openui", content: "v2" });
+  const second = saveDesignArtifact(root, { id: first!.id, title: "Proto", pipeline: "moonviz", content: "v2" });
   assert.equal(second?.versions?.length, 1);
   assert.equal(second?.versions?.[0]?.content, "v1");
 
-  const third = saveDesignArtifact(root, { id: first!.id, title: "Proto", pipeline: "openui", content: "v3" });
+  const third = saveDesignArtifact(root, { id: first!.id, title: "Proto", pipeline: "moonviz", content: "v3" });
   assert.equal(third?.versions?.length, 2);
   assert.deepEqual(
     third?.versions?.map((v) => v.content),
@@ -150,7 +152,7 @@ test("requirement is persisted as requirement.md and returned on read", () => {
 
 test("formState round-trips and reads null when absent", () => {
   const root = tempRoot();
-  const meta = saveDesignArtifact(root, { title: "Form", pipeline: "openui", content: "root = Column([])" });
+  const meta = saveDesignArtifact(root, { title: "Form", pipeline: "moonviz", content: "root = Column([])" });
   assert.ok(meta);
 
   assert.equal(readFormState(root, meta!.id), null);
@@ -160,11 +162,11 @@ test("formState round-trips and reads null when absent", () => {
 
 test("version snapshots are capped (FIFO beyond the limit)", () => {
   const root = tempRoot();
-  const meta = saveDesignArtifact(root, { title: "Cap", pipeline: "openui", content: "v0" });
+  const meta = saveDesignArtifact(root, { title: "Cap", pipeline: "moonviz", content: "v0" });
   assert.ok(meta);
   // MAX_VERSIONS is 20 — save 25 distinct contents.
   for (let i = 1; i <= 25; i += 1) {
-    saveDesignArtifact(root, { id: meta!.id, title: "Cap", pipeline: "openui", content: `v${i}` });
+    saveDesignArtifact(root, { id: meta!.id, title: "Cap", pipeline: "moonviz", content: `v${i}` });
   }
   const artifact = readDesignArtifact(root, meta!.id);
   assert.equal(artifact?.versions?.length, 20);
@@ -174,7 +176,7 @@ test("version snapshots are capped (FIFO beyond the limit)", () => {
 
 test("artifact ids with traversal/absolute/separator are rejected (containment)", () => {
   const root = tempRoot();
-  const meta = saveDesignArtifact(root, { title: "Victim", pipeline: "openui", content: "root = Column([])" });
+  const meta = saveDesignArtifact(root, { title: "Victim", pipeline: "moonviz", content: "root = Column([])" });
   assert.ok(meta);
 
   const evil = ["../../outside", "..", "/etc", "sub/dir", "a\\b", "."];
@@ -212,12 +214,12 @@ test("spec pipeline round-trips (需求文档 artifacts, spec.md)", () => {
 test("spec, prototype and design artifacts coexist in one index", () => {
   const root = tempRoot();
   saveDesignArtifact(root, { title: "spec", pipeline: "spec", content: "# S" });
-  saveDesignArtifact(root, { title: "proto", pipeline: "openui", content: "root = Column([])" });
+  saveDesignArtifact(root, { title: "proto", pipeline: "moonviz", content: "root = Column([])" });
   saveDesignArtifact(root, { title: "dd", pipeline: "design", content: "---\nname: d\n---\n" });
   const pipelines = listDesignArtifacts(root)
     .map((a) => a.pipeline)
     .sort();
-  assert.deepEqual(pipelines, ["design", "openui", "spec"]);
+  assert.deepEqual(pipelines, ["design", "moonviz", "spec"]);
 });
 
 test("save and delete fire change events with the root (live panel refresh)", () => {
@@ -270,7 +272,7 @@ test("prototype suite creates one version and reads/lists lightweight metadata",
   const content: PrototypeSuiteContent = {
     requirement: "A task board",
     spec: "# Task board",
-    openui: "root = Column([])",
+    moonviz: MOCK_DOC,
     verification: {
       status: "passed",
       checks: [{ id: "render", label: "Renders", status: "healed", action: "fixed spacing" }],
@@ -300,7 +302,7 @@ test("prototype suite creates one version and reads/lists lightweight metadata",
   assert.equal(metaText.includes("root = Column"), false, "meta must not contain version content");
   assert.equal(fs.readdirSync(path.join(suiteDir(root, created.id), "versions")).length, 1);
   assert.equal(fs.readFileSync(path.join(suiteDir(root, created.id), "spec.md"), "utf8"), content.spec);
-  assert.equal(fs.readFileSync(path.join(suiteDir(root, created.id), "prototype.openui.txt"), "utf8"), content.openui);
+  assert.equal(fs.readFileSync(path.join(suiteDir(root, created.id), "doc.mbt.md"), "utf8"), content.moonviz);
 });
 
 test("ui suite preserves source prototype, design system and quality projections", () => {
@@ -308,7 +310,7 @@ test("ui suite preserves source prototype, design system and quality projections
   const prototype = createDesignSuite(root, {
     title: "Source",
     kind: "prototype",
-    content: { openui: 'root = Text("source")' },
+    content: { moonviz: 'root = Text("source")' },
   });
   assert.ok(prototype);
   const quality: DesignQualityResult = {
@@ -328,7 +330,7 @@ test("ui suite preserves source prototype, design system and quality projections
   };
   const content: UiSuiteContent = {
     requirement: "Polished task board",
-    openui: 'root = Screen("task-board")',
+    leafer: '{"tag":"Leafer"}',
     tokens: { colors: { accent: "#0066cc" } },
     components: [{ name: "TaskCard" }],
     quality,
@@ -338,7 +340,7 @@ test("ui suite preserves source prototype, design system and quality projections
   const ui = createDesignSuite(root, { title: "Task board UI", kind: "ui", content, status: "verified" });
   assert.ok(ui);
   assert.deepEqual(ui.currentContent, content);
-  assert.equal(fs.readFileSync(path.join(suiteDir(root, ui.id), "prototype.openui.txt"), "utf8"), content.openui);
+  assert.match(fs.readFileSync(path.join(suiteDir(root, ui.id), "design.leafer.json"), "utf8"), /Leafer/);
   assert.deepEqual(JSON.parse(fs.readFileSync(path.join(suiteDir(root, ui.id), "quality.json"), "utf8")), quality);
   assert.equal(listDesignSuites(root, "ui").length, 1);
   assert.equal(listDesignSuites(root, "prototype").length, 1);
@@ -443,9 +445,9 @@ test("index writes are source-pinned to the atomic helper and round-trip", () =>
   assert.doesNotMatch(writeIndexBody, /writeFileSync\(/, "writeIndex must not bare-write");
   // Observable contract: index content round-trips after updates.
   const root = tempRoot();
-  const meta = saveDesignArtifact(root, { title: "Atomic", pipeline: "openui", content: "v1" });
+  const meta = saveDesignArtifact(root, { title: "Atomic", pipeline: "moonviz", content: "v1" });
   assert.ok(meta);
-  saveDesignArtifact(root, { id: meta!.id, title: "Atomic", pipeline: "openui", content: "v2" });
+  saveDesignArtifact(root, { id: meta!.id, title: "Atomic", pipeline: "moonviz", content: "v2" });
   const listed = listDesignArtifacts(root);
   assert.equal(listed.length, 1);
   assert.equal(listed[0].id, meta!.id);
@@ -463,23 +465,26 @@ test("append removes stale current projection files", () => {
   const initial = createDesignSuite(root, {
     title: "Projection",
     kind: "prototype",
-    content: { requirement: "old req", spec: "old spec", openui: "old ui" },
+    content: { requirement: "old req", spec: "old spec", moonviz: MOCK_DOC },
   });
   assert.ok(initial);
-  const updated = appendDesignSuiteVersion(root, { suiteId: initial.id, content: { openui: "new ui" } });
+  const updated = appendDesignSuiteVersion(root, {
+    suiteId: initial.id,
+    content: { moonviz: "moonviz:artboard home v2" },
+  });
   assert.ok(updated);
   const dir = suiteDir(root, initial.id);
   assert.equal(fs.existsSync(path.join(dir, "requirement.md")), false);
   assert.equal(fs.existsSync(path.join(dir, "spec.md")), false);
-  assert.equal(fs.readFileSync(path.join(dir, "prototype.openui.txt"), "utf8"), "new ui");
+  assert.equal(fs.readFileSync(path.join(dir, "doc.mbt.md"), "utf8"), "moonviz:artboard home v2");
 });
 
 test("legacy artifacts lazily normalize one-to-one without writing migration files", () => {
   const root = tempRoot();
   const spec = saveDesignArtifact(root, { title: "Spec", pipeline: "spec", content: "# spec" });
-  const openui = saveDesignArtifact(root, { title: "Proto", pipeline: "openui", content: "root = Text()" });
+  const moonviz = saveDesignArtifact(root, { title: "Proto", pipeline: "moonviz", content: MOCK_DOC });
   const design = saveDesignArtifact(root, { title: "UI", pipeline: "design", content: "name: ui" });
-  assert.ok(spec && openui && design);
+  assert.ok(spec && moonviz && design);
 
   const suites = listDesignSuites(root);
   assert.equal(suites.length, 3, "each legacy artifact becomes its own partial suite");
@@ -487,8 +492,8 @@ test("legacy artifacts lazily normalize one-to-one without writing migration fil
   assert.equal(suites.filter((suite) => suite.kind === "ui").length, 1);
   assert.ok(suites.every((suite) => suite.partial === true));
   assert.equal((readDesignSuite(root, spec.id)?.currentContent as PrototypeSuiteContent).spec, "# spec");
-  assert.equal((readDesignSuite(root, openui.id)?.currentContent as PrototypeSuiteContent).openui, "root = Text()");
-  assert.equal((readDesignSuite(root, design.id)?.currentContent as UiSuiteContent).openui, "name: ui");
+  assert.equal((readDesignSuite(root, moonviz.id)?.currentContent as PrototypeSuiteContent).moonviz, MOCK_DOC);
+  // legacy design 工件不再投影出视觉字段（旧 openui 字段随栈作废）。
   assert.equal(fs.existsSync(path.join(suiteDir(root, spec.id), "versions")), false, "read is migration-free");
 });
 
@@ -503,7 +508,7 @@ test("appending a legacy suite upgrades it to schema v2 and keeps legacy lineage
   assert.ok(legacy);
   const upgraded = appendDesignSuiteVersion(root, {
     suiteId: legacy.id,
-    content: { requirement: "new req", spec: "# new", openui: "root = Text()" },
+    content: { requirement: "new req", spec: "# new", moonviz: MOCK_DOC },
     note: "upgrade",
     status: "ready",
   });
@@ -524,11 +529,15 @@ test("appending a legacy suite upgrades it to schema v2 and keeps legacy lineage
 
 test("appending identical legacy content upgrades in place without a duplicate version", () => {
   const root = tempRoot();
-  const legacy = saveDesignArtifact(root, { title: "Legacy UI", pipeline: "design", content: "name: old" });
+  const legacy = saveDesignArtifact(root, {
+    title: "Legacy Proto",
+    pipeline: "moonviz",
+    content: "moonviz:artboard old",
+  });
   assert.ok(legacy);
   const upgraded = appendDesignSuiteVersion(root, {
     suiteId: legacy.id,
-    content: { openui: "name: old" },
+    content: { moonviz: "moonviz:artboard old" },
     note: "normalized",
     status: "ready",
   });
@@ -567,11 +576,21 @@ test("suite changes notify structured and legacy listeners", () => {
   const offSuite = onDesignSuiteChange((event) => events.push(event));
   const offLegacy = onDesignStoreChange((eventRoot) => legacyEvents.push(eventRoot));
   try {
-    const suite = createDesignSuite(root, { title: "Events", kind: "ui", content: { openui: "v1" } });
+    const suite = createDesignSuite(root, {
+      title: "Events",
+      kind: "ui",
+      content: { leafer: '{"tag":"Leafer","revision":1}' },
+    });
     assert.ok(suite);
-    const updated = appendDesignSuiteVersion(root, { suiteId: suite.id, content: { openui: "v2" } });
+    const updated = appendDesignSuiteVersion(root, {
+      suiteId: suite.id,
+      content: { leafer: '{"tag":"Leafer","revision":2}' },
+    });
     assert.ok(updated);
-    assert.ok(appendDesignSuiteVersion(root, { suiteId: suite.id, content: { openui: "v2" } }));
+    // identical content → append is a no-op (no third event), 与旧语义一致。
+    assert.ok(
+      appendDesignSuiteVersion(root, { suiteId: suite.id, content: { leafer: '{"tag":"Leafer","revision":2}' } })
+    );
     assert.equal(deleteDesignSuite(root, suite.id), true);
 
     assert.deepEqual(

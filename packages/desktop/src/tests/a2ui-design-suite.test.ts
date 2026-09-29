@@ -14,6 +14,22 @@ import {
 } from "../main/tools/design-store";
 import type { PrototypeSuiteContent } from "../main/tools/design-store";
 
+const MOCK_DOC = `---
+moonviz:
+  format: visual-document
+  revision: 1
+  entry: home
+---
+
+# home
+
+<!-- moonviz:artboard home -->
+\`\`\`mbt
+fn visual_home() -> @decl.Prototype { let page = @decl.prototype(name="home", width=390.0, height=844.0) page }
+\`\`\`
+`;
+const MOCK_DOC_V2 = MOCK_DOC.replace("revision: 1", "revision: 2");
+
 const roots: string[] = [];
 afterEach(() => {
   while (roots.length) fs.rmSync(roots.pop()!, { recursive: true, force: true });
@@ -51,7 +67,7 @@ test("design tools expose suite lineage fields and helper tools", async () => {
   const client = await clientFor(root);
   try {
     const tools = await client.listTools();
-    for (const name of ["render_spec", "render_openui", "update_openui", "render_design", "update_design"]) {
+    for (const name of ["render_spec", "render_moonviz", "update_moonviz", "render_design", "update_design"]) {
       const tool = tools.tools.find((item) => item.name === name);
       assert.ok(tool, name);
       const properties = (tool.inputSchema.properties ?? {}) as Record<string, unknown>;
@@ -85,8 +101,8 @@ test("explicit suite writes append versions and reset stale prototype state", as
     assert.equal(ref.kind, "prototype");
 
     const materialized = await client.callTool({
-      name: "render_openui",
-      arguments: { code: "root = Column([board])\nboard = Card([])", suiteId: ref.suiteId, versionId: ref.versionId },
+      name: "render_moonviz",
+      arguments: { doc: MOCK_DOC, suiteId: ref.suiteId, versionId: ref.versionId },
     });
     const nextMatch = text(materialized).match(/ArtifactRef:\s*(\{[^\n]+\})/);
     assert.ok(nextMatch);
@@ -104,7 +120,7 @@ test("explicit suite writes append versions and reset stale prototype state", as
       },
     });
     const revised = readDesignSuite(root, ref.suiteId);
-    assert.equal((revised?.currentContent as PrototypeSuiteContent).openui, undefined);
+    assert.equal((revised?.currentContent as PrototypeSuiteContent).moonviz, undefined);
     assert.equal((revised?.currentContent as PrototypeSuiteContent).verification?.status, "pending");
   } finally {
     await client.close();
@@ -116,10 +132,10 @@ test("calls without suite metadata retain legacy artifact persistence", async ()
   roots.push(root);
   const client = await clientFor(root);
   try {
-    const result = await client.callTool({ name: "render_openui", arguments: { code: "root = Column([])" } });
+    const result = await client.callTool({ name: "render_moonviz", arguments: { doc: MOCK_DOC } });
     assert.doesNotMatch(text(result), /ArtifactRef:/);
     assert.equal(listDesignArtifacts(root).length, 1);
-    assert.equal(listDesignArtifacts(root)[0].pipeline, "openui");
+    assert.equal(listDesignArtifacts(root)[0].pipeline, "moonviz");
   } finally {
     await client.close();
   }
@@ -148,8 +164,8 @@ test("save_suite_result fails on a stale versionId instead of rolling the head b
     });
     const ref = artifactRefOf(first);
     const materialized = await client.callTool({
-      name: "render_openui",
-      arguments: { code: "root = Column([board])", suiteId: ref.suiteId, versionId: ref.versionId },
+      name: "render_moonviz",
+      arguments: { doc: MOCK_DOC, suiteId: ref.suiteId, versionId: ref.versionId },
     });
     const head = artifactRefOf(materialized);
     assert.notEqual(head.versionId, ref.versionId, "the head moved to a new version");
@@ -177,7 +193,7 @@ test("save_suite_result fails on a stale versionId instead of rolling the head b
   }
 });
 
-test("update_openui fails on a stale versionId instead of rolling the head back", async () => {
+test("update_moonviz fails on a stale versionId instead of rolling the head back", async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "a2ui-update-head-"));
   roots.push(root);
   const client = await clientFor(root);
@@ -188,18 +204,18 @@ test("update_openui fails on a stale versionId instead of rolling the head back"
     });
     const v1 = artifactRefOf(first);
     const materialized = await client.callTool({
-      name: "render_openui",
-      arguments: { code: "root = Column([board])", suiteId: v1.suiteId, versionId: v1.versionId },
+      name: "render_moonviz",
+      arguments: { doc: MOCK_DOC, suiteId: v1.suiteId, versionId: v1.versionId },
     });
     const v2 = artifactRefOf(materialized);
     assert.notEqual(v2.versionId, v1.versionId);
 
-    // A stale versionId must fail loudly: update_openui expands the new code
+    // A stale versionId must fail loudly: update_moonviz expands the new doc
     // over the given base's content, so appending against v1 would silently
-    // roll the head's verification/openui fields back to v1 state.
+    // roll the head's verification/moonviz fields back to v1 state.
     const stale = await client.callTool({
-      name: "update_openui",
-      arguments: { code: "root = Column([stale])", suiteId: v1.suiteId, versionId: v1.versionId },
+      name: "update_moonviz",
+      arguments: { doc: MOCK_DOC, suiteId: v1.suiteId, versionId: v1.versionId },
     });
     assert.equal(stale.isError, true);
     assert.match(text(stale), /head has moved/);
@@ -209,45 +225,40 @@ test("update_openui fails on a stale versionId instead of rolling the head back"
     const suite = readDesignSuite(root, v1.suiteId);
     assert.equal(suite?.currentVersionId, v2.versionId);
     const headContent = suite?.currentVersion?.content as PrototypeSuiteContent;
-    assert.equal(headContent.openui, "root = Column([board])");
+    assert.equal(headContent.moonviz, MOCK_DOC);
 
     // Appending against the head stays ok.
     const fresh = await client.callTool({
-      name: "update_openui",
-      arguments: { code: "root = Column([fresh])", suiteId: v1.suiteId, versionId: v2.versionId },
+      name: "update_moonviz",
+      arguments: { doc: MOCK_DOC, suiteId: v1.suiteId, versionId: v2.versionId },
     });
-    assert.notEqual(fresh.isError, true);
+    assert.notEqual(fresh.isError, true, text(fresh));
     assert.equal(artifactRefOf(fresh).versionId !== v2.versionId, true);
   } finally {
     await client.close();
   }
 });
 
-test("update_openui accepts a legacy design artifact via the pipeline-derived kind", async () => {
+test("update_moonviz rejects a legacy ui-kind suite (prototype-stack tool)", async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "a2ui-legacy-kind-"));
   roots.push(root);
   const client = await clientFor(root);
   try {
     // Legacy (pre-v2) artifact: meta carries `pipeline`, no schemaVersion/kind.
+    // The kind probe must still derive "ui" from the pipeline — and the
+    // prototype-stack tool must refuse it (UI suites are leafer-only now).
     const legacy = saveDesignArtifact(root, {
       title: "Legacy dash",
       pipeline: "design",
       content: "---\nname: legacy-dash\n---",
     });
     assert.ok(legacy);
-
-    // The probe must derive "ui" from the pipeline (a v2-only probe returned
-    // null and defaulted to "prototype", rejecting the append with a kind
-    // mismatch).
     const updated = await client.callTool({
-      name: "update_openui",
-      arguments: { code: 'root = Screen("legacy")', suiteId: legacy.id },
+      name: "update_moonviz",
+      arguments: { doc: MOCK_DOC, suiteId: legacy.id },
     });
-    assert.notEqual(updated.isError, true);
-    const ref = artifactRefOf(updated);
-    assert.equal(ref.kind, "ui");
-    const suite = readDesignSuite(root, legacy.id);
-    assert.equal(suite?.kind, "ui");
+    assert.equal(updated.isError, true, "update_moonviz must reject ui-kind targets");
+    assert.match(text(updated), /render_leafer|prototype suites/);
   } finally {
     await client.close();
   }
@@ -258,20 +269,20 @@ test("a2ui suite creations stamp authoringLibrary=official; appends keep it", as
   roots.push(root);
   const client = await clientFor(root);
   try {
-    // Create path (render_openui with a note but no suiteId → suite mode
+    // Create path (render_moonviz with a note but no suiteId → suite mode
     // create): the post-switch official prompt authored this code; the
     // renderer must never guess.
     const rendered = await client.callTool({
-      name: "render_openui",
-      arguments: { code: 'root = Stack([Button("Go", Action([@Set($p, "home")]))])', note: "initial" },
+      name: "render_moonviz",
+      arguments: { doc: MOCK_DOC, note: "initial" },
     });
     const created = artifactRefOf(rendered);
     assert.equal(readDesignSuite(root, created.suiteId)?.authoringLibrary, "official");
 
     // Append path carries the stamp forward verbatim.
     const updated = await client.callTool({
-      name: "update_openui",
-      arguments: { code: 'root = Stack([Button("Back", Action([@Set($p, "root")]))])', suiteId: created.suiteId },
+      name: "update_moonviz",
+      arguments: { doc: MOCK_DOC_V2, suiteId: created.suiteId },
     });
     assert.notEqual(updated.isError, true);
     assert.equal(readDesignSuite(root, created.suiteId)?.authoringLibrary, "official");
@@ -280,27 +291,27 @@ test("a2ui suite creations stamp authoringLibrary=official; appends keep it", as
   }
 });
 
-test("render_openui appends to an existing ui suite without designSystemId (kind from the suite)", async () => {
+test("render_moonviz rejects a ui-kind suite (kind from the suite)", async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "a2ui-suite-kind-"));
   roots.push(root);
   const client = await clientFor(root);
   try {
     const first = await client.callTool({
-      name: "render_openui",
-      arguments: { code: "root = Column([a])", designSystemId: "dark-tech" },
+      name: "render_leafer",
+      arguments: { leafer: '{"tag":"Leafer","width":100,"height":100,"children":[]}', designSystemId: "dark-tech" },
     });
     const ref = artifactRefOf(first);
     assert.equal(ref.kind, "ui");
 
     const second = await client.callTool({
-      name: "render_openui",
-      arguments: { code: "root = Column([a, b])", suiteId: ref.suiteId, versionId: ref.versionId },
+      name: "render_moonviz",
+      arguments: { doc: MOCK_DOC, suiteId: ref.suiteId, versionId: ref.versionId },
     });
-    const next = artifactRefOf(second);
-    assert.equal(next.kind, "ui", "the append must keep the suite's kind");
+    assert.equal(second.isError, true, "the append must refuse a ui-kind target");
+    assert.match(text(second), /prototype suites/);
     const suite = readDesignSuite(root, ref.suiteId);
     assert.equal(suite?.kind, "ui");
-    assert.equal(suite?.versions.length, 2);
+    assert.equal(suite?.versions.length, 1, "nothing was appended");
   } finally {
     await client.close();
   }
@@ -343,9 +354,13 @@ test("save_suite_result clamps oversized or over-deep payloads", async () => {
   roots.push(root);
   const client = await clientFor(root);
   try {
+    // clamp 语义只对 ui 套件测量 quality 字段——用 leafer 建 ui 套件。
     const first = await client.callTool({
-      name: "render_openui",
-      arguments: { code: "root = Column([])", designSystemId: "dark-tech" },
+      name: "render_leafer",
+      arguments: {
+        leafer: '{"tag":"Leafer","width":100,"height":100,"children":[]}',
+        designSystemId: "dark-tech",
+      },
     });
     const ref = artifactRefOf(first);
     assert.equal(ref.kind, "ui");
@@ -385,7 +400,7 @@ test("legacy update against a suite-normalized artifact fails loudly instead of 
   roots.push(root);
   const client = await clientFor(root);
   try {
-    await client.callTool({ name: "render_openui", arguments: { code: "root = Column([])" } });
+    await client.callTool({ name: "render_moonviz", arguments: { doc: MOCK_DOC } });
     const artifact = listDesignArtifacts(root)[0];
     // Containment guard (mirror of the production isSafeDesignId policy): the
     // store-issued id must resolve INSIDE the designs root before this test
@@ -411,7 +426,7 @@ test("legacy update against a suite-normalized artifact fails loudly instead of 
     const contentFile = fs.readdirSync(dir).find((name) => name !== "meta.json")!;
     const before = fs.readFileSync(path.join(dir, contentFile), "utf8");
 
-    const updated = await client.callTool({ name: "update_openui", arguments: { code: "root = Column([b])" } });
+    const updated = await client.callTool({ name: "update_moonviz", arguments: { doc: MOCK_DOC } });
     assert.equal(updated.isError, true, "the dropped revision must surface as a tool error");
     assert.match(text(updated), /normalized into a v2 design suite/);
     assert.match(text(updated), /suiteId/);
@@ -468,36 +483,6 @@ test("save_suite_arch enforces the verification gate and the arch contract at th
     const headContent = readDesignSuite(root, ref.suiteId)?.currentVersion?.content as PrototypeSuiteContent;
     assert.equal(headContent.verification?.status, "passed");
     assert.match(headContent.arch ?? "", /```mermaid/);
-  } finally {
-    await client.close();
-  }
-});
-
-test("validate_openui returns a structured local verdict and rejects empty code", async () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "a2ui-validate-"));
-  roots.push(root);
-  const client = await clientFor(root);
-  try {
-    const VALID = [
-      '$page = "home"',
-      'root = Stack([nav, $page == "home" ? homeView : ordersView])',
-      'homeView = Card([TextContent("概览")])',
-      'ordersView = Card([TextContent("列表")])',
-      'nav = Stack([Button("首页", Action([@Set($page, "home")]))], "row")',
-    ].join("\n");
-    const ok = await client.callTool({ name: "validate_openui", arguments: { code: VALID } });
-    assert.notEqual(ok.isError, true);
-    const verdict = JSON.parse(text(ok)) as { valid: boolean; unresolved: string[] };
-    assert.equal(verdict.valid, true);
-
-    const broken = await client.callTool({ name: "validate_openui", arguments: { code: "root = Fakebox([])" } });
-    assert.notEqual(broken.isError, true);
-    const bad = JSON.parse(text(broken)) as { valid: boolean; errors: Array<{ code: string }> };
-    assert.equal(bad.valid, false);
-    assert.equal(bad.errors[0].code, "unknown-component");
-
-    const empty = await client.callTool({ name: "validate_openui", arguments: { code: "   " } });
-    assert.equal(empty.isError, true);
   } finally {
     await client.close();
   }
@@ -623,7 +608,7 @@ test("save_pm_design persists the prompt doc, resets derived artifacts, and proj
     const content = suite?.currentContent as PrototypeSuiteContent;
     assert.match(content.pmDesign ?? "", /# 登录原型设计提示/);
     // 派生物失效（与 render_spec 同规）。
-    assert.equal(content.openui, undefined);
+    assert.equal(content.moonviz, undefined);
     assert.equal(content.verification?.status, "pending");
     assert.equal(content.arch, undefined);
     // 投影文件。
@@ -663,12 +648,12 @@ test("save_pm_design cross-review hardening: preserveDerived keeps derived artif
       suiteId: string;
       versionId: string;
     };
-    // 先落一个 openui 派生物（render_spec 会重置它，所以走 render_openui 追加）。
-    const openui = await client.callTool({
-      name: "render_openui",
-      arguments: { code: "root = Stack([login])", suiteId: specRef.suiteId, versionId: specRef.versionId },
+    // 先落一个派生物（render_spec 会重置它，所以走 render_moonviz 追加）。
+    const moonviz = await client.callTool({
+      name: "render_moonviz",
+      arguments: { doc: MOCK_DOC, suiteId: specRef.suiteId, versionId: specRef.versionId },
     });
-    const ref = JSON.parse(text(openui).match(/ArtifactRef:\s*(\{[^\n]+\})/)![1]) as {
+    const ref = JSON.parse(text(moonviz).match(/ArtifactRef:\s*(\{[^\n]+\})/)![1]) as {
       suiteId: string;
       versionId: string;
     };
@@ -685,7 +670,7 @@ test("save_pm_design cross-review hardening: preserveDerived keeps derived artif
     const firstSuite = readDesignSuite(root, ref.suiteId);
     let content = firstSuite?.currentContent as PrototypeSuiteContent;
     assert.match(content.pmDesign ?? "", /# 登录原型设计提示/);
-    assert.ok(content.openui, "preserveDerived keeps the derived openui on the head version");
+    assert.ok(content.moonviz, "preserveDerived keeps the derived moonviz doc on the head version");
 
     const reset = await client.callTool({
       name: "save_pm_design",
@@ -695,7 +680,7 @@ test("save_pm_design cross-review hardening: preserveDerived keeps derived artif
     const resetSuite = readDesignSuite(root, ref.suiteId);
     assert.ok(resetSuite);
     content = resetSuite.currentContent as PrototypeSuiteContent;
-    assert.equal(content.openui, undefined, "manual recompute (default) resets derived artifacts");
+    assert.equal(content.moonviz, undefined, "manual recompute (default) resets derived artifacts");
 
     // 载荷钳制：超限文档拒绝。
     const oversized = await client.callTool({

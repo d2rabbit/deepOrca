@@ -4,7 +4,6 @@
  *   - six fixed sections in zh and en packs (C12/C16),
  *   - anti-collapse wording present in the per-screen layout lines (C13),
  *   - unresolved screen references block the brief with a gap list (C14),
- *   - openui input degrades to a verbatim source appendix (C14),
  *   - no absolute coordinates in the output.
  */
 
@@ -71,24 +70,6 @@ test("brief: fenced code-block anchors are documentation, not route targets — 
   const res = buildImplementationBrief({ kind: "spec", specMd: spec, title: "登录重设计", locale: "zh" });
   assert.equal(res.ok, true);
   assert.equal(res.gaps, undefined);
-});
-
-test("brief: en locale pack; openui source degrades to verbatim appendix", () => {
-  const res = buildImplementationBrief({
-    kind: "openui",
-    openuiSource: `<button>保存订单</button>\n<a href="#settings">设置</a>\n`,
-    title: "订单页",
-    brief: "订单管理界面。",
-    locale: "en",
-  });
-  assert.equal(res.ok, true);
-  const md = res.briefMd ?? "";
-  assert.ok(md.includes("Implementation Brief"));
-  assert.ok(md.includes("never fake data") || md.includes("real persistence"));
-  // unstructured source degrades to the appendix verbatim (C14)
-  assert.ok(md.includes("<button>保存订单</button>"));
-  // no absolute coordinate pairs in the output (C13)
-  assert.ok(!/:\s*\d{2,}\s*,\s*\d{2,}/.test(md));
 });
 
 test("brief: empty spec → ok:false", () => {

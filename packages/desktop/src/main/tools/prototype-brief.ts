@@ -1,6 +1,6 @@
 /**
  * Implementation-brief generator (specs/artifact-landing 链路 C) — turns a
- * spec document / openui prototype into a deterministic implementation brief
+ * spec document into a deterministic implementation brief
  * that a coding agent can execute without guessing. Pure + Electron-free.
  *
  * Method (m3e-canvas teardown, design.md 附录 D): every structural fact is
@@ -16,9 +16,8 @@
  */
 
 export interface ImplementationBriefInput {
-  kind: "spec" | "openui";
+  kind: "spec";
   specMd?: string;
-  openuiSource?: string;
   title: string;
   brief?: string;
   locale: string;
@@ -78,8 +77,8 @@ const PACK_ZH: Pack = {
   behavior: "行为与导航",
   behaviorItem: "行为条目",
   navClose: "导航闭环：每个可点击目标都必须有明确去处；「返回」回到来源屏幕并反向播放进入过渡；禁止悬空链接。",
-  stack: "技术栈映射（DeepOrca openui 栈）",
-  stackIntro: "使用项目内 openui 技术栈（React 函数组件 + 项目样式 token）实现以下映射：",
+  stack: "技术栈映射（DeepOrca 项目栈）",
+  stackIntro: "使用项目内技术栈（React 函数组件 + 项目样式 token）实现以下映射：",
   stackComponents: "组件映射：按钮→Button、输入框→Input、列表→列表行组件、开关→Switch、对话框→Dialog。",
   stackColors: "颜色一律引用样式 token / 主题角色（primary、surface、on-surface），禁止硬编码十六进制色值。",
   stackIcons: "图标使用 Material Symbols Rounded 命名。",
@@ -111,8 +110,8 @@ const PACK_EN: Pack = {
   behaviorItem: "Behavior item",
   navClose:
     "Navigation closes: every tappable target has an explicit destination; “back” returns to the source screen with the reversed entry transition; no dangling links.",
-  stack: "Stack mapping (DeepOrca openui stack)",
-  stackIntro: "Implement with the in-repo openui stack (React function components + project style tokens):",
+  stack: "Stack mapping (DeepOrca project stack)",
+  stackIntro: "Implement with the in-repo project stack (React function components + project style tokens):",
   stackComponents: "Components: button→Button, input→Input, list→list rows, switch→Switch, dialog→Dialog.",
   stackColors:
     "Colors always reference style tokens / theme roles (primary, surface, on-surface) — never hardcoded hex.",
@@ -308,8 +307,6 @@ function routeTargets(specMd: string): string[] {
   return targets;
 }
 
-/** Interactive elements of an openui prototype — best effort; everything not
- *  captured degrades into the verbatim source appendix (C14, no guessing). */
 function extractOpenuiOutline(source: string): { buttons: string[]; links: Array<{ label: string; to: string }> } {
   const buttons = [...source.matchAll(/<button[^>]*>([^<]{1,80})</g)].map((m) => m[1].trim()).filter(Boolean);
   const links: Array<{ label: string; to: string }> = [];
@@ -414,52 +411,9 @@ export function buildImplementationBrief(input: ImplementationBriefInput): Imple
     return { ok: true, briefMd: out.join("\n") };
   }
 
-  // ── openui prototype input ────────────────────────────────────────────────
-  const source = (input.openuiSource ?? "").trim();
-  if (!source) return { ok: false, gaps: ["openui source empty"] };
-  const outline = extractOpenuiOutline(source);
-  const screenName = input.title;
-
-  add("# " + p.docTitle + "：" + input.title, "");
-  add(sectionHeading(p.goal), "", bullet(p.goal, input.brief || p.noScreens), bullet(p.goalDeliver, ""), "");
-  add(sectionHeading(p.screens), "");
-  add(tableRow(p.screensCol), tableRow(["---", "---", "---"]));
-  add(tableRow(["1", screenName, p.noScreens]), "");
-  add(sectionHeading(p.layout), "", heading(screenName), "");
-  if (outline.buttons.length > 0) {
-    add(bullet(p.layoutItem, outline.buttons.map((b) => screenScope(p, b)).join("、")));
-  }
-  add(bullet(p.layoutAntiCollapse, ""), "");
-  add(sectionHeading(p.behavior), "");
-  if (outline.links.length > 0) {
-    for (const link of outline.links) {
-      add(bullet(p.behaviorItem + " " + screenScope(p, link.label || link.to), "→ " + link.to));
-    }
-  } else {
-    add(bullet(p.behaviorItem, "—"));
-  }
-  add("", bullet(p.navClose, ""), "");
-  add(
-    sectionHeading(p.stack),
-    "",
-    bullet(p.stackIntro, ""),
-    bullet(p.stackComponents, ""),
-    bullet(p.stackColors, ""),
-    bullet(p.stackIcons, ""),
-    ""
-  );
-  add(
-    sectionHeading(p.rules),
-    "",
-    bullet(p.rulesPersist, ""),
-    bullet(p.rulesFillBehavior, ""),
-    bullet(p.rulesUsability, ""),
-    bullet(p.rulesDone, ""),
-    ""
-  );
-  add(sectionHeading(p.todos), "", p.noTodos, "");
-  add(sectionHeading(p.appendix), "", "```", source, "```", "");
-  return { ok: true, briefMd: out.join("\n") };
+  // spec 文档之外的原型输入（旧 openui 源码附录）随 MoonViz 替换移除——
+  // 简报只服务 spec 链（C 链）；canonical 文档由引擎面消费。
+  return { ok: false, gaps: ["unsupported brief kind"] };
 }
 
 function firstLine(text: string): string {

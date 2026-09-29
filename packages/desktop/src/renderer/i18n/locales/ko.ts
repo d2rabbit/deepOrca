@@ -340,7 +340,7 @@ export const ko: Record<MessageKey, string> = {
   "builtin.deep-design.desc":
     ".dd(OrcaDesign) 형식의 디자인급 웹 산출물 — YAML front-matter + HTML 본문, 자체 완결형이며 호스트 밖으로 전달할 수 있습니다.",
   "builtin.pm-designer-openui.desc":
-    "PM 중심 프로토타입 — 인터랙티브 UI 프로토타입용 간결한 스트리밍 우선 언어인 OpenUI Lang.",
+    "MoonViz 엔진 기반 PM 프로토타입 — 단일 canonical 문서, 다중 아트보드, op 플랜 구동.",
   "builtin.taste.desc":
     "프런트엔드 디자인 품질 원칙 — 레이아웃, 타이포그래피, 간격, 색상, 애니메이션을 위한 anti-slop 방법론.",
   "builtin.book-distill.desc":
@@ -443,9 +443,13 @@ export const ko: Record<MessageKey, string> = {
   "slash.desc.exit": "DeepOrca 종료",
   "slash.desc.settings": "설정 패널 열기",
   "slash.desc.pmDesign": "PM-Design: 대화형 A2UI 프로토타입 생성",
-  "slash.desc.pmDesignOpenui": "PM-Design(OpenUI Lang): 간결한 문법 프로토타입",
+  "slash.desc.pmDesignOpenui": "PM-Design(MoonViz): PRD/pm-design 문서에서 프로토타입 생성",
   "slash.desc.prototype": "/pm-design의 별칭",
-  "slash.desc.openui": "/pm-design-openui의 별칭",
+  "slash.desc.openui": "/pm-design-openui 별칭",
+  "moonvizPreview.artboards": "아트보드",
+  "moonvizPreview.missing": "대화형 미리보기 미생성",
+  "moonvizPreview.missingHint":
+    "미리보기는 저장 시 엔진이 내보내며 당시 사용할 수 없었습니다—materialize/revise를 다시 실행하거나 아래 canonical 문서를 확인하세요.",
   "slash.desc.deepDesign": "DeepDesign: .dd 형식으로 웹 디자인 생성",
   "slash.desc.design": "/deep-design의 별칭",
 
@@ -1615,8 +1619,7 @@ export const ko: Record<MessageKey, string> = {
   "designWorkspace.backToConversation": "대화로 돌아가기",
   "designWorkspace.scopeHint": "버전 {version} · 기반 {basis} · 테마 {theme}",
   "designWorkspace.versionCapDesign": "버전 · 1 버전 = 1 세트(비주얼 + 디자인 시스템 + 품질)",
-  "designWorkspace.setOpenui": "비주얼",
-  "designWorkspace.setLeafer": "캔버스",
+  "designWorkspace.setLeafer": "비주얼",
   "designWorkspace.legacyOpenui": "레거시 OpenUI 캔버스 · 보기 전용, 수정은 대화로",
   "designWorkspace.leaferCanvasError": "캔버스 엔진 초기화에 실패했습니다. 디자인을 다시 생성하거나 앱을 재시작하세요.",
   "designWorkspace.leaferCanvasSaveFailed": "캔버스 저장에 실패했습니다. 잠시 후 다시 시도해 주세요.",
@@ -1790,6 +1793,7 @@ export const ko: Record<MessageKey, string> = {
   "prototypeWorkspace.progressRepair": "공식 파서 피드백을 바탕으로 프로토타입을 수정하는 중…",
   "prototypeWorkspace.progressMaterialize":
     "전체 대화형 프로토타입을 생성하는 중입니다. 몇 분 정도 걸릴 수 있으니 창을 닫지 마십시오…",
+  "prototypeWorkspace.progressVerifyEngine": "엔진 검증 실행 중",
   "prototypeWorkspace.progressMaterializeSaved": "프로토타입 저장됨 · 수용 대기",
   "prototypeWorkspace.vbadgeNote": "수용 {passed}/{total} · 자가 치유 {heal}",
   "prototypeWorkspace.reportMeta": "버전 {version} · 생성 {time}",

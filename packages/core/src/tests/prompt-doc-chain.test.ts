@@ -19,6 +19,9 @@ import {
 } from "../actions";
 import { NULL_SPAWNER } from "../actions/types";
 import type { ActionContext, RunSubagentOptions } from "../actions/types";
+import { installMoonvizFixture, MOCK_MOONVIZ_DOC } from "./moonviz-fixture";
+
+installMoonvizFixture();
 
 type McpCall = { name: string; args: Record<string, unknown> };
 
@@ -111,7 +114,7 @@ const PM_DOC = [
   "- 沿用人员管理的角色与术语",
   "```",
 ].join("\n");
-const OPENUI = "```\nroot = Column([])\n```";
+const MOONVIZ_OP_PLAN = "```moonviz\ntemplate login home 1200 800\n```";
 const PM_MARKDOWN = "# 登录原型设计提示\n\n## 页面结构\n- 登录页\n\n## 交互叙事\n- 提交→校验";
 const UI_DOC =
   "```markdown\n# 登录视觉稿提示\n\n## 画布构图\n- 登录帧居中卡片\n\n## tokens 映射\n- 主色→accent\n\n## 视觉层级\n- 标题>表单>辅助\n\n## 状态呈现\n- 空态/加载/错误三态齐备\n```";
@@ -122,7 +125,18 @@ const LEAFER_DOC = JSON.stringify({
   width: 1440,
   height: 1024,
   fill: "#ffffff",
-  children: [{ tag: "Rect", x: 24, y: 24, width: 200, height: 64, fill: "#4F46E5" }],
+  children: [
+    {
+      tag: "Frame",
+      name: "home",
+      x: 0,
+      y: 0,
+      width: 1440,
+      height: 1024,
+      fill: "#111318",
+      children: [{ tag: "Rect", x: 24, y: 24, width: 200, height: 64, fill: "#4F46E5" }],
+    },
+  ],
 });
 
 test("prototype.pmdesign distills pm-design (with reference context) and persists via save_pm_design", async () => {
@@ -177,7 +191,7 @@ test("materialize stage0 auto-distills when pmDesign is absent and threads the n
   const emits: Array<{ data?: unknown }> = [];
   const ctx = makeCtx(
     { proto: { kind: "prototype", title: "登录 PRD", content: { spec: SPEC, requirement: "登录模块" } } },
-    { generatedQueue: [PM_DOC, OPENUI], mcpCalls, subagentCalls, emits }
+    { generatedQueue: [PM_DOC, MOONVIZ_OP_PLAN], mcpCalls, subagentCalls, emits }
   );
   const result = await prototypeMaterializeRun({ suiteId: "proto", versionId: "head-1" }, ctx);
   assert.ok(result.ok, `materialize must succeed: ${result.ok ? "" : (result as { error?: string }).error}`);
@@ -196,7 +210,7 @@ test("materialize stage0 auto-distills when pmDesign is absent and threads the n
     "prototype.materialize.generating",
     "prototype.materialize.saved",
   ]);
-  const render = mcpCalls.find((call) => call.name.endsWith("render_openui"));
+  const render = mcpCalls.find((call) => call.name.endsWith("render_moonviz"));
   assert.equal(render?.args.versionId, "v-new", "the device loop threads the NEW head (save_pm_design moved it)");
   // 原型提示词以 pm-design 为主驱动。
   assert.match(subagentCalls[1]?.prompt ?? "", /## pm-design（设计意图——主驱动）/);
@@ -214,7 +228,7 @@ test("materialize skips stage0 when pmDesign already exists (manual recompute st
         content: { spec: SPEC, pmDesign: PM_MARKDOWN },
       },
     },
-    { generatedQueue: [OPENUI], mcpCalls, subagentCalls }
+    { generatedQueue: [MOONVIZ_OP_PLAN], mcpCalls, subagentCalls }
   );
   const result = await prototypeMaterializeRun({ suiteId: "proto", versionId: "head-1" }, ctx);
   assert.ok(result.ok);
@@ -234,20 +248,25 @@ test("materialize keeps the legacy artifact prompt byte-structure (suite-less pa
   fs.mkdirSync(nodePath.join(root, ".deeporca", "designs", legacyId), { recursive: true });
   fs.writeFileSync(nodePath.join(root, ".deeporca", "designs", legacyId, "spec.md"), SPEC, "utf8");
   const subagentCalls: RunSubagentOptions[] = [];
-  const ctx = makeCtx({}, { generatedQueue: [OPENUI], subagentCalls });
+  const ctx = makeCtx({}, { generatedQueue: [MOONVIZ_OP_PLAN], subagentCalls });
   ctx.projectRoot = root;
   const result = await prototypeMaterializeRun({ specArtifactId: legacyId }, ctx);
   assert.ok(result.ok, `legacy materialize must succeed: ${result.ok ? "" : (result as { error?: string }).error}`);
   const prompt = subagentCalls[0]?.prompt ?? "";
   assert.ok(
-    prompt.startsWith("Create the complete OpenUI Lang prototype for the requirements document below. "),
+    prompt.startsWith("Create the complete MoonViz prototype for the requirements document below. "),
     "legacy head preserved byte-for-byte"
   );
   // 遵守契约（2026-09-11 强化）替换了旧的 "Cover its page list" 行——legacy
   // 路径同样要求逐页/P0/三态点名。
   assert.ok(prompt.includes("PRD compliance is non-negotiable"));
   assert.ok(prompt.includes("EVERY page in the 页面清单"));
-  assert.ok(prompt.endsWith(`Return only the OpenUI Lang program in one code fence.\n\n${SPEC}`));
+  assert.ok(
+    prompt.includes("Return ONLY the op plan — one op per line in a single ```moonviz code fence, no mbt source."),
+    "legacy head keeps the op-plan output contract"
+  );
+  assert.ok(prompt.includes("## Artboard plan"), "legacy prompt carries the artboard plan");
+  assert.ok(prompt.endsWith(`\n\n${SPEC}`), "legacy tail: the spec stays the prompt tail");
   // legacy 路径不注入 pm-design 主驱动区块（遵守契约文本提到 页面清单/pm-design
   // 字样属正常——没有文档区块才是 legacy 语义）。
   assert.ok(!prompt.includes("## pm-design"), "no pm-design document block on the legacy path");
@@ -261,7 +280,7 @@ test("design.materialize runs the ui-design stage and passes uiDesign through re
       proto: {
         kind: "prototype",
         title: "登录 PRD",
-        content: { spec: SPEC, openui: "root = Column([])", pmDesign: PM_MARKDOWN, requirement: "登录模块" },
+        content: { spec: SPEC, moonviz: MOCK_MOONVIZ_DOC, pmDesign: PM_MARKDOWN, requirement: "登录模块" },
       },
     },
     { generatedQueue: [UI_DOC, LEAFER_DOC], mcpCalls, subagentCalls }
@@ -284,13 +303,27 @@ test("design.materialize runs the ui-design stage and passes uiDesign through re
 test("design.materialize keeps the legacy prompt and no uiDesign without pmDesign (zero regression)", async () => {
   const mcpCalls: McpCall[] = [];
   const subagentCalls: RunSubagentOptions[] = [];
-  const protoContent = "root = Column([login])";
+  const protoContent = [
+    "---",
+    "moonviz:",
+    "  format: visual-document",
+    "  revision: 3",
+    "  entry: login",
+    "---",
+    "",
+    "# 登录",
+    "",
+    "<!-- moonviz:artboard login -->",
+    "```mbt",
+    'fn visual_login() -> @decl.Prototype { let page = @decl.prototype(name="login", width=390.0, height=844.0) page }',
+    "```",
+  ].join("\n");
   const ctx = makeCtx(
     {
       proto: {
         kind: "prototype",
         title: "登录 PRD",
-        content: { spec: SPEC, openui: protoContent, requirement: "登录模块" },
+        content: { spec: SPEC, moonviz: protoContent, requirement: "登录模块" },
       },
     },
     { generatedQueue: [LEAFER_DOC], mcpCalls, subagentCalls }
@@ -309,7 +342,7 @@ test("design.materialize keeps the legacy prompt and no uiDesign without pmDesig
   assert.ok(prompt.includes(LEAFER_CREATE_CONTRACT));
   assert.ok(
     prompt.includes(
-      "Cover every page and flow in this OpenUI prototype as separate canvas frames (one Frame per page, " +
+      "Cover every page and flow in the prototype document as separate canvas frames (one Frame per page, " +
         "labeled with a Text node), preserving its information architecture and Action wiring as visual " +
         `annotations:\n\n${protoContent}`
     ),
@@ -379,7 +412,7 @@ test("design.materialize emits uidesign.saved only after render_leafer persists 
       proto: {
         kind: "prototype",
         title: "登录 PRD",
-        content: { spec: SPEC, openui: "root = Column([])", pmDesign: PM_MARKDOWN, requirement: "登录模块" },
+        content: { spec: SPEC, moonviz: MOCK_MOONVIZ_DOC, pmDesign: PM_MARKDOWN, requirement: "登录模块" },
       },
     },
     { generatedQueue: [UI_DOC, '```json\n{"tag": "Broken"}\n```'], mcpCalls, emits }
@@ -404,7 +437,7 @@ test("basis switch without pmDesign clears the stale uiDesign (explicit empty-st
       proto: {
         kind: "prototype",
         title: "新基底 PRD",
-        content: { spec: SPEC, openui: "root = Column([])", requirement: "x" },
+        content: { spec: SPEC, moonviz: MOCK_MOONVIZ_DOC, requirement: "x" },
       },
     },
     { generatedQueue: [LEAFER_DOC], mcpCalls }

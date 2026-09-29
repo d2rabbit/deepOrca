@@ -918,8 +918,10 @@ export type KnowledgeStatusResponse = {
 // ── Task trajectory (specs/task-tree P0) ─────────────────────────────────────
 export type { TaskNode, TaskReflogEntry, TaskTreeIndex, TaskTreeSummary } from "@deeporca/core";
 
-/** Designer artifact pipeline: openui = PM-Design prototype, design = UI-Design .dd document. */
-export type DesignPipeline = "openui" | "design" | "spec";
+/** Designer artifact pipeline: moonviz = PM-Design prototype (specs/
+ *  moonviz-engine-replacement), design = UI-Design .dd document. "openui" is
+ *  kept read-only for pre-existing artifacts (retired with the stack). */
+export type DesignPipeline = "openui" | "moonviz" | "design" | "spec";
 
 export type DesignArtifactVersion = {
   savedAt: string;
@@ -1002,9 +1004,9 @@ export type PrototypeSuiteContent = {
   spec?: string;
   /** specs/prompt-doc-chain: pm-design.md——PRD 蒸馏的原型提示词文档。 */
   pmDesign?: string;
-  openui?: string;
-  /** 平台变体(user ask 2026-09-09):mobile/tablet 的结构性独立程序。 */
-  openuiVariants?: Partial<Record<"desktop" | "mobile" | "tablet", string>>;
+  /** specs/moonviz-engine-replacement：canonical `.mbt.md` 唯一事实源（单
+   *  文档多画板，三端 = `<page>@<device>` 画板）。 */
+  moonviz?: string;
   verification?: PrototypeVerificationResult;
   /** Technical architecture document (user ask 2026-09-08 技术架构模块):
    *  standardized markdown derived from the PRD once verification passes. */
@@ -1013,10 +1015,8 @@ export type PrototypeSuiteContent = {
 
 export type UiSuiteContent = {
   requirement?: string;
-  openui?: string;
   /** specs/leafer-ui-engine: UI-Design 新栈产物（Leafer JSON 场景树字符串）。
-   *  字段级双栈路由（EARS 17）：有 leafer → Leafer 栈；仅 openui → 旧栈只读；
-   *  同一 suite 版本不混写两种字段（guard 测试锁定）。 */
+   *  MoonViz 接管原型栈后 UI 套件是 leafer-only（旧 openui 字段随栈作废）。 */
   leafer?: string;
   /** specs/prompt-doc-chain: ui-design.md——原型转 UI 的视觉强化提示词。 */
   uiDesign?: string;
@@ -1146,6 +1146,10 @@ export type DesignSuite = Omit<DesignSuiteMeta, "versions"> & {
   currentContent: DesignSuiteContent;
   partial?: boolean;
   sourcePipeline?: DesignPipeline;
+  /** specs/moonviz-engine-replacement T2.2: interactive preview cache
+   *  (suite dir prototype.html) — absent when the engine was unavailable at
+   *  save time (the workspace then shows the canonical doc fallback). */
+  previewHtml?: string;
 };
 
 export type DesignSuiteChangeEvent = {
@@ -1636,8 +1640,8 @@ export type DesktopApi = {
   // ── Designer (design artifacts) ────────────────────────────────────────
   /** Legacy artifact surface. Omitted root remains pinned to the active workspace. */
   designRead(id: string, root?: string): Promise<DesignArtifact | null>;
-  designSaveFormState(pipeline: "openui" | "design", state: Record<string, unknown>, root?: string): Promise<boolean>;
-  designReadFormState(pipeline: "openui" | "design", root?: string): Promise<Record<string, unknown> | null>;
+  designSaveFormState(pipeline: "moonviz" | "design", state: Record<string, unknown>, root?: string): Promise<boolean>;
+  designReadFormState(pipeline: "moonviz" | "design", root?: string): Promise<Record<string, unknown> | null>;
 
   /** Versioned design suite surface. All workspace operations require an explicit registered root. */
   designSuiteList(root: string, kind?: DesignSuiteKind): Promise<DesignSuiteSummary[]>;

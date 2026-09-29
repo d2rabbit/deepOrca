@@ -1,6 +1,13 @@
 /**
- * Prototype suite actions. Generation is delegated to the existing design
- * skills; immutable suite reads and writes cross the desktop A2UI MCP seam.
+ * Prototype suite actions on the MoonViz engine (specs/moonviz-engine-
+ * replacement). PRD / pm-design / arch generation is delegated to design
+ * skills exactly as before; the prototype document itself is a single
+ * canonical `.mbt.md` (three artboards in one doc) driven through ENGINE OPS:
+ * the designer subagent emits an op plan, the seam applies it in a session
+ * with gate-feedback loops (≤2 rounds), and the canonical echo is the only
+ * thing ever persisted. Immutable suite reads/writes cross the desktop A2UI
+ * MCP seam (`render_moonviz` / `update_moonviz` replace the retired
+ * render/update_openui).
  */
 
 import * as fs from "node:fs";
@@ -8,22 +15,33 @@ import * as path from "node:path";
 import { randomUUID } from "node:crypto";
 import type { ActionContext, ActionDefinition, ActionRun } from "./types";
 import {
-  OPENUI_CREATE_CONTRACT,
-  OPENUI_DEVICE_CONTRACTS,
-  OPENUI_PRESERVE_CONTRACT,
-  OPENUI_QUALITY_CONTRACT,
-  normalizeOpenuiDevices,
-  type OpenuiDevice,
-} from "./openui-contract";
-import { componentJaccard, extractProgramPages, extractTargetPlatforms, parsePageList } from "../common/openui-pages";
+  MOONVIZ_ARTBOARD_SIZES,
+  MOONVIZ_CREATE_CONTRACT,
+  MOONVIZ_DEVICE_CONTRACTS,
+  MOONVIZ_OPS_CHEATSHEET,
+  MOONVIZ_PRESERVE_CONTRACT,
+  MOONVIZ_QUALITY_CONTRACT,
+  MOONVIZ_SEED_DOC,
+  extractTargetPlatforms,
+  hasPageList,
+  looksLikeSpecDocument,
+  moonvizArtboardId,
+  moonvizComponentVocabularyBlock,
+  moonvizCoverageFindings,
+  normalizeMoonvizDevices,
+  parseOpPlan,
+  parsePageList,
+  type MoonvizArtboardSummary,
+  type MoonvizDevice,
+} from "./moonviz-contract";
+import { MoonvizEngineError, moonvizValidateMbt, withSession } from "../common/moonviz-engine";
+import { DdpError, encryptDdp } from "../common/ddp-codec";
 import { ensureDesignChainRegistration } from "../specs";
 import {
   archSectionsAudit,
   callSubagentStable,
   countTableDataRows,
   normalizeGeneratedMarkdown,
-  openuiInteractivityFindings,
-  pageCoverageFindings,
   pmSectionsAudit,
   runDesignStage,
   sectionBody,
@@ -33,11 +51,12 @@ import {
 const DESIGNS_DIR = ".deeporca/designs";
 const SPEC_FILE = "spec.md";
 const A2UI_TOOL_PREFIX = "mcp__a2ui__";
-/** Repair rounds after the INITIAL generation in the self-recursive
- *  validation loop (user ask 2026-09-09): official-parser verdict → patch
- *  prompt → regenerate. OUI-1's repair data: near-miss fixes are usually
- *  one-statement edits, so 2 rounds clear the large majority. */
-const MAX_OPENUI_REPAIR_ROUNDS = 2;
+/** Gate-feedback rounds after the INITIAL op plan (deepDesign 推进式回灌):
+ *  a rejected op feeds back as a patch instruction and the corrected plan is
+ *  re-applied from the same base (failed ops never enter the document
+ *  history). Two rounds clear the large majority; beyond that the action
+ *  fails with the diagnostics instead of degrading silently. */
+const MAX_MOONVIZ_GATE_ROUNDS = 2;
 
 export interface ArtifactRef {
   suiteId: string;
@@ -53,14 +72,14 @@ interface PrototypeVerificationCheck {
   observation?: string;
 }
 
-interface PrototypeVerificationResult {
+export interface PrototypeVerificationResult {
   status: "pending" | "passed" | "failed";
   checks: PrototypeVerificationCheck[];
   generatedAt?: string;
   healingRounds?: number;
 }
 
-export type PrototypeDevice = "desktop" | "mobile" | "tablet";
+export type PrototypeDevice = MoonvizDevice;
 
 export interface PrototypeSuiteContent {
   requirement?: string;
@@ -69,11 +88,10 @@ export interface PrototypeSuiteContent {
    *  （页面结构/交互叙事/信息架构/视觉基调/平台策略/继承要点）。原型生成的
    *  主驱动；spec 重写后失效（render_spec 重置）。 */
   pmDesign?: string;
-  openui?: string;
-  /** 平台变体(user ask 2026-09-09:三端是平台化适配,不是同一程序挤宽度)。
-   *  desktop 桌面版即 openui 本体;mobile/tablet 是结构性不同的独立程序,
-   *  由 materialize 的 devices 循环生成、update_openui(device) 增量修订。 */
-  openuiVariants?: Partial<Record<PrototypeDevice, string>>;
+  /** specs/moonviz-engine-replacement：canonical `.mbt.md` 唯一事实源——
+   *  单文档多画板（三端 = 单文档三画板，画板 id `<page>@<device>`），替代
+   *  旧 openui/openuiVariants 三程序结构。存量 openui 内容随替换作废。 */
+  moonviz?: string;
   verification?: PrototypeVerificationResult;
   /** Technical architecture document (user ask 2026-09-08 技术架构模块). */
   arch?: string;
@@ -81,10 +99,8 @@ export interface PrototypeSuiteContent {
 
 export interface UiSuiteContent {
   requirement?: string;
-  openui?: string;
   /** specs/leafer-ui-engine: UI-Design 新栈产物（Leafer JSON 场景树字符串）。
-   *  字段级双栈路由（EARS 17）：有 leafer → Leafer 栈；仅 openui → 旧栈只读。
-   *  同一 suite 版本不混写两种字段（guard 测试锁定）。 */
+   *  MoonViz 接管原型栈后 UI 套件是 leafer-only——旧 openui 字段随栈作废。 */
   leafer?: string;
   /** specs/prompt-doc-chain：ui-design.md——原型转 UI 时的视觉强化提示词
    *  （pm-design 的视觉翻译：画布构图/tokens 映射/视觉层级）。随
@@ -145,33 +161,14 @@ function extractGeneratedBody(result: unknown): string | null {
   if (!content) return null;
   // Line-anchored (re-review fix): prose merely MENTIONING ``` mid-line must
   // not open the extraction — only a real line-initial fence does.
-  const fence = content.match(/^[ \t]*```(?:markdown|md|openui|dd|html|json)?[ \t]*\n([\s\S]*?)```/im);
+  const fence = content.match(/^[ \t]*```(?:markdown|md|openui|dd|html|json|moonviz)?[ \t]*\n([\s\S]*?)```/im);
   if (fence) return fence[1]?.trim() || null;
   // An opened-but-never-closed fence means the subagent output was cut off
   // mid-document; refuse the half-captured body (it used to fall back to the
   // WHOLE message including leading prose) so callers fail with a
   // regenerate hint instead of persisting garbage as a "ready" version.
-  // Line-anchored (re-review fix): prose merely MENTIONING ``` mid-line must
-  // not trip the truncation refusal.
   if (/^[ \t]*```[^\n]*\n/m.test(content)) return null;
   return content.trim() || null;
-}
-
-/**
- * Cheap OpenUI Lang structural sanity: a program must bind at least one
- * component and declare the `root` export. Catches truncated or
- * prose-contaminated LLM output (missing closing fence → the whole message
- * including prose is "extracted") BEFORE it persists as a "ready" version.
- */
-export function looksLikeOpenuiProgram(code: string): boolean {
-  // root 右侧允许 $page 开头(CREATE 契约的标准形态 `root = $page == "home" ? ...`——
-  // \w 不匹配 $,按契约写的程序曾被误拒为 truncated)。
-  return /^[ \t]*[A-Za-z_$][\w$]*\s*=\s*\w/m.test(code) && /^[ \t]*root\s*=\s*(?:\w|\$)/m.test(code);
-}
-
-/** A structured spec must carry at least one markdown section heading. */
-export function looksLikeSpecDocument(markdown: string): boolean {
-  return /^#{1,6}\s+\S/m.test(markdown);
 }
 
 /**
@@ -318,135 +315,170 @@ export async function readSuiteVersion(
   };
 }
 
-/** Structured verdict from the desktop-side local validator (mcp validate_openui).
- *  THE single source for this shape: the repair loop consumes it here, and the
- *  desktop validator's stricter (all-required) verdict is assignable to it.
- *  Fields are optional because core parses the MCP JSON as untrusted input. */
-export interface OpenuiVerdict {
-  valid: boolean;
-  incomplete?: boolean;
-  statementCount?: number;
-  errors?: Array<{ code: string; component?: string; path?: string; message?: string }>;
-  unresolved?: string[];
-  orphaned?: string[];
-  /** WP2.3: dead-button findings from the desktop validator's static audit. */
-  deadButtons?: string[];
-}
+// ── MoonViz op-plan application（Gate 推进式回灌）────────────────────────────
 
-/** Ask the desktop side to parse `code` with the official local parser. Null
- *  when the validator is unavailable for any reason — the loop then fails
- *  open and the flow behaves exactly as before it existed. */
-async function readOpenuiVerdict(ctx: ActionContext, code: string): Promise<OpenuiVerdict | null> {
-  try {
-    const res = await executeA2ui(ctx, "validate_openui", { code });
-    if (!res.ok) return null;
-    const parsed = parseJsonRecord(res.output);
-    if (!parsed || typeof parsed.valid !== "boolean") return null;
-    return parsed as unknown as OpenuiVerdict;
-  } catch {
-    return null;
-  }
-}
-
-/** Issue count across every finding category — drives the repair budget. */
-export function openuiIssueCount(verdict: OpenuiVerdict): number {
-  return (
-    (verdict.errors?.length ?? 0) +
-    (verdict.unresolved?.length ?? 0) +
-    (verdict.orphaned?.length ?? 0) +
-    (verdict.deadButtons?.length ?? 0) +
-    (verdict.incomplete ? 1 : 0)
-  );
-}
-
-/** Structured findings → one patch instruction per line (lang-core documents
- *  its error taxonomy as "designed for an automated correction loop").
- *  Exported so the desktop validator surfaces the EXACT wording the repair
- *  loop feeds the model — no second copy to drift. */
-export function formatOpenuiFeedback(verdict: OpenuiVerdict): string {
-  const lines: string[] = [];
-  for (const e of verdict.errors ?? []) {
-    const where = e.component ? `component '${e.component}'` : "program";
-    const at = e.path ? ` at ${e.path}` : "";
-    lines.push(`- ${e.code}${at} (${where}): ${e.message || "invalid usage"}`);
-  }
-  for (const name of verdict.unresolved ?? []) {
-    lines.push(
-      `- unresolved-reference: '${name}' is used but never defined — define it before root, or remove the usage.`
-    );
-  }
-  for (const name of verdict.orphaned ?? []) {
-    lines.push(
-      `- unattached-definition: '${name}' is defined but never reachable from root — mount it in the rendered tree, or remove it.`
-    );
-  }
-  if (verdict.incomplete) {
-    lines.push("- incomplete: the program looks truncated — return the COMPLETE program, every statement closed.");
-  }
-  for (const finding of verdict.deadButtons ?? []) {
-    lines.push(`- dead-button: ${finding}`);
-  }
-  return lines.join("\n");
+export interface MoonvizGateFeedback {
+  op: string;
+  gateBlock: string;
 }
 
 /**
- * Self-recursive validation loop (user ask 2026-09-09): parse the generated
- * program with the OFFICIAL local parser, and while it fails, feed the
- * structured findings back to the designer subagent as patch instructions.
- * Failure semantics are fail-open everywhere — no validator, a repair round
- * that returns garbage, or an exhausted budget each fall back to the last
- * good draft, so the loop can only improve the outcome, never block it (the
- * renderer's correction loop remains the backstop for leftovers).
+ * Apply an op plan inside one engine session with the deepDesign 推进式回灌
+ * discipline: the session applies ops in order; on the FIRST gate rejection
+ * the batch stops, the rejected op + diagnostic feed back to the designer
+ * subagent, and the corrected plan is re-applied from the same base (≤2
+ * rounds — beyond that the action fails with the diagnostics, never silently
+ * degrades). `apply_human_op` is never exposed to the agent.
  */
-export async function repairOpenuiProgram(
+async function applyMoonvizOpPlan(
   ctx: ActionContext,
-  opts: { code: string; contract: string; progressCode: string; basePercent: number }
-): Promise<string> {
-  let code = opts.code;
-  // Callers guard runSubagent, but the loop itself fails open like every
-  // other missing piece — a draft is better than an aborted action.
-  if (!ctx.runSubagent) return code;
+  opts: { skill: string; baseDoc: string; ops: string[]; progressCode: string; basePercent: number }
+): Promise<{ ok: true; canonical: string } | { ok: false; error: string }> {
+  const baseDoc = opts.baseDoc;
+  let ops = [...opts.ops];
   for (let round = 0; ; round += 1) {
-    const verdict = await readOpenuiVerdict(ctx, code);
-    if (!verdict || verdict.valid) return code;
-    const issues = openuiIssueCount(verdict);
-    if (round >= MAX_OPENUI_REPAIR_ROUNDS) {
-      ctx.emit({
-        message: `${issues} parser issue(s) remain after ${MAX_OPENUI_REPAIR_ROUNDS} repair round(s) — persisted for manual correction`,
-        percent: opts.basePercent,
-        data: { code: opts.progressCode },
+    let gateFindings: MoonvizGateFeedback[] = [];
+    let canonical = baseDoc;
+    try {
+      const sessionResult = await withSession(baseDoc, async (session) => {
+        for (const op of ops) {
+          await session.mutate(op);
+        }
       });
-      return code;
+      canonical = sessionResult.canonical;
+    } catch (error) {
+      const engineError = error instanceof MoonvizEngineError ? error : undefined;
+      const gateBlock = engineError?.gateBlock;
+      if (engineError && gateBlock) {
+        // The engine reports one block per rejection; the culprit is the
+        // first planned op targeting the rejected artboard (ops apply in
+        // order, so everything after it never entered the document).
+        const culprit = ops.find((op) => op.split(/\s+/)[1] === gateBlock.artboard) ?? ops[0] ?? "";
+        gateFindings = [{ op: culprit, gateBlock: engineError.message }];
+      } else {
+        return { ok: false, error: error instanceof Error ? error.message : String(error) };
+      }
+    }
+    if (gateFindings.length === 0) {
+      return { ok: true, canonical };
+    }
+    if (round >= MAX_MOONVIZ_GATE_ROUNDS || !ctx.runSubagent) {
+      return {
+        ok: false,
+        error:
+          `MoonViz gate rejected the op plan after ${round} repair round(s): ` +
+          gateFindings.map((finding) => finding.gateBlock).join("; "),
+      };
     }
     ctx.emit({
-      message: `Repairing ${issues} parser issue(s) (round ${round + 1}/${MAX_OPENUI_REPAIR_ROUNDS})`,
+      message: `Repairing ${gateFindings.length} gate rejection(s) (round ${round + 1}/${MAX_MOONVIZ_GATE_ROUNDS})`,
       percent: opts.basePercent + round * 5,
       data: { code: opts.progressCode },
     });
     const generated = await callSubagentStable(
       ctx,
       {
-        skill: "pm-designer-openui",
+        skill: opts.skill,
         prompt:
-          "The OpenUI Lang program below failed validation against the official parser. " +
-          "Fix EVERY reported issue and return the COMPLETE corrected program in one code fence. " +
-          "Change nothing beyond what the issues require. Do not call tools.\n\n" +
-          `${opts.contract}\n\nParser issues:\n${formatOpenuiFeedback(verdict)}\n\nCurrent program:\n${code}`,
+          "The MoonViz op plan below was REJECTED by the engine gate. Fix ONLY what the gate findings " +
+          "require (adjust position/size so the placement fits its parent without sibling overlap, or " +
+          "correct the op syntax) and return the COMPLETE corrected op plan in one code fence — " +
+          "unchanged ops must be repeated verbatim. Do not call tools.\n\n" +
+          MOONVIZ_OPS_CHEATSHEET +
+          "\n\n## Gate findings\n" +
+          gateFindings.map((finding) => `- REJECTED: \`${finding.op}\` → ${finding.gateBlock}`).join("\n") +
+          "\n\n## Current op plan\n" +
+          ops.join("\n"),
         silent: true,
       },
-      "program-repair"
+      "op-plan-repair"
     );
-    const next = extractGeneratedBody(generated);
-    if (!next || !looksLikeOpenuiProgram(next)) return code; // keep the last good draft
-    code = next;
+    const next = parseOpPlan(generated);
+    if (!next) {
+      return { ok: false, error: "gate repair round returned an unusable op plan — regenerate" };
+    }
+    // Re-apply the FULL corrected plan from the same base — the engine
+    // session is disposable, the plan is the unit of progress.
+    ops = next;
   }
 }
 
-/** specs/prompt-doc-chain 交叉审查追加：PRD 骨架单源（SKILL.md 撤模板改引用，
- *  生成提示词内联——弱模型"填空"远强于"读文档自由发挥"）。
- *  specs/design-stage-gates：三张关键表 + 验收清单给出**行级模板**——p-core
- *  真机证明弱模型对"（实体/字段/类型表）"这种抽象描述会自由发挥出非 GFM
- *  形态；占位行（`<…>`）不计数，模板抄进产物也过不了深度门。 */
+/** Seed hygiene: materialize opens from MOONVIZ_SEED_DOC; the seed artboard
+ *  must be gone before save (a leftover would fail coverage as an extra
+ *  artboard). The cleanup op is idempotent-tolerated: a plan that already
+ *  deletes `__seed` would error on the second delete, so strip plan-side
+ *  deletes and prepend exactly one here. */
+function withSeedCleanup(ops: string[]): string[] {
+  const cleaned = ops.filter((op) => !(op.startsWith("delete-artboard") && op.includes("__seed")));
+  return ["delete-artboard __seed", ...cleaned];
+}
+
+/** Build the designer prompt: platform artboard plan + contracts + vocabulary
+ *  + the PRD/pm-design payload. Device coverage is spelled out artboard by
+ *  artboard so the plan is checkable against PRD coverage mechanically. */
+function buildMaterializePrompt(input: {
+  pmDesign: string | null;
+  spec: string;
+  devices: MoonvizDevice[];
+  multiDevice: boolean;
+}): string {
+  const { pmDesign, spec, devices, multiDevice } = input;
+  const pageList = parsePageList(spec);
+  const pageIds =
+    pageList?.pages
+      .map((page, index) => page.id ?? `page${index + 1}`)
+      .filter((id, index, all) => all.indexOf(id) === index) ?? [];
+  const artboardPlan =
+    pageIds.length > 0
+      ? pageIds
+          .flatMap((pageId) =>
+            devices.map(
+              (device) =>
+                `- \`${moonvizArtboardId(pageId, device, multiDevice)}\` (${device} ` +
+                `${MOONVIZ_ARTBOARD_SIZES[device].width}×${MOONVIZ_ARTBOARD_SIZES[device].height})`
+            )
+          )
+          .join("\n")
+      : devices
+          .map(
+            (device) =>
+              `- one \`${device}\` artboard at ${MOONVIZ_ARTBOARD_SIZES[device].width}×${MOONVIZ_ARTBOARD_SIZES[device].height}`
+          )
+          .join("\n");
+  const deviceContracts = [...new Set(devices)].map((device) => MOONVIZ_DEVICE_CONTRACTS[device]).join(" ");
+  const vocabulary = moonvizComponentVocabularyBlock();
+  return (
+    (pmDesign
+      ? "Create the complete MoonViz prototype from the distilled design intent below. "
+      : "Create the complete MoonViz prototype for the requirements document below. ") +
+    MOONVIZ_CREATE_CONTRACT +
+    " " +
+    deviceContracts +
+    " " +
+    MOONVIZ_QUALITY_CONTRACT +
+    " " +
+    MOONVIZ_OPS_CHEATSHEET +
+    (vocabulary ? " " + vocabulary : "") +
+    // PRD 遵守契约（与旧栈同款纪律）：逐页、逐优先级、逐三态点名，verify 按
+    // 画板/flow 逐项比对。
+    " PRD compliance is non-negotiable: (1) EVERY page in the 页面清单/pm-design " +
+    "页面结构 gets its own artboard from the plan below; (2) EVERY P0 功能需求 row is " +
+    "visibly implemented — its 交互要点 states (empty/loading/error-and-retry) each render a " +
+    "distinct branch; (3) the 逐页交互明细 lines are implemented as `interact`/`state`/`set-state` " +
+    "ops and every page-to-page jump as a `flow`; (4) do not invent pages, fields, or flows beyond " +
+    "the document. " +
+    "Do not call tools. " +
+    "Return ONLY the op plan — one op per line in a single ```moonviz code fence, no mbt source.\n\n" +
+    "## Artboard plan (ids are contractual — coverage is checked against them)\n" +
+    artboardPlan +
+    (pmDesign
+      ? "\n\n## pm-design（设计意图——主驱动）\n" + pmDesign + "\n\n## 需求文档（范围契约源）\n" + spec
+      : "\n\n" + spec)
+  );
+}
+
+// ── PRD 骨架（specs/prompt-doc-chain 单源；与旧栈逐字一致）────────────────────
+
 export const SPEC_SKELETON = `# <产品/功能名称> 需求文档
 
 | 项目 | 内容 |
@@ -496,7 +528,7 @@ export const SPEC_SKELETON = `# <产品/功能名称> 需求文档
 
 ## 5. 页面清单
 
-（页面ID 必填——英文 kebab/camel,是原型程序 $page 的取值。表后附 Mermaid
+（页面ID 必填——英文 kebab/camel,是原型画板的 id。表后附 Mermaid
  页面导航图（graph TD 形式,节点用页面ID）。）
 
 | 页面 | 页面ID | 目的 | 关键元素与操作 |
@@ -669,9 +701,6 @@ async function collectSpecReferenceBlock(
 }
 
 // ── PRD 深度机械门（specs/prompt-doc-chain 交叉审查追加）────────────────────
-// 历次"契约强化"失效的根因：深度要求全在 SKILL.md，落盘门只查"有任意标题"，
-// 弱模型薄文档 100% 过门。此审计把深度变成可机械判定的结构事实，不过=带
-// findings 修复一轮。
 
 /** 单篇参考 PRD 的深度审计结论（findings 为空 = 达标）。 */
 export function specSectionsAudit(markdown: string): string[] {
@@ -819,10 +848,6 @@ export const prototypeSpecRun: ActionRun<PrototypeSpecInput, PrototypeSpecOutput
     );
     // PRD 内嵌 ```mermaid 图(标准化格式),必须用嵌套围栏感知抽取,否则文档
     // 在第一张图处被截断且 looksLikeSpecDocument 拦不住(任意标题即过)。
-    // specs/design-stage-gates：归一化先行（缩进表格行确定性修复）——归一化
-    // 后的文档才是审计与落盘对象（OCR 确定性优先借鉴）。callSubagentStable
-    // 返回内容字符串——包回 {content} 形态走嵌套围栏感知树（字符串直入会
-    // 退化成单围栏惰性抽取，mermaid 文档在第一个内层围栏截断）。
     const extracted = generated === null ? null : extractMarkdownDocument({ content: generated });
     let document = extracted === null ? null : normalizeGeneratedMarkdown(extracted);
     if (!document || !looksLikeSpecDocument(document)) {
@@ -832,7 +857,7 @@ export const prototypeSpecRun: ActionRun<PrototypeSpecInput, PrototypeSpecOutput
       };
     }
     // 深度机械门（交叉审查追加）：结构不全 → 带 findings 修复一轮（机械补强
-    // 第二半）。与 openui 修复环同构：fail-closed,两轮耗尽仍薄则拒绝落盘。
+    // 第二半）。fail-closed,两轮耗尽仍薄则拒绝落盘。
     let findings = specSectionsAudit(document);
     if (findings.length > 0) {
       ctx.emit({
@@ -840,7 +865,7 @@ export const prototypeSpecRun: ActionRun<PrototypeSpecInput, PrototypeSpecOutput
         percent: 55,
         data: { code: "prototype.spec.repairing" },
       });
-      const findingsText = findings.map((finding) => `- ${finding}`).join("\n");
+      const findingsText = findings.map((finding) => "- " + finding).join("\n");
       const repaired = await callSubagentStable(
         ctx,
         {
@@ -976,12 +1001,14 @@ export const prototypePmDesignRun: ActionRun<PrototypePmDesignInput, PrototypePm
   return { ok: true, artifactRef: saved.artifactRef, refreshStore: !saved.artifactRef };
 };
 
+// ── materialize：op 计划 → 引擎会话 → canonical 落盘 ─────────────────────────
+
 export interface PrototypeMaterializeInput {
   suiteId?: string;
   versionId?: string;
   specArtifactId?: string;
-  /** 目标平台(user ask 2026-09-09):缺省只生成桌面;传 ["desktop","mobile","tablet"]
-   *  生成三端结构化变体,每端一次生成 + 解析修复循环。 */
+  /** 目标平台：缺省由 PRD 目标平台声明决定；传 ["desktop","mobile","tablet"]
+   *  生成三端——三端 = 单文档三画板（`<page>@<device>`），不再是三程序。 */
   devices?: string[];
   note?: string;
 }
@@ -991,7 +1018,8 @@ export type PrototypeMaterializeOutput = PrototypeSpecOutput;
 export const prototypeMaterializeDefinition: ActionDefinition<PrototypeMaterializeInput> = {
   id: "prototype.materialize",
   description:
-    "Materialize a prototype suite specification into OpenUI Lang. Suite/version is preferred; specArtifactId remains supported for legacy artifacts.",
+    "Materialize a prototype suite specification into a MoonViz document (engine ops → canonical .mbt.md). " +
+    "Suite/version is preferred; specArtifactId remains supported for legacy artifacts.",
   category: "design",
   parameters: {
     type: "object",
@@ -1003,8 +1031,9 @@ export const prototypeMaterializeDefinition: ActionDefinition<PrototypeMateriali
         type: "array",
         items: { type: "string", enum: ["desktop", "mobile", "tablet"] },
         description:
-          "Target platforms. Omit to derive from the PRD's 目标平台 declaration (WP0); " +
-          "legacy PRDs without a declaration default to desktop-only.",
+          "Target platforms. Omit to derive from the PRD's 目标平台 declaration; " +
+          "legacy PRDs without a declaration default to desktop-only. All targets land as artboards " +
+          "of ONE document (`<page>@<device>` ids).",
       },
       note: { type: "string", description: "Optional version note" },
     },
@@ -1048,39 +1077,30 @@ export const prototypeMaterializeRun: ActionRun<PrototypeMaterializeInput, Proto
   }
   if (!spec) return { ok: false, error: "requirements document not found; run prototype.spec first" };
 
-  // WP0 指令遵循主线:devices 缺省时由 PRD 的目标平台声明决定生成端——
-  // mobile-only 产品不付 desktop 生成的代价;PRD 未声明(legacy)只出 desktop,
+  // WP0 指令遵循主线：devices 缺省时由 PRD 的目标平台声明决定生成端——
+  // mobile-only 产品不付 desktop 生成的代价；PRD 未声明(legacy)只出 desktop,
   // verify 会补「平台未声明」观察项推动补 PRD。显式 devices 仍是最高优先。
   const declaredPlatforms = extractTargetPlatforms(spec);
-  const devices: OpenuiDevice[] =
+  const devices: MoonvizDevice[] =
     input?.devices && input.devices.length > 0
-      ? normalizeOpenuiDevices(input.devices)
+      ? normalizeMoonvizDevices(input.devices)
       : declaredPlatforms
-        ? normalizeOpenuiDevices(declaredPlatforms)
+        ? normalizeMoonvizDevices(declaredPlatforms)
         : ["desktop"];
-  // legacy artifact 路径(无 suite)没有版本链与 openuiVariants 变体槽:逐端
-  // render 只会各存一个互不关联的独立 artifact、且只回传最后一个(last-write-
-  // wins)——收敛为单一主端(desktop 优先),多端平台化必须走 suite 路径。
-  const renderDevices: OpenuiDevice[] = suiteId
+  // legacy artifact 路径(无 suite)没有版本链：收敛为单一主端(desktop 优先)，
+  // 多端平台化必须走 suite 路径。
+  const planDevices: MoonvizDevice[] = suiteId
     ? devices
     : [devices.includes("desktop") ? "desktop" : (devices[0] ?? "desktop")];
+  const multiDevice = planDevices.length > 1;
   try {
-    // 平台化适配(user ask 2026-09-09):每个设备一次独立生成——各端是导航
-    // 模型/列布局/密度结构性不同的程序(设备契约见 openui-contract),不是
-    // 同一程序挤宽度。desktop 是本体(openui 字段),mobile/tablet 落
-    // openuiVariants,由 render_openui(device) 分流。
-    let artifactRef: ArtifactRef | undefined;
-    // WP1.1 head 线程化:每端 render_openui 追加新版本后 head 前移,下一端
-    // 必须以最新 head 为基线——循环里沿用输入 versionId 会在第二端撞
-    // readSuiteBase 的 head-moved 守卫(fix-all 同款坑,修复同款)。
-    let baseVersionId = versionId;
     // specs/prompt-doc-chain stage0：所选版本无 pm-design 时自动蒸馏（有则
-    // 直接用——手动重算语义由 prototype.pmdesign 承载）。交叉审查修复：stage0
-    // 保存走 preserveDerived——不清空 openui/variants/verification/arch（同一
-    // 动作内紧随的 render_openui 会重建派生物；清空会在生成失败/取消时把
-    // 用户既有原型从 head 上抹掉）。重置语义只属于手动重算（意图变更、不伴
-    // 随再生成）。
+    // 直接用——手动重算语义由 prototype.pmdesign 承载）。stage0 保存走
+    // preserveDerived——不清空 moonviz/verification/arch（同一动作内紧随的
+    // op 计划应用会重建派生物；清空会在生成失败/取消时把用户既有原型从
+    // head 上抹掉）。重置语义只属于手动重算。
     let pmDesign: string | null = storedPmDesign;
+    let baseVersionId = versionId;
     if (suiteId && !pmDesign) {
       ctx.emit({
         message: "Distilling the pm-design prompt document",
@@ -1099,9 +1119,7 @@ export const prototypeMaterializeRun: ActionRun<PrototypeMaterializeInput, Proto
         });
         if (!savedPd.ok) return savedPd;
         pmDesign = distilled.document;
-        // head 前移：save_pm_design 追加了新版本，设备循环以新 head 为基线。
-        // 真机走查加固：无 ref = 落盘事实缺失，大声失败（静默继续会在设备
-        // 循环里以过期 base 撞 head-moved 守卫或无声丢版本）。
+        // head 前移：save_pm_design 追加了新版本，落盘以新 head 为基线。
         if (!savedPd.artifactRef) {
           return {
             ok: false,
@@ -1110,7 +1128,6 @@ export const prototypeMaterializeRun: ActionRun<PrototypeMaterializeInput, Proto
           };
         }
         baseVersionId = savedPd.artifactRef.versionId;
-        // 交叉审查修复：自动路径同样发射 saved 终态码（此前只有手动动作发）。
         ctx.emit({
           message: "pm-design document saved",
           percent: 45,
@@ -1119,8 +1136,7 @@ export const prototypeMaterializeRun: ActionRun<PrototypeMaterializeInput, Proto
       } else {
         // specs/design-stage-gates（OCR plan-failure 分层借鉴）：stage0 自动
         // 蒸馏是增强阶段——失败降级到 spec 直驱的既有提示词（与无 pm-design
-        // 的旧路径字节一致），绝不因提示词文档失败阻塞原型化。手动重算
-        // （prototype.pmdesign）保持 fail-closed：显式动作产物即契约。
+        // 的旧路径字节一致），绝不因提示词文档失败阻塞原型化。
         ctx.emit({
           message: `pm-design distillation failed — falling back to spec-driven generation (${distilled.error})`,
           percent: 45,
@@ -1129,124 +1145,69 @@ export const prototypeMaterializeRun: ActionRun<PrototypeMaterializeInput, Proto
         pmDesign = null;
       }
     }
-    for (const [index, device] of renderDevices.entries()) {
-      // 进度码保持稳定契约:单设备(缺省)与旧版完全一致(一次 generating);
-      // 多设备才发每端进度,码不变,renderer i18n 无需新增。
-      if (renderDevices.length > 1) {
-        ctx.emit({
-          message: `[${index + 1}/${renderDevices.length}] ${device} — generating the OpenUI prototype`,
-          percent: 15 + Math.round((index / renderDevices.length) * 70),
-          data: { code: "prototype.materialize.generating", device },
-        });
-      } else {
-        ctx.emit({
-          message: "Generating OpenUI prototype from the selected specification",
-          percent: 50,
-          data: { code: "prototype.materialize.generating" },
-        });
-      }
-      // specs/prompt-doc-chain：pm-design 存在时为主驱动（spec 降为范围契约
-      // 源）；不存在时提示词与既有行为字节一致（旧数据零回归）。
-      const pdSection = pmDesign
-        ? "\n\n## pm-design（设计意图——主驱动）\n" + pmDesign + "\n\n## 需求文档（范围契约源）\n" + spec
-        : "\n\n" + spec;
-      const generated = await callSubagentStable(
-        ctx,
-        {
-          skill: "pm-designer-openui",
-          prompt:
-            (pmDesign
-              ? "Create the complete OpenUI Lang prototype from the distilled design intent below. "
-              : "Create the complete OpenUI Lang prototype for the requirements document below. ") +
-            OPENUI_DEVICE_CONTRACTS[device] +
-            " " +
-            // 契约单一来源(openui-contract.ts):单应用 $page 结构 + 质量底线
-            // (可交互/高保真/可编辑),详情见技能的质量契约节,提示词不另行复述。
-            OPENUI_CREATE_CONTRACT +
-            " " +
-            OPENUI_QUALITY_CONTRACT +
-            // PRD 遵守契约（p-core 真机走查：遵守声明太抽象，模型会"意思一下"）——
-            // 逐页、逐优先级、逐三态点名，生成后 verify 也按页面ID逐页比对。
-            " PRD compliance is non-negotiable: (1) EVERY page in the 页面清单/pm-design " +
-            "页面结构 gets its own view and its page id appears as a $page value, reachable " +
-            "in one click; (2) EVERY P0 功能需求 row is visibly implemented — its 交互要点 " +
-            "states (empty/loading/error-and-retry) each render a distinct branch; (3) the " +
-            "逐页交互明细 lines are implemented literally as written; (4) do not invent " +
-            "pages, fields, or flows beyond the document. " +
-            "Do not call tools. " +
-            "Return only the OpenUI Lang program in one code fence." +
-            pdSection,
-          silent: true,
-        },
-        `materialize-${device}`
-      );
-      const code = extractGeneratedBody(generated);
-      if (!code || !looksLikeOpenuiProgram(code)) {
-        return {
-          ok: false,
-          error:
-            `pm-designer-openui returned an empty or truncated OpenUI program for ${device} ` +
-            "(no root/component statements) — regenerate",
-        };
-      }
-      // specs/prompt-doc-chain 稳定性强化 + specs/design-stage-gates S4：
-      // 页面覆盖门（PRD 页面清单的每个页面 ID 必须以 $page 比较/跳转出现）
-      // 与交互密度门（组件数/Action 数/页面可达性）合并注入修复契约
-      // （只对 desktop 主体验证一次，多端走 verify 兜底；fail-open 层）。
-      let coverageNote = "";
-      if (device === "desktop" || renderDevices.length === 1) {
-        const missing = pageCoverageFindings(spec, code);
-        const density = openuiInteractivityFindings(spec, code);
-        const notes: string[] = [];
-        if (missing.length > 0) {
-          notes.push(` Missing pages (must add as $page values with views): ${missing.join(", ")}.`);
-        }
-        for (const finding of density) notes.push(` ${finding}.`);
-        coverageNote = notes.join("");
-      }
-      // Local validation loop: official parser verdict → patch prompt → retry,
-      // BEFORE persistence (user ask 2026-09-09). Fail-open when the desktop
-      // side has no validator. 修复环契约带设备契约:重生成时不得退回桌面壳。
-      const coverageContract = coverageNote
-        ? `${OPENUI_CREATE_CONTRACT} ${OPENUI_DEVICE_CONTRACTS[device]}${coverageNote}`
-        : `${OPENUI_CREATE_CONTRACT} ${OPENUI_DEVICE_CONTRACTS[device]}`;
-      const verifiedCode = await repairOpenuiProgram(ctx, {
-        code,
-        contract: coverageContract,
-        progressCode: "prototype.materialize.repairing",
-        basePercent: renderDevices.length > 1 ? 15 + Math.round(((index + 0.5) / renderDevices.length) * 70) : 55,
-      });
-      if (ctx.signal.aborted) return { ok: false, error: "cancelled" };
-      const saved = await executeA2ui(ctx, "render_openui", {
-        code: verifiedCode,
-        device,
-        ...(requirement ? { requirement } : {}),
-        ...(suiteId ? { suiteId, ...(baseVersionId ? { versionId: baseVersionId } : {}) } : {}),
-        ...(input.note?.trim() ? { note: input.note.trim() } : {}),
-      });
-      if (!saved.ok) return saved;
-      // p-core 真机走查加固：render_openui 报成功却解析不到 ArtifactRef =
-      // 没有可验证的落盘事实——大声失败，绝不静默"成功"（refreshStore 路径
-      // 会把无声丢失伪装成"只需刷新"）。suite 路径必有 ref。
-      if (!saved.artifactRef) {
-        return {
-          ok: false,
-          error: `render_openui reported success without a persisted artifact ref (device ${device}) — suite persistence did not happen`,
-        };
-      }
-      artifactRef = saved.artifactRef;
-      baseVersionId = saved.artifactRef.versionId;
+
+    ctx.emit({
+      message:
+        planDevices.length > 1
+          ? `Generating the MoonViz prototype (${planDevices.length} platform artboard sets)`
+          : "Generating the MoonViz prototype from the selected specification",
+      percent: 50,
+      data: { code: "prototype.materialize.generating" },
+    });
+    const generated = await callSubagentStable(
+      ctx,
+      {
+        skill: "pm-designer-moonviz",
+        prompt: buildMaterializePrompt({ pmDesign, spec: spec!, devices: planDevices, multiDevice }),
+        silent: true,
+      },
+      "materialize-moonviz"
+    );
+    const ops = parseOpPlan(generated);
+    if (!ops || !ops.some((op) => /^(template|create)\s/.test(op))) {
+      return {
+        ok: false,
+        error:
+          "pm-designer-moonviz returned an empty or unusable op plan (no template/create artboard op) — regenerate",
+      };
+    }
+    if (ctx.signal.aborted) return { ok: false, error: "cancelled" };
+    // 引擎会话应用：MOONVIZ_SEED_DOC 冷启动一次 + 种子板清理 + Gate 回灌。
+    const applied = await applyMoonvizOpPlan(ctx, {
+      skill: "pm-designer-moonviz",
+      baseDoc: MOONVIZ_SEED_DOC,
+      ops: withSeedCleanup(ops),
+      progressCode: "prototype.materialize.repairing",
+      basePercent: 55,
+    });
+    if (!applied.ok) return { ok: false, error: applied.error };
+    if (ctx.signal.aborted) return { ok: false, error: "cancelled" };
+    const saved = await executeA2ui(ctx, "render_moonviz", {
+      doc: applied.canonical,
+      ...(requirement ? { requirement } : {}),
+      ...(suiteId ? { suiteId, ...(baseVersionId ? { versionId: baseVersionId } : {}) } : {}),
+      ...(input.note?.trim() ? { note: input.note.trim() } : {}),
+    });
+    if (!saved.ok) return saved;
+    // 落盘事实守卫（与旧栈同款）：报成功却无 ArtifactRef = 持久化没发生。
+    if (!saved.artifactRef) {
+      return {
+        ok: false,
+        error: "render_moonviz reported success without a persisted artifact ref — suite persistence did not happen",
+      };
     }
     ctx.emit({
-      message: "OpenUI prototype saved with verification pending",
+      message: "MoonViz prototype saved with verification pending",
       percent: 100,
       data: { code: "prototype.materialize.saved" },
     });
-    return { ok: true, artifactRef, refreshStore: !artifactRef };
+    return { ok: true, artifactRef: saved.artifactRef, refreshStore: !saved.artifactRef };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : String(error) };
   }
 };
+
+// ── verify：引擎直调检查面 ───────────────────────────────────────────────────
 
 export interface PrototypeVerifyInput {
   suiteId: string;
@@ -1262,7 +1223,8 @@ export interface PrototypeVerifyOutput extends PrototypeSpecOutput {
 export const prototypeVerifyDefinition: ActionDefinition<PrototypeVerifyInput> = {
   id: "prototype.verify",
   description:
-    "Run deterministic structural verification over a prototype suite version and persist the result. This does not claim browser testing.",
+    "Run deterministic verification over a MoonViz prototype suite version (engine validate/lint/critique/" +
+    "tap simulation + PRD coverage) and persist the result. This does not claim browser testing.",
   category: "design",
   parameters: {
     type: "object",
@@ -1292,37 +1254,93 @@ export const prototypeVerifyDefinition: ActionDefinition<PrototypeVerifyInput> =
   sideEffects: ["write-in-cwd"],
 };
 
-/**
- * Dead-button findings over an OpenUI program — the deterministic core of
- * WP2.3 (design.lint reuses this single source). Two shapes:
- *  - `Action([])` — a wired-but-empty action list; the button does nothing.
- *  - bare-string second positional arg (`Button("x", "submit:login")`) —
- *    compiles against the passthrough schema but throws at click time in the
- *    official library (silent dead button; the renderer audit catches the
- *    double-quoted literal, this also catches single quotes).
- */
-export function findDeadButtons(code: string): string[] {
-  const findings: string[] = [];
-  // 骨架化(交叉审查遗留修复):把所有字符串字面量的「内容」清空后再检测——
-  // `Text("不要写 Action([]) 占位")` 或注释性文本里的同形片段不再误报;结构
-  // (引号本身)保留,Button("x", "act") 的第二参字符串形态仍可检出。
-  const skeleton = code.replace(/"([^"\\]|\\.)*"/g, '""').replace(/'([^'\\]|\\.)*'/g, "''");
-  if (/Action\(\s*\[\s*\]\s*\)/.test(skeleton)) {
-    findings.push(`empty Action([]) — the button does nothing when clicked`);
-  }
-  if (/\bButton\(\s*"[^"]*"\s*,\s*('[^']*'|"[^"]*")\s*[,)]/.test(skeleton)) {
-    // 第二位置参数只能是 Action 表达式;任何字符串(含误传的 variant 值)都是
-    // 参数错位/死按钮——官方库把字符串 action 在点击时静默抛错。
-    findings.push(`bare-string button action — the second argument must be Action([...]), never a string`);
-  }
-  return findings;
+interface MoonvizEngineVerification {
+  artboards: MoonvizArtboardSummary[];
+  flows: Array<Record<string, unknown>>;
+  lintFindings: Array<{ artboard: string; finding: Record<string, unknown> }>;
+  critiqueFindings: Array<{ artboard: string; finding: Record<string, unknown> }>;
+  tapResults: Array<{ flow: string; ok: boolean; detail: string }>;
+  validateError?: string;
 }
 
-function hasPageList(spec: string): boolean {
-  // \b can never match after a CJK alternative (CJK chars are non-word, the
-  // boundary needs a following word char) — pin the boundary to the latin
-  // alternatives only, else Chinese headings like "## 页面清单" never verify.
-  return /(?:^|\n)#{1,6}\s*(?:\d+[.)、]?\s*)?(?:页面清单(?![A-Za-z0-9_])|page\s+list\b|pages\b)/im.test(spec);
+function envelopeArray(payload: unknown): Array<Record<string, unknown>> {
+  if (Array.isArray(payload)) return payload as Array<Record<string, unknown>>;
+  if (payload && typeof payload === "object") {
+    const data = (payload as { data?: unknown }).data;
+    if (Array.isArray(data)) return data as Array<Record<string, unknown>>;
+    const flows = (payload as { flows?: unknown }).flows;
+    if (Array.isArray(flows)) return flows as Array<Record<string, unknown>>;
+  }
+  return [];
+}
+
+/** Engine-backed deterministic verification. 断言等价迁移（P2 出口复核表）：
+ *  旧 $page/@Set 正则检查 → 引擎 artboards/flows 权威面；死按钮检查 →
+ *  session_lint；结构合法性 → AgentGate 已随 op 内建 + validate_mbt；
+ *  repair → Gate 回灌在 materialize/revise；coverage → 合同层比对。 */
+async function runMoonvizVerification(doc: string): Promise<MoonvizEngineVerification> {
+  const verification: MoonvizEngineVerification = {
+    artboards: [],
+    flows: [],
+    lintFindings: [],
+    critiqueFindings: [],
+    tapResults: [],
+  };
+  const validated = await moonvizValidateMbt(doc);
+  if (!validated.ok) {
+    verification.validateError = validated.error ?? "validate_mbt failed";
+    return verification;
+  }
+  await withSession(doc, async (session) => {
+    verification.artboards = envelopeArray(await session.listArtboards()).map((entry) => ({
+      id: String(entry.id ?? ""),
+      ...(typeof entry.name === "string" ? { name: entry.name } : {}),
+      ...(typeof entry.width === "number" ? { width: entry.width } : {}),
+      ...(typeof entry.height === "number" ? { height: entry.height } : {}),
+    }));
+    verification.flows = envelopeArray(await session.flows());
+    for (const artboard of verification.artboards) {
+      if (!artboard.id) continue;
+      for (const finding of envelopeArray(await session.lint(artboard.id))) {
+        verification.lintFindings.push({ artboard: artboard.id, finding });
+      }
+      for (const finding of envelopeArray(await session.critique(artboard.id))) {
+        verification.critiqueFindings.push({ artboard: artboard.id, finding });
+      }
+    }
+    for (const flow of verification.flows) {
+      const from = String(flow.from ?? flow.fromArtboard ?? "");
+      const trigger = String(flow.trigger ?? flow.triggerNode ?? "");
+      const nodeId = trigger.includes(":") ? trigger.slice(trigger.indexOf(":") + 1) : trigger;
+      const label = `${from || "?"}→${String(flow.to ?? "?")} via ${nodeId}`;
+      const artboard = verification.artboards.find((candidate) => candidate.id === from);
+      if (!from || !artboard) {
+        verification.tapResults.push({ flow: label, ok: false, detail: "flow source artboard missing" });
+        continue;
+      }
+      // 画板几何由 query_nodes 给出（引擎权威），点击语义仿真逐 flow 命中。
+      let tapped = false;
+      let detail = "trigger node not found";
+      try {
+        const nodes = envelopeArray(await session.queryNodes(from));
+        const node = nodes.find((candidate) => candidate.id === nodeId);
+        const rect = (node?.rect ?? {}) as { x?: number; y?: number; w?: number; h?: number };
+        if (typeof rect.x === "number" && typeof rect.y === "number") {
+          const tapEnvelope = await session.tap(
+            from,
+            rect.x + (typeof rect.w === "number" ? rect.w / 2 : 0),
+            rect.y + (typeof rect.h === "number" ? rect.h / 2 : 0)
+          );
+          tapped = tapEnvelope.ok;
+          detail = tapEnvelope.ok ? "hit" : String(tapEnvelope.error ?? "rejected");
+        }
+      } catch (error) {
+        detail = error instanceof Error ? error.message : String(error);
+      }
+      verification.tapResults.push({ flow: label, ok: tapped, detail });
+    }
+  });
+  return verification;
 }
 
 export const prototypeVerifyRun: ActionRun<PrototypeVerifyInput, PrototypeVerifyOutput> = async (input, ctx) => {
@@ -1334,22 +1352,13 @@ export const prototypeVerifyRun: ActionRun<PrototypeVerifyInput, PrototypeVerify
   if (read.value.artifactRef.kind !== "prototype") return { ok: false, error: "suite is not a prototype suite" };
   const content = read.value.content as PrototypeSuiteContent;
   const spec = content.spec?.trim() ?? "";
-  const openui = content.openui?.trim() ?? "";
-  // 确定性四项每次重算;此前版本里的非确定性检查(revise 追加的 pending 观察
-  // 项、外部 checks)必须随行——文档化回路是"revise 加观察 → 重新 verify",
+  const doc = content.moonviz?.trim() ?? "";
+  // 确定性检查每次重算；此前版本里的非确定性检查（revise 追加的 pending 观察
+  // 项、外部 checks）必须随行——文档化回路是"revise 加观察 → 重新 verify"，
   // 整体替换的 save_suite_result 若不携带就会把 pending 项静默清掉。
-  // 机械检查的 id 前缀:每次重算,携带时按前缀淘汰旧实例(否则一次 verify
-  // 累积一批过期检查)。交叉审查修正(2026-09-10):统一 auto: 保留命名空间——
-  // 此前 nav-/page-/coverage- 等通用前缀会把调用方按同前缀命名的外部 checks
-  // (如 nav-smoke-test)在下一次 verify 时静默丢弃;auto: 是保留前缀。
-  const deterministicIds = new Set(["spec-non-empty", "page-list-present", "openui-non-empty", "openui-root"]);
-  const deterministicPrefixes = ["auto:"];
-  const isMechanical = (id: string): boolean =>
-    deterministicIds.has(id) || deterministicPrefixes.some((prefix) => id.startsWith(prefix));
-  const variants = content.openuiVariants ?? {};
-  // 交叉审查修正(2026-09-10):mobile-only PRD 的正常产物只有变体没有本体——
-  // 「程序存在」必须按任一端判定,否则 WP0 招牌场景被桌面本位检查永久判死。
-  const variantsExist = Boolean(variants.mobile?.trim() || variants.tablet?.trim());
+  // auto: 是保留命名空间（机械项每次重算、外部输入既覆写不到也不能追加）。
+  const deterministicIds = new Set(["spec-non-empty", "page-list-present", "moonviz-non-empty", "moonviz-valid"]);
+  const isMechanical = (id: string): boolean => deterministicIds.has(id) || id.startsWith("auto:");
   const carried = (content.verification?.checks ?? []).filter((check) => !isMechanical(check.id));
   const checks: PrototypeVerificationCheck[] = [
     ...carried,
@@ -1360,163 +1369,139 @@ export const prototypeVerifyRun: ActionRun<PrototypeVerifyInput, PrototypeVerify
       status: hasPageList(spec) ? "passed" : "failed",
     },
     {
-      id: "openui-non-empty",
-      label: "A prototype program exists (base or any platform variant)",
-      status: openui || variantsExist ? "passed" : "failed",
-    },
-    {
-      id: "openui-root",
-      label: "The base program declares root (when present)",
-      status: !openui || /(?:^|\n)\s*root\s*=/.test(openui) ? "passed" : "failed",
+      id: "moonviz-non-empty",
+      label: "A MoonViz prototype document exists",
+      status: doc ? "passed" : "failed",
     },
   ];
-  // ── WP0.4 平台一致性:PRD 声明端 vs 实际生成端 ──
-  // 声明端(目标平台行)决定"应该有哪些端";生成端 = 本体(desktop)+ 变体槽。
-  // 缺端 failed(声明了 mobile 却没生成)、多端 warning(生成了未声明端)、
-  // 未声明(legacy PRD)观察项推动补 PRD——指令遵循的验收闭环。
-  const generatedDevices = new Set<string>(openui ? ["desktop"] : []);
-  for (const device of ["mobile", "tablet"] as const) {
-    if (variants[device]?.trim()) generatedDevices.add(device);
-  }
-  const declared = extractTargetPlatforms(spec);
-  if (!declared) {
-    checks.push({
-      id: "auto:platform-undeclared",
-      label: "PRD declares target platforms (目标平台)",
-      status: "pending",
-      observation: "PRD 未声明目标平台——重新生成需求文档时补充「目标平台」行,materialize 将按声明决定生成端。",
+  if (doc) {
+    ctx.emit({
+      message: "Running engine verification (validate / lint / critique / tap simulation)",
+      percent: 55,
+      data: { code: "prototype.verify.engine" },
     });
-  } else {
-    for (const device of declared) {
-      if (!generatedDevices.has(device)) {
-        checks.push({
-          id: `auto:platform-${device}-missing`,
-          label: `PRD-declared platform "${device}" was generated`,
-          status: "failed",
-          observation: `PRD 声明 ${device} 端但该端程序缺失——重新 materialize(或补 devices)后重验。`,
-        });
-      }
+    let engine: MoonvizEngineVerification;
+    try {
+      engine = await runMoonvizVerification(doc);
+    } catch (error) {
+      engine = {
+        artboards: [],
+        flows: [],
+        lintFindings: [],
+        critiqueFindings: [],
+        tapResults: [],
+        validateError: error instanceof Error ? error.message : String(error),
+      };
     }
-    for (const device of generatedDevices) {
-      if (!declared.includes(device as (typeof declared)[number])) {
+    checks.push({
+      id: "moonviz-valid",
+      label: "The document passes engine validation",
+      status: engine.validateError ? "failed" : "passed",
+      ...(engine.validateError ? { observation: engine.validateError } : {}),
+    });
+    if (!engine.validateError) {
+      // 平台一致性（WP0.4 等价迁移）：PRD 声明端 vs 文档画板端。多端文档的
+      // 画板 id 携带 @device 后缀；单端文档（plain id）按声明单端放行——
+      // 单端文档的端别由 materialize 的计划决定，无后缀不可判别。
+      const declared = extractTargetPlatforms(spec);
+      const generatedDevices = new Set<string>();
+      for (const artboard of engine.artboards) {
+        const device = artboard.id.includes("@") ? artboard.id.split("@")[1] : "";
+        if (device) generatedDevices.add(device);
+      }
+      const singleDeviceDoc = generatedDevices.size === 0 && engine.artboards.length > 0;
+      if (!declared) {
         checks.push({
-          id: `auto:platform-${device}-extra`,
-          label: `Generated platform "${device}" is PRD-declared`,
+          id: "auto:platform-undeclared",
+          label: "PRD declares target platforms (目标平台)",
           status: "pending",
-          observation: `生成了 PRD 未声明的 ${device} 端——确认是否为有意补充,否则从 PRD 或原型中移除。`,
+          observation: "PRD 未声明目标平台——重新生成需求文档时补充「目标平台」行,materialize 将按声明决定生成端。",
         });
-      }
-    }
-  }
-
-  // ── WP2.2 指令遵循:对每个已生成端跑 导航闭包/死页面/页面覆盖 + 死按钮 ──
-  const pageList = parsePageList(spec);
-  const programs: Array<{ device: string; code: string }> = [
-    ...(openui ? [{ device: "desktop", code: openui }] : []),
-    ...(["mobile", "tablet"] as const)
-      .map((device) => ({ device, code: variants[device]?.trim() ?? "" }))
-      .filter((entry) => entry.code),
-  ];
-  for (const { device, code } of programs) {
-    const suffix = device === "desktop" ? "" : `-${device}`;
-    // 平台变体结构检查:root 必须有;distinct 用组件指纹(WP4.2)——换名副本
-    // 组件构成不变(Jaccard≥阈值 → 同构 failed),真平台壳(底部 tab vs 侧栏、
-    // 卡片流 vs 表格)构成实质不同 → 低分通过。
-    if (device !== "desktop") {
-      checks.push({
-        id: `auto:variant${suffix}-root`,
-        label: `${device} platform variant declares its own root`,
-        status: /(?:^|\n)\s*root\s*=/.test(code) ? "passed" : "failed",
-      });
-      const similarity = componentJaccard(openui, code);
-      checks.push({
-        id: `auto:variant${suffix}-distinct`,
-        label: `${device} platform variant is a structurally distinct program`,
-        status: similarity >= 0.92 ? "failed" : "passed",
-        ...(similarity >= 0.92
-          ? {
-              observation: `组件构成与桌面端几乎一致(Jaccard ${similarity.toFixed(2)})——疑似同一程序换名/微调,重生成该端以获得平台化结构(导航壳与布局语法应不同)。`,
-            }
-          : {}),
-      });
-    }
-    // 导航闭包:@Set 目标必须是已比较页面(否则点了没视图可切)。
-    const pages = extractProgramPages(code);
-    const known = new Set([...pages.comparisons, ...(pages.initial ? [pages.initial] : [])]);
-    for (const target of pages.navTargets) {
-      if (!known.has(target)) {
-        checks.push({
-          id: `auto:nav${suffix}-${target}-dangling`,
-          label: `Navigation target "${target}" has a matching $page view`,
-          status: "failed",
-          observation: `@Set($page, "${target}") 指向未声明/未比较的页面——拼写错误或缺失视图分支。`,
-        });
-      }
-    }
-    // 死页面:被比较但无人导航到、也不是初始页( Axure 页面树的孤儿页检查)。
-    for (const page of known) {
-      if (page !== pages.initial && !pages.navTargets.has(page)) {
-        checks.push({
-          id: `auto:page${suffix}-${page}-orphan`,
-          label: `Page "${page}" is reachable via navigation`,
-          status: "failed",
-          observation: `页面 "${page}" 有视图分支但没有任何 @Set 导航到它(也非初始页)——补入口或删除分支。`,
-        });
-      }
-    }
-    // 页面覆盖:有 ID 列逐页比对(PRD 页缺实现 failed/程序多页 warning);
-    // 旧 PRD 无 ID 列降级为数量比对(不误杀,只观察)。
-    if (pageList) {
-      if (pageList.hasIds) {
-        const ids = new Set(pageList.pages.map((page) => page.id));
-        for (const page of pageList.pages) {
-          if (!known.has(page.id!)) {
-            checks.push({
-              id: `auto:coverage${suffix}-${page.id}-missing`,
-              label: `PRD page "${page.name}" (${page.id}) is implemented`,
-              status: "failed",
-              observation: `页面清单中的「${page.name}」未出现在 $page 页面集——原型未覆盖 PRD。`,
-            });
-          }
-        }
-        for (const page of known) {
-          if (!ids.has(page)) {
-            checks.push({
-              id: `auto:coverage${suffix}-${page}-extra`,
-              label: `Program page "${page}" exists in the PRD page list`,
-              status: "pending",
-              observation: `程序页面 "${page}" 不在页面清单中——确认是否为有意补充(如详情子页)。`,
-            });
-          }
-        }
-      } else {
-        const prdCount = pageList.pages.length;
-        const programCount = known.size;
-        if (prdCount !== programCount) {
+      } else if (singleDeviceDoc) {
+        // 单端文档（plain 画板 id）：端别由 materialize 的计划决定，无后缀
+        // 不可判别。单平台声明即视为满足；多平台声明 → 补多端画板的观察项。
+        if (declared.length > 1) {
           checks.push({
-            id: `auto:coverage${suffix}-count`,
-            label: "Program page count matches the PRD page list",
+            id: "auto:platform-single-device-doc",
+            label: "Multi-platform PRD has per-device artboards",
             status: "pending",
-            observation: `PRD 列出 ${prdCount} 页,程序 ${programCount} 页(旧格式 PRD 无页面 ID 列,仅数量比对)——重新生成需求文档可启用逐页比对。`,
+            observation:
+              "PRD 声明多端但文档是单端形态（无 <page>@<device> 画板）——重新 materialize（带 devices）生成多端画板。",
           });
         }
+      } else {
+        for (const device of declared) {
+          if (!generatedDevices.has(device)) {
+            checks.push({
+              id: `auto:platform-${device}-missing`,
+              label: `PRD-declared platform "${device}" has artboards`,
+              status: "failed",
+              observation: `PRD 声明 ${device} 端但文档中没有任何 <page>@${device} 画板——重新 materialize(或补 devices)后重验。`,
+            });
+          }
+        }
+        for (const device of generatedDevices) {
+          if (!declared.includes(device as MoonvizDevice)) {
+            checks.push({
+              id: `auto:platform-${device}-extra`,
+              label: `Generated platform "${device}" is PRD-declared`,
+              status: "pending",
+              observation: `生成了 PRD 未声明的 ${device} 端画板——确认是否为有意补充,否则从 PRD 或原型中移除。`,
+            });
+          }
+        }
       }
-    }
-    // 死按钮(WP2.3 的 core 确定性面;渲染前修复环另有 validate verdict)。
-    for (const [index, finding] of findDeadButtons(code).entries()) {
-      checks.push({
-        id: `auto:dead-button${suffix}-${index + 1}`,
-        label: `No dead buttons${suffix ? ` (${device})` : ""}`,
-        status: "failed",
-        observation: finding,
-      });
+      // PRD 覆盖（合同层比对）。
+      for (const finding of moonvizCoverageFindings(spec, engine.artboards, engine.flows)) {
+        checks.push({
+          id: finding.id,
+          label: finding.label,
+          status: finding.severity,
+          observation: finding.observation,
+        });
+      }
+      // lint（WCAG/触控/间距/空容器——引擎直调），按规则聚合成 pending 观察。
+      const lintByRule = new Map<string, { count: number; message: string }>();
+      for (const { finding } of engine.lintFindings) {
+        const rule = String(finding.rule ?? "finding");
+        const entry = lintByRule.get(rule) ?? { count: 0, message: "" };
+        entry.count += 1;
+        if (!entry.message) entry.message = String(finding.message ?? "");
+        lintByRule.set(rule, entry);
+      }
+      for (const [rule, entry] of lintByRule) {
+        checks.push({
+          id: `auto:lint-${rule}`,
+          label: `No ${rule} violations (session_lint)`,
+          status: "pending",
+          observation: `session_lint 报 ${entry.count} 处 ${rule}：${entry.message}——修正后重新 verify 消项。`,
+        });
+      }
+      // critique（8 原则）汇总为一条 pending 观察（顶部建议）。
+      if (engine.critiqueFindings.length > 0) {
+        const first = engine.critiqueFindings[0].finding;
+        checks.push({
+          id: "auto:critique",
+          label: "session_critique observations addressed",
+          status: "pending",
+          observation:
+            `session_critique 报 ${engine.critiqueFindings.length} 条观察（首条 ` +
+            `${String(first.principle ?? first.title ?? "observation")}：${String(first.message ?? first.suggestion ?? "")}）` +
+            "——确认或修正后消项。",
+        });
+      }
+      // tap 行为验证（点击语义仿真，逐 flow 命中断言）。
+      for (const [index, tap] of engine.tapResults.entries()) {
+        checks.push({
+          id: `auto:tap-${index + 1}`,
+          label: `Flow reachable by tap: ${tap.flow}`,
+          status: tap.ok ? "passed" : "failed",
+          ...(tap.ok ? {} : { observation: `session_tap 未命中：${tap.detail}——检查触发节点位置与 flow 定义。` }),
+        });
+      }
     }
   }
   for (const [index, check] of (input.checks ?? []).entries()) {
-    // auto:/确定性 id 是保留命名空间:机械 pending 检查每次 verify 重算,外部
-    // 输入(renderer 消项按钮/agent)既覆写不到也不能追加——否则一条 passed
-    // 副本与重算的 pending 项同 id 并存,整体状态永卡 pending(消项死按钮)。
-    // 静默跳过:机械项由重算机制自清,不需要人工消项。
     if (check.id && isMechanical(check.id.trim())) continue;
     const resolved: PrototypeVerificationCheck = {
       id: check.id?.trim() || `external-${index + 1}`,
@@ -1524,16 +1509,14 @@ export const prototypeVerifyRun: ActionRun<PrototypeVerifyInput, PrototypeVerify
       status: check.passed ? "passed" : "failed",
       ...(check.observation?.trim() ? { observation: check.observation.trim() } : {}),
     };
-    // 按 id 消项:传入的 check 若命中已随行的观察项,则覆写其状态(这是
-    // "revise 加观察 → 处理 → verify 消项"回路的结算端),否则作为新外部项追加。
-    // 机械 id 已在上方被跳过,这里的匹配天然只落在外部/随行观察项上。
+    // 按 id 消项：传入的 check 若命中已随行的观察项，则覆写其状态（"revise
+    // 加观察 → 处理 → verify 消项"回路的结算端），否则作为新外部项追加。
     const carriedIndex = checks.findIndex((existing) => existing.id === resolved.id);
     if (carriedIndex !== -1) checks[carriedIndex] = resolved;
     else checks.push(resolved);
   }
-  // 整体状态三档:有 failed 即 failed;否则有 pending(未消解的观察项)为
-  // pending;全 passed/healed 才 passed。pending 是"待人工确认"而非"失败"——
-  // 否则携带逻辑会把文档化回路变成永久 failed 的死锁(评审 C)。
+  // 整体状态三档：有 failed 即 failed；否则有 pending（未消解的观察项）为
+  // pending；全 passed/healed 才 passed。
   const hasFailed = checks.some((check) => check.status === "failed");
   const hasPending = checks.some((check) => check.status === "pending");
   const verification: PrototypeVerificationResult = {
@@ -1553,15 +1536,14 @@ export const prototypeVerifyRun: ActionRun<PrototypeVerifyInput, PrototypeVerify
   return { ok: true, artifactRef: saved.artifactRef, verification, refreshStore: !saved.artifactRef };
 };
 
+// ── revise ───────────────────────────────────────────────────────────────────
+
 export interface PrototypeReviseInput {
   suiteId: string;
   versionId: string;
-  part: "spec" | "openui" | "verification";
+  part: "spec" | "moonviz" | "verification";
   target: string;
   instruction: string;
-  /** 目标平台变体(user ask 2026-09-09):openui 修订可定向 mobile/tablet;
-   *  desktop/缺省修订本体。 */
-  device?: string;
   note?: string;
 }
 
@@ -1575,15 +1557,9 @@ export const prototypeReviseDefinition: ActionDefinition<PrototypeReviseInput> =
     properties: {
       suiteId: { type: "string" },
       versionId: { type: "string" },
-      part: { type: "string", enum: ["spec", "openui", "verification"] },
+      part: { type: "string", enum: ["spec", "moonviz", "verification"] },
       target: { type: "string" },
       instruction: { type: "string" },
-      device: {
-        type: "string",
-        enum: ["desktop", "mobile", "tablet"],
-        description:
-          "Platform variant to revise (openui part): desktop updates the base program; mobile/tablet update their variant.",
-      },
       note: { type: "string" },
     },
     required: ["suiteId", "versionId", "part", "target", "instruction"],
@@ -1632,69 +1608,85 @@ export const prototypeReviseRun: ActionRun<PrototypeReviseInput, PrototypeSpecOu
   }
 
   if (!ctx.runSubagent) return { ok: false, error: "runSubagent not available" };
-  // openui 修订的设备定向:mobile/tablet 修订走对应变体,且修订提示带该端
-  // 平台契约——在手机版上"加一列"的语义与桌面版完全不同。
-  const device: OpenuiDevice | undefined =
-    input.part === "openui" && input.device && ["mobile", "tablet"].includes(input.device)
-      ? (input.device as OpenuiDevice)
-      : undefined;
-  // WP1.2 设备基线:device 定向修订喂子代理的必须是该端变体——此前恒取
-  // content.openui(桌面本体),「桌面程序+手机契约」的杂交产物会写进变体槽
-  // 覆盖真正的手机版。desktop/未指定才回落本体。
-  const current =
-    input.part === "spec"
-      ? content.spec
-      : device
-        ? (content.openuiVariants?.[device] ?? content.openui)
-        : content.openui;
+  const current = input.part === "spec" ? content.spec : content.moonviz;
   if (!current?.trim()) return { ok: false, error: `${input.part} content is empty in the selected version` };
-  const skill = input.part === "spec" ? "spec-writer" : "pm-designer-openui";
-  const generated = await ctx.runSubagent({
-    skill,
-    prompt:
-      `Revise only the ${input.part} content below. Target: ${target}. Instruction: ${instruction}. ` +
-      (input.part === "openui" ? `${OPENUI_PRESERVE_CONTRACT} ${device ? OPENUI_DEVICE_CONTRACTS[device] : ""} ` : "") +
-      "Preserve unrelated content and return only the complete revised document in one code fence. Do not call tools.\n\n" +
-      current,
-    silent: true,
-  });
-  const revised = input.part === "spec" ? extractMarkdownDocument(generated) : extractGeneratedBody(generated);
-  const structurallyValid =
-    revised !== null && (input.part === "spec" ? looksLikeSpecDocument(revised) : looksLikeOpenuiProgram(revised));
-  if (!structurallyValid) {
-    return {
-      ok: false,
-      error: `${skill} returned empty or structurally invalid content (truncated output?) — regenerate`,
-    };
+  if (input.part === "spec") {
+    const generated = await ctx.runSubagent({
+      skill: "spec-writer",
+      prompt:
+        `Revise only the spec content below. Target: ${target}. Instruction: ${instruction}. ` +
+        "Preserve unrelated content and return only the complete revised document in one code fence. Do not call tools.\n\n" +
+        current,
+      silent: true,
+    });
+    const revised = extractMarkdownDocument(generated);
+    if (!revised || !looksLikeSpecDocument(revised)) {
+      return {
+        ok: false,
+        error: "spec-writer returned empty or structurally invalid content (truncated output?) — regenerate",
+      };
+    }
+    if (ctx.signal.aborted) return { ok: false, error: "cancelled" };
+    const saved = await executeA2ui(ctx, "render_spec", {
+      document: revised,
+      suiteId,
+      versionId,
+      ...(content.requirement ? { requirement: content.requirement } : {}),
+      note: input.note?.trim() || `spec revision: ${target}`,
+    });
+    return saved.ok
+      ? { ok: true, artifactRef: saved.artifactRef, refreshStore: !saved.artifactRef }
+      : { ok: false, error: saved.error };
   }
-  const tool = input.part === "spec" ? "render_spec" : "update_openui";
-  const args: Record<string, unknown> = {
+
+  // moonviz 修订：增量 op 计划（以当前 canonical 为上下文），同款 Gate 回灌。
+  ctx.emit({
+    message: "Planning the revision ops",
+    percent: 50,
+    data: { code: "prototype.revise.generating" },
+  });
+  const generated = await callSubagentStable(
+    ctx,
+    {
+      skill: "pm-designer-moonviz",
+      prompt:
+        `Revise the MoonViz prototype document below. Target: ${target}. Instruction: ${instruction}. ` +
+        MOONVIZ_PRESERVE_CONTRACT +
+        " Emit ONLY the incremental op plan that transforms the current document into the revised one " +
+        "(place/update/interact/flow/delete… ops against the EXISTING artboard ids) — one op per line in a " +
+        "single ```moonviz code fence. Do not re-emit unchanged artboards. Do not call tools.\n\n" +
+        MOONVIZ_OPS_CHEATSHEET +
+        "\n\n## Current document (canonical .mbt.md)\n" +
+        current,
+      silent: true,
+    },
+    "revise-moonviz"
+  );
+  const ops = parseOpPlan(generated);
+  if (!ops) {
+    return { ok: false, error: "pm-designer-moonviz returned an empty or unusable op plan — regenerate" };
+  }
+  const applied = await applyMoonvizOpPlan(ctx, {
+    skill: "pm-designer-moonviz",
+    baseDoc: current,
+    ops,
+    progressCode: "prototype.revise.repairing",
+    basePercent: 60,
+  });
+  if (!applied.ok) return { ok: false, error: applied.error };
+  if (ctx.signal.aborted) return { ok: false, error: "cancelled" };
+  const saved = await executeA2ui(ctx, "update_moonviz", {
+    doc: applied.canonical,
     suiteId,
     versionId,
-    note: input.note?.trim() || `${input.part} revision: ${target}`,
-  };
-  if (input.part === "openui" && device) args.device = device;
-  if (input.part === "spec") {
-    args.document = revised;
-    if (content.requirement) args.requirement = content.requirement;
-  } else {
-    // Same local validation loop as materialize (user ask 2026-09-09) — a
-    // revision must not regress the program below the parser's bar.
-    args.code = await repairOpenuiProgram(ctx, {
-      code: revised,
-      contract: OPENUI_PRESERVE_CONTRACT,
-      progressCode: "prototype.revise.repairing",
-      basePercent: 60,
-    });
-  }
-  if (ctx.signal.aborted) return { ok: false, error: "cancelled" };
-  const saved = await executeA2ui(ctx, tool, args);
+    note: input.note?.trim() || `moonviz revision: ${target}`,
+  });
   return saved.ok
     ? { ok: true, artifactRef: saved.artifactRef, refreshStore: !saved.artifactRef }
     : { ok: false, error: saved.error };
 };
 
-export { executeA2ui, extractGeneratedBody, hasPageList, parseArtifactRef, readArtifactFile };
+export { executeA2ui, extractGeneratedBody, hasPageList, looksLikeSpecDocument, parseArtifactRef, readArtifactFile };
 
 export interface PrototypeArchInput {
   suiteId: string;
@@ -1731,8 +1723,7 @@ export function looksLikeArchDoc(markdown: string): boolean {
 }
 
 /** specs/design-stage-gates：架构文档骨架单源（SPEC_SKELETON 同款纪律——
- *  SKILL.md 撤模板改引用）。七节 + 三表行级模板 + 图示槽位说明。弱模型
- *  "填空到行"；占位行不计数，骨架抄写过不了 archSectionsAudit。 */
+ *  SKILL.md 撤模板改引用）。七节 + 三表行级模板 + 图示槽位说明。 */
 export const ARCH_SKELETON = `# <产品/功能名称> 技术架构文档
 
 | 项目 | 内容 |
@@ -1863,12 +1854,7 @@ export const prototypeArchRun: ActionRun<PrototypeArchInput, PrototypeArchOutput
       const registered = await ensureDesignChainRegistration(ctx.projectRoot, { suiteId, versionId });
       if (registered.status === "skipped-unparseable-anchor") {
         // Not an error (design action must not fail on spec-domain seeding),
-        // but never silent: an unparseable anchor file is hand-owned now and
-        // stays out of the graph until a human fixes it — no future save
-        // re-registers it (writer no-clobber guard). Folded into the FINAL
-        // saved message on purpose: the progress surface is a single-line
-        // status (last message wins) — a separate earlier emit would be
-        // visually overwritten by this very "saved" line.
+        // but never silent: an unparseable anchor file is hand-owned now.
         anchorSkipNote = ` — spec anchor skipped (hand-edited, unparsable): ${registered.file}`;
         anchorSkipFile = registered.file;
       }
@@ -1885,5 +1871,98 @@ export const prototypeArchRun: ActionRun<PrototypeArchInput, PrototypeArchOutput
     return { ok: true, artifactRef: saved.artifactRef, refreshStore: !saved.artifactRef };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : String(error) };
+  }
+};
+
+// ── export_ddp（specs/moonviz-engine-replacement T3.3）：canonical 文档 →
+// DDP 容器（空密码 = DDP2 免密直开；带密码 = DDP1 认证加密）。写盘后可选
+// 引擎回读验证（解密 → validate）。密码 UX（决策 7 遗留）只影响本动作入参。
+
+export interface PrototypeExportDdpInput {
+  suiteId: string;
+  versionId?: string;
+  /** 非空 → DDP1 认证加密；空/省略 → DDP2 免密容器（决策 7 遗留：密码
+   *  UX 待产品拍板，动作面先行支持两形态）。 */
+  password?: string;
+  /** 导出文件名（不含扩展名）；缺省由套件 id 派生。 */
+  fileName?: string;
+}
+
+export interface PrototypeExportDdpOutput {
+  ok: boolean;
+  /** 写出的 .ddp 绝对路径。 */
+  ddpPath?: string;
+  /** 容器形态（"DDP2" 免密 / "DDP1" 加密）。 */
+  container?: string;
+  bytes?: number;
+  error?: string;
+}
+
+export const prototypeExportDdpDefinition: ActionDefinition<PrototypeExportDdpInput> = {
+  id: "prototype.export-ddp",
+  description:
+    "Export a prototype suite version's canonical MoonViz document as a .ddp design package " +
+    "(empty password → freely viewable DDP2; non-empty → DDP1 authenticated encryption).",
+  category: "design",
+  parameters: {
+    type: "object",
+    properties: {
+      suiteId: { type: "string" },
+      versionId: { type: "string", description: "Suite version to export; omit for the current head" },
+      password: {
+        type: "string",
+        description: "Non-empty enables DDP1 authenticated encryption; empty/omitted produces DDP2 (no password)",
+      },
+      fileName: { type: "string", description: "Output file name without extension" },
+    },
+    required: ["suiteId"],
+    additionalProperties: false,
+  },
+  sideEffects: ["write-in-cwd"],
+};
+
+export const prototypeExportDdpRun: ActionRun<PrototypeExportDdpInput, PrototypeExportDdpOutput> = async (
+  input,
+  ctx
+) => {
+  const suiteId = input?.suiteId?.trim();
+  if (!suiteId) return { ok: false, error: "suiteId is required" };
+  const read = await readSuiteVersion(ctx, suiteId, input?.versionId?.trim() || undefined);
+  if (!read.ok) return { ok: false, error: read.error };
+  if (read.value.artifactRef.kind !== "prototype") return { ok: false, error: "suite is not a prototype suite" };
+  const doc = "moonviz" in read.value.content ? read.value.content.moonviz?.trim() : undefined;
+  if (!doc) {
+    return { ok: false, error: "the selected version has no MoonViz document — run materialize first" };
+  }
+  try {
+    const ddp = encryptDdp(doc, input?.password ?? "");
+    const safeName = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(input?.fileName?.trim() ?? "")
+      ? input!.fileName!.trim()
+      : `${suiteId}.ddp`;
+    const dir = path.join(ctx.projectRoot, DESIGNS_DIR, suiteId);
+    fs.mkdirSync(dir, { recursive: true });
+    const outPath = path.join(dir, safeName.endsWith(".ddp") ? safeName : `${safeName}.ddp`);
+    fs.writeFileSync(outPath, ddp);
+    ctx.emit({
+      message: `Design package exported (${input?.password ? "DDP1 encrypted" : "DDP2 open"})`,
+      percent: 100,
+      data: { code: "prototype.export_ddp.saved" },
+    });
+    return {
+      ok: true,
+      ddpPath: outPath,
+      container: input?.password ? "DDP1" : "DDP2",
+      bytes: ddp.byteLength,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      error:
+        error instanceof DdpError
+          ? `ddp export failed: ${error.code}`
+          : error instanceof Error
+            ? error.message
+            : String(error),
+    };
   }
 };

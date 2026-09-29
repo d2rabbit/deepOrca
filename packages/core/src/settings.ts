@@ -204,12 +204,6 @@ export type DeepcodingSettings = {
    */
   compactTokenThreshold?: number;
   /**
-   * PM-Design inline mode: render a complete ```openui-lang block embedded in
-   * an assistant reply without waiting for the render_openui tool call.
-   * Opt-in gray-release flag; the tool channel remains authoritative.
-   */
-  openuiInlineMode?: boolean;
-  /**
    * Behavioral-memory boot context (activity-frames pipeline B): when true,
    * new sessions prepend a compact BehavioralProfile summary ("how this user
    * usually works") as a hidden system message. Opt-in — costs prompt tokens

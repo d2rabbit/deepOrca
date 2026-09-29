@@ -5,7 +5,7 @@ import { pushDesignToast } from "../../lib/toast-bus";
 import { designSuiteVersionPath } from "../../lib/generated-paths";
 import type { ChatRefQuote } from "../../lib/ref-buffer";
 import { IconCheck, IconClose, IconDesign, IconRefresh, IconSparkle } from "../../ui/icons";
-import { PrototypePanel, type PrototypeSelection } from "../PrototypePanel";
+import type { PrototypeSelection } from "./types";
 import { subscribeToSuiteChanges, suiteApi } from "./api";
 import { DesignWorkspaceFrame, versionLabel } from "./DesignWorkspaceFrame";
 import { FloatingDesignAgent } from "./FloatingDesignAgent";
@@ -170,7 +170,7 @@ export function DesignWorkspace({
           prototypeSuite
             ? [...prototypeSuite.versions]
                 .reverse()
-                .filter((version) => isPrototypeContent(version.content) && Boolean(version.content.openui))
+                .filter((version) => isPrototypeContent(version.content) && Boolean(version.content.moonviz))
                 .map((version, index) => ({
                   suiteId: prototypeSuite.id,
                   versionId: version.versionId,
@@ -383,7 +383,7 @@ export function DesignWorkspace({
       try {
         const result = await api.actionRun("design.drift", {
           baseline: `${root}/.deeporca/design-baseline.json`,
-          current: `${root}/.deeporca/designs/${suite.id}/prototype.openui.txt`,
+          current: `${root}/.deeporca/designs/${suite.id}/doc.mbt.md`,
         });
         if (!result.ok) {
           setError(result.error);
@@ -406,7 +406,7 @@ export function DesignWorkspace({
   };
 
   const priorText = (source: UiSuiteContent, part: string): string | null => {
-    if (part === "design") return source.leafer ?? source.openui ?? null;
+    if (part === "design") return source.leafer ?? null;
     if (part === "tokens" || part === "components") {
       const value = part === "tokens" ? source.tokens : source.components;
       return value ? JSON.stringify(value, null, 2) : null;
@@ -630,11 +630,7 @@ export function DesignWorkspace({
         return (
           <>
             <span className="ui-design-version-set">
-              {version.content.leafer ? (
-                <i>{t("designWorkspace.setLeafer")}</i>
-              ) : (
-                <i className={version.content.openui ? undefined : "miss"}>{t("designWorkspace.setOpenui")}</i>
-              )}
+              <i className={version.content.leafer ? undefined : "miss"}>{t("designWorkspace.setLeafer")}</i>
               <i className={recordEntries(version.content.tokens).length ? undefined : "miss"}>
                 {t("designWorkspace.setTokens")}
               </i>
@@ -738,12 +734,12 @@ export function DesignWorkspace({
               </button>
               <button
                 type="button"
-                disabled={(!content.openui && !content.leafer) || busy !== null || readOnly}
+                disabled={!content.leafer || busy !== null || readOnly}
                 onClick={() => void runQuality()}
               >
                 <IconCheck /> {t("designWorkspace.runQuality")}
               </button>
-              <button type="button" disabled={!content.openui || busy !== null || readOnly} onClick={runDrift}>
+              <button type="button" disabled={!content.leafer || busy !== null || readOnly} onClick={runDrift}>
                 {t("designWorkspace.driftRun")}
               </button>
               {drift ? (
@@ -767,21 +763,6 @@ export function DesignWorkspace({
                     editable={!readOnly}
                     onCommit={commitLeafer}
                     locate={locateSignal}
-                  />
-                </div>
-              ) : content.openui ? (
-                <div className="ui-design-canvas-stage" ref={stageRef} style={themeVars}>
-                  <span className="ui-design-legacy-chip">{t("designWorkspace.legacyOpenui")}</span>
-                  <PrototypePanel
-                    a2uiJson=""
-                    openuiCode={content.openui}
-                    mode="openui"
-                    authoringLibrary={suite?.authoringLibrary}
-                    onIterate={(instruction) => void revise(instruction)}
-                    onSelectionChange={handleSelection}
-                    selectionEnabled={!readOnly}
-                    selectionNodePath={selection?.nodePath ?? null}
-                    hideComposer
                   />
                 </div>
               ) : (
@@ -928,7 +909,7 @@ export function DesignWorkspace({
                 <button
                   type="button"
                   className="ui-review-run-btn"
-                  disabled={(!content.openui && !content.leafer) || busy !== null || readOnly}
+                  disabled={!content.leafer || busy !== null || readOnly}
                   onClick={() => void runQuality()}
                 >
                   <IconRefresh /> {t("designWorkspace.runQuality")}

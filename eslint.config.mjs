@@ -80,6 +80,7 @@ export default tseslint.config(
         fetch: "readonly",
         AbortSignal: "readonly",
         AbortController: "readonly",
+        WebAssembly: "readonly",
       },
     },
   },

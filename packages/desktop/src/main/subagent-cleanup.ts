@@ -38,17 +38,20 @@ const LEAKED_PREFIXES = [
   "Write the complete structured PRD for the requirement below",
   "Write the complete structured requirements document for the requirement below",
   // prototype.materialize / design.materialize
-  "Create the complete OpenUI Lang prototype for the requirements document below",
-  "Create a complete OpenUI Lang program for this requirement",
-  "Create a complete OpenUI Lang program elevating the selected prototype",
+  "Create the complete MoonViz prototype for the requirements document below",
+  "Create the complete OpenUI Lang prototype for the requirements document below", // pre-migration sessions
+  "Create a complete OpenUI Lang program for this requirement", // pre-migration sessions
+  "Create a complete MoonViz prototype elevating the selected prototype",
+  "Create a complete OpenUI Lang program elevating the selected prototype", // pre-migration sessions
   // prototype.revise (spec/openui) / design.revise (design)
   "Revise only the spec content below",
-  "Revise only the openui content below",
-  "Revise only this OpenUI Lang target",
+  "Revise the MoonViz prototype document below",
+  "Revise only the openui content below", // pre-migration sessions
+  "Revise only this OpenUI Lang target", // pre-migration sessions
   "Revise the tokens JSON only",
   "Revise the components JSON only",
   // design.review
-  "Review the OpenUI design and existing deterministic quality below",
+  "Review the OpenUI design and existing deterministic quality below", // pre-migration sessions
   // prototype.arch
   "Write the complete standardized technical architecture document derived from the approved PRD below",
 ];

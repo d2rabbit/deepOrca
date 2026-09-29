@@ -21,7 +21,10 @@ import {
   prototypeVerifyDefinition,
   prototypeVerifyRun,
 } from "../actions";
-import { hasPageList, looksLikeOpenuiProgram, looksLikeSpecDocument } from "../actions/prototype";
+import { hasPageList, looksLikeSpecDocument } from "../actions/prototype";
+import { installMoonvizFixture, MOCK_MOONVIZ_DOC } from "./moonviz-fixture";
+
+installMoonvizFixture();
 import { NULL_SPAWNER } from "../actions/types";
 import type { ActionContext, ActionProgress, RunSubagentOptions } from "../actions/types";
 
@@ -45,8 +48,25 @@ function makeCtx(
     mcpCalls?: McpCall[];
     subagentCalls?: SubagentCall[];
     emits?: ActionProgress[];
+    /** MoonViz 引擎 fixture 覆写（verify 引擎直调检查面的各信封）。 */
+    artboards?: Array<Record<string, unknown>>;
+    flows?: Array<Record<string, unknown>>;
+    lint?: Array<Record<string, unknown>>;
+    critique?: Array<Record<string, unknown>>;
+    nodes?: Array<Record<string, unknown>>;
+    tapOk?: boolean;
+    rejectOpSubstrings?: string[];
   } = {}
 ): ActionContext {
+  installMoonvizFixture({
+    artboards: options.artboards,
+    flows: options.flows,
+    lint: options.lint,
+    critique: options.critique,
+    nodes: options.nodes,
+    tapOk: options.tapOk,
+    rejectOpSubstrings: options.rejectOpSubstrings,
+  });
   const mcpCalls = options.mcpCalls ?? [];
   const subagentCalls = options.subagentCalls ?? [];
   const emits = options.emits ?? [];
@@ -181,7 +201,7 @@ test("prototype.spec creates a real suite through render_spec and returns Artifa
   assert.equal(typeof save?.args.note, "string", "initial generation must force suite persistence");
 });
 
-test("prototype.materialize reads an immutable suite version and resets verification through render_openui", async () => {
+test("prototype.materialize reads an immutable suite version and resets verification through render_moonviz", async () => {
   const mcpCalls: McpCall[] = [];
   const result = await prototypeMaterializeRun(
     { suiteId: PROTOTYPE_REF.suiteId, versionId: PROTOTYPE_REF.versionId },
@@ -193,14 +213,16 @@ test("prototype.materialize reads an immutable suite version and resets verifica
         // 版本读取/持久化语义，stage0 行为由 prompt-doc-chain.test.ts 覆盖）。
         pmDesign: "# Task board 原型提示\n\n## 页面结构\n- Board",
       },
-      generated: "```openui\nroot = Column([board])\nboard = Card([])\n```",
+      generated: "```moonviz\ntemplate login board 1200 800\n```",
       mcpCalls,
     })
   );
-  assert.equal(result.ok, true);
-  const save = mcpCalls.find((call) => call.name.endsWith("render_openui"));
+  assert.equal(result.ok, true, result.ok ? "" : (result as { error?: string }).error);
+  const save = mcpCalls.find((call) => call.name.endsWith("render_moonviz"));
   assert.equal(save?.args.suiteId, PROTOTYPE_REF.suiteId);
   assert.equal(save?.args.versionId, PROTOTYPE_REF.versionId);
+  // 持久化的是引擎会话回传的 canonical（携带已应用 op 的标记）。
+  assert.match(String(save?.args.doc ?? ""), /op: template login board 1200 800/);
 });
 
 test("prototype.verify runs deterministic structure checks and persists verification", async () => {
@@ -218,11 +240,15 @@ test("prototype.verify runs deterministic structure checks and persists verifica
     "| --- | --- |",
     "| Board | board |",
   ].join("\n");
-  const openui =
-    '$page = "board"\nroot = $page == "board" ? boardView : null\nboardView = Column([board])\nnavBtn = Button("Board", Action([@Set($page, "board")]))';
   const result = await prototypeVerifyRun(
     { suiteId: PROTOTYPE_REF.suiteId, versionId: PROTOTYPE_REF.versionId },
-    makeCtx({ prototype: { spec, openui }, mcpCalls })
+    makeCtx({
+      prototype: { spec, moonviz: MOCK_MOONVIZ_DOC },
+      // 引擎 fixture：单端文档（plain 画板 id）、零 lint/critique、零 flow——
+      // PRD 单端（web）声明 + 单页覆盖 → 全绿。
+      artboards: [{ id: "board" }],
+      mcpCalls,
+    })
   );
   assert.equal(result.ok, true);
   assert.equal(result.verification?.status, "passed");
@@ -235,7 +261,8 @@ test("prototype.verify: legacy PRD without 目标平台 yields a pending observa
   const result = await prototypeVerifyRun(
     { suiteId: PROTOTYPE_REF.suiteId, versionId: PROTOTYPE_REF.versionId },
     makeCtx({
-      prototype: { spec: "# Tasks\n\n## Page list\n- Board", openui: "root = Column([board])" },
+      prototype: { spec: "# Tasks\n\n## Page list\n- Board", moonviz: MOCK_MOONVIZ_DOC },
+      artboards: [{ id: "board" }],
       mcpCalls,
     })
   );
@@ -254,12 +281,9 @@ test("prototype.verify: PRD-declared platform missing from the program fails (WP
   const result = await prototypeVerifyRun(
     { suiteId: PROTOTYPE_REF.suiteId, versionId: PROTOTYPE_REF.versionId },
     makeCtx({
-      prototype: {
-        spec,
-        // 只有桌面本体,PRD 声明 mobile → platform-mobile-missing failed。
-        openui:
-          '$page = "board"\nroot = $page == "board" ? boardView : null\nboardView = Card([])\nbtn = Button("b", Action([@Set($page, "board")]))',
-      },
+      prototype: { spec, moonviz: MOCK_MOONVIZ_DOC },
+      // 多端文档只剩 @desktop 画板,PRD 声明 mobile → platform-mobile-missing failed。
+      artboards: [{ id: "board@desktop" }],
       mcpCalls,
     })
   );
@@ -280,66 +304,60 @@ test("prototype.verify: dangling nav target / orphan page / missing PRD page fai
     "| Orders | orders |",
     "| Settings | settings |",
   ].join("\n");
-  const openui = [
-    '$page = "home"',
-    // orders 有视图但无人导航且非初始 → orphan;settings 未实现 → coverage failed;
-    // @Set($page, "dashbord") 拼错 → dangling nav。
-    'root = $page == "home" ? homeView : $page == "orders" ? ordersView : null',
-    "homeView = Card([])",
-    "ordersView = Card([])",
-    'btn = Button("typo", Action([@Set($page, "dashbord")]))',
-  ].join("\n");
   const result = await prototypeVerifyRun(
     { suiteId: PROTOTYPE_REF.suiteId, versionId: PROTOTYPE_REF.versionId },
-    makeCtx({ prototype: { spec, openui }, mcpCalls })
+    makeCtx({
+      prototype: { spec, moonviz: MOCK_MOONVIZ_DOC },
+      // settings 画板缺失 → coverage failed;多页无 flow → flows-empty failed。
+      // （等价迁移注：旧 dangling-nav/orphan-page 检查在引擎 flows 模型下
+      // 不可构造——flow 目标必须是存在的画板，引擎侧结构性排除。）
+      artboards: [{ id: "home" }, { id: "orders" }],
+      flows: [],
+      mcpCalls,
+    })
   );
   assert.equal(result.verification?.status, "failed");
   const ids = result.verification?.checks.filter((c) => c.status === "failed").map((c) => c.id) ?? [];
-  assert.ok(ids.includes("auto:nav-dashbord-dangling"), "dangling nav target flagged");
-  assert.ok(ids.includes("auto:page-orders-orphan"), "orphan page flagged");
+  assert.ok(ids.includes("auto:flows-empty"), "multi-page doc without flows flagged");
   assert.ok(ids.includes("auto:coverage-settings-missing"), "missing PRD page flagged");
+  assert.ok(ids.includes("auto:coverage-help-extra") === false, "no phantom findings");
 });
 
-test("prototype.verify: dead buttons fail (WP2.3 core)", async () => {
+test("prototype.verify: engine lint findings become pending observations (WP2.3 等价迁移)", async () => {
   const mcpCalls: McpCall[] = [];
   const spec = "| 目标平台 | web |\n\n## Page list\n\n| Page | Page ID |\n| --- | --- |\n| Home | home |";
-  const openui = [
-    '$page = "home"',
-    'root = $page == "home" ? homeView : null',
-    "homeView = Card([])",
-    'dead1 = Button("Save", Action([]))',
-    'dead2 = Button("Go", "submit:login")',
-    // 骨架化反例(遗留修复):文案/注释里的同形文本不得误报。
-    'hint = TextContent("提示:不要写 Action([]) 占位")',
-    "note = Text('see // Button(x, act) docs')",
-  ].join("\n");
   const result = await prototypeVerifyRun(
     { suiteId: PROTOTYPE_REF.suiteId, versionId: PROTOTYPE_REF.versionId },
-    makeCtx({ prototype: { spec, openui }, mcpCalls })
+    makeCtx({
+      prototype: { spec, moonviz: MOCK_MOONVIZ_DOC },
+      artboards: [{ id: "home" }],
+      // session_lint 引擎直调（对比度/触控/间距/空容器）——死按钮类结构问题
+      // 在 AgentGate 随 op 内建后由 lint/critique 承担。
+      lint: [
+        { rule: "contrast", severity: "error", node_id: "subtitle", message: "对比度 2.9 低于 WCAG AA 4.5:1" },
+        { rule: "touch_target", severity: "warning", node_id: "small_btn", message: "触控目标 24px 低于 44px" },
+      ],
+      mcpCalls,
+    })
   );
-  assert.equal(result.verification?.status, "failed");
-  const deadButtons = result.verification?.checks.filter((check) => check.id.startsWith("auto:dead-button-")) ?? [];
-  // 恰好两个真死按钮;字符串字面量里的 Action([])/bare-string 骨架化后不再计数。
-  assert.equal(
-    deadButtons.length,
-    2,
-    `expected exactly the two real dead buttons, got ${JSON.stringify(deadButtons.map((c) => c.observation))}`
-  );
+  assert.equal(result.ok, true);
+  assert.ok(result.verification?.checks.some((c) => c.id === "auto:lint-contrast"));
+  assert.ok(result.verification?.checks.some((c) => c.id === "auto:lint-touch_target"));
+  assert.equal(result.verification?.status, "pending", "lint findings are pending observations, not failures");
 });
 
 test("prototype.verify: mobile-only PRD with variant-only program passes (交叉审查: 桌面本位检查不得判死)", async () => {
   const mcpCalls: McpCall[] = [];
   const spec = "| 目标平台 | mobile |\n\n## Page list\n\n| Page | Page ID |\n| --- | --- |\n| Home | home |";
   // mobile-only 的正常产物:没有桌面本体,只有 mobile 变体。
-  const mobileProgram = [
-    '$page = "home"',
-    'root = $page == "home" ? homeView : null',
-    "homeView = Card([])",
-    'btn = Button("h", Action([@Set($page, "home")]))',
-  ].join("\n");
   const result = await prototypeVerifyRun(
     { suiteId: PROTOTYPE_REF.suiteId, versionId: PROTOTYPE_REF.versionId },
-    makeCtx({ prototype: { spec, openui: undefined, openuiVariants: { mobile: mobileProgram } }, mcpCalls })
+    makeCtx({
+      prototype: { spec, moonviz: MOCK_MOONVIZ_DOC },
+      // 单端（mobile-only）文档：plain 画板 id，无桌面本体可判——放行。
+      artboards: [{ id: "home" }],
+      mcpCalls,
+    })
   );
   assert.equal(result.verification?.status, "passed", "variant-only suite verifies clean");
   const failed = result.verification?.checks.filter((c) => c.status === "failed") ?? [];
@@ -355,10 +373,16 @@ test("prototype.verify: extra generated platform yields a pending observation (W
     "homeView = Card([])",
     'btn = Button("h", Action([@Set($page, "home")]))',
   ].join("\n");
-  const tablet = program.replace("homeView", "tabletHome").replace("btn", "tBtn") + '\nsidePanel = Stack([], "row")';
   const result = await prototypeVerifyRun(
     { suiteId: PROTOTYPE_REF.suiteId, versionId: PROTOTYPE_REF.versionId },
-    makeCtx({ prototype: { spec, openui: program, openuiVariants: { tablet } }, mcpCalls })
+    makeCtx({
+      prototype: { spec, moonviz: MOCK_MOONVIZ_DOC },
+      // 多端文档：声明端（web→desktop）在场 + 未声明的 @tablet → pending 观察。
+      artboards: [{ id: "home@desktop" }, { id: "home@tablet" }],
+      flows: [{ from: "home@desktop", to: "home@tablet", trigger: "tap:go" }],
+      nodes: [{ id: "go", rect: { x: 10, y: 10, w: 40, h: 40 } }],
+      mcpCalls,
+    })
   );
   // 多端是 pending 观察项,不是 failed——整体停在 pending 推动人工确认。
   assert.equal(result.verification?.status, "pending");
@@ -368,18 +392,13 @@ test("prototype.verify: extra generated platform yields a pending observation (W
 test("prototype.verify: external checks with mechanical-looking prefixes survive (auto: 命名空间)", async () => {
   const mcpCalls: McpCall[] = [];
   const spec = "| 目标平台 | web |\n\n## Page list\n\n| Page | Page ID |\n| --- | --- |\n| Home | home |";
-  const program = [
-    '$page = "home"',
-    'root = $page == "home" ? homeView : null',
-    "homeView = Card([])",
-    'btn = Button("h", Action([@Set($page, "home")]))',
-  ].join("\n");
   const result = await prototypeVerifyRun(
     { suiteId: PROTOTYPE_REF.suiteId, versionId: PROTOTYPE_REF.versionId },
     makeCtx({
       prototype: {
         spec,
-        openui: program,
+        moonviz: MOCK_MOONVIZ_DOC,
+        artboards: [{ id: "home" }],
         verification: {
           status: "pending",
           checks: [{ id: "nav-smoke-test", label: "外部导航冒烟", status: "pending", observation: "人工检查" }],
@@ -405,7 +424,11 @@ test("prototype.verify: 消项结算端跳过机械 id(auto: 不可被外部覆�
       // 同 id 的 passed 副本,整体永卡 pending + 假成功 toast)。
       checks: [{ id: "auto:platform-undeclared", label: "PRD declares target platforms", passed: true }],
     },
-    makeCtx({ prototype: { spec: "# Tasks\n\n## Page list\n- Board", openui: "root = Column([board])" }, mcpCalls })
+    makeCtx({
+      prototype: { spec: "# Tasks\n\n## Page list\n- Board", moonviz: MOCK_MOONVIZ_DOC },
+      artboards: [{ id: "board" }],
+      mcpCalls,
+    })
   );
   assert.equal(result.ok, true);
   const pending = result.verification?.checks.filter((c) => c.id === "auto:platform-undeclared") ?? [];
@@ -425,8 +448,8 @@ test("prototype.verify: 消项覆写随行观察项为单实例(评审 C 回路�
     makeCtx({
       prototype: {
         spec: "| 目标平台 | web |\n\n## Page list\n\n| Page | Page ID |\n| --- | --- |\n| Home | home |",
-        openui:
-          '$page = "home"\nroot = $page == "home" ? homeView : null\nhomeView = Card([])\nbtn = Button("h", Action([@Set($page, "home")]))',
+        moonviz: MOCK_MOONVIZ_DOC,
+        artboards: [{ id: "home" }],
         verification: {
           status: "pending",
           checks: [{ id: "nav-smoke-test", label: "外部导航冒烟", status: "pending", observation: "人工检查" }],
@@ -443,24 +466,10 @@ test("prototype.verify: 消项覆写随行观察项为单实例(评审 C 回路�
   assert.equal(smoke[0]?.observation, "人工已核", "按 id 结算覆写 observation");
 });
 
-test("prototype.verify: renamed desktop copy as variant fails distinct (WP4.2)", async () => {
-  const mcpCalls: McpCall[] = [];
-  const spec = "| 目标平台 | 多端(web+mobile) |\n\n## Page list\n\n| Page | Page ID |\n| --- | --- |\n| Home | home |";
-  const openui = [
-    '$page = "home"',
-    'root = $page == "home" ? homeView : null',
-    'homeView = Table([Col("x", [])])',
-    'btn = Button("h", Action([@Set($page, "home")]))',
-  ].join("\n");
-  // 换名副本:组件构成与桌面端一致 → Jaccard ≥ 0.92 → distinct failed。
-  const renamedCopy = openui.replace(/homeView/g, "mobileHome").replace(/btn/g, "mBtn");
-  const result = await prototypeVerifyRun(
-    { suiteId: PROTOTYPE_REF.suiteId, versionId: PROTOTYPE_REF.versionId },
-    makeCtx({ prototype: { spec, openui, openuiVariants: { mobile: renamedCopy } }, mcpCalls })
-  );
-  assert.equal(result.verification?.status, "failed");
-  assert.ok(result.verification?.checks.some((check) => check.id === "auto:variant-mobile-distinct"));
-});
+// WP4.2 等价迁移注：换名副本检测（componentJaccard）随 openuiVariants 变体
+// 结构消亡——MoonViz 单文档多画板模型下"变体"是同文档的结构性画板，平台
+// 契约由 materialize 提示词注入、coverage/platform 检查承担完整性。
+//
 
 test("design.materialize injects the selected bundled system and source prototype", async () => {
   const mcpCalls: McpCall[] = [];
@@ -479,7 +488,7 @@ test("design.materialize injects the selected bundled system and source prototyp
       designSystemId: "terminal-mono",
     },
     makeCtx({
-      prototype: { requirement: "Task board", openui: "root = Column([board])" },
+      prototype: { requirement: "Task board", moonviz: MOCK_MOONVIZ_DOC },
       generated: `\`\`\`json\n${leaferDoc}\n\`\`\``,
       mcpCalls,
       subagentCalls,
@@ -495,39 +504,29 @@ test("design.materialize injects the selected bundled system and source prototyp
   assert.equal(save?.args.designSystemId, "terminal-mono");
 });
 
-test("design.lint persists static OpenUI findings without runtime claims", async () => {
+test("design.lint on an openui-era version without leafer fails with a clear error", async () => {
   const mcpCalls: McpCall[] = [];
-  // WP2.4:tiny-font/hardcoded-color 是 CSS 死规则已移除;lint 现在报告 DSL 上
-  // 真实命中的 dead-button / dangling-nav / emoji-glyph。
+  // MoonViz 接管原型栈后 UI 套件是 leafer-only：存量 openui 字段版本不再
+  // 可 lint（作废语义），错误指向缺失的 leafer 设计而非静默通过。
   const result = await designLintRun(
     { suiteId: UI_REF.suiteId, versionId: UI_REF.versionId },
     makeCtx({
-      ui: {
-        openui: [
-          '$page = "home"',
-          'root = $page == "home" ? homeView : null',
-          "homeView = Card([])",
-          'dead = Button("Save", Action([]))',
-          'nav = Button("Typo", Action([@Set($page, "dashbord")]))',
-          'emoji = TextContent("通知 🔔")',
-        ].join("\n"),
-      },
+      ui: { openui: 'root = Screen("ui")\nhero = Card(data-sem="hero")' },
       mcpCalls,
     })
   );
-  assert.equal(result.ok, true);
-  assert.ok(result.findings?.some((finding) => finding.ruleId === "dead-button"));
-  assert.ok(result.findings?.some((finding) => finding.ruleId === "dangling-nav"));
-  assert.ok(result.findings?.some((finding) => finding.ruleId === "emoji-glyph"));
-  const save = mcpCalls.find((call) => call.name.endsWith("save_suite_result"));
-  assert.ok(Array.isArray((save?.args.quality as { lintFindings: unknown[] }).lintFindings));
+  assert.equal(result.ok, false);
+  assert.match(result.error ?? "", /leafer design/);
 });
 
 test("design.review validates single-round JSON and quality revise only clears review", async () => {
   const mcpCalls: McpCall[] = [];
   const subagentCalls: SubagentCall[] = [];
   const ctx = makeCtx({
-    ui: { openui: 'root = Screen("ui")\nhero = Card(data-sem="hero")', quality: {} },
+    ui: {
+      leafer: `{"tag":"Leafer","width":1440,"height":1024,"fill":"#ffffff","children":[{"tag":"Frame","name":"ui","x":0,"y":0,"width":1440,"height":1024,"fill":"#111318","children":[]}]}`,
+      quality: {},
+    },
     generated: '```json\n{"status":"passed","composite":0.8,"evidence":{"section":"hero"}}\n```',
     mcpCalls,
     subagentCalls,
@@ -575,15 +574,9 @@ test("page-list detection accepts CJK headings so Chinese specs verify", async (
     "| --- | --- |",
     "| 看板 | board |",
   ].join("\n");
-  const openui = [
-    '$page = "board"',
-    'root = $page == "board" ? boardView : null',
-    "boardView = Column([board])",
-    'navBtn = Button("看板", Action([@Set($page, "board")]))',
-  ].join("\n");
   const result = await prototypeVerifyRun(
     { suiteId: PROTOTYPE_REF.suiteId, versionId: PROTOTYPE_REF.versionId },
-    makeCtx({ prototype: { spec, openui } })
+    makeCtx({ prototype: { spec, moonviz: MOCK_MOONVIZ_DOC }, artboards: [{ id: "board" }] })
   );
   assert.equal(result.ok, true);
   assert.equal(result.verification?.status, "passed");
@@ -601,7 +594,7 @@ test("prototype.revise verification appends a pending observation and preserves 
     },
     makeCtx({
       prototype: {
-        openui: "root = Column([board])",
+        moonviz: MOCK_MOONVIZ_DOC,
         verification: { status: "passed", checks: [{ id: "c1", label: "Renders", status: "passed" }] },
       },
       mcpCalls,
@@ -638,7 +631,7 @@ test("design.materialize: the suite's stored requirement reaches the prompt with
   const result = await designMaterializeRun(
     input,
     makeCtx({
-      prototype: { requirement: "需要一个月度经营看板", openui: "root = Column([board])" },
+      prototype: { requirement: "需要一个月度经营看板", moonviz: MOCK_MOONVIZ_DOC },
       generated: `\`\`\`json\n${leaferDoc}\n\`\`\``,
       mcpCalls,
       subagentCalls,
@@ -658,7 +651,9 @@ test("design.review rejects empty evidence with a reason and accepts concrete ev
   const empty = await designReviewRun(
     { suiteId: UI_REF.suiteId, versionId: UI_REF.versionId },
     makeCtx({
-      ui: { openui: 'root = Screen("ui")' },
+      ui: {
+        leafer: `{"tag":"Leafer","width":1440,"height":1024,"fill":"#ffffff","children":[{"tag":"Frame","name":"ui","x":0,"y":0,"width":1440,"height":1024,"fill":"#111318","children":[]}]}`,
+      },
       generated: '```json\n{"status":"passed","composite":0.8,"evidence":{}}\n```',
     })
   );
@@ -668,7 +663,9 @@ test("design.review rejects empty evidence with a reason and accepts concrete ev
   const concrete = await designReviewRun(
     { suiteId: UI_REF.suiteId, versionId: UI_REF.versionId },
     makeCtx({
-      ui: { openui: 'root = Screen("ui")' },
+      ui: {
+        leafer: `{"tag":"Leafer","width":1440,"height":1024,"fill":"#ffffff","children":[{"tag":"Frame","name":"ui","x":0,"y":0,"width":1440,"height":1024,"fill":"#111318","children":[]}]}`,
+      },
       generated: '```json\n{"status":"passed","composite":0.8,"evidence":{"section":"hero"}}\n```',
     })
   );
@@ -676,92 +673,58 @@ test("design.review rejects empty evidence with a reason and accepts concrete ev
   assert.equal(concrete.review?.status, "passed");
 });
 
-test("design.lint DSL rules: dead buttons and dangling navs flagged, live programs are clean", async () => {
-  const mcpCalls: McpCall[] = [];
-  const result = await designLintRun(
-    { suiteId: UI_REF.suiteId, versionId: UI_REF.versionId },
-    makeCtx({
-      ui: {
-        openui: [
-          '$page = "home"',
-          'root = $page == "home" ? homeView : null',
-          "homeView = Card([])",
-          'dead1 = Button("Save", Action([]))',
-          "dead2 = Button(\"Go\", 'submit:login')",
-          'nav = Button("Typo", Action([@Set($page, "dashbord")]))',
-        ].join("\n"),
-      },
-      mcpCalls,
-    })
-  );
-  assert.equal(result.ok, true);
-  const dead = result.findings?.filter((finding) => finding.ruleId === "dead-button") ?? [];
-  assert.equal(dead.length, 2, "Action([]) and bare-string actions both flagged");
-  const nav = result.findings?.filter((finding) => finding.ruleId === "dangling-nav") ?? [];
-  assert.equal(nav.length, 1, "navigation to an undeclared page flagged");
-  assert.match(nav[0]!.message, /dashbord/);
-});
+// Leafer 场景 JSON 的 lint 规则由 leafer-design.test.ts 覆盖；openui-era lint 随栈移除。
 
-test("design.lint: a live program yields zero findings", async () => {
-  const mcpCalls: McpCall[] = [];
-  const result = await designLintRun(
-    { suiteId: UI_REF.suiteId, versionId: UI_REF.versionId },
-    makeCtx({
-      ui: {
-        openui: [
-          '$page = "home"',
-          'root = $page == "home" ? homeView : null',
-          "homeView = Card([])",
-          'nav = Button("Home", Action([@Set($page, "home")]))',
-        ].join("\n"),
-      },
-      mcpCalls,
-    })
-  );
-  assert.equal(result.ok, true);
-  assert.equal(result.findings?.length ?? 0, 0);
-});
-
-test("truncated or fence-less OpenUI output fails the action instead of persisting garbage", async () => {
+test("truncated or fence-less op-plan output fails the action instead of persisting garbage", async () => {
   const mcpCalls: McpCall[] = [];
   const truncated = await prototypeMaterializeRun(
     { suiteId: PROTOTYPE_REF.suiteId, versionId: PROTOTYPE_REF.versionId },
     makeCtx({
       prototype: { requirement: "Task board", spec: "# Tasks\n\n## Page list\n- Board" },
-      // Missing closing fence: the subagent output was cut off mid-program —
-      // previously the WHOLE message (incl. the prose line) persisted as a
-      // "ready" version.
-      generated: "Here is the program:\n```openui\nroot = Column([board\nboard = Card([])",
+      // Missing closing fence: the subagent output was cut off mid-plan —
+      // the plan extractor refuses the half-captured body.
+      generated: "Here is the plan:\n```moonviz\ntemplate login board 1200 800\nplace login button b",
       mcpCalls,
     })
   );
   assert.equal(truncated.ok, false);
   assert.match(String(truncated.error ?? ""), /regenerate/i);
   assert.equal(
-    mcpCalls.some((call) => call.name.endsWith("render_openui")),
+    mcpCalls.some((call) => call.name.endsWith("render_moonviz")),
     false
   );
 });
 
-test("fence-less prose OpenUI output fails the structural gate", async () => {
+test("fence-less prose op-plan output fails the structural gate", async () => {
   const result = await prototypeMaterializeRun(
     { suiteId: PROTOTYPE_REF.suiteId, versionId: PROTOTYPE_REF.versionId },
     makeCtx({
       prototype: { requirement: "Task board", spec: "# Tasks\n\n## Page list\n- Board" },
-      // No fence at all and no line-initial `root =` binding: prose garbage.
-      generated: "Here is the program: board = Card([]) with no root declaration",
+      // No fence and no engine-op verb anywhere: prose garbage.
+      generated: "Here is the plan: place some buttons around and make it look nice",
     })
   );
   assert.equal(result.ok, false);
   assert.match(String(result.error ?? ""), /regenerate/i);
 });
 
-test("structural gates: looksLikeOpenuiProgram / looksLikeSpecDocument", () => {
-  assert.equal(looksLikeOpenuiProgram("root = Column([a])\na = Card([])"), true);
-  assert.equal(looksLikeOpenuiProgram("Here is the program: board = Card([])"), false);
+test("structural gates: op-plan verb filter / looksLikeSpecDocument", () => {
+  // parseOpPlan 只收引擎动词行——散文里碰巧带 `place` 一词的句子不是 op。
+  const { parseOpPlan } = await_import_contract();
+  assert.deepEqual(parseOpPlan({ content: "```moonviz\nplace home button b - 1 1 10 10\n```" }), [
+    "place home button b - 1 1 10 10",
+  ]);
+  assert.equal(parseOpPlan({ content: "we place components in ```moonviz fences``` later" }), null);
   assert.equal(looksLikeSpecDocument("# Tasks\n\n## Page list\n- Board"), true);
   assert.equal(looksLikeSpecDocument("plain prose without any heading"), false);
 });
+
+// The actions barrel re-exports the contract helpers; dynamic import keeps the
+// test-file import list identical to the pre-migration surface.
+import * as contractModule from "../actions/moonviz-contract";
+function await_import_contract(): typeof contractModule {
+  return contractModule;
+}
 
 test("progress emits carry stable machine codes for the renderer i18n seam", async () => {
   const codesOf = (emits: ActionProgress[]): Array<string | undefined> =>
@@ -815,7 +778,7 @@ test("progress emits carry stable machine codes for the renderer i18n seam", asy
         spec: "# Tasks\n\n## Page list\n- Board",
         pmDesign: "# Task board 原型提示\n\n## 页面结构\n- Board",
       },
-      generated: "```openui\nroot = Column([board])\nboard = Card([])\n```",
+      generated: "```moonviz\ntemplate login board 1200 800\n```",
       emits: materializeEmits,
     })
   );
@@ -839,8 +802,7 @@ test("progress emits carry stable machine codes for the renderer i18n seam", asy
     makeCtx({
       prototype: {
         requirement: "Task board",
-        opuni: undefined,
-        openui: "root = Column([board])",
+        moonviz: MOCK_MOONVIZ_DOC,
         // specs/prompt-doc-chain：带 pm-design → ui-design 强化 stage 先行。
         pmDesign: "# Task board 原型提示\n\n## 页面结构\n- Board",
       },
@@ -866,7 +828,9 @@ test("re-review M1: nested/array evidence shapes pass the review evidence gate",
   const arrayShaped = await designReviewRun(
     { suiteId: UI_REF.suiteId, versionId: UI_REF.versionId },
     makeCtx({
-      ui: { openui: 'root = Screen("ui")' },
+      ui: {
+        leafer: `{"tag":"Leafer","width":1440,"height":1024,"fill":"#ffffff","children":[{"tag":"Frame","name":"ui","x":0,"y":0,"width":1440,"height":1024,"fill":"#111318","children":[]}]}`,
+      },
       generated: '```json\n{"status":"passed","composite":0.8,"evidence":{"findings":["#submit","#nav"]}}\n```',
     })
   );
@@ -875,7 +839,9 @@ test("re-review M1: nested/array evidence shapes pass the review evidence gate",
   const nestedShaped = await designReviewRun(
     { suiteId: UI_REF.suiteId, versionId: UI_REF.versionId },
     makeCtx({
-      ui: { openui: 'root = Screen("ui")' },
+      ui: {
+        leafer: `{"tag":"Leafer","width":1440,"height":1024,"fill":"#ffffff","children":[{"tag":"Frame","name":"ui","x":0,"y":0,"width":1440,"height":1024,"fill":"#111318","children":[]}]}`,
+      },
       generated: '```json\n{"status":"failed","composite":0.3,"evidence":{"contrast":{"ratio":3.2}}}\n```',
     })
   );
@@ -884,7 +850,9 @@ test("re-review M1: nested/array evidence shapes pass the review evidence gate",
   const hollowShaped = await designReviewRun(
     { suiteId: UI_REF.suiteId, versionId: UI_REF.versionId },
     makeCtx({
-      ui: { openui: 'root = Screen("ui")' },
+      ui: {
+        leafer: `{"tag":"Leafer","width":1440,"height":1024,"fill":"#ffffff","children":[{"tag":"Frame","name":"ui","x":0,"y":0,"width":1440,"height":1024,"fill":"#111318","children":[]}]}`,
+      },
       generated: '```json\n{"status":"passed","composite":0.9,"evidence":{"a":"","b":[]}}\n```',
     })
   );
@@ -956,14 +924,14 @@ test("re-review L2: design.materialize rejects structurally invalid OpenUI befor
     },
     makeCtx({
       mcpCalls,
-      prototype: { requirement: "Task board", openui: "root = Column([board])" },
+      prototype: { requirement: "Task board", moonviz: MOCK_MOONVIZ_DOC },
       generated: "Here is the design: buttons everywhere and no root binding at all",
     })
   );
   assert.equal(result.ok, false);
   assert.match(String(result.error ?? ""), /regenerate/i);
   assert.equal(
-    mcpCalls.some((call) => call.name.endsWith("render_openui")),
+    mcpCalls.some((call) => call.name.endsWith("render_leafer")),
     false
   );
 });

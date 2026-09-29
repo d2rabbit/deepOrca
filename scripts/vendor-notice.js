@@ -54,6 +54,13 @@ const MANIFEST = [
       "C layout engine compiled to clay.wasm (clay-ui-runtime: UI-Design parallel render/export runtime) — pinned commit; a one-line header patch for an upstream duplicate wasm export name ships alongside (see version.json).",
   },
   {
+    name: "MoonViz",
+    upstream: "https://github.com/asdshuaishuai/moonviz",
+    license: "MIT",
+    notes:
+      "Prototype-generation engine, wasm-gc artifact from GitHub Releases (moonviz-engine-replacement) — sha512-anchored with instantiation contract probe; component snapshot (components.json) generated at vendor time.",
+  },
+  {
     name: "OpenWiki",
     upstream: "https://github.com/langchain-ai/openwiki",
     license: "MIT",

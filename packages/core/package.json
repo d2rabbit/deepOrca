@@ -18,6 +18,10 @@
     "./capabilities": {
       "types": "./dist/common/model-capabilities.d.ts",
       "import": "./dist/common/model-capabilities.js"
+    },
+    "./moonviz-engine": {
+      "types": "./dist/common/moonviz-engine.d.ts",
+      "import": "./dist/common/moonviz-engine.js"
     }
   },
   "files": [
@@ -35,6 +39,8 @@
     "@ai-sdk/openai-compatible": "3.0.51",
     "@deeporca/embedding": "file:../embedding",
     "@modelcontextprotocol/sdk": "^1.22.0",
+    "@noble/ciphers": "2.4.0",
+    "@noble/hashes": "2.4.0",
     "@tlibnx/tokenizer-deepseek_v4": "4.0.0",
     "ai": "7.0.105",
     "chalk": "^5.6.2",

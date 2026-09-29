@@ -122,7 +122,7 @@ import { scanSerenaEvents } from "./lib/serena-extract";
 import { useBuildJobs } from "./hooks/useBuildJobs";
 import { aggregateUsage, cacheHitRate } from "./lib/token-usage";
 import { buildToolSummary, getPlanLines } from "./lib/messages";
-import { extractOpenuiFence } from "./openui/inline-extract";
+import { MoonvizPreview } from "./moonviz/MoonvizPreview";
 import type { PermissionResult } from "./lib/permissions";
 import {
   findPendingAskUserQuestion,
@@ -348,7 +348,7 @@ export function App(): JSX.Element {
   const {
     prototypeJson,
     prototypeMode,
-    prototypeOpenuiCode,
+    prototypeMoonvizDoc,
     designContent,
     previewOpen,
     previewTab,
@@ -362,7 +362,9 @@ export function App(): JSX.Element {
     async (artifact: DesignArtifactMeta) => {
       const full = await api.designRead(artifact.id);
       if (full) {
-        openDesignArtifact(full.pipeline, full.content);
+        // legacy "openui" 管线工件作废（不渲染）；moonviz 之外的存量管线照旧。
+        const pipeline = full.pipeline === "openui" ? "moonviz" : full.pipeline;
+        openDesignArtifact(pipeline, full.pipeline === "openui" ? "" : full.content);
       }
     },
     [openDesignArtifact]
@@ -660,22 +662,6 @@ export function App(): JSX.Element {
       applyPreviewToolMessage(message);
       if (message.sessionId === activeIdRef.current) {
         setMessages((prev) => [...prev, message]);
-        // Inline-mode (opt-in via settings.openuiInlineMode): render a
-        // complete ```openui-lang block embedded in the assistant reply,
-        // without waiting for a render_openui tool call. The tool channel
-        // always wins — it lands later and overwrites with the same code.
-        if (message.role === "assistant" && message.content?.includes("```openui-lang")) {
-          void api
-            .getSettings()
-            .then((settings) => {
-              if ((settings as { openuiInlineMode?: boolean }).openuiInlineMode !== true) return;
-              const block = extractOpenuiFence(message.content ?? "");
-              if (block?.complete && block.code) {
-                openDesignArtifact("openui", block.code);
-              }
-            })
-            .catch(() => {});
-        }
       }
     });
 
@@ -1519,9 +1505,9 @@ export function App(): JSX.Element {
       } else if (cmd === "init") {
         void runPrompt({ text: "/init" });
       } else if (cmd === "pm-design" || cmd === "prototype" || cmd === "pm-design-openui" || cmd === "openui") {
-        // Designer prototypes now use OpenUI Lang as the default pipeline.
+        // Designer prototypes run on the MoonViz engine (render_moonviz).
         void runPrompt({
-          text: "Create an interactive prototype using the render_openui tool with OpenUI Lang syntax. Ask me what to build first.",
+          text: "Create an interactive prototype with the MoonViz engine (the prototype.spec → materialize flow, persisted via render_moonviz). Ask me what to build first.",
         });
       } else if (cmd === "deep-design" || cmd === "design") {
         // DeepDesign: generate a web design using the .dd format
@@ -2261,7 +2247,7 @@ export function App(): JSX.Element {
   // Floating-island size vars — the hub sheet and the companion card each own
   // a drag-resizable width (persisted); the CSS vars keep orb offset, stage
   // reflow and card width in lock-step.
-  const companionOpen = Boolean(previewOpen && (prototypeJson || prototypeMode === "openui" || designContent));
+  const companionOpen = Boolean(previewOpen && (prototypeJson || prototypeMode === "moonviz" || designContent));
   // 设计目录的激活判定：本 kind 的工作台 tab 正被查看且属于当前活动 root
   // （跨 root 的设计 tab 不参与目录的"当前工作区"标记与激活主题展开）。
   const protoSurfaceActive = activeTab.kind === "prototype" && activeTab.root === projectRoot;
@@ -2588,7 +2574,7 @@ export function App(): JSX.Element {
                     void handleOpenDesignArtifact({
                       id: artifactId,
                       title: artifactId,
-                      pipeline: pipeline === "spec" ? "spec" : "openui",
+                      pipeline: pipeline === "spec" ? "spec" : pipeline === "design" ? "design" : "moonviz",
                       createdAt: "",
                       updatedAt: "",
                     })
@@ -2685,7 +2671,7 @@ export function App(): JSX.Element {
       </AnimatePresence>
 
       {/* Right-side companion card — PM-Design / DeepDesign output */}
-      {previewOpen && (prototypeJson || prototypeMode === "openui" || designContent) ? (
+      {previewOpen && (prototypeJson || prototypeMode === "moonviz" || designContent) ? (
         <div className="ui-preview-panel">
           <div
             className="ui-companion-resize"
@@ -2738,13 +2724,10 @@ export function App(): JSX.Element {
                 <StreamdownView className="ui-md ui-proto-spec-doc" markdown={designContent} />
               ) : previewTab === "design" && designContent ? (
                 <DesignPreview ddContent={designContent} onIterate={(text) => void runPrompt({ text })} />
-              ) : prototypeMode !== "design" && prototypeMode !== "spec" ? (
-                <PrototypePanel
-                  a2uiJson={prototypeJson ?? ""}
-                  openuiCode={prototypeOpenuiCode}
-                  mode={prototypeMode}
-                  onIterate={(text) => void runPrompt({ text })}
-                />
+              ) : prototypeMode === "moonviz" ? (
+                <MoonvizPreview moonvizDoc={prototypeMoonvizDoc} />
+              ) : prototypeMode === "a2ui" ? (
+                <PrototypePanel a2uiJson={prototypeJson ?? ""} onIterate={(text) => void runPrompt({ text })} />
               ) : null}
             </Suspense>
           </div>

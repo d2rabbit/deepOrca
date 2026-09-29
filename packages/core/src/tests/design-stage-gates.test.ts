@@ -20,8 +20,8 @@ import {
   countTableDataRows,
   designMaterializeRun,
   leaferCanvasFindings,
+  moonvizArtboardCount,
   normalizeGeneratedMarkdown,
-  openuiInteractivityFindings,
   prototypeArchRun,
   prototypeMaterializeRun,
   runDesignStage,
@@ -29,6 +29,9 @@ import {
 } from "../actions";
 import { NULL_SPAWNER } from "../actions/types";
 import type { ActionContext, RunSubagentOptions } from "../actions/types";
+import { installMoonvizFixture, MOCK_MOONVIZ_DOC } from "./moonviz-fixture";
+
+installMoonvizFixture();
 
 type McpCall = { name: string; args: Record<string, unknown> };
 
@@ -249,7 +252,8 @@ test("prototype.arch refuses to run before verification passed", async () => {
 // ── S2 stage0 / ui-design fail-open 降级 ────────────────────────────────────
 
 const SPEC_FOR_DEGRADE = "# 登录 PRD\n\n## 页面清单\n- 登录页\n\n## 功能需求\n- P0 账号密码登录";
-const OPENUI_OK = '```\nroot = Column([Button(Action([@Set($page, "home")], "go")]) )\n```';
+const MOONVIZ_OP_PLAN_OK = "```moonviz\ntemplate login home 1200 800\n```";
+void MOONVIZ_OP_PLAN_OK;
 
 test("materialize stage0 distill failure degrades to spec-driven generation (fail-open)", async () => {
   const mcpCalls: McpCall[] = [];
@@ -258,7 +262,7 @@ test("materialize stage0 distill failure degrades to spec-driven generation (fai
   // 队列：蒸馏产物（无结构 → 审计失败）→ 修复轮（仍无结构）→ 原型生成。
   const ctx = makeCtx(
     { proto: { kind: "prototype", title: "P", content: { spec: SPEC_FOR_DEGRADE, requirement: "登录" } } },
-    { generatedQueue: ["plain prose", "plain prose again", OPENUI_OK], mcpCalls, subagentCalls, emits }
+    { generatedQueue: ["plain prose", "plain prose again", MOONVIZ_OP_PLAN_OK], mcpCalls, subagentCalls, emits }
   );
   const result = await prototypeMaterializeRun({ suiteId: "proto", versionId: "head-1" }, ctx);
   assert.equal(
@@ -268,7 +272,7 @@ test("materialize stage0 distill failure degrades to spec-driven generation (fai
   );
   const genPrompt = subagentCalls[2]?.prompt ?? "";
   assert.ok(
-    genPrompt.startsWith("Create the complete OpenUI Lang prototype for the requirements document below. "),
+    genPrompt.startsWith("Create the complete MoonViz prototype for the requirements document below. "),
     "spec-driven legacy prompt"
   );
   assert.ok(!genPrompt.includes("## pm-design"), "no pm-design block on the degraded path");
@@ -290,7 +294,18 @@ const LEAFER_PLAIN = JSON.stringify({
   width: 1440,
   height: 1024,
   fill: "#ffffff",
-  children: [{ tag: "Rect", x: 24, y: 24, width: 200, height: 64, fill: "#4F46E5" }],
+  children: [
+    {
+      tag: "Frame",
+      name: "home",
+      x: 0,
+      y: 0,
+      width: 1440,
+      height: 1024,
+      fill: "#111318",
+      children: [{ tag: "Rect", x: 24, y: 24, width: 200, height: 64, fill: "#4F46E5" }],
+    },
+  ],
 });
 
 test("design.materialize degrades ui-design after failed repair and still renders the canvas", async () => {
@@ -303,7 +318,7 @@ test("design.materialize degrades ui-design after failed repair and still render
       proto: {
         kind: "prototype",
         title: "P",
-        content: { spec: SPEC_FOR_DEGRADE, openui: "root = Column([])", pmDesign: PD_BASIS, requirement: "登录" },
+        content: { spec: SPEC_FOR_DEGRADE, moonviz: MOCK_MOONVIZ_DOC, pmDesign: PD_BASIS, requirement: "登录" },
       },
     },
     { generatedQueue: [UI_THIN, UI_THIN, "```json\n" + LEAFER_PLAIN + "\n```"], mcpCalls, subagentCalls, emits }
@@ -333,11 +348,11 @@ test("design.materialize degrades ui-design after failed repair and still render
 
 // ── 真机走查加固：报成功却无落盘事实必须大声失败 ───────────────────────────
 
-test("materialize fails loudly when render_openui succeeds without an artifact ref", async () => {
+test("materialize fails loudly when render_moonviz succeeds without an artifact ref", async () => {
   const mcpCalls: McpCall[] = [];
   const ctx = makeCtx(
     { proto: { kind: "prototype", title: "P", content: { spec: SPEC_FOR_DEGRADE, requirement: "登录" } } },
-    { generatedQueue: [OPENUI_OK], mcpCalls, stripRefOn: "render_openui" }
+    { generatedQueue: [MOONVIZ_OP_PLAN_OK], mcpCalls, stripRefOn: "render_moonviz" }
   );
   const result = await prototypeMaterializeRun({ suiteId: "proto", versionId: "head-1" }, ctx);
   assert.equal(result.ok, false);
@@ -351,7 +366,7 @@ test("design.materialize fails loudly when render_leafer succeeds without an art
       proto: {
         kind: "prototype",
         title: "P",
-        content: { spec: SPEC_FOR_DEGRADE, openui: "root = Column([])", requirement: "登录" },
+        content: { spec: SPEC_FOR_DEGRADE, moonviz: MOCK_MOONVIZ_DOC, requirement: "登录" },
       },
     },
     { generatedQueue: ["```json\n" + LEAFER_PLAIN + "\n```"], mcpCalls, stripRefOn: "render_leafer" }
@@ -364,28 +379,22 @@ test("design.materialize fails loudly when render_leafer succeeds without an art
   assert.match(result.ok ? "" : (result as { error?: string }).error, /without a persisted artifact ref/);
 });
 
-// ── S4 OpenUI 交互密度门 ─────────────────────────────────────────────────────
+// ── S4 画板计数门（moonviz 等价迁移：旧 OpenUI 交互密度门的页面基数输入）──
 
-test("openuiInteractivityFindings flags shells and unreachable pages", () => {
-  const spec = [
-    "# PRD",
-    "## 5. 页面清单",
-    "| 页面 | 页面ID |",
-    "| --- | --- |",
-    "| 登录 | login |",
-    "| 首页 | home |",
+test("moonvizArtboardCount counts each artboard marker once", () => {
+  const doc = [
+    "<!-- moonviz:artboard home -->",
+    "```mbt",
+    "fn visual_home() -> @decl.Prototype { page }",
+    "```",
+    "",
+    "<!-- moonviz:artboard orders -->",
+    "```mbt",
+    "fn visual_orders() -> @decl.Prototype { page }",
+    "```",
   ].join("\n");
-  const shell = '$page = "login"\nroot = Column([])';
-  const shellFindings = openuiInteractivityFindings(spec, shell);
-  assert.ok(shellFindings.some((f) => f.includes("组件调用")));
-  assert.ok(shellFindings.some((f) => f.includes("Action 交互")));
-  assert.ok(shellFindings.some((f) => f.includes("home") && f.includes("不可达")));
-  const rich = [
-    '$page = "login"',
-    'root = $page == "login" ? Column([Text("a"), Text("b"), Card([]), Button(Action([@Set($page, "home")], "go"))]) : null',
-    'homeView = Column([Text("c"), Text("d"), Card([]), Table([]), Input([]), Button(Action([@Set($page, "login")], "back"))])',
-  ].join("\n");
-  assert.deepEqual(openuiInteractivityFindings(spec, rich), []);
+  assert.equal(moonvizArtboardCount(doc), 2);
+  assert.equal(moonvizArtboardCount("no markers at all"), 0);
 });
 
 // ── S5 Leafer 画布深度门 ─────────────────────────────────────────────────────
@@ -420,16 +429,13 @@ test("leaferCanvasFindings: missing frames are hard, low density is soft", () =>
 test("design.materialize fails closed when canvas frames stay below prototype pages", async () => {
   const mcpCalls: McpCall[] = [];
   const oneFrame = "```json\n" + frameCanvas(1) + "\n```";
-  const protoProgram = [
-    '$page = "login"',
-    'root = $page == "login" ? Column([]) : $page == "home" ? Column([]) : null',
-  ].join("\n");
+  const protoDoc = ["<!-- moonviz:artboard login -->", "<!-- moonviz:artboard home -->"].join("\n");
   const ctx = makeCtx(
     {
       proto: {
         kind: "prototype",
         title: "P",
-        content: { spec: SPEC_FOR_DEGRADE, openui: protoProgram, requirement: "登录" },
+        content: { spec: SPEC_FOR_DEGRADE, moonviz: protoDoc, requirement: "登录" },
       },
     },
     { generatedQueue: [oneFrame, oneFrame], mcpCalls }

@@ -26,7 +26,7 @@
 
 **当前阶段**：预生产冻结期（dev 集成线 + test 冻结线）。F4/H 出口门槛已于 2026-09-03 拍板毙掉（不再作为启动闸），人工走查项（F4 交互清单 / GitMCP-12 / B3 对拍）移交预生产测试清单；当前功能工作线在 `feat/modern-ui-redesign`（编辑器 CM6 重构 / 设计模块 v2 / 主会话重设计 / coord-chain v6 设计）与 `next/coord-chain`（OC1–OC2 已实施未合并）。
 
-### 逐 spec 终判（✅16 · 🟡16 · ⬜13 · ❌4）
+### 逐 spec 终判（✅16 · 🟡17 · ⬜12 · ❌4）
 
 | spec | 终判 | 一句话 |
 | --- | --- | --- |
@@ -67,7 +67,7 @@
 | [prompt-doc-chain](../../specs/archive/prompt-doc-chain/design.md) | 🟡 | 设计链提示词文档轨：实施中（5/18）**冻结**（2026-09-19 用户拍板；pd→pm 更名与旧数据读归一已落地生效） |
 | [leafer-ui-engine](../../specs/archive/leafer-ui-engine/design.md) | ✅ | UI-Design 引擎替换为 LeaferJS：leafer-editor 画布 + LEAFER 契约/修复环 + 可交互 `.ddu` 导出 + EARS 17 双栈路由，WP0–WP5 全落地 + 两轮审查修复批；真机走查移交预生产清单；**2026-09-19 代码核实改判收官**（状态头「未实施」为立项残留，同日修正） |
 | [clay-ui-runtime](../../specs/archive/clay-ui-runtime/design.md) | ✅ | Clay 并行渲染/导出运行时：WP0 spike kill gate **PASS** + WP1–WP4 全落地（确定性编译器 / `.ddu` 自包含 preview.html，15 例全绿 + guard 锁界）+ E2E 加固批（五缺陷 + wrapCJK 重写）+ vendor 指纹防漂移；端到端走查移交预生产清单；**2026-09-19 复核改判收官**（审查区「WP0 未跑」登记不实，见其 §6 勘误） |
-| [moonviz-engine-replacement](../../specs/moonviz-engine-replacement/design.md) | ⬜ | MoonViz 引擎更换——原型模块生成栈替换 OpenUI Lang → wasm（2026-09-19 立项，承接 `docs/engine-integration-plan.md` v4.1 详案与 prototype-reliability §4 底座；**上游引擎迭代中：P0 电池兼作快照体检可开工，P2 物理替换以上游收敛 + 电池全绿为硬门槛**；P0 电池 9 项 / P1 接缝 / P2 替换+删除同提交 / P3 DDP codec TS 自建与全量面接入） |
+| [moonviz-engine-replacement](../../specs/moonviz-engine-replacement/design.md) | 🟡 | MoonViz 引擎更换——原型模块生成栈替换 OpenUI Lang → wasm（2026-09-19 立项，承接 `docs/engine-integration-plan.md` 详案与 prototype-reliability §4 底座；**2026-09-29 主体收官**：基线 `engine-v0.1.7`（v5.2），P0 电池 20 项全绿 + P1 接缝 + **P2 替换删除完成**（OpenUI 全量退场、单文档三画板、MoonvizPreview iframe）+ P3 DDP codec/export-ddp 落地；遗留：打包形态实测 + 真机走查（移交预生产）+ DDP1 密码 UX（决策 7）；P0 电池 9 项 / P1 接缝 / P2 替换+删除同提交 / P3 DDP codec TS 自建与全量面接入） |
 | [chat-redesign](../../specs/archive/chat-redesign/design.md) | 🟡 | 主会话重设计 P1/P3/P4 主体落地（三栏/指令目录/活动区/引用芯片/会话流对齐 demo-flow），冻结归档（2026-09-06） |
 | [depth-lane](../../specs/review-ing/depth-lane/design.md) | 🟡 | 复杂性路由双轨：P0 网关观察 + P1 重轨 + P2.1–2.4 落地并经 GVGL 真机校准 + X.1–X.3 徽标/面板落地；术语重组退出用户面（快速/深度模式）；X.* 桌面面待 enabled 开启 |
 | [editor-agent](../../specs/archive/editor-agent/design.md) | 🟡 | 编辑器数字体设计切片（B3c 部分落地）；域并入 editor-copilot，冻结归档 |

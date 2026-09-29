@@ -149,42 +149,25 @@ test("EARS 14 反例:正文早现「待确认」不锁生成(无标题节 → �
   assert.equal(todos.length, 0, "prose mention does not create todos / lock generation");
 });
 
-const MOBILE_ONLY_CONTENT = {
+const MOONVIZ_CONTENT = {
   requirement: "移动订单",
   spec: "| 目标平台 | mobile |\n\n## 页面清单\n\n| 页面 | 页面ID |\n| --- | --- |\n| 首页 | home |",
-  openuiVariants: {
-    mobile:
-      '$page = "home"\nroot = $page == "home" ? homeView : null\nhomeView = Card([])\nbtn = Button("h", Action([@Set($page, "home")]))',
-  },
+  moonviz: "moonviz:artboard home",
 };
 
-test("EARS 15: variant-only 套件在 mobile 设备下画布可达、verify 可用", async () => {
-  // 设备切换器只在 proto tab 渲染——直接以 proto 打开。
-  const utils = await renderWorkspace(prototypeSuite(MOBILE_ONLY_CONTENT as DesignSuiteVersion["content"]), "proto");
+test("EARS 15 (moonviz 等价): 有 canonical 文档的套件画布可达、verify 可用", async () => {
+  // 单文档模型：不再有变体槽/回退横幅——画布门 = moonviz 字段存在。
+  const utils = await renderWorkspace(prototypeSuite(MOONVIZ_CONTENT as DesignSuiteVersion["content"]), "proto");
   await rtl.act(async () => {
-    await Promise.resolve();
-    await Promise.resolve();
-  });
-  // 切到 mobile 设备(仅变体存在);en 文案为 "Mobile 375"。
-  const deviceBtn = [...utils.container.querySelectorAll("button")].find((b) => /mobile/i.test(b.textContent ?? ""));
-  assert.ok(deviceBtn, "mobile device switcher present");
-  await rtl.act(async () => {
-    deviceBtn!.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
     await Promise.resolve();
     await Promise.resolve();
   });
 
-  // 画布存在(非空态),回退横幅不在(该端有变体)。
-  assert.ok(
-    utils.container.querySelector(".ui-prototype-panel") || utils.container.querySelector("[class*=openui]"),
-    "canvas renders the variant"
-  );
-  assert.ok(
-    !utils.container.querySelector(".ui-design-variant-fallback"),
-    "no fallback banner for the existing variant"
-  );
+  // 画布存在(MoonvizPreview 挂载),空态与回退横幅都不在。
+  assert.ok(utils.container.querySelector('[data-testid="moonviz-preview"]'), "canvas renders the moonviz preview");
+  assert.ok(!utils.container.querySelector(".ui-design-variant-fallback"), "no fallback banner for a documented suite");
   const verifyBtn = [...utils.container.querySelectorAll("button")].find((b) => b.textContent?.includes("Acceptance"));
-  assert.ok(verifyBtn && !verifyBtn.disabled, "verify enabled for variant-only suite");
+  assert.ok(verifyBtn && !verifyBtn.disabled, "verify enabled for a documented suite");
 });
 
 test("EARS 17: slides 渲染失败局部化——toast + 回退 doc,不写 workspace error", async () => {
@@ -212,18 +195,12 @@ test("EARS 17: slides 渲染失败局部化——toast + 回退 doc,不写 works
   unsubscribe();
 });
 
-test("EARS 16: 播放模式冻结画布 ToAssistant 动作(onIterate 不派发 revise)", async () => {
-  const actionRuns: Array<{ id: string; input: Record<string, unknown> }> = [];
-  overridesRef.actionRun = async (id: string, input: Record<string, unknown>) => {
-    actionRuns.push({ id, input });
-    return { ok: true, output: { ok: true } };
-  };
+test("EARS 16 (moonviz 等价): 播放模式进入/退出,画布保持挂载", async () => {
   const utils = await renderWorkspace(
     prototypeSuite({
       requirement: "r",
       spec: SPEC_WITH_TODOS,
-      openui:
-        '$page = "home"\nroot = $page == "home" ? homeView : null\nhomeView = Card([])\nbtn = Button("h", Action([@Set($page, "home")]))',
+      moonviz: "moonviz:artboard home",
     } as DesignSuiteVersion["content"])
   );
   const tabs = [...utils.container.querySelectorAll('[role="tab"]')];
@@ -242,35 +219,9 @@ test("EARS 16: 播放模式冻结画布 ToAssistant 动作(onIterate 不派发 r
     await Promise.resolve();
     await Promise.resolve();
   });
-  // 经 React fiber 取 PrototypePanel 的最新 onIterate prop 并调用(等价于
-  // 画布上 ToAssistant 按钮回传)。
-  const fiberNode = utils.container.querySelector(".ui-prototype-panel");
-  assert.ok(fiberNode, "panel mounted");
-  const fiberKey = Object.keys(fiberNode as unknown as Record<string, unknown>).find((k) =>
-    k.startsWith("__reactFiber$")
-  );
-  assert.ok(fiberKey, "react fiber reachable in test build");
-  let fiber = (fiberNode as unknown as Record<string, { memoizedProps?: Record<string, unknown>; return?: unknown }>)[
-    fiberKey!
-  ];
-  let onIterate: ((text: string) => void) | undefined;
-  while (fiber) {
-    const props = fiber.memoizedProps as { onIterate?: (text: string) => void } | undefined;
-    if (typeof props?.onIterate === "function") {
-      onIterate = props.onIterate;
-      break;
-    }
-    fiber = fiber.return as typeof fiber;
-  }
-  assert.ok(onIterate, "onIterate prop found via fiber");
-  const before = actionRuns.length;
-  await rtl.act(async () => {
-    onIterate!("通过画布按钮回传的指令");
-    await Promise.resolve();
-    await Promise.resolve();
-  });
-  assert.equal(actionRuns.length, before, "playing mode drops the ToAssistant iteration (no revise dispatched)");
-  // 退出播放后同一通道恢复派发。
+  // MoonvizPreview 在播放中保持挂载（沙箱 iframe 自治渲染，无 ToAssistant
+  // 回传通道——冻结语义由「不派发 revise」结构化保证：预览不持有 onIterate）。
+  assert.ok(utils.container.querySelector('[data-testid="moonviz-preview"]'), "preview stays mounted during play");
   const exitBtn = [...utils.container.querySelectorAll("button")].find((b) => b.textContent?.includes("Exit demo"));
   assert.ok(exitBtn, "exit button present");
   await rtl.act(async () => {
@@ -278,26 +229,7 @@ test("EARS 16: 播放模式冻结画布 ToAssistant 动作(onIterate 不派发 r
     await Promise.resolve();
     await Promise.resolve();
   });
-  // 取退出后的最新闭包再调一次。
-  const fiber2 = (
-    fiberNode as unknown as Record<string, { memoizedProps?: Record<string, unknown>; return?: unknown }>
-  )[fiberKey!];
-  let f2 = fiber2;
-  let onIterate2: ((text: string) => void) | undefined;
-  while (f2) {
-    const props = f2.memoizedProps as { onIterate?: (text: string) => void } | undefined;
-    if (typeof props?.onIterate === "function") {
-      onIterate2 = props.onIterate;
-      break;
-    }
-    f2 = f2.return as typeof f2;
-  }
-  await rtl.act(async () => {
-    onIterate2!("退出后的指令");
-    await Promise.resolve();
-    await Promise.resolve();
-  });
-  assert.ok(actionRuns.length > before, "after exit the channel dispatches again");
+  assert.ok(utils.container.querySelector('[data-testid="moonviz-preview"]'), "preview still mounted after exit");
 });
 
 // ── EARS 18: 表单状态槽位隔离(design-store 级) ─────────────────────────────

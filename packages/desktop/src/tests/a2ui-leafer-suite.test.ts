@@ -1,7 +1,7 @@
 /**
  * render_leafer — the UI-Design leafer stack's suite persistence channel
  * (specs/leafer-ui-engine): creates/ui-suites with content.leafer, never
- * mixes content.openui, validates the document at the boundary, and projects
+ * mixes content.moonviz, validates the document at the boundary, and projects
  * design.leafer.json beside the suite.
  */
 
@@ -66,7 +66,7 @@ test("render_leafer creates a ui suite version with content.leafer and the json 
     assert.equal(suite.kind, "ui");
     const content = suite.currentVersion.content as UiSuiteContent;
     assert.equal(content.leafer, DESIGN);
-    assert.equal(content.openui, undefined, "leafer versions never carry the legacy openui field");
+    assert.equal("moonviz" in content, false, "leafer versions never carry the prototype-stack field");
     assert.equal(content.designSystemId, "dark-tech");
     const projection = path.join(root, ".deeporca", "designs", ref.suiteId, "design.leafer.json");
     assert.ok(fs.existsSync(projection), "design.leafer.json projection written");
@@ -193,8 +193,8 @@ test("render_leafer validates the document at the write boundary", async () => {
   }
 });
 
-test("render_openui on a leafer-headed ui suite takes over the stack (clears leafer)", async () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "a2ui-leafer-openui-"));
+test("render_moonviz rejects a leafer-headed ui suite (prototype-stack tool)", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "a2ui-leafer-moonviz-"));
   roots.push(root);
   const client = await clientFor(root);
   try {
@@ -204,28 +204,24 @@ test("render_openui on a leafer-headed ui suite takes over the stack (clears lea
     });
     const ref = refOf(created);
     const result = await client.callTool({
-      name: "render_openui",
+      name: "render_moonviz",
       arguments: {
-        code: 'root = Stack([TextContent("概览", "large-heavy")])',
+        doc: "moonviz:artboard home",
         suiteId: ref.suiteId,
         versionId: ref.versionId,
       },
     });
-    assert.ok(!result.isError, textOf(result));
+    assert.ok(result.isError, "render_moonviz must reject ui-kind suites");
     const suite = readDesignSuite(root, ref.suiteId);
     const content = suite?.currentVersion.content as UiSuiteContent;
-    assert.equal(typeof content.openui, "string", "the openui program persisted");
-    assert.equal(
-      content.leafer,
-      undefined,
-      "an openui write takes over the version's stack — the stale leafer document must not survive (single-stack invariant, both directions)"
-    );
+    assert.equal(typeof content.leafer, "string", "the leafer document is untouched");
+    assert.equal("moonviz" in content, false, "no prototype-stack field ever lands on a ui suite");
   } finally {
     await client.close();
   }
 });
 
-test("update_openui on a leafer-headed ui suite clears the leafer field too", async () => {
+test("update_moonviz rejects a leafer-headed ui suite too", async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "a2ui-leafer-update-"));
   roots.push(root);
   const client = await clientFor(root);
@@ -236,22 +232,17 @@ test("update_openui on a leafer-headed ui suite clears the leafer field too", as
     });
     const ref = refOf(created);
     const result = await client.callTool({
-      name: "update_openui",
+      name: "update_moonviz",
       arguments: {
-        code: 'root = Stack([TextContent("修订后", "large-heavy")])',
+        doc: "moonviz:artboard home",
         suiteId: ref.suiteId,
         versionId: ref.versionId,
       },
     });
-    assert.ok(!result.isError, textOf(result));
+    assert.ok(result.isError, "update_moonviz must reject ui-kind suites");
     const suite = readDesignSuite(root, ref.suiteId);
     const content = suite?.currentVersion.content as UiSuiteContent;
-    assert.equal(typeof content.openui, "string", "the updated openui program persisted");
-    assert.equal(
-      content.leafer,
-      undefined,
-      "update_openui is the legacy revision channel — it must clear the leafer field like render_openui"
-    );
+    assert.equal(typeof content.leafer, "string", "the leafer document is untouched");
   } finally {
     await client.close();
   }

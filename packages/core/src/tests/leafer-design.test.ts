@@ -285,7 +285,7 @@ test("leafer describe: deterministic, key-order invariant, semantic positions", 
 
 const LEAFER_SUBAGENT = `\`\`\`json\n${VALID_DOC}\n\`\`\``;
 
-test("design.materialize produces a leafer suite version via render_leafer and never calls render_openui", async () => {
+test("design.materialize produces a leafer suite version via render_leafer and never touches the retired prototype channel", async () => {
   const mcpCalls: McpCall[] = [];
   const subagentCalls: RunSubagentOptions[] = [];
   const result = await designMaterializeRun(
@@ -385,7 +385,7 @@ test("leaferNodeStableNameAt resolves lint paths and rejects foreign shapes", ()
   );
 });
 
-test("design.revise(part=design) keeps the legacy update_openui path for openui-only versions", async () => {
+test("design.revise(part=design) on an openui-era version without leafer fails with a clear error", async () => {
   const mcpCalls: McpCall[] = [];
   const result = await designReviseRun(
     { suiteId: UI_REF.suiteId, versionId: UI_REF.versionId, part: "design", target: "hero", instruction: "tweak" },
@@ -395,11 +395,9 @@ test("design.revise(part=design) keeps the legacy update_openui path for openui-
       mcpCalls,
     })
   );
-  assert.equal(result.ok, true);
-  assert.ok(
-    mcpCalls.some((call) => call.name.endsWith("update_openui")),
-    "legacy versions keep the update_openui channel"
-  );
+  assert.equal(result.ok, false);
+  assert.match(result.error ?? "", /leafer design/);
+  assert.ok(!mcpCalls.some((call) => call.name.endsWith("update_openui")), "the update_openui channel is retired");
   assert.ok(!mcpCalls.some((call) => call.name.endsWith("render_leafer")));
 });
 

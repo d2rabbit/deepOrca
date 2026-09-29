@@ -6,15 +6,15 @@
  * unzip tool, built with ZERO dependencies (node:zlib deflate + hand-rolled
  * CRC32/zip structures):
  *
- *   .ddp — PM-Design prototype export (pipeline "openui"):
- *          manifest.json + source.openui.txt + index.html (viewer stub —
- *          OpenUI Lang renders via the in-app React runtime, so the stub
- *          shows the source and explains where to open the live preview).
+ *   .ddp — PM-Design prototype export (pipeline "moonviz", specs/
+ *          moonviz-engine-replacement): manifest.json + source/doc.mbt.md
+ *          (the canonical MoonViz document) + index.html — the REAL
+ *          interactive viewer (the engine's export_html artifact) when a
+ *          preview cache is provided, else a source-stub fallback.
  *   .ddu — UI-Design document export: manifest.json + source + index.html.
- *          The current generation stack stores OpenUI Lang, so UI suites
- *          export source.openui.txt + viewer stub (buildDduOpenuiPackage);
- *          legacy .dd artifacts keep the standalone compiled render
- *          (source.dd, buildDduPackage).
+ *          The UI stack is leafer-only since MoonViz took over the prototype
+ *          stack (buildDduLeaferPackage); legacy .dd artifacts keep the
+ *          standalone compiled render (source.dd, buildDduPackage).
  *
  * Pure logic only (no Electron imports) — unit-testable from the plain-Node
  * test runner, same as design-store.
@@ -45,9 +45,10 @@ export interface DdPackageManifest {
   kind: "pm-design" | "ui-design";
   title: string;
   artifactId: string;
-  /** Generation stack: openui = PM-Design / legacy UI-Design, leafer =
-   *  specs/leafer-ui-engine's UI-Design stack, design = legacy .dd. */
-  pipeline: "openui" | "design" | "leafer";
+  /** Generation stack: moonviz = PM-Design (specs/moonviz-engine-
+   *  replacement), leafer = specs/leafer-ui-engine's UI-Design stack, design
+   *  = legacy .dd. */
+  pipeline: "moonviz" | "design" | "leafer";
   exportedAt: string;
   generator: string;
   /** .ddp only (additive, spec appendix C④): true when a `verification.md`
@@ -84,86 +85,47 @@ export interface DduExtras {
 
 const GENERATOR = "DeepOrca Desktop";
 
-/** Build the .ddp package (PM-Design / openui pipeline). When a non-empty
- *  `verification` result is given, a fourth `verification.md` entry (the
- *  acceptance report) is added and `manifest.verification` is set. */
+/** Build the .ddp package (PM-Design / moonviz pipeline). When a non-empty
+ *  `verification` result is given, a `verification.md` entry (the acceptance
+ *  report) is added and `manifest.verification` is set. When an interactive
+ *  preview cache (prototype.html) is available it ships as the REAL viewer;
+ *  otherwise index.html falls back to the source stub. */
 export function buildDdpPackage(
   artifact: { id: string; title: string },
-  openuiSource: string,
+  moonvizDoc: string,
   exportedAt: string,
   verification?: PackageVerification,
-  /** WP4.1:平台变体(mobile/tablet)随包导出——三端生成是一等能力,交付物
-   *  不该只有桌面端。每端附源码 + 可播放 standalone HTML。 */
-  variants?: { mobile?: string; tablet?: string }
+  previewHtml?: string
 ): Buffer {
   // "Present and non-empty": a verification object without any check carries
   // no acceptance evidence — skip both the entry and the manifest flag.
   const checks = Array.isArray(verification?.checks) ? verification.checks : [];
   const includeVerification = checks.length > 0;
+  const interactive = Boolean(previewHtml?.trim());
   const manifest: DdPackageManifest = {
     format: "ddp",
     formatVersion: 1,
     kind: "pm-design",
     title: artifact.title,
     artifactId: artifact.id,
-    pipeline: "openui",
+    pipeline: "moonviz",
     exportedAt,
     generator: GENERATOR,
     ...(includeVerification ? { verification: true } : {}),
-    ...(variants?.mobile || variants?.tablet ? { platformVariants: true } : {}),
+    ...(interactive ? { interactivePreview: true } : {}),
   };
   const entries: PackageEntry[] = [
     { name: "manifest.json", data: Buffer.from(JSON.stringify(manifest, null, 2), "utf8") },
-    { name: "source.openui.txt", data: Buffer.from(openuiSource, "utf8") },
-    { name: "index.html", data: Buffer.from(buildDdpViewerHtml(artifact.title, openuiSource), "utf8") },
+    { name: "source/doc.mbt.md", data: Buffer.from(moonvizDoc, "utf8") },
+    {
+      name: "index.html",
+      data: Buffer.from(interactive ? previewHtml! : buildDdpViewerHtml(artifact.title, moonvizDoc), "utf8"),
+    },
   ];
-  for (const device of ["mobile", "tablet"] as const) {
-    const source = variants?.[device]?.trim();
-    if (!source) continue;
-    entries.push({ name: `source.openui.${device}.txt`, data: Buffer.from(source, "utf8") });
-    entries.push({
-      name: `standalone.${device}.html`,
-      data: Buffer.from(buildStandaloneOpenuiHtml(`${artifact.title} · ${device}`, source), "utf8"),
-    });
-  }
   if (includeVerification) {
     entries.push({ name: "verification.md", data: Buffer.from(renderVerificationMarkdown(verification!), "utf8") });
   }
   return zipEntries(entries);
-}
-
-/**
- * WP4.3 standalone HTML for a platform variant — 交叉审查修正(2026-09-10):
- * OpenUI 官方没有浏览器 UMD bundle(@openuidev/browser 于 npm 不存在,404 实证),
- * 此前假设的 CDN+window.OpenUI.render 路线是死路径。诚实降级:交付一个自包含
- * 的「源码 + 平台说明」查看页(双击可开、零依赖、零网络),并在页面顶部说明
- * 在 DeepOrca 工作区内打开可获得完整交互预览。待官方提供浏览器 bundle 后
- * 再升级为可播放版本。
- */
-export function buildStandaloneOpenuiHtml(title: string, openuiSource: string): string {
-  // JSON.stringify 转义引号/换行,再做 </script> 转义防提前闭合(JSON 里 \/ 合法)。
-  const embedded = JSON.stringify(openuiSource).replace(/<\/script>/gi, "<\\/script>");
-  const escapeHtml = (text: string): string => text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  return [
-    "<!doctype html>",
-    '<html lang="zh">',
-    "<head>",
-    '<meta charset="utf-8">',
-    `<title>${escapeHtml(title)}</title>`,
-    "<style>",
-    "body{margin:0;padding:24px;font-family:system-ui,-apple-system,sans-serif;color:#1f2328;background:#fff}",
-    ".note{padding:10px 14px;border:1px solid #d0d7de;border-radius:8px;background:#f6f8fa;font-size:13px;color:#57606a}",
-    "pre{padding:16px;border:1px solid #d0d7de;border-radius:8px;background:#f6f8fa;font-size:12.5px;line-height:1.6;overflow:auto;white-space:pre-wrap}",
-    "</style>",
-    "</head>",
-    "<body>",
-    `<h2>${escapeHtml(title)}</h2>`,
-    '<p class="note">这是该平台变体的 OpenUI Lang 源码交付件。在 DeepOrca 的原型工作区打开此套件可获得完整的交互预览（导航、表单、状态联动的渲染由应用内运行时承载）。</p>',
-    `<pre>${escapeHtml(openuiSource)}</pre>`,
-    `<script id="openui-source" type="application/json">${embedded}</script>`,
-    "</body>",
-    "</html>",
-  ].join("\n");
 }
 
 /** Build the .ddu package (UI-Design / design pipeline) with a standalone render. */
@@ -188,48 +150,6 @@ export function buildDduPackage(
     { name: "source.dd", data: Buffer.from(ddSource, "utf8") },
     { name: "index.html", data: Buffer.from(standaloneHtml, "utf8") },
   ]);
-}
-
-/** Build the .ddu package for the current UI-Design generation stack
- *  (OpenUI Lang source; viewer stub — same in-app runtime story as .ddp).
- *  Non-empty `extras.tokens` / non-empty `extras.components` each add a JSON
- *  entry (tokens.json / components.json) and are listed in `manifest.entries`. */
-export function buildDduOpenuiPackage(
-  artifact: { id: string; title: string },
-  openuiSource: string,
-  exportedAt: string,
-  extras?: DduExtras
-): Buffer {
-  const tokens = extras?.tokens;
-  const components = extras?.components;
-  const hasTokens = isNonEmptyRecord(tokens);
-  const componentList = Array.isArray(components) && components.length > 0 ? components : null;
-  const extraNames: string[] = [];
-  if (hasTokens) extraNames.push("tokens.json");
-  if (componentList) extraNames.push("components.json");
-  const manifest: DdPackageManifest = {
-    format: "ddu",
-    formatVersion: 1,
-    kind: "ui-design",
-    title: artifact.title,
-    artifactId: artifact.id,
-    pipeline: "openui",
-    exportedAt,
-    generator: GENERATOR,
-    ...(extraNames.length > 0 ? { entries: extraNames } : {}),
-  };
-  const entries: PackageEntry[] = [
-    { name: "manifest.json", data: Buffer.from(JSON.stringify(manifest, null, 2), "utf8") },
-    { name: "source.openui.txt", data: Buffer.from(openuiSource, "utf8") },
-    { name: "index.html", data: Buffer.from(buildDduOpenuiViewerHtml(artifact.title, openuiSource), "utf8") },
-  ];
-  if (hasTokens) {
-    entries.push({ name: "tokens.json", data: Buffer.from(JSON.stringify(tokens, null, 2), "utf8") });
-  }
-  if (componentList) {
-    entries.push({ name: "components.json", data: Buffer.from(JSON.stringify(componentList, null, 2), "utf8") });
-  }
-  return zipEntries(entries);
 }
 
 // ── .ddu leafer pipeline (specs/leafer-ui-engine WP3) ────────────────────────
@@ -387,7 +307,7 @@ export function buildDduLeaferViewerHtml(
 /** Build the .ddu package for the leafer UI-Design stack: manifest +
  *  design.leafer.json + the interactive index.html + the leafer web runtime
  *  and its flow layout plugin. Non-empty token/component extras ride along
- *  like the openui pipeline. */
+ *  like the moonviz pipeline. */
 export function buildDduLeaferPackage(
   artifact: { id: string; title: string },
   leaferJson: string,
@@ -497,31 +417,6 @@ function isNonEmptyRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /** Viewer stub for the OpenUI-sourced .ddu (UI-Design). */
-function buildDduOpenuiViewerHtml(title: string, source: string): string {
-  const safeTitle = escapeHtml(title);
-  const safeSource = escapeHtml(source);
-  return `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>${safeTitle} — UI-Design source</title>
-<style>
-body{font-family:system-ui,sans-serif;background:#111418;color:#e6e6e6;margin:0;padding:32px;line-height:1.6}
-h1{font-size:20px;margin:0 0 8px}
-p{color:#9aa3ad;font-size:13px;margin:0 0 20px}
-pre{background:#1b2027;border:1px solid #2a313a;border-radius:8px;padding:16px;font-size:12px;overflow:auto;white-space:pre-wrap}
-</style>
-</head>
-<body>
-<h1>${safeTitle}</h1>
-<p>UI-Design document package (.ddu). The OpenUI Lang source below renders
-interactively in DeepOrca (Designer → UI-Design preview); this file preserves
-the exact source. See manifest.json for package metadata.</p>
-<pre>${safeSource}</pre>
-</body>
-</html>`;
-}
 
 /**
  * Viewer stub for .ddp: OpenUI Lang has no standalone HTML compiler (it

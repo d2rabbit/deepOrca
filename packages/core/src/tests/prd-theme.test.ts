@@ -12,6 +12,9 @@ import assert from "node:assert/strict";
 import { designMaterializeRun, prototypeSpecRun } from "../actions";
 import { NULL_SPAWNER } from "../actions/types";
 import type { ActionContext, RunSubagentOptions } from "../actions/types";
+import { installMoonvizFixture, MOCK_MOONVIZ_DOC } from "./moonviz-fixture";
+
+installMoonvizFixture();
 
 type McpCall = { name: string; args: Record<string, unknown> };
 
@@ -311,7 +314,7 @@ test("design.materialize carries the basis prototype's theme fields into render_
   const proto: FakeSuite = {
     kind: "prototype",
     title: "登录 PRD",
-    content: { openui: "root = Column([])", requirement: "登录模块" },
+    content: { moonviz: MOCK_MOONVIZ_DOC, requirement: "登录模块" },
     themeId: "theme-login",
     stage: "阶段1",
     inherits: { suiteId: "parent" },
@@ -322,7 +325,18 @@ test("design.materialize carries the basis prototype's theme fields into render_
     width: 1440,
     height: 1024,
     fill: "#ffffff",
-    children: [{ tag: "Rect", x: 24, y: 24, width: 200, height: 64, fill: "#4F46E5" }],
+    children: [
+      {
+        tag: "Frame",
+        name: "home",
+        x: 0,
+        y: 0,
+        width: 1440,
+        height: 1024,
+        fill: "#111318",
+        children: [{ tag: "Rect", x: 24, y: 24, width: 200, height: 64, fill: "#4F46E5" }],
+      },
+    ],
   });
   const ctx = makeCtx({ proto }, { generatedQueue: [`\`\`\`json\n${leaferDoc}\n\`\`\``], mcpCalls });
   const result = await designMaterializeRun(

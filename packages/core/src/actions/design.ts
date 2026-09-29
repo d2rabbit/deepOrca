@@ -4,11 +4,10 @@
  * both disciplines). UI/UX design takes a requirement (a single sentence is
  * fine) and/or an existing PROTOTYPE artifact as the interaction basis, and
  * produces a Leafer JSON scene tree via the deep-design skill
- * (specs/leafer-ui-engine — the generation stack switched from OpenUI Lang;
- * the prototype module keeps OpenUI Lang, guard-tested split). Legacy suites
- * carrying only `content.openui` keep revising through update_openui below.
- * Prototype generation now lives in the prototype.* module
- * (spec → prototype, see actions/prototype.ts).
+ * (specs/leafer-ui-engine). The prototype basis is the MoonViz canonical
+ * document (specs/moonviz-engine-replacement — the OpenUI stack is retired);
+ * UI suites are leafer-only. Prototype generation lives in the prototype.*
+ * module (spec → prototype, see actions/prototype.ts).
  *
  * This is a pure orchestration layer — it calls existing tools, implements
  * no rendering itself.
@@ -25,7 +24,6 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { randomUUID } from "node:crypto";
 import type { ActionContext, ActionDefinition, ActionRun } from "./types";
-import { OPENUI_CREATE_CONTRACT, OPENUI_PRESERVE_CONTRACT } from "./openui-contract";
 import { LEAFER_CREATE_CONTRACT, LEAFER_PRESERVE_CONTRACT, looksLikeLeaferDocument } from "./leafer-contract";
 import { canonicalLeaferJson, describeLeaferDocument, leaferNodeStableNameAt } from "./leafer-describe";
 import { repairLeaferProgram } from "./leafer-repair";
@@ -37,21 +35,17 @@ import {
   callSubagentStable,
   leaferCanvasFindings,
   normalizeGeneratedMarkdown,
-  programPageCount,
   runDesignStage,
   uiSectionsAudit,
 } from "./design-gates";
+import { moonvizArtboardCount } from "./moonviz-contract";
 import {
   executeA2ui,
   extractGeneratedBody,
   extractMarkdownDocument,
-  looksLikeOpenuiProgram,
   readArtifactFile,
   readSuiteVersion,
-  findDeadButtons,
-  repairOpenuiProgram,
 } from "./prototype";
-import { extractProgramPages } from "../common/openui-pages";
 import type { ArtifactRef, DesignThemeRef, UiSuiteContent } from "./prototype";
 
 /** specs/prompt-doc-chain：ui-design.md 的产出契约——pm-design 的视觉翻译
@@ -173,7 +167,7 @@ export const designMaterializeRun: ActionRun<DesignMaterializeInput, DesignMater
     if (!read.ok) return read;
     if (read.value.artifactRef.kind !== "prototype")
       return { ok: false, error: "source suite is not a prototype suite" };
-    prototypeContent = "openui" in read.value.content ? read.value.content.openui?.trim() || null : null;
+    prototypeContent = "moonviz" in read.value.content ? read.value.content.moonviz?.trim() || null : null;
     basisPmDesign = "pmDesign" in read.value.content ? read.value.content.pmDesign?.trim() || null : null;
     if (!requirement && "requirement" in read.value.content) {
       suiteRequirement = read.value.content.requirement;
@@ -185,9 +179,9 @@ export const designMaterializeRun: ActionRun<DesignMaterializeInput, DesignMater
       ...(read.value.inherits ? { inherits: read.value.inherits } : {}),
       ...(read.value.references && read.value.references.length > 0 ? { references: read.value.references } : {}),
     };
-    if (!prototypeContent) return { ok: false, error: "selected prototype suite version has no OpenUI content" };
+    if (!prototypeContent) return { ok: false, error: "selected prototype suite version has no MoonViz document" };
   } else if (prototypeId) {
-    prototypeContent = readArtifactFile(ctx.projectRoot, prototypeId, "prototype.openui.txt");
+    prototypeContent = readArtifactFile(ctx.projectRoot, prototypeId, "doc.mbt.md");
     if (!prototypeContent) return { ok: false, error: `prototype artifact not found for id "${prototypeId}"` };
   }
 
@@ -282,7 +276,7 @@ export const designMaterializeRun: ActionRun<DesignMaterializeInput, DesignMater
     );
   } else if (prototypeContent) {
     promptParts.push(
-      "Cover every page and flow in this OpenUI prototype as separate canvas frames (one Frame per page, " +
+      "Cover every page and flow in the prototype document as separate canvas frames (one Frame per page, " +
         "labeled with a Text node), preserving its information architecture and Action wiring as visual " +
         "annotations:\n\n" +
         prototypeContent
@@ -308,7 +302,7 @@ export const designMaterializeRun: ActionRun<DesignMaterializeInput, DesignMater
     // specs/design-stage-gates S5：画布深度门——基底原型已知页面数时 Frame
     // 缺页 = 破损 UI，定向修复一轮后仍缺则 fail-closed；节点密度只作软提示
     // 进修复契约（弱模型密度弹性大，硬门反致不稳定）。
-    const requiredPages = prototypeContent ? programPageCount(prototypeContent) : undefined;
+    const requiredPages = prototypeContent ? moonvizArtboardCount(prototypeContent) : undefined;
     let canvas = content;
     let depth = leaferCanvasFindings(canvas, requiredPages);
     if (depth.findings.length > 0) {
@@ -509,44 +503,10 @@ const STYLE_CONTEXT = /(?:color|background|border|fill|stroke|shadow|gradient|st
  */
 const HEX_COLOR = /(?<![\w/.#-])#[0-9a-fA-F]{3}(?:[0-9a-fA-F]|[0-9a-fA-F]{3}|[0-9a-fA-F]{5})?(?![0-9a-fA-F])/;
 
-function lintOpenuiDocument(code: string): StoredLintFinding[] {
-  const findings: StoredLintFinding[] = [];
-  const push = (ruleId: string, severity: StoredLintFinding["severity"], message: string, nodePath?: string) => {
-    findings.push({
-      id: `${ruleId}-${findings.length + 1}`,
-      preset: "openui-static",
-      ruleId,
-      severity,
-      nodePath: nodePath ?? "document",
-      message,
-    });
-  };
-  // WP2.4:tiny-font/hardcoded-color 是 CSS 形状正则,在 OpenUI Lang DSL 上
-  // 永不命中(死规则);替换为 DSL 有意义的确定性检查(单一来源:prototype.ts
-  // 的 findDeadButtons + openui-pages 的程序页面提取),保留 emoji-glyph。
-  const lines = code.split("\n");
-  lines.forEach((line, index) => {
-    const emoji = line.match(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u);
-    if (emoji) {
-      push("emoji-glyph", "info", `Line ${index + 1}: emoji glyph "${emoji[0]}" in UI copy; prefer icon assets.`);
-    }
-  });
-  for (const finding of findDeadButtons(code)) {
-    push("dead-button", "warning", finding);
-  }
-  const pages = extractProgramPages(code);
-  for (const target of pages.navTargets) {
-    if (!pages.comparisons.has(target) && target !== pages.initial) {
-      push("dangling-nav", "warning", `@Set($page, "${target}") targets a page with no view branch — dead navigation.`);
-    }
-  }
-  return findings;
-}
-
 export const designLintDefinition: ActionDefinition<SuiteActionInput> = {
   id: "design.lint",
   description:
-    "Run deterministic static OpenUI rules over one UI suite version and persist quality.lintFindings. No browser testing is claimed.",
+    "Run deterministic static Leafer rules over one UI suite version and persist quality.lintFindings. No browser testing is claimed.",
   category: "design",
   parameters: {
     type: "object",
@@ -574,18 +534,16 @@ export const designLintRun: ActionRun<SuiteActionInput, DesignLintOutput> = asyn
   if (read.value.artifactRef.kind !== "ui") return { ok: false, error: "suite is not a UI suite" };
   const content = uiContent(read.value.content);
   if (!content) return { ok: false, error: "invalid UI suite content" };
-  // specs/leafer-ui-engine WP2.2: field-level dual-stack routing (EARS 9/17) —
-  // a leafer version lints the scene JSON, a legacy OpenUI version the program.
+  // MoonViz 接管原型栈后 UI 套件是 leafer-only——lint 走 Leafer 场景 JSON。
   const leafer = content.leafer?.trim();
-  const openui = content.openui?.trim();
-  if (!leafer && !openui) return { ok: false, error: "selected UI suite version has no design" };
-  const findings = leafer ? lintLeaferDocument(leafer, content.tokens) : lintOpenuiDocument(openui!);
+  if (!leafer) return { ok: false, error: "selected UI suite version has no leafer design" };
+  const findings = lintLeaferDocument(leafer, content.tokens);
   const quality = { ...currentQuality(content), lintFindings: findings };
   const saved = await executeA2ui(ctx, "save_suite_result", {
     suiteId,
     versionId,
     quality,
-    note: input.note?.trim() || (leafer ? "deterministic Leafer static lint" : "deterministic OpenUI static lint"),
+    note: input.note?.trim() || "deterministic Leafer static lint",
   });
   return saved.ok
     ? { ok: true, artifactRef: saved.artifactRef, findings, refreshStore: !saved.artifactRef }
@@ -676,14 +634,9 @@ export const designReviewRun: ActionRun<DesignReviewInput, DesignReviewOutput> =
   if (read.value.artifactRef.kind !== "ui") return { ok: false, error: "suite is not a UI suite" };
   const content = uiContent(read.value.content);
   if (!content) return { ok: false, error: "invalid UI suite content" };
-  // Field-level dual-stack input (EARS 11/17): the review reads whichever
-  // artifact the version carries; the schema/validation side is unchanged.
-  const designField = content.leafer?.trim()
-    ? { kind: "Leafer scene-tree JSON", text: content.leafer }
-    : content.openui?.trim()
-      ? { kind: "OpenUI design", text: content.openui }
-      : null;
-  if (!designField) return { ok: false, error: "selected UI suite version has no design" };
+  // MoonViz 接管原型栈后 UI 套件是 leafer-only。
+  const designField = content.leafer?.trim() ? { kind: "Leafer scene-tree JSON", text: content.leafer } : null;
+  if (!designField) return { ok: false, error: "selected UI suite version has no leafer design" };
   const quality = currentQuality(content);
   const reviewed = await ctx.runSubagent({
     skill: "deep-design",
@@ -777,9 +730,8 @@ export const designReviseRun: ActionRun<DesignReviseInput, SuiteActionOutput> = 
   }
   if (!ctx.runSubagent) return { ok: false, error: "runSubagent not available" };
   if (input.part === "design") {
-    // specs/leafer-ui-engine WP0.4: leafer suites revise on the leafer baseline
-    // (field-level routing, EARS 17); legacy OpenUI suites keep the update_openui
-    // path below — one suite version never mixes both fields.
+    // specs/leafer-ui-engine WP0.4 + moonviz-engine-replacement：UI 套件
+    // leafer-only——revise 一律走 leafer 基线。
     if (content.leafer?.trim()) {
       // UI→prompt stable baseline (WP5, M3E #2/#5/#7): the canonical JSON plus
       // the deterministic semantic outline (elements addressed by stable
@@ -837,41 +789,7 @@ export const designReviseRun: ActionRun<DesignReviseInput, SuiteActionOutput> = 
         ? { ok: true, artifactRef: saved.artifactRef, refreshStore: !saved.artifactRef }
         : { ok: false, error: saved.error };
     }
-    if (!content.openui?.trim()) return { ok: false, error: "selected UI suite version has no design" };
-    const generated = await ctx.runSubagent({
-      skill: "deep-design",
-      prompt:
-        `Revise only this OpenUI Lang target: ${target}. Instruction: ${instruction}. Preserve unrelated content. ` +
-        `${OPENUI_PRESERVE_CONTRACT} ` +
-        `Return only the complete revised OpenUI Lang program in one openui code fence. Do not call tools.\n\n${content.openui}`,
-      silent: true,
-    });
-    const revised = extractGeneratedBody(generated);
-    if (!revised || !looksLikeOpenuiProgram(revised)) {
-      return {
-        ok: false,
-        error: "deep-design returned empty or structurally invalid content (truncated output?) — regenerate",
-      };
-    }
-    // WP2.5:修订线同标准——持久化前过修复环。
-    const verifiedRevised = await repairOpenuiProgram(ctx, {
-      code: revised,
-      contract: `${OPENUI_PRESERVE_CONTRACT} ${OPENUI_CREATE_CONTRACT}`,
-      progressCode: "design.revise.repairing",
-      basePercent: 70,
-    });
-    if (ctx.signal.aborted) return { ok: false, error: "cancelled" };
-    const saved = await executeA2ui(ctx, "update_openui", {
-      suiteId,
-      versionId,
-      code: verifiedRevised,
-      ...(content.designSystemId ? { designSystemId: content.designSystemId } : {}),
-      ...(content.sourcePrototype ? { sourcePrototype: content.sourcePrototype } : {}),
-      note: input.note?.trim() || `design revision: ${target}`,
-    });
-    return saved.ok
-      ? { ok: true, artifactRef: saved.artifactRef, refreshStore: !saved.artifactRef }
-      : { ok: false, error: saved.error };
+    return { ok: false, error: "selected UI suite version has no leafer design" };
   }
 
   const current = input.part === "tokens" ? content.tokens : content.components;
@@ -967,7 +885,7 @@ export const designExtractDefinition: ActionDefinition<DesignExtractInput> = {
     "Extract a website's brand/design system into structured design tokens (colors with semantic roles, " +
     "typography scale, spacing, radius, shadows, motion, logo, contrast audit) via the pinned dembrandt CLI. " +
     "Returns the token JSON plus an instruction to persist the brand contract to .deeporca/DESIGN.md — " +
-    "the input side of the design pipeline (deep-design Step 0 / bento / OpenUI generation constraints).",
+    "the input side of the design pipeline (deep-design Step 0 / bento / prototype generation constraints).",
   category: "design",
   parameters: {
     type: "object",

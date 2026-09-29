@@ -66,6 +66,7 @@ function boot(root: string, suite: DesignSuite | null) {
         deleteArtifact: () => false,
         listSuites: () => [],
         readSuite: (_r: string, id: string) => (suite && suite.id === id ? suite : null),
+        readSuitePreviewHtml: () => null,
         readSuiteVersion: (_r: string, id: string, versionId?: string) => readVersion(id, versionId),
         deleteSuite: () => false,
         appendSuiteVersion: () => null,

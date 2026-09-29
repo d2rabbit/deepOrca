@@ -552,10 +552,10 @@ const OPEN_SOURCE_CREDITS: Array<{ name: string; zh: string; en: string; license
   },
   {
     name: "OpenUI",
-    zh: "原型生成 DSL 与渲染运行时(thesys/openui)。",
-    en: "Prototype-generation DSL and render runtime (thesys/openui).",
+    zh: "原型生成引擎（MoonViz，wasm-gc 直嵌）。",
+    en: "Prototype-generation engine (MoonViz, in-process wasm-gc).",
     license: "MIT",
-    url: "https://github.com/thesysdev/openui",
+    url: "https://github.com/asdshuaishuai/moonviz",
   },
 ];
 

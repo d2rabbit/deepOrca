@@ -3,7 +3,7 @@ import { api } from "../../api";
 import { useI18n } from "../../i18n";
 import { pushDesignToast } from "../../lib/toast-bus";
 import { IconCheck, IconClose, IconFile, IconPalette, IconPlay, IconRefresh, IconSparkle } from "../../ui/icons";
-import { PrototypePanel, type PrototypeSelection } from "../PrototypePanel";
+import { MoonvizPreview } from "../../moonviz/MoonvizPreview";
 import { subscribeToSuiteChanges, suiteApi } from "./api";
 import { DesignWorkspaceFrame, versionLabel } from "./DesignWorkspaceFrame";
 import { FloatingDesignAgent } from "./FloatingDesignAgent";
@@ -523,15 +523,13 @@ export function PrototypeWorkspace({
   }, [pendingSpecTodos.length, specTodos.length, t]);
   const readOnly = Boolean(suite && selectedVersion && selectedVersion.versionId !== suite.currentVersionId);
 
-  // 平台变体(user ask 2026-09-09):当前设备优先取自己的变体程序;没生成过
-  // 该端时回退桌面本体并给出提示——设备切换从此是平台切换,不是挤宽度。
-  const variants = (isPrototypeContent(content) ? content.openuiVariants : undefined) ?? {};
-  const activeDeviceCode =
-    device === "desktop" ? (content.openui ?? null) : (variants[device] ?? content.openui ?? null);
-  const deviceHasVariant = device === "desktop" ? Boolean(content.openui) : Boolean(variants[device]);
-  // WP3.2 仅变体套件可达:「有没有任何一端的程序」才是画布/验收/播放的门——
-  // 只判 content.openui 会让「仅有 mobile 变体」的版本整画布判空,变体永不可见。
-  const anyPrototypeCode = Boolean(content.openui || variants.mobile || variants.tablet);
+  // specs/moonviz-engine-replacement：单文档多画板——三端画板都在一份
+  // canonical 文档里，预览 = 整份文档的交互 HTML（不再有 per-device 程序槽）。
+  // device 状态保留用于画板壳宽度（桌面/手机/平板外框），不再切换程序。
+  const moonvizDoc = isPrototypeContent(content) ? (content.moonviz ?? null) : null;
+  const anyPrototypeCode = Boolean(moonvizDoc);
+  // 交互预览缓存随 suite read 附带（main 读 prototype.html）。
+  const suitePreviewHtml = suite?.previewHtml ?? null;
 
   // 播放模式:Esc 退出(对齐 easy-prototype 演示模式),版本内容失去原型时
   // 自动退出,避免停在空播放器里。
@@ -684,15 +682,15 @@ export function PrototypeWorkspace({
     if (!suite) return null;
     const base = baseVersionId ?? selectedVersion?.versionId;
     if (!base) return null;
-    const part = tab === "proto" ? "openui" : tab === "report" ? "verification" : "spec";
+    const part = tab === "proto" ? "moonviz" : tab === "report" ? "verification" : "spec";
     // The inline diff is only honest when the base IS the version this panel
     // is showing — a threaded fix-all base has moved on, so skip it there.
     const before =
       base === selectedVersion?.versionId
         ? part === "spec"
           ? (content.spec ?? null)
-          : part === "openui"
-            ? (activeDeviceCode ?? null)
+          : part === "moonviz"
+            ? (moonvizDoc ?? null)
             : null
         : null;
     const ref = await runAction("prototype.revise", {
@@ -702,7 +700,6 @@ export function PrototypeWorkspace({
       target: target ?? part,
       instruction,
       // 平台定向:proto tab 上修订落在当前设备(桌面即本体)
-      ...(tab === "proto" && device !== "desktop" ? { device } : {}),
     });
     if (!ref) return null;
     pushDesignToast("success", t("designWorkspace.toastRevised"));
@@ -711,14 +708,7 @@ export function PrototypeWorkspace({
       const version = await suiteApi.designSuiteReadVersion(root, ref.suiteId, ref.versionId);
       const next = version && isPrototypeContent(version.content) ? version.content : null;
       if (!next) return ref.versionId;
-      const after =
-        part === "spec"
-          ? (next.spec ?? null)
-          : part === "openui"
-            ? device === "desktop"
-              ? next.openui
-              : (next.openuiVariants?.[device] ?? next.openui ?? null)
-            : null;
+      const after = part === "spec" ? (next.spec ?? null) : part === "moonviz" ? next.moonviz : null;
       if (!after) return ref.versionId;
       const { added, removed } = diffLines(before, after);
       if (added.length || removed.length) setDiff(summarizeDiff({ added, removed }));
@@ -733,12 +723,6 @@ export function PrototypeWorkspace({
   const executePrototypeAction = (action: string) => {
     void revise(t("prototypeWorkspace.executeInstruction", { action }), selection?.nodePath);
   };
-
-  // Memoized (re-review M3): a fresh identity per render made PrototypePanel's
-  // selection-effect resubscribe and re-emit on every workspace re-render.
-  const handlePrototypeSelection = useCallback((next: PrototypeSelection | null) => {
-    setSelection(next ? { nodePath: next.nodePath, action: next.action, bounds: next.bounds } : null);
-  }, []);
 
   const tabLabels = useMemo(
     () => ({
@@ -1157,17 +1141,10 @@ export function PrototypeWorkspace({
                       key={d}
                       type="button"
                       className={device === d ? "on" : ""}
-                      title={
-                        d === "desktop" || (variants as Record<string, string | undefined>)[d]
-                          ? undefined
-                          : t("prototypeWorkspace.variantMissing")
-                      }
+                      title={undefined}
                       onClick={() => setDevice(d)}
                     >
                       {t(`prototypeWorkspace.device.${d}`)}
-                      {d !== "desktop" && !(variants as Record<string, string | undefined>)[d] ? (
-                        <i className="ui-design-device-miss" aria-hidden="true" />
-                      ) : null}
                     </button>
                   ))}
                 </div>
@@ -1224,28 +1201,10 @@ export function PrototypeWorkspace({
                     <i />
                     <span>{suite?.title ?? "prototype"}</span>
                   </div>
-                  {!deviceHasVariant ? (
-                    <div className="ui-design-variant-fallback">{t("prototypeWorkspace.variantMissing")}</div>
-                  ) : null}
-                  <PrototypePanel
-                    a2uiJson=""
-                    openuiCode={activeDeviceCode ?? ""}
-                    mode="openui"
-                    authoringLibrary={suite?.authoringLibrary}
-                    formStateRoot={root}
-                    formStateSuiteId={suite?.id ?? null}
-                    formStateDeviceSlot={device === "desktop" ? null : device}
-                    onIterate={(instruction) => {
-                      // WP3.3 播放冻结画布动作:ToAssistant/纠正环类回传在播放中
-                      // 不派发修订(否则演示时点任何默认按钮就悄悄生成新版本);
-                      // 画布内本地 @Set 导航由渲染器自治,不经此通道。
-                      if (playing) return;
-                      revise(instruction);
-                    }}
-                    onSelectionChange={handlePrototypeSelection}
-                    selectionEnabled={!readOnly && !playing}
-                    selectionNodePath={selection?.nodePath ?? null}
-                    hideComposer
+                  <MoonvizPreview
+                    previewHtml={suitePreviewHtml}
+                    moonvizDoc={moonvizDoc}
+                    title={suite?.title ?? "prototype"}
                   />
                 </div>
               ) : (

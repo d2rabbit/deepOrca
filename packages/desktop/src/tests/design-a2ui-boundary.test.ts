@@ -38,27 +38,28 @@ test("guard ②: DesignPipeline excludes a2ui — designs/ never stores interact
 });
 
 test("guard ③: the split modules route only through the design sub-domain tools", () => {
-  // UI-design module (design.*) materializes UI suites as Leafer scene JSON
-  // via render_leafer (specs/leafer-ui-engine WP0.3) and revises leafer
-  // versions through the same channel; LEGACY openui-only versions keep the
-  // update_openui path (field-level dual-stack, EARS 17) — but the OpenUI
-  // render channel must never be called from the design module again.
+  // specs/moonviz-engine-replacement 后的通道矩阵：原型栈 = render_moonviz /
+  // update_moonviz（canonical 单文档），UI 栈 = render_leafer（leafer-only，
+  // 旧 update_openui 通道随栈退役）；.dd 通道仍不对两个设计模块开放。
   const design = read("packages/core/src/actions/design.ts");
   assert.match(design, /render_leafer/, "design.materialize should persist through render_leafer");
-  assert.match(design, /update_openui/, "design.revise keeps the legacy update_openui channel");
-  assert.doesNotMatch(design, /render_openui/, "the leafer stack must not call render_openui");
+  assert.doesNotMatch(design, /render_openui|update_openui/, "the retired openui channels must not reappear");
   assert.doesNotMatch(design, /render_design|update_design/, "design module must not write .dd suites");
   const proto = read("packages/core/src/actions/prototype.ts");
-  assert.match(proto, /render_openui/, "prototype.materialize should reference render_openui");
+  assert.match(proto, /render_moonviz/, "prototype.materialize should persist through render_moonviz");
+  assert.match(proto, /update_moonviz/, "prototype.revise should persist through update_moonviz");
   assert.match(proto, /render_spec/, "prototype.spec should reference render_spec");
-  // The shared UiSuiteContent.leafer FIELD declaration lives here (contract
-  // mirror), but the prototype pipeline must never import the leafer modules
-  // or touch the leafer persistence channel (PM-Design keeps OpenUI Lang).
+  assert.doesNotMatch(
+    proto.replace(/render\/update_openui\)\./g, ""),
+    /render_openui|update_openui/,
+    "the retired openui channels must not reappear"
+  );
+  // 原型管线不得碰 leafer 持久化通道；UI 管线不得碰 moonviz 持久化通道。
   assert.doesNotMatch(proto, /from "\.\/leafer-|render_leafer/, "prototype pipeline must stay leafer-free");
-  // The leafer persistence channel lives beside the openui one and is
-  // suite-only: it must never mix the two content fields.
+  assert.doesNotMatch(design, /render_moonviz|update_moonviz/, "UI pipeline must stay moonviz-free");
   const a2ui = read("packages/desktop/src/main/tools/a2ui/a2ui-mcp.ts");
   assert.match(a2ui, /render_leafer/, "the a2ui server hosts the leafer persistence channel");
+  assert.match(a2ui, /render_moonviz/, "the a2ui server hosts the moonviz persistence channel");
   assert.doesNotMatch(a2ui.split("render_leafer")[1] ?? "", /render_design|update_design/);
   // A2UI interaction tools must not appear anywhere in either routing.
   for (const source of [design, proto]) {

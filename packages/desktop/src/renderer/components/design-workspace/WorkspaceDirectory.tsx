@@ -600,8 +600,8 @@ function DirectorySegments({ suite, kind }: { suite: DesignSuite | null; kind: D
     });
     rows.push({
       label: t("prototypeWorkspace.setTitleProto"),
-      value: suite.currentContent.openui ? versionTag : t("designWorkspace.dirNotGenerated"),
-      miss: !suite.currentContent.openui,
+      value: suite.currentContent.moonviz ? versionTag : t("designWorkspace.dirNotGenerated"),
+      miss: !suite.currentContent.moonviz,
     });
     rows.push({
       label: t("prototypeWorkspace.setTitleReport"),
@@ -619,11 +619,11 @@ function DirectorySegments({ suite, kind }: { suite: DesignSuite | null; kind: D
       : 0;
     const review = suite.currentContent.quality?.review;
     // specs/leafer-ui-engine EARS 17 字段级双栈路由：视觉稿 = leafer（新栈）
-    // 或 openui（旧栈只读）任一存在即已生成——只查 openui 曾把 leafer 套件
+    // （MoonViz 接管原型栈后 UI 套件 leafer-only；旧 openui 字段随栈作废）
     // 整面误报"未生成"（p-core 真机走查发现）。
-    const hasVisual = Boolean(suite.currentContent.leafer || suite.currentContent.openui);
+    const hasVisual = Boolean(suite.currentContent.leafer);
     rows.push({
-      label: t("designWorkspace.setOpenui"),
+      label: t("designWorkspace.setLeafer"),
       value: hasVisual ? versionTag : t("designWorkspace.dirNotGenerated"),
       miss: !hasVisual,
     });

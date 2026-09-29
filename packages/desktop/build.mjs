@@ -104,6 +104,34 @@ const lspBridgeServerConfig = {
   target: "node24",
 };
 
+/** MoonViz engine worker (specs/moonviz-engine-replacement T1.2): the
+ *  worker_thread that owns the wasm-gc engine instance. Fully self-contained
+ *  (worker code cannot resolve workspace packages at runtime), CJS (.cjs —
+ *  the repo is "type":"module", a .js bundle would load as ESM) so a plain
+ *  `new Worker(path)` works in every packaging shape. */
+const moonvizWorkerConfig = {
+  ...shared,
+  entryPoints: [resolve(__dirname, "src/main/moonviz-engine-worker.ts")],
+  outfile: resolve(outdir, "moonviz-engine-worker.cjs"),
+  platform: "node",
+  format: "cjs",
+  target: "node24",
+};
+
+/** MoonViz engine host: normally bundled INTO main.js (see mainConfig); this
+ *  standalone ESM artifact exists for the P0 acceptance battery
+ *  (scripts/moonviz-p0-battery.mjs) to import the real production host with
+ *  @deeporca/core resolving from the workspace at runtime. */
+const moonvizHostConfig = {
+  ...shared,
+  entryPoints: [resolve(__dirname, "src/main/moonviz-engine-host.ts")],
+  outfile: resolve(outdir, "moonviz-engine-host.js"),
+  platform: "node",
+  format: "esm",
+  target: "node24",
+  packages: "external",
+};
+
 /**
  * Renderer: browser bundle with code splitting.
  * Splitting enables React.lazy() and dynamic import() to produce separate
@@ -373,26 +401,6 @@ async function copyStaticAssets() {
   } catch (err) {
     console.warn(`[desktop] @open-file-viewer/core style.css missing — previews render unstyled (${err.message})`);
   }
-  // Official OpenUI (react-ui) stylesheet — ONE unlayered copy carries both
-  // the --openui-* token defaults and every component rule. In the installed
-  // dist, components/index.css is byte-identical to styles/index.css, and
-  // every rule of styles/openui-defaults.css is contained in it; the
-  // layered/styles/index.css variant wraps the same rules in `@layer openui`
-  // and can never beat unlayered ones, so copying those two would be dead
-  // weight shipped in the installer and parsed per window. main.tsx injects
-  // it BEFORE ui.css so ui-css/openui-bridge.css re-binding wins. Copied
-  // from the installed dependency (same hoisting caveat as @a2ui).
-  try {
-    const openuiCandidates = [
-      resolve(__dirname, "../../node_modules/@openuidev/react-ui/dist"),
-      resolve(__dirname, "node_modules/@openuidev/react-ui/dist"),
-    ];
-    const openuiDist = openuiCandidates.find((c) => existsSync(c));
-    if (!openuiDist) throw new Error(`not found in ${openuiCandidates.join(" | ")}`);
-    await cp(resolve(openuiDist, "components/index.css"), resolve(outdir, "renderer/openui-components.css"));
-  } catch (err) {
-    console.warn(`[desktop] @openuidev/react-ui stylesheets missing — OpenUI canvas renders unstyled (${err.message})`);
-  }
   // leafer-editor web runtime + @leafer-in/flow plugin (specs/leafer-ui-engine
   // WP3): the interactive .ddu export embeds both (design-ipc reads them back
   // from dist/ at export time; the flow build wires into the editor runtime's
@@ -437,54 +445,8 @@ async function copyStaticAssets() {
   }
 }
 
-/**
- * The pm-designer-openui SKILL.md component table AND the main-process
- * validator schema (a2ui/openui-library-schema.ts) are generated artifacts of
- * the OFFICIAL @openuidev/react-ui openuiLibrary (via
- * scripts/generate-openui-prompt.mjs). Regenerate them before bundling and
- * fail when regeneration changes either file — i.e. when an upstream library
- * update was not followed by `npm run openui:prompt`. The check compares the
- * files before/after regeneration (not git state), so uncommitted-but-in-sync
- * files pass while genuine drift fails. (The legacy library-schema.ts is only
- * the pre-switch fallback renderer and is NOT these artifacts' source.)
- */
-async function ensureOpenuiPromptInSync() {
-  const script = resolve(__dirname, "..", "..", "scripts", "generate-openui-prompt.mjs");
-  const skill = resolve(
-    __dirname,
-    "..",
-    "..",
-    "packages",
-    "core",
-    "templates",
-    "plugins",
-    "design",
-    "skills",
-    "pm-designer-openui",
-    "SKILL.md"
-  );
-  const schema = resolve(__dirname, "src", "main", "tools", "a2ui", "openui-library-schema.ts");
-  const before = [readFileSync(skill, "utf8"), readFileSync(schema, "utf8")];
-  const gen = spawnSync(process.execPath, [script, "--write"], { encoding: "utf8" });
-  if (gen.status !== 0) {
-    throw new Error(`openui prompt generation failed:\n${gen.stderr}`);
-  }
-  const after = [readFileSync(skill, "utf8"), readFileSync(schema, "utf8")];
-  if (before[0] !== after[0]) {
-    throw new Error(
-      "pm-designer-openui SKILL.md is out of sync with the official openuiLibrary prompt — run `npm run openui:prompt` and commit the result (source: scripts/generate-openui-prompt.mjs, NOT legacy library-schema.ts)."
-    );
-  }
-  if (before[1] !== after[1]) {
-    throw new Error(
-      "a2ui/openui-library-schema.ts is out of sync with the official openuiLibrary schema — run `npm run openui:prompt` and commit the result."
-    );
-  }
-}
-
 async function run() {
   await ensureCoreBuilt();
-  await ensureOpenuiPromptInSync();
   // CodeGraph: installed as npm dependency (@colbymchenry/codegraph) — no vendor script needed.
   // The npm-shim.js auto-selects the platform binary from optionalDependencies.
   ensureVendored("openwiki", [".vendored-openwiki-version"], "npx openwiki");
@@ -530,6 +492,15 @@ async function run() {
   // snapshot for UNKNOWN-family enrichment + picker suggestions + cost
   // estimates. Fail-open by design — no snapshot, today's behavior.
   ensureVendored("models-dev", ["api.json"], "no model catalog (fail-open to registry defaults)");
+  // MoonViz wasm-gc engine (specs/moonviz-engine-replacement): prototype-
+  // generation engine asset from GitHub Releases. sha512-anchored, single gc
+  // target (no classic fallback), instantiation contract probe runs in
+  // Electron-as-node. Component snapshot (components.json) rides along.
+  ensureVendored(
+    "moonviz",
+    [".vendored-moonviz-version", "moonviz.wasm", "components.json"],
+    "no fallback (prototype engine unavailable)"
+  );
   if (isDev) {
     await cleanRendererChunks();
     const contexts = await Promise.all([
@@ -538,6 +509,8 @@ async function run() {
       context(prototypePreloadConfig),
       context(dembrandtProviderConfig),
       context(lspBridgeServerConfig),
+      context(moonvizWorkerConfig),
+      context(moonvizHostConfig),
       context(rendererConfig),
     ]);
     await Promise.all(contexts.map((ctx) => ctx.watch()));
@@ -553,12 +526,14 @@ async function run() {
     build(prototypePreloadConfig),
     build(dembrandtProviderConfig),
     build(lspBridgeServerConfig),
+    build(moonvizWorkerConfig),
+    build(moonvizHostConfig),
     build(rendererConfig),
   ]);
-  // results[5] is the renderer build (position matches the build array above);
+  // results[7] is the renderer build (position matches the build array above);
   // its metafile feeds assertRendererGuards — a missing metafile means
   // the renderer build broke, so fail here rather than guard-skip downstream.
-  const rendererMetafile = results[5]?.metafile;
+  const rendererMetafile = results[7]?.metafile;
   if (!rendererMetafile) {
     throw new Error("[desktop] GUARD FAIL — renderer build produced no metafile");
   }

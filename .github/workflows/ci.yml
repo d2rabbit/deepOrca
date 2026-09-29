@@ -71,5 +71,18 @@ jobs:
       - name: Build Desktop
         run: npm run desktop:build
 
+      # specs/moonviz-engine-replacement T1.5: the engine vendor probe
+      # (sha512 anchor + instantiation contract probe in Electron-as-node) and
+      # the P0 acceptance battery run on every CI push — the wasm-gc asset is
+      # the only installer payload with a hard runtime contract, and the
+      # battery is the seam's golden replay (docs/engine-integration-plan §7).
+      - name: MoonViz vendor probe
+        if: matrix.os == 'ubuntu-latest' && matrix.node-version == '22'
+        run: node scripts/vendor-moonviz.js --force
+
+      - name: MoonViz P0 battery
+        if: matrix.os == 'ubuntu-latest' && matrix.node-version == '22'
+        run: ELECTRON_RUN_AS_NODE=1 ./node_modules/.bin/electron scripts/moonviz-p0-battery.mjs
+
       - name: Test
         run: npm test

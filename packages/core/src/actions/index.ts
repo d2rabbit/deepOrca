@@ -144,8 +144,6 @@ export {
   countTableDataRows,
   leaferCanvasFindings,
   normalizeGeneratedMarkdown,
-  openuiInteractivityFindings,
-  programPageCount,
   runDesignStage,
   subagentContentOf,
 } from "./design-gates";
@@ -162,7 +160,18 @@ export type {
   DesignDriftInput,
   DesignDriftOutput,
 } from "./design";
-export { OPENUI_CREATE_CONTRACT, OPENUI_PRESERVE_CONTRACT } from "./openui-contract";
+export {
+  MOONVIZ_CREATE_CONTRACT,
+  MOONVIZ_PRESERVE_CONTRACT,
+  MOONVIZ_QUALITY_CONTRACT,
+  MOONVIZ_DEVICE_CONTRACTS,
+  MOONVIZ_SEED_DOC,
+  MOONVIZ_ARTBOARD_SIZES,
+  MOONVIZ_DEVICES,
+  moonvizCoverageFindings,
+  moonvizArtboardCount,
+  normalizeMoonvizDevices,
+} from "./moonviz-contract";
 export {
   LEAFER_CREATE_CONTRACT,
   LEAFER_PRESERVE_CONTRACT,
@@ -222,9 +231,9 @@ export {
   prototypeReviseRun,
   prototypeArchDefinition,
   prototypeArchRun,
+  prototypeExportDdpDefinition,
+  prototypeExportDdpRun,
   looksLikeArchDoc,
-  openuiIssueCount,
-  formatOpenuiFeedback,
 } from "./prototype";
 export type {
   PrototypeSpecInput,
@@ -236,10 +245,11 @@ export type {
   PrototypeReviseInput,
   PrototypeArchInput,
   PrototypeArchOutput,
+  PrototypeExportDdpInput,
+  PrototypeExportDdpOutput,
   ArtifactRef,
   PrototypeSuiteContent,
   UiSuiteContent,
-  OpenuiVerdict,
 } from "./prototype";
 export {
   taskCreateDefinition,

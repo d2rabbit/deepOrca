@@ -22,8 +22,9 @@ import type { ZodRawShape } from "zod/v3";
 import * as fs from "node:fs";
 import * as nodePath from "node:path";
 import { generatePrototype, listTemplates } from "./a2ui-templates";
-import { validateOpenuiCode } from "./openui-validate";
-import { lintLeaferDocument, looksLikeArchDoc, OPENUI_PRESERVE_CONTRACT } from "@deeporca/core";
+import { lintLeaferDocument, looksLikeArchDoc, MOONVIZ_PRESERVE_CONTRACT } from "@deeporca/core";
+import { moonvizExportHtml } from "@deeporca/core/moonviz-engine";
+import { suitePreviewHtmlPath, writeSuitePreviewHtml } from "../design-store.js";
 import { BASIC_CATALOG_ID, convertLegacyComponents } from "../../../shared/a2ui-legacy";
 import {
   appendDesignSuiteVersion,
@@ -1077,13 +1078,10 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
             spec: document,
             // specs/prompt-doc-chain:spec 重写 → pm-design 派生链失效。
             pmDesign: undefined,
-            openui: undefined,
-            // spec 重写后旧架构文档随之失效,与 openui 同等重置(否则新版本
+            moonviz: undefined,
+            // spec 重写后旧架构文档随之失效,与原型文档同等重置(否则新版本
             // 会带着与当前 PRD 不符的"已批准架构")。
             arch: undefined,
-            // 三端平台变体全部派生自旧 PRD,同等失效(评审:平台变体生命周期
-            // 与 openui 本体一致)。
-            openuiVariants: undefined,
             verification: { status: "pending", checks: [] },
           }),
           "draft",
@@ -1093,7 +1091,7 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
         if ("error" in persisted) return suiteError(persisted.error);
         return artifactResult(
           persisted.ref,
-          "Requirements document saved as a prototype suite version. OpenUI and verification were reset.",
+          "Requirements document saved as a prototype suite version. The MoonViz document and verification were reset.",
           { spec: document }
         );
       }
@@ -1115,165 +1113,88 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
     }
   );
 
-  // Tool: validate_openui — parse an OpenUI Lang program against the OFFICIAL
-  // component schema with the local lang-core parser (no network, no OpenUI
-  // service). Returns a structured JSON verdict so the caller can drive a
-  // repair round before anything is persisted (user ask 2026-09-09 自递归
-  // 验证循环); the schema artifact is drift-checked against the renderer's
-  // library by the desktop build.
+  // Tool: render_moonviz — persist a canonical MoonViz `.mbt.md` document
+  // (specs/moonviz-engine-replacement). The document is the ONLY prototype
+  // artifact: one doc, many artboards (three platforms = `<page>@<device>`
+  // artboards). Returned as text with metadata.moonviz so the renderer opens
+  // the prototype preview; the interactive HTML preview is exported
+  // best-effort into the suite dir as prototype.html (lazy re-export on read
+  // when the cache is missing).
   registerTool(
-    "validate_openui",
+    "render_moonviz",
     {
       description:
-        "Validate an OpenUI Lang program against the official component schema (local parser). " +
-        "Returns JSON: { valid, incomplete, statementCount, errors[{code,component,path,message}], deadButtons[], " +
-        "unresolved[], orphaned[] }. Run this before render_openui/update_openui and fix every finding.",
+        "Persist a canonical MoonViz prototype document (`.mbt.md` — one document, many artboards). " +
+        "Pass the FULL canonical document as produced by the engine session (the mutating envelope's " +
+        "`mbt` echo). Suite persistence: suiteId(+versionId) appends an immutable version; " +
+        "otherwise a standalone artifact is written. The interactive HTML preview (prototype.html) " +
+        "is exported best-effort.",
       inputSchema: {
-        code: z.string().describe("Complete OpenUI Lang program"),
-      },
-    },
-    async (args) => {
-      const code = stringArg(args, "code");
-      if (!code || !code.trim()) {
-        return suiteError("code is required");
-      }
-      const verdict = validateOpenuiCode(code);
-      return {
-        content: [{ type: "text", text: JSON.stringify(verdict) }],
-      } as CallToolResult;
-    }
-  );
-
-  // Tool: render_openui — render an OpenUI Lang program (PM-Designer mode)
-  // Unlike the A2UI tools above, this returns the OpenUI Lang code as plain
-  // text with metadata.openui, not as an A2UI embedded resource. The renderer
-  // detects metadata.openui and switches to OpenUI Lang rendering mode.
-  registerTool(
-    "render_openui",
-    {
-      description:
-        "Render an OpenUI Lang program as an interactive prototype. " +
-        "OpenUI Lang is a compact, line-oriented language that is ~3x more token-efficient than JSON. " +
-        "Use this for PM-Designer prototypes.\n\n" +
-        "Official component library (root = Stack): layout Stack/Card/CardHeader/Tabs/Accordion/Modal/Separator; " +
-        "content TextContent/MarkDownRenderer/Tag/Callout/CodeBlock/Image/ImageGallery/Carousel/Steps/ListBlock/SectionBlock; " +
-        "data Table/Col and charts (LineChart/BarChart/AreaChart/PieChart/RadarChart/...); " +
-        "forms Form/FormControl/Input/TextArea/Select/DatePicker/Slider/RadioGroup/CheckBoxGroup/SwitchGroup/Buttons.\n" +
-        "Syntax: `identifier = ComponentName(positional args)`, children are arrays, forward references allowed. " +
-        'State: `$page = "home"` + ternary views + `Action([@Set($page, "target")])` navigation — ONE interactive app, never stacked screens.\n' +
-        "Example:\n" +
-        "```\n" +
-        '$page = "home"\n' +
-        'root = Stack([nav, $page == "home" ? homeView : loginView])\n' +
-        'nav = Stack([Button("登录", Action([@Set($page, "login")]))], "row")\n' +
-        'homeView = TextContent("概览", "large-heavy")\n' +
-        'loginView = TextContent("登录页", "large-heavy")\n' +
-        "```",
-      inputSchema: {
-        code: z
-          .string()
-          .describe(
-            "The OpenUI Lang program. Each line is `identifier = ComponentName(...)`. " +
-              "The `root` statement is the top-level component."
-          ),
+        doc: z.string().describe("The complete canonical MoonViz .mbt.md document"),
         requirement: z
           .string()
           .optional()
-          .describe("The user's original requirement text (persisted as requirement.md; pass when known)."),
-        device: z
-          .enum(["desktop", "mobile", "tablet"])
-          .optional()
-          .describe(
-            "Platform variant target (user ask 2026-09-09: 三端是平台化适配). desktop (default) writes the base " +
-              "openui program; mobile/tablet write structurally distinct platform variants (openuiVariants)."
-          ),
+          .describe("The user's original requirement text (persisted with the suite; pass when known)."),
         ...suiteLineageSchema,
       },
     },
     async (args) => {
-      const code = String(args.code ?? "");
-      if (!code.trim()) {
-        return {
-          content: [{ type: "text", text: "Error: empty OpenUI Lang code." }],
-          isError: true,
-        };
+      const doc = String(args.doc ?? "");
+      if (!doc.trim() || !doc.includes("moonviz:artboard")) {
+        return suiteError("doc is required and must be a canonical MoonViz document (moonviz:artboard blocks)");
       }
       const requirement =
         typeof args.requirement === "string" && args.requirement.trim() ? args.requirement : undefined;
-      const device =
-        args.device === "mobile" || args.device === "tablet" || args.device === "desktop" ? args.device : undefined;
       if (usesSuitePersistence(args)) {
         if (stringArg(args, "versionId") && !stringArg(args, "suiteId")) {
           return suiteError("versionId requires suiteId");
         }
-        const sourcePrototype = sourcePrototypeArg(args);
-        const designSystemId = stringArg(args, "designSystemId");
-        // Appending to an existing suite keeps the suite's kind: a bare
-        // suiteId+versionId append (no designSystemId/sourcePrototype) would
-        // otherwise compute kind "prototype" from the args heuristic and fail
-        // against a ui suite (update_openui already derives it this way).
+        // MoonViz is the prototype stack only — a ui-kind target is a caller bug.
         const suiteId = stringArg(args, "suiteId");
-        // Re-review L6: meta-only probe — a full readDesignSuite here loaded
-        // every version file just to learn the kind.
         const existingKind = suiteId && projectRoot ? readDesignSuiteKind(projectRoot, suiteId) : null;
-        const kind: DesignSuiteKind = existingKind ?? (sourcePrototype || designSystemId ? "ui" : "prototype");
+        if (existingKind === "ui") {
+          return suiteError(
+            "render_moonviz targets prototype suites — ui suites persist leafer documents via render_leafer"
+          );
+        }
         const persisted = persistSuiteContent(
           projectRoot,
           args,
-          kind,
-          deriveTitle(code),
-          (base) =>
-            kind === "ui"
-              ? {
-                  ...((base ?? {}) as UiSuiteContent),
-                  ...(requirement ? { requirement } : {}),
-                  openui: code,
-                  // Single-stack invariant, reverse direction: an openui write
-                  // takes over the version's stack — the stale leafer document
-                  // must never survive alongside it (guard-tested both ways).
-                  leafer: undefined,
-                  ...(sourcePrototype ? { sourcePrototype } : {}),
-                  ...(designSystemId ? { designSystemId } : {}),
-                  quality: { lintFindings: [], runtimeChecks: [] },
-                }
-              : {
-                  ...((base ?? {}) as PrototypeSuiteContent),
-                  ...(requirement ? { requirement } : {}),
-                  // 平台分流(user ask 2026-09-09):desktop 写本体;mobile/tablet
-                  // 写 openuiVariants[device],本体保持桌面版不动。
-                  ...(device === "mobile" || device === "tablet"
-                    ? {
-                        openuiVariants: {
-                          ...((base as PrototypeSuiteContent | null)?.openuiVariants ?? {}),
-                          [device]: code,
-                        },
-                      }
-                    : { openui: code }),
-                  verification: { status: "pending", checks: [] },
-                },
+          "prototype",
+          deriveTitle(doc),
+          (base) => ({
+            ...((base ?? {}) as PrototypeSuiteContent),
+            ...(requirement ? { requirement } : {}),
+            // 单文档模型：整份 canonical 替换（三端画板都在这一份文档里）。
+            moonviz: doc,
+            verification: { status: "pending", checks: [] },
+          }),
           "ready"
         );
         if ("error" in persisted) return suiteError(persisted.error);
-        return artifactResult(persisted.ref, `OpenUI rendered (${code.split("\n").length} statements).`, {
-          openui: code,
-        });
+        exportPreviewHtmlBestEffort(projectRoot, String(persisted.ref.suiteId), doc);
+        return artifactResult(
+          persisted.ref,
+          `MoonViz document saved (${doc.split("moonviz:artboard").length - 1} artboards).`,
+          {
+            moonviz: doc,
+          }
+        );
       }
-      const renderError = saveArtifactWithLineage(projectRoot, "openui", "render", {
-        title: deriveTitle(code),
-        content: code,
+      const renderError = saveArtifactWithLineage(projectRoot, "moonviz", "render", {
+        title: deriveTitle(doc),
+        content: doc,
         requirement,
       });
       if (renderError) return suiteError(renderError);
-      // Return as text content with metadata.openui. The desktop renderer
-      // detects this and switches to OpenUI Lang rendering mode.
       return {
         content: [
           {
             type: "text",
-            text: `OpenUI prototype rendered (${code.split("\n").length} statements). The preview panel should now show the prototype.`,
+            text: `MoonViz prototype rendered. The preview panel should now show the prototype.`,
           },
         ],
-        metadata: { openui: code },
+        metadata: { moonviz: doc },
       } as CallToolResult;
     }
   );
@@ -1288,14 +1209,14 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
       description:
         "Persist a pm-design prompt document (原型提示词文档) as a prototype suite version. " +
         "Called by the prototype.pmdesign action; resets the derived prototype artifacts " +
-        "(openui/variants/verification/arch) because the upstream design intent changed.",
+        "(moonviz/verification/arch) because the upstream design intent changed.",
       inputSchema: {
         document: z.string().describe("The complete pm-design markdown document (PM_DESIGN_CONTRACT shape)."),
         preserveDerived: z
           .boolean()
           .optional()
           .describe(
-            "Stage0 mode: keep the derived artifacts (openui/variants/verification/arch) — the caller " +
+            "Stage0 mode: keep the derived artifacts (moonviz/verification/arch) — the caller " +
               "regenerates them in the same action; default false resets them (manual recompute)."
           ),
         ...suiteLineageSchema,
@@ -1328,12 +1249,11 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
           ...((base ?? {}) as PrototypeSuiteContent),
           pmDesign: document,
           // 手动重算 = 上游意图变更 → 派生物失效（与 render_spec 同规）；
-          // stage0（preserveDerived）→ 保留：同一动作内 render_openui 将重建。
+          // stage0（preserveDerived）→ 保留：同一动作内 render_moonviz 将重建。
           ...(preserveDerived
             ? {}
             : {
-                openui: undefined,
-                openuiVariants: undefined,
+                moonviz: undefined,
                 verification: { status: "pending" as const, checks: [] },
                 arch: undefined,
               }),
@@ -1353,11 +1273,11 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
 
   // Tool: render_leafer — persist a Leafer JSON scene tree as a UI-Design
   // suite version (specs/leafer-ui-engine). The leafer counterpart of
-  // render_openui's suite path: called ONLY by the design.* actions after the
+  // render_leafer's suite path: called ONLY by the design.* actions after the
   // core-side structural gate (LEAFER contract + repairLeaferProgram); the
   // boundary still re-parses cheaply. Suite persistence only — a UI suite
   // version stores the document in content.leafer and never mixes it with
-  // content.openui (field-level single-stack invariant, guard-tested).
+  // content.moonviz (field-level single-stack invariant, guard-tested).
   registerTool(
     "render_leafer",
     {
@@ -1365,7 +1285,7 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
         "Persist a Leafer scene-tree JSON document as a UI-Design suite version (pipeline leafer). " +
         'The document is the complete `{tag: "Leafer", width, height, fill, children}` scene tree produced ' +
         "by the deep-design skill and validated by the design action. Suite persistence only — " +
-        "pass designSystemId (new suite) or suiteId+versionId (append); content.leafer never mixes with content.openui.",
+        "pass designSystemId (new suite) or suiteId+versionId (append); content.leafer never mixes with content.moonviz.",
       inputSchema: {
         leafer: z.string().describe("Complete Leafer scene-tree JSON document (a single JSON object)"),
         requirement: z
@@ -1460,7 +1380,7 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
       // Self-check at persist (WP5): the deterministic lint runs here for FREE
       // (no LLM) so quality.lintFindings is populated the moment a version
       // lands — the workspace quality tab is never empty-stale. Quality is
-      // rebuilt wholesale (the update_openui content-rewrite convention):
+      // rebuilt wholesale (the update_moonviz content-rewrite convention):
       // review state deliberately does NOT ride onto new content — the
       // reviewed version keeps its own quality, and carrying a "passed"
       // review would mislabel never-reviewed content as verified. Tokens ride
@@ -1481,7 +1401,8 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
             // specs/prompt-doc-chain: ui-design.md 随 UI 版本落内容字段
             // （rawUiDesign 为空串时显式清除）。
             ...(rawUiDesign !== undefined ? (rawUiDesign ? { uiDesign: rawUiDesign } : { uiDesign: undefined }) : {}),
-            openui: undefined,
+            // 单栈不变量（正向）：leafer 写入接管版本栈，原型栈字段不复存在。
+            moonviz: undefined,
             ...(sourcePrototype ? { sourcePrototype } : {}),
             ...(designSystemId ? { designSystemId } : {}),
             quality: { lintFindings, runtimeChecks: [] },
@@ -1500,95 +1421,70 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
     }
   );
 
-  // Tool: update_openui — replace an existing OpenUI Lang prototype with updated code
+  // Tool: update_moonviz — replace an existing MoonViz prototype document
+  // with the updated canonical (full replacement; the engine session echo is
+  // the only thing ever persisted).
   registerTool(
-    "update_openui",
+    "update_moonviz",
     {
       description:
-        "Replace an existing OpenUI Lang prototype with updated code. " +
-        "Send the complete updated program (full replacement). " +
-        "To iterate efficiently, copy the previous code and modify only the parts that need changing. " +
-        OPENUI_PRESERVE_CONTRACT,
+        "Replace an existing MoonViz prototype document with the updated canonical `.mbt.md`. " +
+        "Send the complete updated document (full replacement) as produced by the engine session. " +
+        MOONVIZ_PRESERVE_CONTRACT,
       inputSchema: {
-        code: z.string().describe("Complete updated OpenUI Lang program (full replacement, not delta)."),
-        device: z
-          .enum(["desktop", "mobile", "tablet"])
-          .optional()
-          .describe(
-            "Platform variant target: desktop (default) updates the base openui program; " +
-              "mobile/tablet update their openuiVariants entry."
-          ),
+        doc: z.string().describe("Complete updated canonical MoonViz .mbt.md document (full replacement, not delta)."),
         ...suiteLineageSchema,
       },
     },
     async (args) => {
-      const code = String(args.code ?? "");
-      if (!code.trim()) return suiteError("empty OpenUI Lang code");
+      const doc = String(args.doc ?? "");
+      if (!doc.trim() || !doc.includes("moonviz:artboard")) {
+        return suiteError("doc is required and must be a canonical MoonViz document (moonviz:artboard blocks)");
+      }
       if (usesSuitePersistence(args)) {
         const suiteId = stringArg(args, "suiteId");
-        if (!suiteId) return suiteError("update_openui suite mode requires suiteId");
-        const device =
-          args.device === "mobile" || args.device === "tablet" || args.device === "desktop" ? args.device : undefined;
-        const targetKind: DesignSuiteKind =
-          (projectRoot && suiteId ? readDesignSuiteKind(projectRoot, suiteId) : null) ?? "prototype";
-        const sourcePrototype = sourcePrototypeArg(args);
-        const designSystemId = stringArg(args, "designSystemId");
+        if (!suiteId) return suiteError("update_moonviz suite mode requires suiteId");
+        const existingKind = projectRoot && suiteId ? readDesignSuiteKind(projectRoot, suiteId) : null;
+        const targetKind: DesignSuiteKind = existingKind ?? "prototype";
+        if (targetKind === "ui") {
+          return suiteError("update_moonviz targets prototype suites — ui suites revise leafer documents");
+        }
         const persisted = persistSuiteContent(
           projectRoot,
           args,
           targetKind,
-          deriveTitle(code),
-          (base) =>
-            targetKind === "ui"
-              ? {
-                  ...((base ?? {}) as UiSuiteContent),
-                  openui: code,
-                  // Single-stack invariant, reverse direction (same as
-                  // render_openui): the stale leafer document must not
-                  // survive alongside the new openui program.
-                  leafer: undefined,
-                  ...(sourcePrototype ? { sourcePrototype } : {}),
-                  ...(designSystemId ? { designSystemId } : {}),
-                  quality: { lintFindings: [], runtimeChecks: [] },
-                }
-              : {
-                  ...((base ?? {}) as PrototypeSuiteContent),
-                  // 平台分流(与 render_openui 同规):desktop 改本体;
-                  // mobile/tablet 改自己的变体,本体与其它端不动。
-                  ...(device === "mobile" || device === "tablet"
-                    ? {
-                        openuiVariants: {
-                          ...((base as PrototypeSuiteContent | null)?.openuiVariants ?? {}),
-                          [device]: code,
-                        },
-                      }
-                    : { openui: code }),
-                  // 原型重写后旧架构文档随之失效(与 render_spec 同规)。
-                  ...(device === "mobile" || device === "tablet" ? {} : { arch: undefined }),
-                  verification: { status: "pending", checks: [] },
-                },
+          deriveTitle(doc),
+          () => ({
+            // 单文档整份替换；原型重写后旧架构文档随之失效(与 render_spec 同规)。
+            moonviz: doc,
+            arch: undefined,
+            verification: { status: "pending", checks: [] },
+          }),
           "ready"
         );
         if ("error" in persisted) return suiteError(persisted.error);
-        return artifactResult(persisted.ref, `OpenUI updated (${code.split("\n").length} statements).`, {
-          openui: code,
-        });
+        exportPreviewHtmlBestEffort(projectRoot, String(persisted.ref.suiteId), doc);
+        return artifactResult(
+          persisted.ref,
+          `MoonViz document updated (${doc.split("moonviz:artboard").length - 1} artboards).`,
+          { moonviz: doc }
+        );
       }
-      // Iterate on the same artifact (versions[] accumulate; render_openui
+      // Iterate on the same artifact (versions[] accumulate; render_moonviz
       // starts a fresh lineage for a brand-new prototype).
-      const updateError = saveArtifactWithLineage(projectRoot, "openui", "update", {
-        title: deriveTitle(code),
-        content: code,
+      const updateError = saveArtifactWithLineage(projectRoot, "moonviz", "update", {
+        title: deriveTitle(doc),
+        content: doc,
       });
       if (updateError) return suiteError(updateError);
       return {
         content: [
           {
             type: "text",
-            text: `OpenUI prototype updated (${code.split("\n").length} statements).`,
+            text: `MoonViz prototype updated.`,
           },
         ],
-        metadata: { openui: code },
+        metadata: { moonviz: doc },
       } as CallToolResult;
     }
   );
@@ -1683,7 +1579,7 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
         status =
           verification.status === "passed"
             ? "verified"
-            : version.content && (version.content as PrototypeSuiteContent).openui
+            : version.content && (version.content as PrototypeSuiteContent).moonviz
               ? "ready"
               : "draft";
       } else {
@@ -1801,7 +1697,7 @@ export function registerDesignTools(registerTool: RegisterToolLoose, projectRoot
         "with section markers. The renderer compiles it into a self-contained HTML " +
         "page with design tokens injected as CSS :root variables.\n\n" +
         "Use this for DeepDesign output (landing pages, dashboards, web designs). " +
-        "For PM-Designer prototypes (interactive component-based), use render_openui instead.",
+        "For PM-Designer prototypes (interactive MoonViz documents), use render_moonviz instead.",
       inputSchema: {
         content: z
           .string()
@@ -1914,7 +1810,27 @@ let lastDesignDoc: string | null = null;
  * artifact per turn. `render_*` after a finished design starts a fresh
  * lineage, which is the intended semantics.
  */
-const latestArtifactIds = new Map<string, { openui?: string; design?: string; spec?: string }>();
+/**
+ * Best-effort interactive preview cache (specs/moonviz-engine-replacement
+ * T2.2): export_html runs in the engine worker and the HTML lands next to the
+ * suite as `prototype.html` for the renderer's sandboxed iframe. Engine
+ * unconfigured / export failure → skip silently — the read path re-exports
+ * lazily and the doc itself is always the authority.
+ */
+function exportPreviewHtmlBestEffort(projectRoot: string | undefined, suiteId: string, doc: string): void {
+  if (!projectRoot || !isSafeDesignId(suiteId)) return;
+  moonvizExportHtml(doc)
+    .then((exported) => {
+      const html = typeof exported?.html === "string" ? exported.html : "";
+      if (!exported?.ok || !html) return;
+      writeSuitePreviewHtml(projectRoot, suiteId, html);
+    })
+    .catch(() => {
+      /* engine unavailable — the preview cache is best-effort by design */
+    });
+}
+
+const latestArtifactIds = new Map<string, { moonviz?: string; design?: string; spec?: string }>();
 
 /**
  * Save with lineage: create (render) or version (update), remembering the id.
@@ -1925,7 +1841,7 @@ const latestArtifactIds = new Map<string, { openui?: string; design?: string; sp
  */
 function saveArtifactWithLineage(
   root: string | undefined,
-  kind: "openui" | "design" | "spec",
+  kind: "moonviz" | "design" | "spec",
   mode: "render" | "update",
   input: { title: string; content: string; requirement?: string }
 ): string | null {

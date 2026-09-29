@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { deflateRawSync, inflateRawSync } from "node:zlib";
-import { buildDdpPackage, buildDduOpenuiPackage, buildDduPackage, zipEntries } from "../main/tools/dd-package";
+import { buildDdpPackage, buildDduPackage, zipEntries } from "../main/tools/dd-package";
 
 /**
  * Minimal zip READER for structural round-trip assertions: locate the EOCD,
@@ -103,36 +103,35 @@ test("buildDduPackage: manifest + source.dd + standalone index.html", () => {
   assert.ok(files.get("index.html")!.toString("utf8").startsWith("<!doctype html>"));
 });
 
-test("buildDdpPackage: manifest + source.openui.txt + escaped viewer stub", () => {
+test("buildDdpPackage: manifest + source/doc.mbt.md + escaped viewer stub", () => {
+  const interactive = "<!doctype html><html><body>interactive</body></html>";
+  const zipInteractive = buildDdpPackage(
+    { id: "art-2b", title: "Interactive" },
+    "moonviz:artboard home",
+    "2026-08-18T11:30:00.000Z",
+    undefined,
+    interactive
+  );
+  const filesInteractive = readZip(zipInteractive);
+  assert.deepEqual([...filesInteractive.keys()].sort(), ["index.html", "manifest.json", "source/doc.mbt.md"]);
+  assert.equal(filesInteractive.get("index.html")!.toString("utf8"), interactive);
+  const interactiveManifest = JSON.parse(filesInteractive.get("manifest.json")!.toString("utf8"));
+  assert.equal(interactiveManifest.pipeline, "moonviz");
+  assert.equal(interactiveManifest.interactivePreview, true);
   const source = 'root = Column([\n  Button("Click <me>")\n])';
   const zip = buildDdpPackage({ id: "art-2", title: "Checkout Proto" }, source, "2026-08-18T11:00:00.000Z");
   const files = readZip(zip);
-  assert.deepEqual([...files.keys()].sort(), ["index.html", "manifest.json", "source.openui.txt"]);
+  assert.deepEqual([...files.keys()].sort(), ["index.html", "manifest.json", "source/doc.mbt.md"]);
   const manifest = JSON.parse(files.get("manifest.json")!.toString("utf8"));
   assert.equal(manifest.format, "ddp");
   assert.equal(manifest.kind, "pm-design");
-  assert.equal(manifest.pipeline, "openui");
-  assert.equal(files.get("source.openui.txt")!.toString("utf8"), source);
+  assert.equal(manifest.pipeline, "moonviz");
+  assert.equal(files.get("source/doc.mbt.md")!.toString("utf8"), source);
   const html = files.get("index.html")!.toString("utf8");
   assert.ok(html.includes("Checkout Proto"));
   // The source is HTML-escaped inside the viewer stub.
   assert.ok(html.includes("Click &lt;me&gt;"));
   assert.equal(html.includes("Click <me>"), false);
-});
-
-test("buildDduOpenuiPackage: manifest + source.openui.txt + ui-design viewer stub", () => {
-  const source = 'root = Screen("Board")\nhero = Card(data-sem="hero")';
-  const zip = buildDduOpenuiPackage({ id: "ui-1", title: "Board <UI>" }, source, "2026-09-06T00:00:00.000Z");
-  const files = readZip(zip);
-  assert.deepEqual([...files.keys()].sort(), ["index.html", "manifest.json", "source.openui.txt"]);
-  const manifest = JSON.parse(files.get("manifest.json")!.toString("utf8"));
-  assert.equal(manifest.format, "ddu");
-  assert.equal(manifest.formatVersion, 1);
-  assert.equal(manifest.kind, "ui-design");
-  assert.equal(manifest.pipeline, "openui");
-  assert.equal(files.get("source.openui.txt")!.toString("utf8"), source);
-  assert.match(files.get("index.html")!.toString("utf8"), /Board &lt;UI&gt;/);
-  assert.match(files.get("index.html")!.toString("utf8"), /UI-Design document package/);
 });
 
 test("buildDdpPackage: a non-empty verification result ships as verification.md (spec §6.6)", () => {
@@ -146,19 +145,19 @@ test("buildDdpPackage: a non-empty verification result ships as verification.md 
         status: "failed",
         observation: "页面清单 missing",
       },
-      { id: "openui-root", label: "OpenUI program declares root", status: "healed" },
+      { id: "moonviz-valid", label: "The document passes engine validation", status: "healed" },
     ],
     generatedAt: "2026-09-07T00:00:00.000Z",
     healingRounds: 1,
   };
   const zip = buildDdpPackage(
     { id: "art-3", title: "Checkout Proto" },
-    "root = Column([])",
+    "<!-- moonviz:artboard home -->",
     "2026-09-07T01:00:00.000Z",
     verification
   );
   const files = readZip(zip);
-  assert.deepEqual([...files.keys()].sort(), ["index.html", "manifest.json", "source.openui.txt", "verification.md"]);
+  assert.deepEqual([...files.keys()].sort(), ["index.html", "manifest.json", "source/doc.mbt.md", "verification.md"]);
   const report = files.get("verification.md")!.toString("utf8");
   assert.match(report, /# 验收报告/);
   assert.match(report, /- 状态：failed/);
@@ -167,63 +166,26 @@ test("buildDdpPackage: a non-empty verification result ships as verification.md 
   // ASCII markers: passed/healed → [x], failed → [ ]; observations ride along.
   assert.match(report, /\[x\] Specification is non-empty — passed/);
   assert.match(report, /\[ \] Specification declares a page list — failed — 页面清单 missing/);
-  assert.match(report, /\[x\] OpenUI program declares root — healed — 已自动修复/);
+  assert.match(report, /\[x\] The document passes engine validation — healed — 已自动修复/);
   const manifest = JSON.parse(files.get("manifest.json")!.toString("utf8"));
   assert.equal(manifest.verification, true);
   assert.equal(manifest.formatVersion, 1);
 });
 
 test("buildDdpPackage: without verification (or with empty checks) no verification.md and no manifest flag", () => {
-  const plain = buildDdpPackage({ id: "art-4", title: "Proto" }, "root = X", "2026-09-07T02:00:00.000Z");
+  const plain = buildDdpPackage({ id: "art-4", title: "Proto" }, "moonviz:artboard a", "2026-09-07T02:00:00.000Z");
   const plainFiles = readZip(plain);
-  assert.deepEqual([...plainFiles.keys()].sort(), ["index.html", "manifest.json", "source.openui.txt"]);
+  assert.deepEqual([...plainFiles.keys()].sort(), ["index.html", "manifest.json", "source/doc.mbt.md"]);
   const plainManifest = JSON.parse(plainFiles.get("manifest.json")!.toString("utf8"));
   assert.equal(plainManifest.verification, undefined);
 
   // Present but empty → carries no acceptance evidence, so it is skipped too.
-  const empty = buildDdpPackage({ id: "art-5", title: "Proto" }, "root = X", "2026-09-07T02:00:00.000Z", {
+  const empty = buildDdpPackage({ id: "art-5", title: "Proto" }, "moonviz:artboard a", "2026-09-07T02:00:00.000Z", {
     status: "pending",
     checks: [],
   });
   const emptyFiles = readZip(empty);
-  assert.deepEqual([...emptyFiles.keys()].sort(), ["index.html", "manifest.json", "source.openui.txt"]);
+  assert.deepEqual([...emptyFiles.keys()].sort(), ["index.html", "manifest.json", "source/doc.mbt.md"]);
   const emptyManifest = JSON.parse(emptyFiles.get("manifest.json")!.toString("utf8"));
   assert.equal(emptyManifest.verification, undefined);
-});
-
-test("buildDduOpenuiPackage: tokens + components extras ship as JSON entries listed in the manifest", () => {
-  const tokens = { color: { primary: "#0066ff" }, spacing: { md: "12px" } };
-  const components = [{ name: "Button", variants: ["primary", "ghost"] }];
-  const zip = buildDduOpenuiPackage({ id: "ui-2", title: "Board UI" }, "root = Screen()", "2026-09-07T03:00:00.000Z", {
-    tokens,
-    components,
-  });
-  const files = readZip(zip);
-  assert.deepEqual([...files.keys()].sort(), [
-    "components.json",
-    "index.html",
-    "manifest.json",
-    "source.openui.txt",
-    "tokens.json",
-  ]);
-  // Round-trip: the JSON entries parse back to the exact values passed in.
-  assert.deepEqual(JSON.parse(files.get("tokens.json")!.toString("utf8")), tokens);
-  assert.deepEqual(JSON.parse(files.get("components.json")!.toString("utf8")), components);
-  const manifest = JSON.parse(files.get("manifest.json")!.toString("utf8"));
-  assert.deepEqual(manifest.entries, ["tokens.json", "components.json"]);
-  assert.equal(manifest.formatVersion, 1);
-});
-
-test("buildDduOpenuiPackage: empty or absent extras add no JSON entries and no manifest.entries", () => {
-  const zip = buildDduOpenuiPackage({ id: "ui-3", title: "Board UI" }, "root = Screen()", "2026-09-07T04:00:00.000Z", {
-    tokens: {},
-    components: [],
-  });
-  const files = readZip(zip);
-  assert.deepEqual([...files.keys()].sort(), ["index.html", "manifest.json", "source.openui.txt"]);
-  const manifest = JSON.parse(files.get("manifest.json")!.toString("utf8"));
-  assert.equal(manifest.entries, undefined);
-
-  const bare = buildDduOpenuiPackage({ id: "ui-4", title: "Board UI" }, "root = Screen()", "2026-09-07T04:00:00.000Z");
-  assert.deepEqual([...readZip(bare).keys()].sort(), ["index.html", "manifest.json", "source.openui.txt"]);
 });

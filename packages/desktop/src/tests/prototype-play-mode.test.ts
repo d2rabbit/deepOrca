@@ -22,10 +22,10 @@ let ReactPkg: typeof React;
 let I18nProvider: typeof I18nProviderComponent;
 let PrototypeWorkspace: typeof PrototypeWorkspaceComponent;
 
-const openuiContent = {
+const moonvizContent = {
   requirement: "订单管理",
   spec: "## 页面清单\n\n- 订单页\n",
-  openui: 'root = Text("订单")',
+  moonviz: "moonviz:artboard home",
 };
 
 const suiteWithOpenui = {
@@ -38,15 +38,15 @@ const suiteWithOpenui = {
   updatedAt: "2026-09-09T00:00:00.000Z",
   currentVersionId: "v1",
   versions: [
-    { versionId: "v1", savedAt: "2026-09-09T00:00:00.000Z", status: "ready" as const, content: openuiContent },
+    { versionId: "v1", savedAt: "2026-09-09T00:00:00.000Z", status: "ready" as const, content: moonvizContent },
   ],
   currentVersion: {
     versionId: "v1",
     savedAt: "2026-09-09T00:00:00.000Z",
     status: "ready" as const,
-    content: openuiContent,
+    content: moonvizContent,
   },
-  currentContent: openuiContent,
+  currentContent: moonvizContent,
 };
 
 before(async () => {

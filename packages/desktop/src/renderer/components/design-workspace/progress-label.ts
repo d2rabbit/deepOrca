@@ -12,6 +12,7 @@ const PROGRESS_KEYS: Record<string, MessageKey> = {
   // specs/prompt-doc-chain 交叉审查：PRD 深度门修复轮。
   "prototype.spec.repairing": "prototypeWorkspace.progressRepair",
   "prototype.materialize.repairing": "prototypeWorkspace.progressRepair",
+  "prototype.revise.generating": "prototypeWorkspace.progressMaterialize",
   "prototype.revise.repairing": "prototypeWorkspace.progressRepair",
   // WP2.5:design 线也过修复环,同款进度文案。
   "design.materialize.repairing": "prototypeWorkspace.progressRepair",
@@ -29,6 +30,7 @@ const PROGRESS_KEYS: Record<string, MessageKey> = {
   "prototype.materialize.degraded": "prototypeWorkspace.progressPmDesignDegraded",
   "design.uidesign.degraded": "designWorkspace.progressUiDesignDegraded",
   "prototype.materialize.generating": "prototypeWorkspace.progressMaterialize",
+  "prototype.verify.engine": "prototypeWorkspace.progressVerifyEngine",
   "prototype.materialize.saved": "prototypeWorkspace.progressMaterializeSaved",
   "prototype.arch.generating": "prototypeWorkspace.progressArch",
   "prototype.arch.saved": "prototypeWorkspace.progressArchSaved",
