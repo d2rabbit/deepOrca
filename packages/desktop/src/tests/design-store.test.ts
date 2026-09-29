@@ -20,6 +20,8 @@ import {
   listDesignSuites,
   deleteDesignSuite,
   onDesignSuiteChange,
+  writeSuitePreviewHtml,
+  readSuitePreviewHtml,
 } from "../main/tools/design-store";
 import type {
   DesignQualityResult,
@@ -606,5 +608,26 @@ test("suite changes notify structured and legacy listeners", () => {
   } finally {
     offSuite();
     offLegacy();
+  }
+});
+
+test("writeSuitePreviewHtml writes + notifies; unsafe id no-ops; read degrades null", () => {
+  const root = tempRoot();
+  const suite = createDesignSuite(root, { title: "Preview", kind: "prototype", content: { moonviz: MOCK_DOC } });
+  assert.ok(suite);
+  const events: DesignSuiteChangeEvent[] = [];
+  const off = onDesignSuiteChange((event) => events.push(event));
+  try {
+    writeSuitePreviewHtml(root, suite.id, "<p>interactive</p>");
+    assert.equal(readSuitePreviewHtml(root, suite.id), "<p>interactive</p>");
+    const last = events.at(-1);
+    assert.ok(last && last.suiteId === suite.id && last.change === "update", "cache write re-notifies the suite");
+    // 非法 id：不写、不通知。
+    const before = events.length;
+    writeSuitePreviewHtml(root, "../evil", "<p>x</p>");
+    assert.equal(readSuitePreviewHtml(root, "../evil"), null);
+    assert.equal(events.length, before, "unsafe id is a silent no-op");
+  } finally {
+    off();
   }
 });

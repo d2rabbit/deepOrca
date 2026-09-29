@@ -130,7 +130,11 @@ export async function createMoonvizEngineHost(options: MoonvizEngineHostOptions)
               `engine call timed out after ${callTimeoutMs}ms (${method}) — worker terminated and rebuilt`
             )
           );
-          void rebuild(`call timeout after ${callTimeoutMs}ms (${method})`);
+          // rebuild() ends in await init(), which can reject (init timeout,
+          // crash-loop, anchor drift after a vendor swap) — an unhandled
+          // rejection here would take the main process down, the exact
+          // failure the watchdog exists to contain.
+          void rebuild(`call timeout after ${callTimeoutMs}ms (${method})`).catch(() => undefined);
         }, callTimeoutMs);
         pending.set(id, { resolve, reject, timer, method });
         current.postMessage({ id, method, params });
@@ -209,12 +213,17 @@ export async function createMoonvizEngineHost(options: MoonvizEngineHostOptions)
     async call(method, params) {
       if (initPromise) await initPromise;
       // A reset failure (timeout/crash rebuilt the worker) is safe to replay
-      // once for idempotent single calls; session ladders retry at the
-      // withSession layer instead.
+      // once ONLY for stateless/doc-keyed calls. Session methods carry a
+      // handle that died with the old worker: replaying them on the fresh
+      // one can never succeed (handle is gone) and — worse — freshly
+      // allocated handles are small integers, so a replay can land on a
+      // DIFFERENT document's session. Session ladders recover at the
+      // withSession layer (doc-keyed replay from the authoritative doc).
+      const sessionBearing = method.startsWith("session") && method !== "sessionOpen";
       try {
         return await postCall(method, params);
       } catch (error) {
-        if (error instanceof MoonvizResetError && method !== "init") {
+        if (error instanceof MoonvizResetError && !sessionBearing) {
           return await postCall(method, params);
         }
         throw error;

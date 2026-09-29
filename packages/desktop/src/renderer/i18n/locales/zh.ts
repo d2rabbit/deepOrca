@@ -341,7 +341,7 @@ export const zh: Record<MessageKey, string> = {
     "CodeGraph CLI 驱动——构建与查询代码知识图谱（init / index / sync / serve，符号、调用链）。",
   "builtin.smart-code-review.desc": "智能代码审查——通过 review.full 动作一键编排 CRG 风险分析 + OCR 语义审查。",
   "builtin.deep-design.desc": "DeepDesign——.dd 格式 UI 设计稿（YAML front-matter + HTML，自包含、可脱离宿主交付）。",
-  "builtin.pm-designer-openui.desc": "MoonViz 引擎驱动的 PM 原型——单份 canonical 文档、多画板、op 计划驱动。",
+  "builtin.pm-designer-moonviz.desc": "MoonViz 引擎驱动的 PM 原型——单份 canonical 文档、多画板、op 计划驱动。",
   "builtin.taste.desc": "前端设计纪律——版式、排印、间距、配色与动效的 anti-slop 规范。",
   "builtin.book-distill.desc":
     "把书籍、手册或长文档蒸馏成可复用的 Agent Skill（SKILL.md + references/），沉淀清单、工作流与避坑要点。",

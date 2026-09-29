@@ -407,8 +407,9 @@ export function registerDesignIpc(helpers: DesignIpcHelpers, deps: DesignIpcDeps
     const suite = store.readSuite(resolved, id);
     if (!suite) return null;
     // specs/moonviz-engine-replacement T2.2: attach the interactive preview
-    // cache (prototype.html) — prototype suites only; absent cache = lazy
-    // re-export never ran (engine unavailable), the renderer falls back.
+    // cache (prototype.html) — prototype suites only. The cache is write-time
+    // only; a version saved while the engine was unavailable stays on the
+    // fallback until the next render/update (which rewrites + re-notifies).
     // Reference-stability: no cache → return the store object as-is.
     if (suite.kind === "prototype") {
       const previewHtml = store.readSuitePreviewHtml(resolved, id);

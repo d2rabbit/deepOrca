@@ -24,7 +24,7 @@ import * as nodePath from "node:path";
 import { generatePrototype, listTemplates } from "./a2ui-templates";
 import { lintLeaferDocument, looksLikeArchDoc, MOONVIZ_PRESERVE_CONTRACT } from "@deeporca/core";
 import { moonvizExportHtml } from "@deeporca/core/moonviz-engine";
-import { suitePreviewHtmlPath, writeSuitePreviewHtml } from "../design-store.js";
+import { writeSuitePreviewHtml } from "../design-store.js";
 import { BASIC_CATALOG_ID, convertLegacyComponents } from "../../../shared/a2ui-legacy";
 import {
   appendDesignSuiteVersion,
@@ -1118,8 +1118,9 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
   // artifact: one doc, many artboards (three platforms = `<page>@<device>`
   // artboards). Returned as text with metadata.moonviz so the renderer opens
   // the prototype preview; the interactive HTML preview is exported
-  // best-effort into the suite dir as prototype.html (lazy re-export on read
-  // when the cache is missing).
+  // best-effort into the suite dir as prototype.html (write-time only — a
+  // cache written during an engine rebuild window stays missing until the
+  // next render/update, which rewrites and re-notifies).
   registerTool(
     "render_moonviz",
     {
@@ -1166,7 +1167,10 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
             ...((base ?? {}) as PrototypeSuiteContent),
             ...(requirement ? { requirement } : {}),
             // 单文档模型：整份 canonical 替换（三端画板都在这一份文档里）。
+            // 旧架构文档随原型重写失效（与 update_moonviz / render_spec 同规
+            // ——materialize 重跑不得带着描述旧原型的"已批准架构"）。
             moonviz: doc,
+            arch: undefined,
             verification: { status: "pending", checks: [] },
           }),
           "ready"
@@ -1454,8 +1458,10 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
           args,
           targetKind,
           deriveTitle(doc),
-          () => ({
-            // 单文档整份替换；原型重写后旧架构文档随之失效(与 render_spec 同规)。
+          (base) => ({
+            ...((base ?? {}) as PrototypeSuiteContent),
+            // 单文档整份替换；spec/pmDesign/requirement 随 base 保留（revise 不
+            // 是意图变更）。原型重写后旧架构文档随之失效(与 render_spec 同规)。
             moonviz: doc,
             arch: undefined,
             verification: { status: "pending", checks: [] },

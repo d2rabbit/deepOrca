@@ -348,7 +348,7 @@ export const en = {
     "Combined code review — one-click orchestration of CRG risk analysis + OCR semantic review via the review.full action.",
   "builtin.deep-design.desc":
     "Design-grade web artifacts in the .dd (OrcaDesign) format — YAML front-matter + HTML body, self-contained and deliverable outside the host.",
-  "builtin.pm-designer-openui.desc":
+  "builtin.pm-designer-moonviz.desc":
     "PM-focused prototypes on the MoonViz engine — one canonical document, many artboards, op-plan driven.",
   "builtin.taste.desc":
     "Front-end design quality discipline — anti-slop methodology for layout, typography, spacing, color and animation.",

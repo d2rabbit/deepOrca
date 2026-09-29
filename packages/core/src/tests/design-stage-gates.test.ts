@@ -395,6 +395,13 @@ test("moonvizArtboardCount counts each artboard marker once", () => {
   ].join("\n");
   assert.equal(moonvizArtboardCount(doc), 2);
   assert.equal(moonvizArtboardCount("no markers at all"), 0);
+  // 多端文档：`<page>@<device>` 画板按 pageId 折叠（S5 门契约 = 每页一 Frame）。
+  const multiDevice = [
+    "<!-- moonviz:artboard home@desktop -->",
+    "<!-- moonviz:artboard home@mobile -->",
+    "<!-- moonviz:artboard home@tablet -->",
+  ].join("\n");
+  assert.equal(moonvizArtboardCount(multiDevice), 1, "@device suffixed artboards collapse to their pageId");
 });
 
 // ── S5 Leafer 画布深度门 ─────────────────────────────────────────────────────

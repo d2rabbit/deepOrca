@@ -551,9 +551,9 @@ const OPEN_SOURCE_CREDITS: Array<{ name: string; zh: string; en: string; license
     url: "https://github.com/a2ui-project/a2ui",
   },
   {
-    name: "OpenUI",
-    zh: "原型生成引擎（MoonViz，wasm-gc 直嵌）。",
-    en: "Prototype-generation engine (MoonViz, in-process wasm-gc).",
+    name: "MoonViz",
+    zh: "原型生成引擎（wasm-gc 直嵌）。",
+    en: "Prototype-generation engine (in-process wasm-gc).",
     license: "MIT",
     url: "https://github.com/asdshuaishuai/moonviz",
   },

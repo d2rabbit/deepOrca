@@ -274,7 +274,8 @@ const FILE_BY_PIPELINE: Record<DesignPipeline, string> = {
 // ── Interactive preview cache (specs/moonviz-engine-replacement T2.2) ───────
 // `prototype.html` lives next to the suite (head-level cache, overwritten per
 // save); the renderer embeds it in a sandboxed iframe. Best-effort by design:
-// a missing cache means the read path re-exports lazily.
+// write-time only — a cache missing at read time stays missing until the next
+// render/update (writeSuitePreviewHtml re-notifies so open workspaces refresh).
 
 function suiteDir(root: string, id: string): string {
   return path.join(getDesignsDir(root), id);
@@ -285,12 +286,15 @@ export function suitePreviewHtmlPath(root: string, suiteId: string): string {
   return path.join(suiteDir(root, suiteId), "prototype.html");
 }
 
-/** Write the cached preview HTML (best-effort caller side). */
+/** Write the cached preview HTML (best-effort caller side). Emits a suite
+ *  change on success: the cache lands after the persist's own event, and an
+ *  open workspace must re-read to pick up the fresh preview. */
 export function writeSuitePreviewHtml(root: string, suiteId: string, html: string): void {
   if (!isSafeDesignId(suiteId)) return;
   try {
     fs.mkdirSync(suiteDir(root, suiteId), { recursive: true });
     fs.writeFileSync(suitePreviewHtmlPath(root, suiteId), html, "utf8");
+    notifySuiteChange({ root, suiteId, change: "update" });
   } catch {
     /* best-effort */
   }

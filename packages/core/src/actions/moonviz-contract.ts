@@ -454,9 +454,14 @@ export function looksLikeOpPlan(ops: string[]): boolean {
   return ops.some((op) => /^(template|create)\s+\S+/.test(op) || /^(delete-artboard)\s/.test(op));
 }
 
-/** Deterministic artboard count of a canonical document (frontmatter list +
- *  visual-block comments both count once per artboard — the comment marker is
- *  the per-artboard unit). Consumed by the UI chain's canvas-depth gate. */
+/** Deterministic artboard count of a canonical document — DISTINCT PAGE count
+ *  (the comment marker is the per-artboard unit; `<page>@<device>` suffixed
+ *  ids of multi-device documents collapse to their pageId, matching the
+ *  leafer canvas-depth gate's "one Frame per page" contract). */
 export function moonvizArtboardCount(doc: string): number {
-  return [...doc.matchAll(/<!--\s*moonviz:artboard\s+[\w-]+\s*-->/g)].length;
+  const pageIds = new Set<string>();
+  for (const match of doc.matchAll(/<!--\s*moonviz:artboard\s+([\w@-]+)\s*-->/g)) {
+    pageIds.add(parseMoonvizArtboardId(match[1]).pageId);
+  }
+  return pageIds.size;
 }

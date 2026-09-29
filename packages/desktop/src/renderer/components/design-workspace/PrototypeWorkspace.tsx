@@ -528,8 +528,9 @@ export function PrototypeWorkspace({
   // device 状态保留用于画板壳宽度（桌面/手机/平板外框），不再切换程序。
   const moonvizDoc = isPrototypeContent(content) ? (content.moonviz ?? null) : null;
   const anyPrototypeCode = Boolean(moonvizDoc);
-  // 交互预览缓存随 suite read 附带（main 读 prototype.html）。
-  const suitePreviewHtml = suite?.previewHtml ?? null;
+  // 交互预览缓存随 suite read 附带（main 读 prototype.html，head 级缓存）。
+  // 非 head（只读历史版本）不传缓存——否则 iframe 显示的是 head 的预览。
+  const suitePreviewHtml = readOnly ? null : (suite?.previewHtml ?? null);
 
   // 播放模式:Esc 退出(对齐 easy-prototype 演示模式),版本内容失去原型时
   // 自动退出,避免停在空播放器里。

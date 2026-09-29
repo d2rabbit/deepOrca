@@ -339,7 +339,7 @@ export const ko: Record<MessageKey, string> = {
     "통합 코드 리뷰 — review.full 액션으로 CRG 위험 분석 + OCR 시맨틱 리뷰를 원클릭으로 오케스트레이션합니다.",
   "builtin.deep-design.desc":
     ".dd(OrcaDesign) 형식의 디자인급 웹 산출물 — YAML front-matter + HTML 본문, 자체 완결형이며 호스트 밖으로 전달할 수 있습니다.",
-  "builtin.pm-designer-openui.desc":
+  "builtin.pm-designer-moonviz.desc":
     "MoonViz 엔진 기반 PM 프로토타입 — 단일 canonical 문서, 다중 아트보드, op 플랜 구동.",
   "builtin.taste.desc":
     "프런트엔드 디자인 품질 원칙 — 레이아웃, 타이포그래피, 간격, 색상, 애니메이션을 위한 anti-slop 방법론.",

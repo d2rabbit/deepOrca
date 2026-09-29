@@ -227,10 +227,11 @@ test("update_moonviz fails on a stale versionId instead of rolling the head back
     const headContent = suite?.currentVersion?.content as PrototypeSuiteContent;
     assert.equal(headContent.moonviz, MOCK_DOC);
 
-    // Appending against the head stays ok.
+    // Appending against the head stays ok (content must differ — identical
+    // appends are a no-op by design).
     const fresh = await client.callTool({
       name: "update_moonviz",
-      arguments: { doc: MOCK_DOC, suiteId: v1.suiteId, versionId: v2.versionId },
+      arguments: { doc: MOCK_DOC_V2, suiteId: v1.suiteId, versionId: v2.versionId },
     });
     assert.notEqual(fresh.isError, true, text(fresh));
     assert.equal(artifactRefOf(fresh).versionId !== v2.versionId, true);
@@ -696,6 +697,49 @@ test("save_pm_design cross-review hardening: preserveDerived keeps derived artif
       arguments: { document: "# 孤儿\n\n## a\n- b", note: "no lineage" },
     });
     assert.equal(orphan.isError, true, "note-only call must not mint an orphan suite");
+  } finally {
+    await client.close();
+  }
+});
+
+test("update_moonviz preserves spec/pmDesign/requirement from the base version (revise is not an intent change)", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "a2ui-update-base-"));
+  roots.push(root);
+  const client = await clientFor(root);
+  try {
+    const first = await client.callTool({
+      name: "render_spec",
+      arguments: { document: "# Tasks\n\n## Page list\n- Board", requirement: "Task board", note: "initial" },
+    });
+    const v1 = artifactRefOf(first);
+    const pmdesigned = await client.callTool({
+      name: "save_pm_design",
+      arguments: {
+        document: "# Task board 原型提示\n\n## 页面结构\n- Board",
+        preserveDerived: true,
+        suiteId: v1.suiteId,
+        versionId: v1.versionId,
+      },
+    });
+    assert.notEqual(pmdesigned.isError, true, text(pmdesigned));
+    const materialized = await client.callTool({
+      name: "render_moonviz",
+      arguments: { doc: MOCK_DOC, suiteId: v1.suiteId },
+    });
+    const v2 = artifactRefOf(materialized);
+    const revised = await client.callTool({
+      name: "update_moonviz",
+      arguments: { doc: MOCK_DOC_V2, suiteId: v1.suiteId, versionId: v2.versionId, note: "revision" },
+    });
+    assert.notEqual(revised.isError, true, text(revised));
+    const suite = readDesignSuite(root, v1.suiteId);
+    const head = suite?.currentVersion.content as PrototypeSuiteContent;
+    assert.equal(head.moonviz, MOCK_DOC_V2);
+    assert.equal(head.spec, "# Tasks\n\n## Page list\n- Board", "spec rides forward from the base");
+    assert.equal(head.requirement, "Task board", "requirement rides forward");
+    assert.match(head.pmDesign ?? "", /# Task board 原型提示/, "pmDesign rides forward");
+    assert.equal(head.arch, undefined, "arch resets on a prototype rewrite (render_spec 同规)");
+    assert.equal(head.verification?.status, "pending", "verification resets");
   } finally {
     await client.close();
   }

@@ -46,28 +46,55 @@ const SPEC = `# 轻订单管理 — 需求文档
 - 是否需要导出 CSV？（当前排期外）
 `;
 
-const OPENUI = `root = Screen("轻订单管理")
-root.addChild(nav = SideNav("轻订单"))
-nav.addItem("orders", "订单")
-nav.addItem("settings", "设置")
-root.addChild(page = Page("orders"))
-page.addChild(kpis = KpiRow())
-kpis.addChild(kpi1 = KpiCard("今日订单", "128", "+12%"))
-kpis.addChild(kpi2 = KpiCard("履约率", "96.4%", "+1.2%"))
-kpis.addChild(kpi3 = KpiCard("退款中", "3", "-2"))
-page.addChild(table = DataTable("订单列表", rows = 12))
-table.addColumn("单号"); table.addColumn("客户"); table.addColumn("金额"); table.addColumn("状态")
-page.addChild(refreshBtn = Button("刷新", action = "data:refresh"))
-login = Page("login")
-login.addChild(email = Input("邮箱"))
-login.addChild(password = Input("密码", secret = true))
-login.addChild(remember = Checkbox("记住我"))
-login.addChild(submit = Button("登录", action = "auth:submit"))
-login.addChild(reset = Button("重置表单", action = "form:reset"))
-root.addChild(login)
-`;
+// MoonViz 替换后：原型套件走 moonviz 字段（canonical .mbt.md），UI 套件走
+// leafer 字段（合法场景树 JSON）。旧 OpenUI 程序串已随栈作废。
+const LEAFER_SCENE = JSON.stringify({
+  tag: "Leafer",
+  width: 1440,
+  height: 1024,
+  fill: "#ffffff",
+  children: [
+    {
+      tag: "Frame",
+      name: "orders",
+      x: 0,
+      y: 0,
+      width: 1440,
+      height: 1024,
+      fill: "#111318",
+      children: [{ tag: "Text", x: 40, y: 40, width: 400, height: 32, fill: "#ffffff", text: "轻订单管理" }],
+    },
+  ],
+});
+const MOONVIZ_DOC = `---
+moonviz:
+  format: visual-document
+  revision: 1
+  entry: orders
+---
 
-const OPENUI_V2 = OPENUI + "\n// v2: brand accent aligned to DESIGN.md (sea-green)\n";
+# 轻订单管理
+
+<!-- moonviz:artboard orders -->
+\`\`\`mbt
+fn visual_orders() -> @decl.Prototype {
+  let page = @decl.prototype(name="orders", width=1200.0, height=800.0)
+  page.add(@decl.generic_node(id="title",component="heading",kind="text",width=@decl.fixed(300),height=@decl.fixed(36),x=40,y=32,text="轻订单管理",fill="none",stroke="none",stroke_width=0,radius=0,opacity=1,font_size=24,text_color="#1A1C1E",font_weight="normal",shadow="none",rotate=0,blur=0,blend="normal",line_height=1.5,tracking=0,flip="none",constraint="lt"))
+  page.add(@decl.generic_node(id="new_btn",component="button",kind="rect",width=@decl.fixed(120),height=@decl.fixed(40),x=1040,y=28,text="新建订单",fill="#4B6BFB",stroke="none",stroke_width=0,radius=8,opacity=1,font_size=14,text_color="#FFFFFF",font_weight="normal",shadow="none",rotate=0,blur=0,blend="normal",line_height=1.5,tracking=0,flip="none",constraint="lt"))
+  page
+}
+\`\`\`
+
+<!-- moonviz:artboard orders_v2 -->
+\`\`\`mbt
+fn visual_orders_v2() -> @decl.Prototype {
+  let page = @decl.prototype(name="orders_v2", width=1200.0, height=800.0)
+  page.add(@decl.generic_node(id="title",component="heading",kind="text",width=@decl.fixed(300),height=@decl.fixed(36),x=40,y=32,text="轻订单管理",fill="none",stroke="none",stroke_width=0,radius=0,opacity=1,font_size=24,text_color="#1A1C1E",font_weight="normal",shadow="none",rotate=0,blur=0,blend="normal",line_height=1.5,tracking=0,flip="none",constraint="lt"))
+  page.add(@decl.generic_node(id="new_btn",component="button",kind="rect",width=@decl.fixed(120),height=@decl.fixed(40),x=1040,y=28,text="新建订单",fill="#2E9E8F",stroke="none",stroke_width=0,radius=8,opacity=1,font_size=14,text_color="#FFFFFF",font_weight="normal",shadow="none",rotate=0,blur=0,blend="normal",line_height=1.5,tracking=0,flip="none",constraint="lt"))
+  page
+}
+\`\`\`
+`;
 
 const verificationV3 = {
   status: "passed",
@@ -87,24 +114,6 @@ const verificationV3 = {
     { id: "c5", label: "375px 视口无横向溢出", status: "passed", action: "@resize:375" },
   ],
 };
-
-const DESIGN_OPENUI = `root = Screen("轻订单管理 · UI 设计稿")
-section hero {
-  heading = Text("轻订单 · 小团队订单处理", size="h1", data-sem="hero-title")
-  sub = Text("从群聊搬进系统 —— 登录、对账、履约一屏完成。", data-sem="hero-sub")
-}
-section login {
-  title = Text("登录", size="h2", data-sem="login-title")
-  email = Input(placeholder="邮箱", data-sem="login-email")
-  password = Input(placeholder="密码", type="password", data-sem="login-password")
-  submit = Button("登录", action="auth:submit", data-sem="login-submit")
-}
-section orders {
-  title = Text("订单列表", size="h2", data-sem="orders-title")
-  kpi = Row(data-sem="orders-kpi") { Text("今日订单 12") Text("履约率 96%") Text("退款中 1") }
-  refresh = Button("刷新", action="orders:refresh", data-sem="orders-refresh")
-}
-`;
 
 const uiQualityV4 = {
   lintFindings: [],
@@ -138,7 +147,7 @@ const proto = createDesignSuite(root, {
 if (!proto) throw new Error("prototype suite create failed");
 appendDesignSuiteVersion(root, {
   suiteId: proto.id,
-  content: { requirement: "小团队订单处理从群聊搬进系统，先做最小闭环。", spec: SPEC, openui: OPENUI_V2 },
+  content: { requirement: "小团队订单处理从群聊搬进系统，先做最小闭环。", spec: SPEC, moonviz: MOONVIZ_DOC },
   note: "品牌注入 · --pd-accent 同源 DESIGN.md",
   status: "ready",
 });
@@ -147,7 +156,10 @@ appendDesignSuiteVersion(root, {
   content: {
     requirement: "小团队订单处理从群聊搬进系统，先做最小闭环。",
     spec: SPEC,
-    openui: OPENUI,
+    moonviz: MOONVIZ_DOC.replace("revision: 1", "revision: 3").replace(
+      'text="新建订单",fill="#4B6BFB"',
+      'text="新建订单",fill="#2E9E8F"'
+    ),
     verification: verificationV3,
   },
   note: "走查修复 · 验收 5/5（自愈 1）",
@@ -163,7 +175,7 @@ const ui = createDesignSuite(root, {
   note: "初稿 · 未定向",
   content: {
     requirement: "把「轻订单管理」提升为品牌视觉稿",
-    openui: DESIGN_OPENUI,
+    leafer: LEAFER_SCENE,
     tokens: { "brand.500": "#4f46e5", accent: "{brand.500}" },
     components: [{ name: "Button" }, { name: "Input" }, { name: "Card" }],
     sourcePrototype: { suiteId: proto.id, versionId: proto.currentVersionId },
@@ -175,7 +187,7 @@ appendDesignSuiteVersion(root, {
   suiteId: ui.id,
   content: {
     requirement: "把「轻订单管理」提升为品牌视觉稿",
-    openui: DESIGN_OPENUI,
+    leafer: LEAFER_SCENE,
     tokens: { "brand.500": "#0e7c66", accent: "{brand.500}" },
     components: [{ name: "Button" }, { name: "Input" }, { name: "Card" }],
     sourcePrototype: { suiteId: proto.id, versionId: proto.currentVersionId },
@@ -188,7 +200,7 @@ appendDesignSuiteVersion(root, {
   suiteId: ui.id,
   content: {
     requirement: "把「轻订单管理」提升为品牌视觉稿",
-    openui: DESIGN_OPENUI,
+    leafer: LEAFER_SCENE,
     tokens: { "brand.500": "#0e7c66", accent: "{brand.500}" },
     components: [{ name: "Button" }, { name: "Input" }, { name: "Card" }],
     sourcePrototype: { suiteId: proto.id, versionId: proto.currentVersionId },
@@ -201,7 +213,7 @@ appendDesignSuiteVersion(root, {
   suiteId: ui.id,
   content: {
     requirement: "把「轻订单管理」提升为品牌视觉稿",
-    openui: DESIGN_OPENUI,
+    leafer: LEAFER_SCENE,
     tokens: { "brand.500": "#0e7c66", accent: "{brand.500}", "text.primary": "#1b2129", "surface.body": "#f7f9fc" },
     components: [{ name: "Button" }, { name: "Input" }, { name: "Card" }, { name: "Tabs" }],
     sourcePrototype: { suiteId: proto.id, versionId: proto.currentVersionId },

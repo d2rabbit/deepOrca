@@ -18,6 +18,11 @@
  * export_ddp with an empty password produces the freely viewable DDP2;
  * the DDP1 password UX remains a deferred product decision — the codec
  * itself supports both).
+ *
+ * NOTE on the `.ddp` extension: two producers share it with incompatible
+ * payloads — the desktop suite export (buildDdpPackage) is a ZIP ("PK"
+ * magic), this codec's container is binary DDP1/DDP2. Disambiguate by magic
+ * bytes on any future import/viewer path; do NOT assume one format.
  */
 
 import { zstdCompressSync, zstdDecompressSync, crc32 as zlibCrc32, constants as zlibConstants } from "node:zlib";

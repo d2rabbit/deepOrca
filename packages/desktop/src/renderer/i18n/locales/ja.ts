@@ -342,7 +342,7 @@ export const ja: Record<MessageKey, string> = {
     "統合コードレビュー — review.full アクションで CRG リスク分析 + OCR セマンティックレビューをワンクリックで編成。",
   "builtin.deep-design.desc":
     ".dd（OrcaDesign）形式のデザイングレード Web 成果物 — YAML front-matter + HTML ボディで自己完結し、ホスト外へもそのまま納品可能。",
-  "builtin.pm-designer-openui.desc":
+  "builtin.pm-designer-moonviz.desc":
     "MoonViz エンジン駆動の PM プロトタイプ——1 つの canonical ドキュメント・複数アートボード・op 計画駆動。",
   "builtin.taste.desc":
     "フロントエンドのデザイン品質規律 — レイアウト・タイポグラフィ・間隔・配色・アニメーションのための anti-slop 手法。",

@@ -34,7 +34,7 @@ import {
   type MoonvizArtboardSummary,
   type MoonvizDevice,
 } from "./moonviz-contract";
-import { MoonvizEngineError, moonvizValidateMbt, withSession } from "../common/moonviz-engine";
+import { MoonvizEngineError, MoonvizResetError, moonvizValidateMbt, withSession } from "../common/moonviz-engine";
 import { DdpError, encryptDdp } from "../common/ddp-codec";
 import { ensureDesignChainRegistration } from "../specs";
 import {
@@ -351,9 +351,25 @@ async function applyMoonvizOpPlan(
       const gateBlock = engineError?.gateBlock;
       if (engineError && gateBlock) {
         // The engine reports one block per rejection; the culprit is the
-        // first planned op targeting the rejected artboard (ops apply in
-        // order, so everything after it never entered the document).
-        const culprit = ops.find((op) => op.split(/\s+/)[1] === gateBlock.artboard) ?? ops[0] ?? "";
+        // first planned op TARGETING the rejected artboard (ops apply in
+        // order, so everything after it never entered the document). Artboard
+        // position is op-specific: token[1] for most ops, but `template
+        // <template-id> <ab> …` and `flow <from> <to> …` carry it in
+        // token[2] — a naive some()-scan would misattribute a flow whose
+        // DESTINATION matches. The seeded `delete-artboard __seed` op is
+        // never the culprit (the seed board predates the plan).
+        const opTargetsArtboard = (op: string): boolean => {
+          const tokens = op.split(/\s+/);
+          if (tokens[0] === "template" || tokens[0] === "flow") {
+            return tokens[1] === gateBlock.artboard || tokens[2] === gateBlock.artboard;
+          }
+          return tokens[1] === gateBlock.artboard;
+        };
+        const culprit =
+          ops.find((op) => !op.startsWith("delete-artboard") && opTargetsArtboard(op)) ??
+          ops.find((op) => !op.startsWith("delete-artboard")) ??
+          ops[0] ??
+          "";
         gateFindings = [{ op: culprit, gateBlock: engineError.message }];
       } else {
         return { ok: false, error: error instanceof Error ? error.message : String(error) };
@@ -1261,6 +1277,12 @@ interface MoonvizEngineVerification {
   critiqueFindings: Array<{ artboard: string; finding: Record<string, unknown> }>;
   tapResults: Array<{ flow: string; ok: boolean; detail: string }>;
   validateError?: string;
+  validateRan: boolean;
+  /** Ladder failure AFTER validate passed (wasm trap mid-lint etc.) — a
+   *  pending observation, not a validate verdict. A throw BEFORE validate
+   *  (seam unconfigured / worker unbootable) also lands here with
+   *  validateRan=false — "not verified", never "verified". */
+  ladderError?: string;
 }
 
 function envelopeArray(payload: unknown): Array<Record<string, unknown>> {
@@ -1285,8 +1307,10 @@ async function runMoonvizVerification(doc: string): Promise<MoonvizEngineVerific
     lintFindings: [],
     critiqueFindings: [],
     tapResults: [],
+    validateRan: false,
   };
   const validated = await moonvizValidateMbt(doc);
+  verification.validateRan = true;
   if (!validated.ok) {
     verification.validateError = validated.error ?? "validate_mbt failed";
     return verification;
@@ -1301,11 +1325,26 @@ async function runMoonvizVerification(doc: string): Promise<MoonvizEngineVerific
     verification.flows = envelopeArray(await session.flows());
     for (const artboard of verification.artboards) {
       if (!artboard.id) continue;
-      for (const finding of envelopeArray(await session.lint(artboard.id))) {
-        verification.lintFindings.push({ artboard: artboard.id, finding });
+      try {
+        for (const finding of envelopeArray(await session.lint(artboard.id))) {
+          verification.lintFindings.push({ artboard: artboard.id, finding });
+        }
+      } catch (error) {
+        // Worker resets must keep their class: withSession's doc-keyed replay
+        // is the designed recovery — swallowing the reset here would run the
+        // rest of the ladder against a dead handle and fabricate failures.
+        if (error instanceof MoonvizResetError) throw error;
+        verification.lintFindings.push({
+          artboard: artboard.id,
+          finding: { rule: "lint_unavailable", message: error instanceof Error ? error.message : String(error) },
+        });
       }
-      for (const finding of envelopeArray(await session.critique(artboard.id))) {
-        verification.critiqueFindings.push({ artboard: artboard.id, finding });
+      try {
+        for (const finding of envelopeArray(await session.critique(artboard.id))) {
+          verification.critiqueFindings.push({ artboard: artboard.id, finding });
+        }
+      } catch {
+        // critique 是增益观察面——失败降级为空，不阻断其余检查项。
       }
     }
     for (const flow of verification.flows) {
@@ -1384,22 +1423,39 @@ export const prototypeVerifyRun: ActionRun<PrototypeVerifyInput, PrototypeVerify
     try {
       engine = await runMoonvizVerification(doc);
     } catch (error) {
+      // 配置级失败（seam 未注入/worker 不可用）≠ 文档验证失败——记录为
+      // 「未验证」（pending），绝不把未验证文档标成 passed。
       engine = {
         artboards: [],
         flows: [],
         lintFindings: [],
         critiqueFindings: [],
         tapResults: [],
-        validateError: error instanceof Error ? error.message : String(error),
+        validateRan: false,
+        ladderError: error instanceof Error ? error.message : String(error),
       };
     }
     checks.push({
       id: "moonviz-valid",
       label: "The document passes engine validation",
-      status: engine.validateError ? "failed" : "passed",
-      ...(engine.validateError ? { observation: engine.validateError } : {}),
+      status: engine.validateError ? "failed" : engine.validateRan ? "passed" : "pending",
+      ...(engine.validateError
+        ? { observation: engine.validateError }
+        : engine.validateRan
+          ? {}
+          : { observation: "引擎验证未运行（seam 未配置或 worker 不可用）——恢复引擎后重新 verify。" }),
     });
-    if (!engine.validateError) {
+    if (engine.ladderError) {
+      checks.push({
+        id: "auto:verify-engine-unavailable",
+        label: "Engine verification ladder completed",
+        status: "pending",
+        observation: engine.validateRan
+          ? `引擎检查阶梯中断（validate 已通过）：${engine.ladderError}——稍后重新 verify。`
+          : `引擎检查阶梯中断：${engine.ladderError}——恢复引擎后重新 verify。`,
+      });
+    }
+    if (!engine.validateError && !engine.ladderError) {
       // 平台一致性（WP0.4 等价迁移）：PRD 声明端 vs 文档画板端。多端文档的
       // 画板 id 携带 @device 后缀；单端文档（plain id）按声明单端放行——
       // 单端文档的端别由 materialize 的计划决定，无后缀不可判别。
@@ -1472,9 +1528,13 @@ export const prototypeVerifyRun: ActionRun<PrototypeVerifyInput, PrototypeVerify
       for (const [rule, entry] of lintByRule) {
         checks.push({
           id: `auto:lint-${rule}`,
-          label: `No ${rule} violations (session_lint)`,
+          label:
+            rule === "lint_unavailable" ? "session_lint ran on every artboard" : `No ${rule} violations (session_lint)`,
           status: "pending",
-          observation: `session_lint 报 ${entry.count} 处 ${rule}：${entry.message}——修正后重新 verify 消项。`,
+          observation:
+            rule === "lint_unavailable"
+              ? `session_lint 在 ${entry.count} 个画板上不可用：${entry.message}——恢复引擎后重新 verify。`
+              : `session_lint 报 ${entry.count} 处 ${rule}：${entry.message}——修正后重新 verify 消项。`,
         });
       }
       // critique（8 原则）汇总为一条 pending 观察（顶部建议）。

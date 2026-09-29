@@ -33,6 +33,7 @@
  */
 
 import { parentPort } from "node:worker_threads";
+import type { MoonvizRequestMethod } from "@deeporca/core/moonviz-engine";
 
 // ── engine instance ──────────────────────────────────────────────────────────
 
@@ -102,6 +103,9 @@ interface CacheEntry {
  *  (evict-close the oldest refcount-0 entry on overflow). */
 const CACHE_CAP = 4;
 const sessionCache = new Map<string, CacheEntry>();
+/** Handles opened while the cache was at capacity with every entry ref'd —
+ *  closed for real on release instead of staying warm. */
+const uncachedHandles = new Set<number>();
 
 function statsPayload() {
   return {
@@ -126,8 +130,11 @@ function instantiateEngine(): EngineExports {
 }
 
 /** Drop every cached handle and re-open sessions from their canonical keys.
- *  Callers guarantee refcount-0 (no in-flight session work), so handle
- *  replacement cannot race a live `withSession`. */
+ *  Callers guarantee refcount-0 (no in-flight session work) AND no live
+ *  uncached handles — both checked by maybeRatchet before calling. Stale
+ *  small-int handles from the replaced instance must never survive: a later
+ *  close/op against one would land on a DIFFERENT document's session of the
+ *  fresh instance (engine handles are small reused integers). */
 function rebuildEngine(): void {
   const keys = [...sessionCache.keys()];
   try {
@@ -143,6 +150,7 @@ function rebuildEngine(): void {
     heapBaseline = process.memoryUsage().heapUsed;
     mutatingOps = 0;
     sessionCache.clear();
+    uncachedHandles.clear();
     rebuilds += 1;
   }
   for (const key of keys) {
@@ -151,13 +159,16 @@ function rebuildEngine(): void {
   }
 }
 
-/** Ratchet check at an op boundary. Deferred while any session has live
- *  refs (an active withSession would see its handle swap underneath it). */
+/** Ratchet check at an op boundary. Deferred while ANY live handle exists —
+ *  ref'd cache entries (an active withSession would see its handle swap
+ *  underneath it) or overflow-opened uncached handles (same aliasing
+ *  hazard: the rebuild would invalidate them mid-ladder). */
 function maybeRatchet(): void {
   if (!X) return;
   const overOps = mutatingOps >= maxMutatingOps;
   const overHeap = process.memoryUsage().heapUsed - heapBaseline >= ratchetHeapBytes;
   if (!overOps && !overHeap) return;
+  if (uncachedHandles.size > 0) return;
   if ([...sessionCache.values()].some((entry) => entry.refs > 0)) return;
   rebuildEngine();
 }
@@ -170,8 +181,15 @@ function evictEntry(entry: CacheEntry, reason: string): void {
     X?.session_close(entry.handle);
   } catch {
     // A close failure after a trap means the instance itself is sick —
-    // rebuild rather than leave a poisoned engine behind.
-    if (reason !== "close") rebuildEngine();
+    // rebuild rather than leave a poisoned engine behind. But never while a
+    // DIFFERENT ladder holds a live handle: the rebuild would alias its
+    // handle to a fresh session mid-flight. A sick instance keeps serving
+    // per-call errors until the live ladders drain, then the next ratchet
+    // boundary (or the next sick close) rebuilds.
+    if (reason !== "close") {
+      const otherLiveRefs = [...sessionCache.values()].some((other) => other !== entry && other.refs > 0);
+      if (!otherLiveRefs && uncachedHandles.size === 0) rebuildEngine();
+    }
   }
 }
 
@@ -199,6 +217,13 @@ function cacheOpen(canonical: string): number {
   }
   const handle = X.session_open(canonical);
   if (handle < 0) return handle; // engine rejected the doc — surface -1 contract
+  if (sessionCache.size >= CACHE_CAP) {
+    // Every entry is ref'd (≥CACHE_CAP concurrent withSession ladders) —
+    // open UNCACHED: the cap stays a hard invariant and the handle is closed
+    // for real on release instead of lingering warm.
+    uncachedHandles.add(handle);
+    return handle;
+  }
   const entry: CacheEntry = { canonical, handle, refs: 1 };
   sessionCache.set(canonical, entry);
   return handle;
@@ -279,7 +304,10 @@ function sessionStringCall(
   }
 }
 
-const handlers: Record<string, Handler> = {
+// Keyed by the engine protocol union — a typo'd key fails typecheck instead
+// of answering "unknown method" at runtime. The type annotation is erased at
+// bundle time; the worker stays dependency-free.
+const handlers: Record<MoonvizRequestMethod, Handler> = {
   init(params) {
     const bytes = params.bytes as ArrayBuffer;
     if (!(bytes instanceof ArrayBuffer) || bytes.byteLength === 0) {
@@ -369,6 +397,12 @@ const handlers: Record<string, Handler> = {
   },
   sessionClose(params) {
     const handle = params.handle as number;
+    // Overflow-opened handles (cache at cap with all entries ref'd) are
+    // uncached: release = a real engine close.
+    if (uncachedHandles.has(handle)) {
+      uncachedHandles.delete(handle);
+      return X!.session_close(handle);
+    }
     cacheRelease(handle);
     // Ratchet boundary: refs just hit 0 for this entry — the one moment a
     // rebuild cannot hurt an active withSession. Deferred checks at op
@@ -554,7 +588,7 @@ parentPort?.on("message", (message: WorkerRequest) => {
     respond(id, { ok: false, error: "hang is a test-only hook (init allowTestHooks)" });
     return;
   }
-  const handler = handlers[method];
+  const handler = handlers[method as MoonvizRequestMethod];
   if (!handler) {
     respond(id, { ok: false, error: `unknown method: ${method}` });
     return;

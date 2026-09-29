@@ -254,7 +254,8 @@ export const designMaterializeRun: ActionRun<DesignMaterializeInput, DesignMater
     data: { code: "design.materialize.generating" },
   });
   // specs/leafer-ui-engine WP0.3: the UI-Design stack produces a Leafer JSON
-  // scene tree (prototype module stays on OpenUI Lang — guard-tested split).
+  // scene tree (the prototype module runs on MoonViz — specs/
+  // moonviz-engine-replacement; guard-tested split).
   const promptParts = [
     effectiveRequirement
       ? `Create a complete Leafer scene-tree JSON document for this requirement: ${effectiveRequirement}`
@@ -489,8 +490,6 @@ function currentQuality(content: UiSuiteContent): DesignQuality {
   }
   return { lintFindings: [], runtimeChecks: [] };
 }
-
-/** Deterministic static rules over an OpenUI Lang program (no browser, no LLM). */
 
 /** A style-ish context keyword — hex literals are only colors near these. */
 const STYLE_CONTEXT = /(?:color|background|border|fill|stroke|shadow|gradient|style\s*=)/i;
