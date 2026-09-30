@@ -112,7 +112,8 @@ export function encryptDdp(mbt: string, password: string): Buffer {
 /** Decrypt a DDP container back to the canonical `.mbt.md`. All format and
  *  authentication failures throw DdpError with the crate's error codes. */
 export function decryptDdp(bytes: Buffer, password: string): string {
-  if (bytes.byteLength < 10 || bytes.byteLength > DDP_MAX_CIPHERTEXT_BYTES + 16) {
+  // DDP1 最长（45B 头 + 16MiB 密文）是真实上限；DDP2 更短，超限同拒。
+  if (bytes.byteLength < 10 || bytes.byteLength > DDP_MAX_CIPHERTEXT_BYTES + DDP_HEADER_BYTES) {
     throw new DdpError("ddp_container_invalid");
   }
 
@@ -124,7 +125,9 @@ export function decryptDdp(bytes: Buffer, password: string): string {
     if (crc32Ieee(payload) !== storedCrc) throw new DdpError("ddp_checksum_failed");
     let plaintext: Buffer;
     try {
-      plaintext = zstdDecompressSync(payload);
+      // maxOutputLength 在膨胀期内截停（CRC 可伪造的 DDP2 是真实炸弹面）——
+      // 事后检查在解压完成后才跑，拦不住 GB 级分配。
+      plaintext = zstdDecompressSync(payload, { maxOutputLength: DDP_MAX_PLAINTEXT_BYTES });
     } catch {
       throw new DdpError("ddp_decompression_failed");
     }
@@ -158,7 +161,7 @@ export function decryptDdp(bytes: Buffer, password: string): string {
   }
   let plaintext: Buffer;
   try {
-    plaintext = zstdDecompressSync(compressed);
+    plaintext = zstdDecompressSync(compressed, { maxOutputLength: DDP_MAX_PLAINTEXT_BYTES });
   } catch {
     throw new DdpError("ddp_decompression_failed");
   }

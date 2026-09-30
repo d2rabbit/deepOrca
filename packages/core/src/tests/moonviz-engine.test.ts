@@ -248,3 +248,17 @@ test("mutation-check premise: the canonical guard fires on a missing echo (cover
   assert.equal(error.name, "MoonvizCanonicalError");
   assert.ok(error instanceof MoonvizEngineError);
 });
+
+test("coverage: duplicate PRD page rows emit each finding once (check id space stays unique)", () => {
+  const dupSpec = [
+    "## 5. 页面清单",
+    "",
+    "| 页面 | 页面ID | 目的 |",
+    "| --- | --- | --- |",
+    "| 登录 | login | 登录 |",
+    "| 登录(重复行) | login | 重复 |",
+  ].join("\n");
+  const findings = moonvizCoverageFindings(dupSpec, [], []);
+  assert.equal(findings.filter((finding) => finding.id === "auto:coverage-login-missing").length, 1);
+  assert.equal(new Set(findings.map((finding) => finding.id)).size, findings.length, "id space unique");
+});

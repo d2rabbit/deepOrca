@@ -56,6 +56,8 @@ function makeCtx(
     nodes?: Array<Record<string, unknown>>;
     tapOk?: boolean;
     rejectOpSubstrings?: string[];
+    resetOnNthTap?: number;
+    failLadder?: boolean;
   } = {}
 ): ActionContext {
   installMoonvizFixture({
@@ -66,6 +68,8 @@ function makeCtx(
     nodes: options.nodes,
     tapOk: options.tapOk,
     rejectOpSubstrings: options.rejectOpSubstrings,
+    resetOnNthTap: options.resetOnNthTap,
+    failLadder: options.failLadder,
   });
   const mcpCalls = options.mcpCalls ?? [];
   const subagentCalls = options.subagentCalls ?? [];
@@ -254,6 +258,44 @@ test("prototype.verify runs deterministic structure checks and persists verifica
   assert.equal(result.verification?.status, "passed");
   const save = mcpCalls.find((call) => call.name.endsWith("save_suite_result"));
   assert.equal((save?.args.verification as { status: string }).status, "passed");
+});
+
+test("prototype.verify: mid-tap worker reset replays via withSession, never fabricates failed taps", async () => {
+  const spec = "| 目标平台 | web |\n\n## Page list\n\n| Page | Page ID |\n| --- | --- |\n| Home | home |";
+  const result = await prototypeVerifyRun(
+    { suiteId: PROTOTYPE_REF.suiteId, versionId: PROTOTYPE_REF.versionId },
+    makeCtx({
+      prototype: { spec, moonviz: MOCK_MOONVIZ_DOC },
+      artboards: [{ id: "home" }],
+      flows: [{ from: "home", to: "home", trigger: "tap:btn" }],
+      nodes: [{ id: "btn", rect: { x: 10, y: 10, w: 20, h: 20 } }],
+      resetOnNthTap: 1,
+    })
+  );
+  assert.equal(result.ok, true, result.error);
+  const tap = result.verification?.checks.find((check) => check.id === "auto:tap-1");
+  assert.equal(tap?.status, "passed", `real replayed tap result required: ${JSON.stringify(tap)}`);
+  assert.ok(
+    !result.verification?.checks.some((check) => check.id === "auto:verify-engine-unavailable"),
+    "a recovered reset must not degrade to the engine-unavailable observation"
+  );
+});
+
+test("prototype.verify: post-validate ladder failure keeps the validate verdict (ladderError wiring)", async () => {
+  const spec = "| 目标平台 | web |\n\n## Page list\n\n| Page | Page ID |\n| --- | --- |\n| Home | home |";
+  const result = await prototypeVerifyRun(
+    { suiteId: PROTOTYPE_REF.suiteId, versionId: PROTOTYPE_REF.versionId },
+    makeCtx({
+      prototype: { spec, moonviz: MOCK_MOONVIZ_DOC },
+      failLadder: true,
+    })
+  );
+  assert.equal(result.ok, true, result.error);
+  const valid = result.verification?.checks.find((check) => check.id === "moonviz-valid");
+  assert.equal(valid?.status, "passed", "validate ran and passed — its verdict must survive the ladder failure");
+  const unavailable = result.verification?.checks.find((check) => check.id === "auto:verify-engine-unavailable");
+  assert.equal(unavailable?.status, "pending");
+  assert.match(unavailable?.observation ?? "", /validate 已通过/, "the message must say validate passed");
 });
 
 test("prototype.verify: legacy PRD without 目标平台 yields a pending observation, not a failure", async () => {

@@ -93,6 +93,20 @@ try {
   seam.configureMoonvizEngine({ seam: host, version: host.version });
   record("T0.1a", "worker 内实例化 + 版本握手", host.version === manifest.engineVersion, `engine ${host.version}`);
   record("T0.1b", "资产锚点（sha512 ↔ vendor manifest）", wasmSha === manifest.sha512, `${wasmSha.slice(0, 16)}…`);
+  // R4 快照校准通道（specs 承诺的 list_components 直调 drift 检查）：vendor
+  // 快照 id 集合必须是引擎目录的子集——锚点升级忘跑 vendor 脚本时这里先红。
+  {
+    const snapshot = JSON.parse(await readFile(join(VENDOR_DIR, "components.json"), "utf8"));
+    const liveIds = new Set((await seam.moonvizListComponents()).map((c) => c.id));
+    const snapshotIds = snapshot.components.map((c) => c.id);
+    const drifted = snapshotIds.filter((id) => !liveIds.has(id));
+    record(
+      "T0.1d",
+      "组件快照 ↔ 引擎目录 drift（校准通道）",
+      drifted.length === 0,
+      drifted.length ? `缺失 ${drifted.join(",")}` : `${snapshotIds.length} ids ⊆ engine`
+    );
+  }
   let mismatchRejected = false;
   try {
     await createMoonvizEngineHost({
@@ -359,6 +373,64 @@ try {
     `rebuilds=${ratchetStats?.rebuilds}, mutatingOps=${ratchetStats?.mutatingOps}, reopenHandle=${ratchetHit}`
   );
   await ratchetHost.dispose();
+
+  // ── T0.3d 迟来 close（脏驱逐后的 sessionClose 不污染引擎/他人句柄）──────
+  // 脏驱逐（gate 拒绝）会关闭句柄；withSession 随后的 close 是"迟来 close"。
+  // 墓碑语义：它必须 no-op——引擎会话计数不动、复用同号句柄的新会话存活、
+  // 缓存压力下该句柄不被提前逐出。
+  {
+    const dHost = await createMoonvizEngineHost({
+      wasmPath: WASM,
+      workerPath: WORKER_BUNDLE,
+      expectedVersion: manifest.engineVersion,
+    });
+    const hA = await dHost.call("sessionOpen", { mbt: goldenDoc });
+    const rejected = JSON.parse(
+      await dHost.call("sessionApplyAgent", { handle: hA, op: "place t_login button oob - 99999 99999 200 48" })
+    );
+    if (rejected.ok) throw new Error("T0.3d setup: gate block expected");
+    const hB = await dHost.call("sessionOpen", { mbt: goldenDoc.replace("title: MoonViz 文档", "title: Doc B") });
+    const countBefore = await dHost.call("sessionCount", {});
+    await dHost.call("sessionClose", { handle: hA }); // the stale close
+    const countAfter = await dHost.call("sessionCount", {});
+    const bAlive = JSON.parse(await dHost.call("sessionListArtboards", { handle: hB }));
+    record(
+      "T0.3d-1",
+      "迟来 close 不动引擎会话计数",
+      Number(countAfter) === Number(countBefore),
+      `before=${countBefore} after=${countAfter}`
+    );
+    record("T0.3d-2", "迟来 close 后复用/共存句柄仍可用", bAlive.ok === true);
+    await dHost.dispose();
+  }
+
+  // ── T0.4c 空闲死亡：下一次调用即时重建（不烧满看门狗）───────────────────
+  {
+    const dieHost = await createMoonvizEngineHost({
+      wasmPath: WASM,
+      workerPath: WORKER_BUNDLE,
+      expectedVersion: manifest.engineVersion,
+      callTimeoutMs: 800,
+      allowTestHooks: true,
+    });
+    await dieHost.call("versionInfo", {});
+    try {
+      await dieHost.call("die", {});
+    } catch {
+      /* exit(0) 拒绝在途调用——预期路径 */
+    }
+    const t0 = Date.now();
+    let recovered = false;
+    try {
+      await dieHost.call("versionInfo", {});
+      recovered = true;
+    } catch {
+      recovered = false;
+    }
+    const dieMs = Date.now() - t0;
+    record("T0.4c", "空闲 worker 死亡后下一次调用即时重建", recovered && dieMs < 400, `${dieMs}ms`);
+    await dieHost.dispose();
+  }
 
   // ── T0.8 种子闭环 ─────────────────────────────────────────────────────────
   const emptyOpen = await isoHost.call("sessionOpen", { mbt: "" });

@@ -1300,7 +1300,10 @@ function envelopeArray(payload: unknown): Array<Record<string, unknown>> {
  *  旧 $page/@Set 正则检查 → 引擎 artboards/flows 权威面；死按钮检查 →
  *  session_lint；结构合法性 → AgentGate 已随 op 内建 + validate_mbt；
  *  repair → Gate 回灌在 materialize/revise；coverage → 合同层比对。 */
-async function runMoonvizVerification(doc: string): Promise<MoonvizEngineVerification> {
+async function runMoonvizVerification(
+  doc: string,
+  validateState: { ran: boolean } = { ran: false }
+): Promise<MoonvizEngineVerification> {
   const verification: MoonvizEngineVerification = {
     artboards: [],
     flows: [],
@@ -1311,6 +1314,7 @@ async function runMoonvizVerification(doc: string): Promise<MoonvizEngineVerific
   };
   const validated = await moonvizValidateMbt(doc);
   verification.validateRan = true;
+  validateState.ran = true;
   if (!validated.ok) {
     verification.validateError = validated.error ?? "validate_mbt failed";
     return verification;
@@ -1343,8 +1347,11 @@ async function runMoonvizVerification(doc: string): Promise<MoonvizEngineVerific
         for (const finding of envelopeArray(await session.critique(artboard.id))) {
           verification.critiqueFindings.push({ artboard: artboard.id, finding });
         }
-      } catch {
-        // critique 是增益观察面——失败降级为空，不阻断其余检查项。
+      } catch (error) {
+        // critique 是增益观察面——引擎级拒绝降级为空；worker reset 必须保留
+        // 类别（与 lint catch 同纪律：吞掉 reset 会让阶梯其余部分跑在死句柄
+        // 上并伪造失败，withSession 的文档级重放才是设计恢复路径）。
+        if (error instanceof MoonvizResetError) throw error;
       }
     }
     for (const flow of verification.flows) {
@@ -1374,6 +1381,9 @@ async function runMoonvizVerification(doc: string): Promise<MoonvizEngineVerific
           detail = tapEnvelope.ok ? "hit" : String(tapEnvelope.error ?? "rejected");
         }
       } catch (error) {
+        // 吞掉 worker reset 会把剩余 flow 全部伪造成 failed tap（verify 整体
+        // 误判 failed 且 withSession 重放永不触发）——reset 必须向上传播。
+        if (error instanceof MoonvizResetError) throw error;
         detail = error instanceof Error ? error.message : String(error);
       }
       verification.tapResults.push({ flow: label, ok: tapped, detail });
@@ -1420,18 +1430,24 @@ export const prototypeVerifyRun: ActionRun<PrototypeVerifyInput, PrototypeVerify
       data: { code: "prototype.verify.engine" },
     });
     let engine: MoonvizEngineVerification;
+    // out-state：validate 是否已跑由被调方回写——阶梯在 validate 之后抛出
+    // （worker reset 且 withSession 重放耗尽、或 listArtboards 等中途陷阱）
+    // 时，validateRan 必须保真，否则"validate 已通过"分支不可达且已通过的
+    // 验证结论被误报为未运行。
+    const validateState = { ran: false };
     try {
-      engine = await runMoonvizVerification(doc);
+      engine = await runMoonvizVerification(doc, validateState);
     } catch (error) {
-      // 配置级失败（seam 未注入/worker 不可用）≠ 文档验证失败——记录为
-      // 「未验证」（pending），绝不把未验证文档标成 passed。
+      // 引擎不可达（seam 未注入/worker 不可用）≠ 文档验证失败——记录为
+      // 「未验证」（pending），绝不把未验证文档标成 passed；validate 已
+      // 通过的阶梯中断走 ladderError 分支保留结论。
       engine = {
         artboards: [],
         flows: [],
         lintFindings: [],
         critiqueFindings: [],
         tapResults: [],
-        validateRan: false,
+        validateRan: validateState.ran,
         ladderError: error instanceof Error ? error.message : String(error),
       };
     }
@@ -1993,6 +2009,9 @@ export const prototypeExportDdpRun: ActionRun<PrototypeExportDdpInput, Prototype
     return { ok: false, error: "the selected version has no MoonViz document — run materialize first" };
   }
   try {
+    // Defense-in-depth：上游 read_suite_version 已按 isSafeDesignId 拒绝穿越
+    // 形状的 suiteId，但本写入点与该守卫分属两个包——本地再守一次。
+    if (!isSafeArtifactId(suiteId)) return { ok: false, error: "invalid suiteId" };
     const ddp = encryptDdp(doc, input?.password ?? "");
     const safeName = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(input?.fileName?.trim() ?? "")
       ? input!.fileName!.trim()

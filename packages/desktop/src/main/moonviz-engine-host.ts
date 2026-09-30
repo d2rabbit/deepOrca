@@ -101,10 +101,23 @@ export async function createMoonvizEngineHost(options: MoonvizEngineHostOptions)
     });
     next.on("error", (error) => {
       rejectAllPending(new MoonvizResetError(`engine worker crashed: ${String(error).slice(0, 160)}`));
+      // The worker is dead even with nothing in flight — invalidate it so the
+      // next call respawns instead of postMessage-ing into the void and
+      // stalling until the watchdog fires.
+      if (worker === next) {
+        worker = null;
+        initPromise = null;
+      }
     });
     next.on("exit", (code) => {
-      if (pending.size > 0) {
-        rejectAllPending(new MoonvizResetError(`engine worker exited (${code}) with calls in flight`));
+      rejectAllPending(
+        new MoonvizResetError(
+          pending.size > 0 ? `engine worker exited (${code}) with calls in flight` : `engine worker exited (${code})`
+        )
+      );
+      if (worker === next) {
+        worker = null;
+        initPromise = null;
       }
     });
     return next;

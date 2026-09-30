@@ -106,6 +106,11 @@ const sessionCache = new Map<string, CacheEntry>();
 /** Handles opened while the cache was at capacity with every entry ref'd —
  *  closed for real on release instead of staying warm. */
 const uncachedHandles = new Set<number>();
+/** Tombstones: handles this generation has closed (dirty eviction, uncached
+ *  release) whose numbers the engine may hand to a NEW session. A late
+ *  sessionClose on one must no-op — closing it for real could land on
+ *  whichever session now owns the reused small-int number. */
+const deadHandles = new Set<number>();
 
 function statsPayload() {
   return {
@@ -151,6 +156,7 @@ function rebuildEngine(): void {
     mutatingOps = 0;
     sessionCache.clear();
     uncachedHandles.clear();
+    deadHandles.clear();
     rebuilds += 1;
   }
   for (const key of keys) {
@@ -177,6 +183,15 @@ function maybeRatchet(): void {
 
 function evictEntry(entry: CacheEntry): void {
   if (sessionCache.get(entry.canonical) === entry) sessionCache.delete(entry.canonical);
+  if (entry.refs > 0) {
+    // The owner ladder still holds this handle and will send its own close —
+    // real-close here would make that close double (or, if the engine reused
+    // the number, hit an unrelated session). Tombstone: the owner's close
+    // becomes a no-op.
+    deadHandles.add(entry.handle);
+    return;
+  }
+  deadHandles.add(entry.handle);
   try {
     X?.session_close(entry.handle);
   } catch {
@@ -186,16 +201,8 @@ function evictEntry(entry: CacheEntry): void {
     // handle to a fresh session mid-flight. A sick instance keeps serving
     // per-call errors until the live ladders drain, then the next ratchet
     // boundary (or the next sick close) rebuilds.
-    {
-      // The instance may be sick (close failed after a trap) — rebuild rather
-      // than leave a poisoned engine behind. But never while a DIFFERENT
-      // ladder holds a live handle: the rebuild would alias its handle to a
-      // fresh session mid-flight. A sick instance keeps serving per-call
-      // errors until the live ladders drain, then the next sick close (or
-      // ratchet boundary) rebuilds.
-      const otherLiveRefs = [...sessionCache.values()].some((other) => other !== entry && other.refs > 0);
-      if (!otherLiveRefs && uncachedHandles.size === 0) rebuildEngine();
-    }
+    const otherLiveRefs = [...sessionCache.values()].some((other) => other !== entry && other.refs > 0);
+    if (!otherLiveRefs && uncachedHandles.size === 0) rebuildEngine();
   }
 }
 
@@ -338,9 +345,24 @@ const handlers: Record<MoonvizRequestMethod, Handler> = {
           `(Node >= 24 / Electron main required): ${String(error).slice(0, 200)}`
       );
     }
+    // Re-init hardening: a second init on a live worker (unreachable via the
+    // production host, which spawns fresh workers) must not leave handles
+    // from the previous instance aliasing the new one.
+    sessionCache.clear();
+    uncachedHandles.clear();
+    deadHandles.clear();
     X = engine;
     heapBaseline = process.memoryUsage().heapUsed;
-    const versionRaw = JSON.parse(engine.version_info()) as { version?: string };
+    // version_info 解析失败也必须清场——半初始化的引擎不得留下（host 会
+    // terminate 本 worker，但状态机自身要保持诚实）。
+    let versionRaw: { version?: string };
+    try {
+      versionRaw = JSON.parse(engine.version_info()) as { version?: string };
+    } catch (error) {
+      X = null;
+      engineBytes = null;
+      throw new Error(`engine version_info returned unparsable output: ${String(error).slice(0, 160)}`);
+    }
     if (expectedVersion && versionRaw.version !== expectedVersion) {
       const found = versionRaw.version;
       X = null;
@@ -403,6 +425,14 @@ const handlers: Record<MoonvizRequestMethod, Handler> = {
   },
   sessionClose(params) {
     const handle = params.handle as number;
+    requireEngine();
+    // Tombstoned this generation (dirty-evicted while the ladder still held
+    // it, or already released): the engine may have reused the number for a
+    // NEW session — a real close could kill it. No-op.
+    if (deadHandles.has(handle)) {
+      deadHandles.delete(handle);
+      return 1;
+    }
     // Overflow-opened handles (cache at cap with all entries ref'd) are
     // uncached: release = a real engine close.
     if (uncachedHandles.has(handle)) {
@@ -413,7 +443,9 @@ const handlers: Record<MoonvizRequestMethod, Handler> = {
     // Ratchet boundary: refs just hit 0 for this entry — the one moment a
     // rebuild cannot hurt an active withSession. Deferred checks at op
     // boundaries always see refs >= 1 (the session is open mid-call).
+    const rebuildsBefore = rebuilds;
     maybeRatchet();
+    if (rebuilds !== rebuildsBefore) return 1; // instance replaced — the old handle is meaningless now
     const entry = entryByHandle(handle);
     // Canonical-keyed warmth: a refcount-0 entry STAYS cached (exact-bytes
     // key = zero semantic risk; deepDesign's acceleration layer). It leaves
@@ -592,6 +624,11 @@ parentPort?.on("message", (message: WorkerRequest) => {
   if (method === "hang") {
     if (allowTestHooks) return; // never responds — watchdog bait
     respond(id, { ok: false, error: "hang is a test-only hook (init allowTestHooks)" });
+    return;
+  }
+  if (method === "die") {
+    if (allowTestHooks) process.exit(0); // battery T0.4c: idle worker death
+    respond(id, { ok: false, error: "die is a test-only hook (init allowTestHooks)" });
     return;
   }
   const handler = handlers[method as MoonvizRequestMethod];

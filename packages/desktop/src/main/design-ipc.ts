@@ -412,7 +412,13 @@ export function registerDesignIpc(helpers: DesignIpcHelpers, deps: DesignIpcDeps
     // fallback until the next render/update (which rewrites + re-notifies).
     // Reference-stability: no cache → return the store object as-is.
     if (suite.kind === "prototype") {
-      const previewHtml = store.readSuitePreviewHtml(resolved, id);
+      // 只在 head 仍携带 canonical 文档时附带缓存——文档被 render_spec 等重置
+      // 后，磁盘上的旧 prototype.html 属于已退役原型（持久化侧也会删除，这里
+      // 是读侧兜底）。
+      const hasDoc = Boolean(
+        suite.currentContent && typeof (suite.currentContent as { moonviz?: unknown }).moonviz === "string"
+      );
+      const previewHtml = hasDoc ? store.readSuitePreviewHtml(resolved, id) : null;
       return previewHtml ? { ...suite, previewHtml } : suite;
     }
     return suite;

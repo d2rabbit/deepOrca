@@ -292,7 +292,9 @@ export function suitePreviewHtmlPath(root: string, suiteId: string): string {
 export function writeSuitePreviewHtml(root: string, suiteId: string, html: string): void {
   if (!isSafeDesignId(suiteId)) return;
   try {
-    fs.mkdirSync(suiteDir(root, suiteId), { recursive: true });
+    // 套件可能已在 persist 与异步导出之间被删除——mkdir 会复活出一个只有
+    // prototype.html 的孤儿目录。只有套件仍存在时才写。
+    if (!fs.existsSync(path.join(suiteDir(root, suiteId), "meta.json"))) return;
     fs.writeFileSync(suitePreviewHtmlPath(root, suiteId), html, "utf8");
     notifySuiteChange({ root, suiteId, change: "update" });
   } catch {
@@ -300,7 +302,7 @@ export function writeSuitePreviewHtml(root: string, suiteId: string, html: strin
   }
 }
 
-/** Read the cached preview HTML (null = absent — the caller may re-export). */
+/** Read the cached preview HTML (null = absent; write-time only — no read-side re-export). */
 export function readSuitePreviewHtml(root: string, suiteId: string): string | null {
   if (!isSafeDesignId(suiteId)) return null;
   try {
@@ -762,6 +764,15 @@ function syncSuiteProjections(dir: string, kind: DesignSuiteKind, content: Desig
     // 旧 openui 三文件投影（prototype.openui*.txt）随替换停写（存量文件
     // 留在盘上无害，读取面不再消费）。
     writeProjectionFile(dir, "doc.mbt.md", prototype.moonviz);
+    // 文档被重置（render_spec 重写 / save_pm_design 非保留派生）时同步删除
+    // 交互预览缓存——否则 head 上仍会挂出已退役原型的交互 HTML。
+    if (!prototype.moonviz) {
+      try {
+        fs.rmSync(path.join(dir, "prototype.html"), { force: true });
+      } catch {
+        /* best-effort */
+      }
+    }
     writeProjectionFile(dir, "prototype.dd", undefined);
     writeJsonProjection(dir, "design.leafer.json", undefined);
     writeJsonProjection(dir, "tokens.json", undefined);

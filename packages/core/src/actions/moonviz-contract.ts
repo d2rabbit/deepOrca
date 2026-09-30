@@ -146,7 +146,9 @@ export const MOONVIZ_OPS_CHEATSHEET =
 
 // ── component vocabulary (snapshot accessor) ─────────────────────────────────
 
-/** Prompt block listing the component vocabulary (compact, id + variant count). */
+/** Prompt block listing the component vocabulary (compact, id + variant count).
+ *  词汇来源 = vendor 快照（components.json）；运行时 `list_components` 直调
+ *  是校准通道——快照与引擎目录的漂移由 P0 电池的 drift 检查拦截。 */
 export function moonvizComponentVocabularyBlock(): string {
   const vocabulary = moonvizComponentVocabulary();
   if (vocabulary.length === 0) return "";
@@ -329,8 +331,10 @@ export function moonvizCoverageFindings(
   const artboardIds = new Set(artboards.map((artboard) => parseMoonvizArtboardId(artboard.id).pageId));
   if (pageList && pageList.hasIds) {
     const prdIds = new Set(pageList.pages.map((page) => page.id!).filter(Boolean));
+    const seenIds = new Set<string>();
     for (const page of pageList.pages) {
-      if (!page.id) continue;
+      if (!page.id || seenIds.has(page.id)) continue; // 重复行只报一次（check id 空间唯一）
+      seenIds.add(page.id);
       if (!artboardIds.has(page.id)) {
         findings.push({
           severity: "failed",

@@ -20,7 +20,7 @@ import assert from "node:assert/strict";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as url from "node:url";
-import { zstdDecompressSync } from "node:zlib";
+import { zstdCompressSync, zstdDecompressSync, crc32, constants as zlibConstants } from "node:zlib";
 import type { DdpError } from "../common/ddp-codec";
 import { decryptDdp, encryptDdp, DDP_ERROR_SAMPLES } from "../common/ddp-codec";
 
@@ -114,5 +114,25 @@ test("golden vector ④: error-code names match the crate verbatim + size limits
   assert.throws(
     () => decryptDdp(Buffer.concat([Buffer.from("XXXX", "latin1"), Buffer.alloc(64)], 68), "pw"),
     (error: unknown) => (error as DdpError).code === "ddp_magic_invalid"
+  );
+});
+
+test("zstd bomb: over-cap frame aborts inside decompression (maxOutputLength bound)", { skip: !hasZstd }, () => {
+  // 9MiB 明文 > 8MiB 上限；压缩帧很小（~11KB）——解压在膨胀期内截停
+  // 才是正确行为（事后检查在 GB 级分配之后才跑）。
+  const frame = zstdCompressSync(Buffer.alloc(9 * 1024 * 1024, 0x61), {
+    params: { [zlibConstants.ZSTD_c_compressionLevel]: 1 },
+  });
+  const header = Buffer.alloc(9);
+  header.set(Buffer.from("DDP2", "latin1"), 0);
+  header[4] = 1;
+  header.writeUInt32LE(crc32(frame), 5);
+  assert.throws(
+    () => decryptDdp(Buffer.concat([header, frame]), ""),
+    (error: unknown) => {
+      assert.equal((error as DdpError).code, "ddp_decompression_failed");
+      return true;
+    },
+    "over-cap frame must abort inside zstd, not surface ddp_plaintext_invalid"
   );
 });

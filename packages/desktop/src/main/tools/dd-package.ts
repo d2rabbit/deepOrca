@@ -416,12 +416,10 @@ function isNonEmptyRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value) && Object.keys(value).length > 0;
 }
 
-/** Viewer stub for the OpenUI-sourced .ddu (UI-Design). */
-
 /**
- * Viewer stub for .ddp: OpenUI Lang has no standalone HTML compiler (it
- * renders through DeepOrca's in-app React runtime), so the stub surfaces the
- * source verbatim and points back to the app.
+ * Viewer stub for .ddp — the fallback when no interactive preview cache was
+ * exported (the real viewer is the engine's export_html artifact). Surfaces
+ * the canonical MoonViz document verbatim and points back to the app.
  */
 function buildDdpViewerHtml(title: string, source: string): string {
   const safeTitle = escapeHtml(title);
@@ -441,9 +439,9 @@ pre{background:#1b2027;border:1px solid #2a313a;border-radius:8px;padding:16px;f
 </head>
 <body>
 <h1>${safeTitle}</h1>
-<p>PM-Design prototype package (.ddp). The OpenUI Lang source below renders
-interactively in DeepOrca (Designer → PM-Design preview); this file preserves
-the exact source. See manifest.json for package metadata.</p>
+<p>PM-Design prototype package (.ddp). The canonical MoonViz document below is
+rendered interactively in DeepOrca (Designer → PM-Design preview); this file
+preserves the exact source. See manifest.json for package metadata.</p>
 <pre>${safeSource}</pre>
 </body>
 </html>`;

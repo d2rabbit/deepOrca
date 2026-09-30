@@ -12,6 +12,7 @@
 
 import {
   configureMoonvizEngine,
+  MoonvizResetError,
   type MoonvizComponentInfo,
   type MoonvizEngineSeam,
 } from "@deeporca/core/moonviz-engine";
@@ -26,6 +27,12 @@ export interface MoonvizFixtureOptions {
   rejectOpSubstrings?: string[];
   tapOk?: boolean;
   failValidate?: boolean;
+  /** Throw a MoonvizResetError on the Nth session_tap (models a watchdog
+   *  kill mid-tap; the call after withSession's replay succeeds). */
+  resetOnNthTap?: number;
+  /** Throw a plain Error from sessionListArtboards (models a persistent
+   *  post-validate ladder failure after replay exhaustion). */
+  failLadder?: boolean;
 }
 
 export const MOCK_MOONVIZ_DOC = `---
@@ -48,15 +55,19 @@ fn visual_home() -> @decl.Prototype {
 
 export function installMoonvizFixture(options: MoonvizFixtureOptions = {}): {
   canonicalOf: (handle: number) => string | undefined;
+  openCount: () => number;
 } {
   const artboards = options.artboards ?? [{ id: "home" }];
   const handleSeq = { next: 1 };
+  let opens = 0;
+  let taps = 0;
   const canonicalByHandle = new Map<number, string>();
   const seam: MoonvizEngineSeam = {
     async call(method, params) {
       switch (method) {
         case "sessionOpen": {
           const handle = handleSeq.next++;
+          opens += 1;
           canonicalByHandle.set(handle, String(params.mbt ?? ""));
           return handle;
         }
@@ -77,6 +88,7 @@ export function installMoonvizFixture(options: MoonvizFixtureOptions = {}): {
           return JSON.stringify({ ok: true, mbt: canonical });
         }
         case "sessionListArtboards":
+          if (options.failLadder) throw new Error("scripted ladder failure");
           return JSON.stringify({ ok: true, data: artboards });
         case "sessionFlows":
           return JSON.stringify({ ok: true, data: options.flows ?? [] });
@@ -87,6 +99,8 @@ export function installMoonvizFixture(options: MoonvizFixtureOptions = {}): {
         case "sessionQueryNodes":
           return JSON.stringify({ ok: true, data: options.nodes ?? [] });
         case "sessionTap": {
+          taps += 1;
+          if (options.resetOnNthTap === taps) throw new MoonvizResetError("scripted reset mid-tap");
           if (options.tapOk === false) {
             return JSON.stringify({ ok: false, error: "mbt_tap_miss:no_node" });
           }
@@ -126,5 +140,8 @@ export function installMoonvizFixture(options: MoonvizFixtureOptions = {}): {
   };
   const vocabulary: MoonvizComponentInfo[] = [{ id: "button", name: "Button", variants: ["primary"] }];
   configureMoonvizEngine({ seam, version: "0.1.7-test", componentVocabulary: vocabulary });
-  return { canonicalOf: (handle: number) => canonicalByHandle.get(handle) };
+  return {
+    canonicalOf: (handle: number) => canonicalByHandle.get(handle),
+    openCount: () => opens,
+  };
 }
