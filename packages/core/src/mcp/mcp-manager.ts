@@ -746,7 +746,7 @@ export class McpManager {
         }
       }
       // Pass through any custom metadata the tool returned directly (e.g.
-      // render_openui returns metadata.openui with the OpenUI Lang code).
+      // render_moonviz returns metadata.moonviz with the canonical doc).
       // The MCP SDK uses "passthrough" mode on CallToolResultSchema so these
       // custom fields survive callTool() validation.
       if (result.metadata && typeof result.metadata === "object") {

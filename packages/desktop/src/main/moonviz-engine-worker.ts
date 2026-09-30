@@ -175,7 +175,7 @@ function maybeRatchet(): void {
 
 // ── cache-aware session helpers ──────────────────────────────────────────────
 
-function evictEntry(entry: CacheEntry, reason: string): void {
+function evictEntry(entry: CacheEntry): void {
   if (sessionCache.get(entry.canonical) === entry) sessionCache.delete(entry.canonical);
   try {
     X?.session_close(entry.handle);
@@ -186,7 +186,13 @@ function evictEntry(entry: CacheEntry, reason: string): void {
     // handle to a fresh session mid-flight. A sick instance keeps serving
     // per-call errors until the live ladders drain, then the next ratchet
     // boundary (or the next sick close) rebuilds.
-    if (reason !== "close") {
+    {
+      // The instance may be sick (close failed after a trap) — rebuild rather
+      // than leave a poisoned engine behind. But never while a DIFFERENT
+      // ladder holds a live handle: the rebuild would alias its handle to a
+      // fresh session mid-flight. A sick instance keeps serving per-call
+      // errors until the live ladders drain, then the next sick close (or
+      // ratchet boundary) rebuilds.
       const otherLiveRefs = [...sessionCache.values()].some((other) => other !== entry && other.refs > 0);
       if (!otherLiveRefs && uncachedHandles.size === 0) rebuildEngine();
     }
@@ -210,7 +216,7 @@ function cacheOpen(canonical: string): number {
   if (sessionCache.size >= CACHE_CAP) {
     for (const entry of sessionCache.values()) {
       if (entry.refs === 0) {
-        evictEntry(entry, "cap");
+        evictEntry(entry);
         break;
       }
     }
@@ -252,7 +258,7 @@ function cacheRekey(handle: number, nextCanonical: string): void {
 
 function cacheEvictByHandle(handle: number): void {
   const entry = entryByHandle(handle);
-  if (entry) evictEntry(entry, "dirty");
+  if (entry) evictEntry(entry);
 }
 
 // ── request handling ─────────────────────────────────────────────────────────

@@ -105,13 +105,6 @@ export interface MoonvizEngineConfig {
   componentVocabulary?: MoonvizComponentInfo[];
 }
 
-export interface MoonvizVersionInfo {
-  ok?: boolean;
-  version: string;
-  engine?: string;
-  [key: string]: unknown;
-}
-
 // ── errors ───────────────────────────────────────────────────────────────────
 
 export interface MoonvizGateBlock {
@@ -280,15 +273,9 @@ export function moonvizComponentVocabulary(): MoonvizComponentInfo[] {
   return requireConfig().componentVocabulary ?? [];
 }
 
-export function moonvizEngineVersion(): string | undefined {
-  return config?.version;
-}
-
 // ── batch (stateless) surface ────────────────────────────────────────────────
-
-export async function moonvizVersionInfo(): Promise<MoonvizVersionInfo> {
-  return parseEnvelope(await seamCall<string>("versionInfo", {}), "versionInfo");
-}
+// Only wrappers with production/battery consumers live here; the worker can
+// answer the full protocol union but stateless batch coverage is demand-led.
 
 export async function moonvizRenderMbt(mbt: string): Promise<MoonvizRenderResult> {
   return parseEnvelope(await seamCall<string>("renderMbt", { mbt }), "renderMbt");
@@ -302,10 +289,6 @@ export async function moonvizExportHtml(mbt: string): Promise<{ ok: boolean; htm
   return parseEnvelope(await seamCall<string>("exportHtml", { mbt }), "exportHtml");
 }
 
-export async function moonvizListTemplates(): Promise<unknown> {
-  return parseEnvelope(await seamCall<string>("listTemplates", {}), "listTemplates");
-}
-
 export async function moonvizListComponents(): Promise<MoonvizComponentInfo[]> {
   const parsed = parseEnvelope<unknown>(await seamCall<string>("listComponents", {}), "listComponents");
   if (Array.isArray(parsed)) return parsed as MoonvizComponentInfo[];
@@ -313,30 +296,11 @@ export async function moonvizListComponents(): Promise<MoonvizComponentInfo[]> {
   return Array.isArray(record?.components) ? record.components : [];
 }
 
-export async function moonvizListThemes(): Promise<unknown> {
-  return parseEnvelope(await seamCall<string>("listThemes", {}), "listThemes");
-}
-
-export async function moonvizListTokens(): Promise<unknown> {
-  return parseEnvelope(await seamCall<string>("listTokens", {}), "listTokens");
-}
-
-export async function moonvizListOps(): Promise<unknown> {
-  return parseEnvelope(await seamCall<string>("listOps", {}), "listOps");
-}
-
 /** Stateless single-op application (batch `apply_agent_op`). Session work
  *  MUST go through `withSession` — this is for one-shot校验/修复类 calls. */
 export async function moonvizApplyAgentOp(mbt: string, op: string): Promise<MoonvizMutatingEnvelope> {
   return assertMutatingCanonical(
     parseEnvelope(await seamCall<string>("applyAgentOp", { mbt, op }), "applyAgentOp"),
-    op
-  );
-}
-
-export async function moonvizApplyHumanOp(mbt: string, op: string): Promise<MoonvizMutatingEnvelope> {
-  return assertMutatingCanonical(
-    parseEnvelope(await seamCall<string>("applyHumanOp", { mbt, op }), "applyHumanOp"),
     op
   );
 }

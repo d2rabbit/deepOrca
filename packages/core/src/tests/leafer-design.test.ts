@@ -458,7 +458,13 @@ test("deep-design SKILL.md pipeline contract matches the leafer stack (anti-drif
   );
   assert.match(pipeline, /"tag": "Leafer"/, "the scene document shape must be pinned in the skill");
   assert.match(pipeline, /json.*code fence|`json`/, "the json fence requirement must be pinned");
-  assert.match(pipeline, /Do NOT emit \.dd HTML or OpenUI Lang/, "the old format must be explicitly excluded");
-  // Legacy revise path stays documented (dual-stack routing).
-  assert.match(pipeline, /legacy OpenUI suites|OpenUI Lang program/);
+  assert.match(pipeline, /Do NOT emit \.dd HTML/, "the old format must be explicitly excluded");
+  assert.doesNotMatch(
+    pipeline,
+    /legacy OpenUI suites revise/,
+    "the retired dual-stack revise path must not be promised"
+  );
+  assert.doesNotMatch(pipeline, /OpenUI Lang program/, "the openui output fence must not be promised");
+  // The retired path's replacement guidance must be present.
+  assert.match(pipeline, /must\s+re-run the prototype chain/, "legacy suites are pointed at materialize");
 });

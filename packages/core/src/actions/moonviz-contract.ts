@@ -146,13 +146,6 @@ export const MOONVIZ_OPS_CHEATSHEET =
 
 // ── component vocabulary (snapshot accessor) ─────────────────────────────────
 
-/** Component catalog for prompts: from the injected components.json snapshot
- *  (vendor-time probe); the runtime `list_components` direct call is the
- *  calibration channel (snapshot first, drift check belongs to the battery). */
-export function moonvizComponentIds(): string[] {
-  return moonvizComponentVocabulary().map((component) => component.id);
-}
-
 /** Prompt block listing the component vocabulary (compact, id + variant count). */
 export function moonvizComponentVocabularyBlock(): string {
   const vocabulary = moonvizComponentVocabulary();
@@ -447,11 +440,6 @@ export function parseOpPlan(output: unknown): string[] | null {
     ops.push(line);
   }
   return ops.length > 0 ? ops : null;
-}
-
-/** Sanity gate: an op plan must contain at least one artboard-creating op. */
-export function looksLikeOpPlan(ops: string[]): boolean {
-  return ops.some((op) => /^(template|create)\s+\S+/.test(op) || /^(delete-artboard)\s/.test(op));
 }
 
 /** Deterministic artboard count of a canonical document — DISTINCT PAGE count

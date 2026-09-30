@@ -636,7 +636,7 @@ function persistSuiteContent(
   const note = stringArg(args, "note");
   if (!suiteId) {
     const content = build(undefined);
-    // Post-switch creations are authored against the official openuiLibrary
+    // Post-switch creations are authored against the component vocabulary
     // prompt — stamp it so the renderer never has to guess from component
     // names (shared-name-only suites misroute under the text heuristic).
     const created =
@@ -1269,7 +1269,7 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
         persisted.ref,
         preserveDerived
           ? "pm-design document saved as a prototype suite version (derived artifacts preserved for the in-action regeneration)."
-          : "pm-design document saved as a prototype suite version. OpenUI/verification/arch were reset.",
+          : "pm-design document saved as a prototype suite version. The MoonViz document, verification and arch were reset.",
         { pmDesign: document }
       );
     }

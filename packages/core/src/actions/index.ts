@@ -167,7 +167,6 @@ export {
   MOONVIZ_DEVICE_CONTRACTS,
   MOONVIZ_SEED_DOC,
   MOONVIZ_ARTBOARD_SIZES,
-  MOONVIZ_DEVICES,
   moonvizCoverageFindings,
   moonvizArtboardCount,
   normalizeMoonvizDevices,

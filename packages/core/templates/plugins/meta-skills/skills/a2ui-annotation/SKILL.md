@@ -21,7 +21,8 @@ A2UI 是 DeepOrca 的全域交互层：agent 需要用户**结构化回应**时�
 - **增量原则**：只承载**新增**交互表面；QuestionCard、权限询问卡片等存量交互
   组件不迁移、不由本技能替代。
 - **红线**：A2UI **不生成设计内容、不进入 design 子域主流程**。设计原型使用
-  OpenUI Lang（`render_openui`），设计稿使用 DeepDesign（`render_design`）。
+  MoonViz（`render_moonviz`），UI 设计稿使用 Leafer（`render_leafer`），.dd
+  设计稿使用 DeepDesign（`render_design`）。
 
 ## 何时使用
 

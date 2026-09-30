@@ -34,7 +34,7 @@ const ARCH_DOC = [
   "",
   "| 层次 | 选型 | 理由 |",
   "| --- | --- | --- |",
-  "| 前端 | OpenUI Lang | 原型栈 |",
+  "| 前端 | MoonViz | 原型栈 |",
   "| 状态 | 内存会话 | 轻量 |",
   "| 存储 | localStorage | 持久 |",
   "",
@@ -116,7 +116,7 @@ function makeCtx(options: { verification?: unknown; generated?: string; mcpCalls
             content: {
               requirement: "番茄钟",
               spec: "# 极简番茄钟 需求文档",
-              openui: 'root = Text("x")',
+              moonviz: "moonviz:artboard home",
               verification: options.verification,
             },
           }),

@@ -446,14 +446,14 @@ export const ja: Record<MessageKey, string> = {
   "slash.desc.mcp": "MCP サーバー状態とツールを表示",
   "slash.desc.exit": "DeepOrca を終了",
   "slash.desc.settings": "設定パネルを開く",
-  "slash.desc.pmDesign": "PM-Design：インタラクティブな A2UI プロトタイプを作成",
+  "slash.desc.pmDesign": "PM-Design：PRD からインタラクティブなプロトタイプを生成（MoonViz エンジン）",
   "slash.desc.pmDesignOpenui": "PM-Design（MoonViz）：PRD/pm-design ドキュメントからプロトタイプを生成",
   "slash.desc.prototype": "/pm-design のエイリアス",
   "slash.desc.openui": "/pm-design-openui のエイリアス",
   "moonvizPreview.artboards": "アートボード",
-  "moonvizPreview.missing": "インタラクティブプレビューは未生成",
+  "moonvizPreview.missing": "このビューにはインタラクティブプレビューが付属していません",
   "moonvizPreview.missingHint":
-    "プレビューは保存時にエンジンがエクスポートしますが、その時点で利用できませんでした——materialize/revise を再実行するか、下の canonical ドキュメントを参照してください。",
+    "インタラクティブプレビューは、プロトタイプワークスペースでスイートを開くと表示されます。以下は canonical ドキュメントです。",
   "slash.desc.deepDesign": "DeepDesign：.dd 形式で Web デザインを生成",
   "slash.desc.design": "/deep-design のエイリアス",
 

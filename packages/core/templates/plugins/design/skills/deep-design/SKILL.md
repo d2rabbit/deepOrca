@@ -25,7 +25,7 @@ preview in DeepOrca's right-side panel.
 
 ## Designing from a prototype (原型 → UI/UX 设计稿)
 
-When the prompt embeds a prototype (an OpenUI Lang program), the prototype is
+When the prompt embeds a prototype (a MoonViz canonical document), the prototype is
 the interaction basis: the design must cover ALL of its pages and flows —
 elevate each into a polished, visually designed section. Do not drop or rename
 the prototype's functionality; your job is the UI/UX layer (visual system,
@@ -185,7 +185,7 @@ front-matter as `macrostructure: <name>`:
 | `pricing-table`     | Plan comparison; aligned feature rows, one highlighted plan                                                                                    |
 | `documentation-hub` | Search-first reference; nav rail + content + outline                                                                                           |
 
-The macrostructure is stack-agnostic (works for `.dd`, OpenUI, or raw HTML)
+The macrostructure is stack-agnostic (works for `.dd`, MoonViz prototypes, or raw HTML)
 and is one of the computable diversity axes — taste #11 requires consecutive
 designs to vary; skeleton choice is where that variation starts.
 
@@ -295,7 +295,7 @@ fulfill; return ONLY the fenced content it asks for:
    fence, preserving unrelated values. For `part: "design"` the prompt's
    PRESERVE/CREATE contracts dictate the format: Leafer suites revise to a
    complete Leafer scene-tree JSON document (one `json` fence, same rules as
-   materialize); legacy OpenUI suites revise to the complete OpenUI Lang
-   program (one `openui` fence, preserving `$page` and `Action` wiring).
+   materialize). Legacy openui-era suites are NOT revisable — they must
+   re-run the prototype chain (materialize) first.
 
 In all three cases: no tool calls, no file writes, nothing outside the fence.

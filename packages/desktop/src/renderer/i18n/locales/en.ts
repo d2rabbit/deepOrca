@@ -446,14 +446,14 @@ export const en = {
   "slash.desc.mcp": "View MCP server status and tools",
   "slash.desc.exit": "Quit DeepOrca",
   "slash.desc.settings": "Open settings panel",
-  "slash.desc.pmDesign": "PM-Design: create an interactive A2UI prototype",
+  "slash.desc.pmDesign": "PM-Design: create an interactive prototype from a PRD (MoonViz engine)",
   "slash.desc.pmDesignOpenui": "PM-Design (MoonViz): prototype from a PRD/pm-design doc",
   "slash.desc.prototype": "Alias for /pm-design",
   "slash.desc.openui": "Alias for /pm-design-openui",
   "moonvizPreview.artboards": "artboards",
-  "moonvizPreview.missing": "Preview not generated yet",
+  "moonvizPreview.missing": "Interactive preview not attached in this view",
   "moonvizPreview.missingHint":
-    "The interactive preview is exported by the engine at save time and was unavailable — re-run materialize/revise, or read the canonical document below.",
+    "The interactive preview is attached when a suite is opened in the prototype workspace; below is the canonical document.",
   "slash.desc.deepDesign": "DeepDesign: generate a web design in .dd format",
   "slash.desc.design": "Alias for /deep-design",
 

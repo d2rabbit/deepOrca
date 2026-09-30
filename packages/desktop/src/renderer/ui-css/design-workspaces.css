@@ -1055,10 +1055,6 @@
   margin-left: auto;
 }
 
-.ui-prototype-panel-body.selection-enabled {
-  cursor: crosshair;
-}
-
 @media (max-width: 850px) {
   .ui-design-workspace-body {
     flex-direction: column;
@@ -1834,12 +1830,6 @@
   }
 }
 
-/* act-tag（mockup 333-336）：hover 可交互元素浮出语义 action 标签。
-   data-act 由 OpenuiRenderer 的标注器生产。 */
-.ui-prototype-panel-body.selection-enabled [data-act] {
-  position: relative;
-}
-
 /* ── 画布区（mockup .proto-canvas）：蓝图网格底纹 + 设备壳居中 ── */
 .ui-design-canvas-area {
   position: relative;
@@ -1999,24 +1989,6 @@
   color: var(--ui-text-faint);
   font-family: var(--ui-font-mono);
   font-size: 9.5px;
-}
-
-.ui-prototype-panel-body.selection-enabled [data-act]:hover::after {
-  position: absolute;
-  z-index: 6;
-  top: -20px;
-  left: 50%;
-  padding: 1px 7px;
-  border: 1px solid var(--ui-accent-55);
-  border-radius: 99px;
-  background: var(--ui-accent-soft);
-  color: var(--ui-accent-strong, var(--ui-accent));
-  content: attr(data-act);
-  font-family: var(--ui-font-mono);
-  font-size: 9.5px;
-  pointer-events: none;
-  transform: translateX(-50%);
-  white-space: nowrap;
 }
 
 /* 主题重染：设备壳圆点吃 --ds-*（palette 由 stage 容器下沉）。 */

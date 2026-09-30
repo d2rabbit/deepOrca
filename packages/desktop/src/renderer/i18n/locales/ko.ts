@@ -442,14 +442,14 @@ export const ko: Record<MessageKey, string> = {
   "slash.desc.mcp": "MCP 서버 상태 및 도구 보기",
   "slash.desc.exit": "DeepOrca 종료",
   "slash.desc.settings": "설정 패널 열기",
-  "slash.desc.pmDesign": "PM-Design: 대화형 A2UI 프로토타입 생성",
+  "slash.desc.pmDesign": "PM-Design: PRD에서 대화형 프로토타입 생성(MoonViz 엔진)",
   "slash.desc.pmDesignOpenui": "PM-Design(MoonViz): PRD/pm-design 문서에서 프로토타입 생성",
   "slash.desc.prototype": "/pm-design의 별칭",
   "slash.desc.openui": "/pm-design-openui 별칭",
   "moonvizPreview.artboards": "아트보드",
-  "moonvizPreview.missing": "대화형 미리보기 미생성",
+  "moonvizPreview.missing": "이 뷰에는 대화형 미리보기가 첨부되지 않았습니다",
   "moonvizPreview.missingHint":
-    "미리보기는 저장 시 엔진이 내보내며 당시 사용할 수 없었습니다—materialize/revise를 다시 실행하거나 아래 canonical 문서를 확인하세요.",
+    "대화형 미리보기는 프로토타입 워크스페이스에서 해당 스위트를 열 때 첨부됩니다. 아래는 canonical 문서입니다.",
   "slash.desc.deepDesign": "DeepDesign: .dd 형식으로 웹 디자인 생성",
   "slash.desc.design": "/deep-design의 별칭",
 

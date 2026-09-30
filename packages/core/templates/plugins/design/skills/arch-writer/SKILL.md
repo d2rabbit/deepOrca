@@ -29,8 +29,9 @@ explicit: layers, modules, data, flows, risks.
 1. Read the PRD in the prompt. Derive the architecture strictly from what the
    PRD commits to — the page list, functional modules, and non-functional
    requirements are your scope boundary. Never add product features.
-2. The prototype runs on the DeepOrca OpenUI stack: the 前端/交互层 of your
-   architecture maps to OpenUI Lang views (`$page` ternary switching, view
+2. The prototype runs on the DeepOrca MoonViz stack: the 前端/交互层 of your
+   architecture maps to MoonViz artboards (`<page>@<device>` artboards,
+   `flow` navigation, view
    variables, Action actions). Backend/data layers follow the PRD's implied
    domain — when the PRD is a pure front-end prototype with no persistence
    requirement, say so and model state as in-memory/local, keeping the

@@ -58,7 +58,6 @@ type Pack = {
   rulesDone: string;
   todos: string;
   noTodos: string;
-  appendix: string;
 };
 
 const PACK_ZH: Pack = {
@@ -90,7 +89,6 @@ const PACK_ZH: Pack = {
   rulesDone: "完成定义：可运行构建 + 本简报逐条核对通过。",
   todos: "待确认（原文直录）",
   noTodos: "（无）",
-  appendix: "源码附录（openui 原型未结构化部分，逐字保留）",
 };
 
 const PACK_EN: Pack = {
@@ -127,7 +125,6 @@ const PACK_EN: Pack = {
   rulesDone: "Definition of done: a runnable build plus a pass over every line of this brief.",
   todos: "Pending confirmation (verbatim)",
   noTodos: "(none)",
-  appendix: "Source appendix (unstructured openui prototype, verbatim)",
 };
 
 function pack(locale: string): Pack {
@@ -305,21 +302,6 @@ function routeTargets(specMd: string): string[] {
     if (/屏幕|页面|页/.test(match[0])) targets.push(match[1].trim());
   }
   return targets;
-}
-
-function extractOpenuiOutline(source: string): { buttons: string[]; links: Array<{ label: string; to: string }> } {
-  const buttons = [...source.matchAll(/<button[^>]*>([^<]{1,80})</g)].map((m) => m[1].trim()).filter(Boolean);
-  const links: Array<{ label: string; to: string }> = [];
-  for (const m of source.matchAll(/<a[^>]*href="#([^"]*)"[^>]*>([\s\S]{0,80}?)<\/a>/g)) {
-    links.push({
-      to: m[1].trim(),
-      label: m[2]
-        .replace(/<[^>]+>/g, " ")
-        .replace(/\s+/g, " ")
-        .trim(),
-    });
-  }
-  return { buttons, links };
 }
 
 export function buildImplementationBrief(input: ImplementationBriefInput): ImplementationBriefResult {

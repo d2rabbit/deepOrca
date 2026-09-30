@@ -433,14 +433,13 @@ export const zh: Record<MessageKey, string> = {
   "slash.desc.mcp": "查看 MCP 服务器状态与工具",
   "slash.desc.exit": "退出 DeepOrca",
   "slash.desc.settings": "打开设置面板",
-  "slash.desc.pmDesign": "PM-Design：创建交互式 A2UI 原型",
+  "slash.desc.pmDesign": "PM-Design：从 PRD 生成可交互原型（MoonViz 引擎）",
   "slash.desc.pmDesignOpenui": "PM-Design（MoonViz）：从 PRD/pm-design 文档生成原型",
   "slash.desc.prototype": "/pm-design 的别名",
   "slash.desc.openui": "/pm-design-openui 的别名",
   "moonvizPreview.artboards": "个画板",
-  "moonvizPreview.missing": "交互预览尚未生成",
-  "moonvizPreview.missingHint":
-    "交互预览由引擎在保存时导出，当时引擎不可用——重新执行 materialize/revise，或阅读下方 canonical 文档。",
+  "moonvizPreview.missing": "当前视图未附带交互预览",
+  "moonvizPreview.missingHint": "交互预览在原型工作区打开对应套件时附带；下方为 canonical 文档。",
   "slash.desc.deepDesign": "DeepDesign：以 .dd 格式生成网页设计",
   "slash.desc.design": "/deep-design 的别名",
 

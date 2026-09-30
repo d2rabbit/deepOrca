@@ -1934,9 +1934,7 @@ export const prototypeArchRun: ActionRun<PrototypeArchInput, PrototypeArchOutput
   }
 };
 
-// ── export_ddp（specs/moonviz-engine-replacement T3.3）：canonical 文档 →
-// DDP 容器（空密码 = DDP2 免密直开；带密码 = DDP1 认证加密）。写盘后可选
-// 引擎回读验证（解密 → validate）。密码 UX（决策 7 遗留）只影响本动作入参。
+// ── export_ddp（specs/moonviz-engine-replacement T3.3）：canonical 文档 →密码 UX（决策 7 遗留）只影响本动作入参。
 
 export interface PrototypeExportDdpInput {
   suiteId: string;

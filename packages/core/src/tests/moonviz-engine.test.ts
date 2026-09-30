@@ -31,7 +31,6 @@ import {
   normalizeMoonvizDevices,
   parseMoonvizArtboardId,
   parseOpPlan,
-  looksLikeOpPlan,
 } from "../actions/moonviz-contract";
 
 const DOC =
@@ -241,8 +240,6 @@ test("parseOpPlan extracts the last fence, skips comments/headings, demands an a
     "place t_login button btn - 24 700 342 44",
     "delete-artboard __seed",
   ]);
-  assert.equal(looksLikeOpPlan(ops), true);
-  assert.equal(looksLikeOpPlan(["place a button b - 1 1 10 10"]), false);
   assert.equal(parseOpPlan({ content: "no fence, no ops" }), null);
 });
 

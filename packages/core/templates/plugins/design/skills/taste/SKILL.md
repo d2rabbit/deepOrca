@@ -3,7 +3,8 @@ name: taste
 description: >-
   Front-end design quality discipline — anti-slop methodology for layout,
   typography, spacing, color, and animation. Apply these rules when generating
-  any UI output (DeepDesign .dd files, A2UI/OpenUI prototypes, or raw HTML).
+  any UI output (DeepDesign .dd files, A2UI surfaces, MoonViz/Leafer prototypes,
+or raw HTML).
   This skill is framework-agnostic: the principles apply regardless of whether
   you use CSS classes, Tailwind utilities, or component props.
 ---
@@ -174,7 +175,7 @@ Use this scale consistently:
 
 ## Self-check before submitting
 
-Before calling `render_design` or `render_openui`, verify:
+Before calling `render_design`, `render_moonviz`, or `render_leafer`, verify:
 
 - [ ] Title and body use different sizes/weights
 - [ ] All spacing values are on the 4/8 scale

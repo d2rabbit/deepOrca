@@ -311,8 +311,9 @@ Conventional Commits (`feat:`, `fix:`, `chore:`, `refactor:`, `style:`, `test:`,
 - **`@openuidev/lang-core` install telemetry**: `npm ci`/`npm install` fires
   PostHog/CloudFront telemetry (pseudonymized). CI sets
   `OPENUI_TELEMETRY_DISABLED=1` + `DO_NOT_TRACK=1` at the job level (ci.yml,
-  release.yml); set them in your shell profile too — details in
-  `packages/core/templates/plugins/design/skills/openui/README.md`.
+  release.yml); set them in your shell profile too (the openui README that
+  documented this was removed with the OpenUI stack — specs/
+  moonviz-engine-replacement).
 - CodeGraph is installed as the npm package `@colbymchenry/codegraph` and needs
   Node 22.5+ at runtime (`node:sqlite`); runtime/SQLite resolution lives in
   `packages/core/src/common/codegraph.ts` + `sqlite-runtime.ts`, and desktop
