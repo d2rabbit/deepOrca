@@ -24,7 +24,15 @@ export interface MoonvizPreviewProps {
 }
 
 function artboardCount(doc: string): number {
-  return doc.split("moonviz:artboard").length - 1;
+  // 与 core moonvizArtboardCount 同语义：`<page>@<device>` 画板按 pageId
+  // 折叠（三端画板是一个页面），残留 `__seed` 板不计。
+  const pageIds = new Set<string>();
+  for (const match of doc.matchAll(/moonviz:artboard\s+([\w@-]+)/g)) {
+    const id = match[1];
+    if (id === "__seed") continue;
+    pageIds.add(id.includes("@") ? id.slice(0, id.lastIndexOf("@")) : id);
+  }
+  return pageIds.size;
 }
 
 export function MoonvizPreview({ previewHtml, moonvizDoc, title }: MoonvizPreviewProps) {
