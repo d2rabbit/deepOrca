@@ -1631,7 +1631,6 @@ export const ja: Record<MessageKey, string> = {
   "designWorkspace.scopeHint": "バージョン {version} · ベース {basis} · テーマ {theme}",
   "designWorkspace.versionCapDesign": "バージョン · 1バージョン = 1セット（ビジュアル + デザインシステム + 品質）",
   "designWorkspace.setLeafer": "ビジュアル",
-  "designWorkspace.legacyOpenui": "旧 OpenUI キャンバス · 閲覧専用（編集はチャットから）",
   "designWorkspace.leaferCanvasError":
     "キャンバスエンジンの初期化に失敗しました。デザインを再生成するかアプリを再起動してください。",
   "designWorkspace.leaferCanvasSaveFailed": "キャンバスの保存に失敗しました。しばらくしてからもう一度お試しください。",
@@ -1663,8 +1662,6 @@ export const ja: Record<MessageKey, string> = {
   "prototypeWorkspace.checkStatus.passed": "合格",
   "prototypeWorkspace.resolveCheck": "解決済みにする",
   "prototypeWorkspace.checkResolved": "指摘事項を解決済みにしました",
-  "prototypeWorkspace.variantMissing":
-    "このプラットフォームのバリアントは未生成です。デスクトップ版を表示中。プロトタイプを再生成（全プラットフォーム）するとプラットフォーム適応版が得られます",
   "prototypeWorkspace.slidesFailed": "スライドのレンダリングに失敗しました。ドキュメント表示に戻ります: {error}",
   "prototypeWorkspace.checkStatus.failed": "不合格",
   "prototypeWorkspace.checkStatus.healed": "自己修復",
@@ -1825,8 +1822,6 @@ export const ja: Record<MessageKey, string> = {
   "prototypeWorkspace.reportStatusLabel": "状態：",
   "prototypeWorkspace.checkGroupOther": "一般",
   "prototypeWorkspace.dirChainPrototype": "要件 → プロトタイプ → 検収レポート",
-  "openui.warningSummary":
-    "{count} 件の互換性警告 — 余分な引数は無視され、描画は継続します。「この項目を修正」でエージェントに自己修復させられます。",
   "specs.title": "Specs グラフ",
   "specs.loading": "spec グラフを読み込み中…",
   "specs.empty": "このワークスペースには spec グラフがまだありません。",

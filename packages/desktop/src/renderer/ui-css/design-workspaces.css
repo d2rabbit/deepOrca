@@ -351,7 +351,7 @@
   font-style: normal;
 }
 
-/* 一版一套：版本内三段（spec/openui/verification 或 视觉稿/设计系统/质量）在缺段时用虚线标出。 */
+/* 一版一套：版本内三段（spec/原型/verification 或 视觉稿/设计系统/质量）在缺段时用虚线标出。 */
 .ui-design-version-set {
   display: flex;
   flex-wrap: wrap;

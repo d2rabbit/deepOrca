@@ -1630,7 +1630,6 @@ export const en = {
   "designWorkspace.scopeHint": "Version {version} · Basis {basis} · Theme {theme}",
   "designWorkspace.versionCapDesign": "Versions · one version = one set (visual + design system + quality)",
   "designWorkspace.setLeafer": "Visual",
-  "designWorkspace.legacyOpenui": "Legacy OpenUI canvas · view only, revise via composer",
   "designWorkspace.leaferCanvasError":
     "The canvas engine failed to initialize in this window. Regenerate the design or restart the app.",
   "designWorkspace.leaferCanvasSaveFailed": "Canvas save failed. Try again in a moment.",
@@ -1662,8 +1661,6 @@ export const en = {
   "prototypeWorkspace.checkStatus.passed": "Pass",
   "prototypeWorkspace.resolveCheck": "Mark resolved",
   "prototypeWorkspace.checkResolved": "Observation marked resolved",
-  "prototypeWorkspace.variantMissing":
-    "No platform variant generated yet — showing the desktop version. Regenerate the prototype (all platforms) to get platform-adaptive layouts",
   "prototypeWorkspace.slidesFailed": "Slide render failed, reverted to the document view: {error}",
   "prototypeWorkspace.checkStatus.failed": "Fail",
   "prototypeWorkspace.checkStatus.healed": "Healed",
@@ -1824,8 +1821,6 @@ export const en = {
   "prototypeWorkspace.reportStatusLabel": "Status:",
   "prototypeWorkspace.checkGroupOther": "general",
   "prototypeWorkspace.dirChainPrototype": "Spec → interactive prototype → acceptance report",
-  "openui.warningSummary":
-    "{count} compatibility notice(s) — extra arguments were dropped, rendering continues. Click 修复此项 to let the agent self-heal.",
   "specs.title": "Specs",
   "specs.loading": "Loading spec graph…",
   "specs.empty": "No spec graph in this workspace yet.",

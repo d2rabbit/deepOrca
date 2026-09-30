@@ -1620,7 +1620,6 @@ export const ko: Record<MessageKey, string> = {
   "designWorkspace.scopeHint": "버전 {version} · 기반 {basis} · 테마 {theme}",
   "designWorkspace.versionCapDesign": "버전 · 1 버전 = 1 세트(비주얼 + 디자인 시스템 + 품질)",
   "designWorkspace.setLeafer": "비주얼",
-  "designWorkspace.legacyOpenui": "레거시 OpenUI 캔버스 · 보기 전용, 수정은 대화로",
   "designWorkspace.leaferCanvasError": "캔버스 엔진 초기화에 실패했습니다. 디자인을 다시 생성하거나 앱을 재시작하세요.",
   "designWorkspace.leaferCanvasSaveFailed": "캔버스 저장에 실패했습니다. 잠시 후 다시 시도해 주세요.",
   "designWorkspace.setTokens": "디자인 시스템",
@@ -1651,8 +1650,6 @@ export const ko: Record<MessageKey, string> = {
   "prototypeWorkspace.checkStatus.passed": "통과",
   "prototypeWorkspace.resolveCheck": "해결됨으로 표시",
   "prototypeWorkspace.checkResolved": "지적 사항이 해결됨으로 표시되었습니다",
-  "prototypeWorkspace.variantMissing":
-    "이 플랫폼 변형이 아직 생성되지 않았습니다 — 데스크톱 버전을 표시 중입니다. 프로토타입을 재생성(전체 플랫폼)하면 플랫폼 적응 레이아웃을 얻을 수 있습니다",
   "prototypeWorkspace.slidesFailed": "슬라이드 렌더링 실패, 문서 보기로 되돌립니다: {error}",
   "prototypeWorkspace.checkStatus.failed": "미통과",
   "prototypeWorkspace.checkStatus.healed": "자가 치유",
@@ -1812,8 +1809,6 @@ export const ko: Record<MessageKey, string> = {
   "prototypeWorkspace.reportStatusLabel": "상태:",
   "prototypeWorkspace.checkGroupOther": "일반",
   "prototypeWorkspace.dirChainPrototype": "요구사항 → 인터랙티브 프로토타입 → 수용 보고서",
-  "openui.warningSummary":
-    "{count}건의 호환성 경고 — 초과 인수는 무시되고 렌더링은 계속됩니다. 「이 항목 수정」으로 에이전트에게 자가 치유를 시킬 수 있습니다.",
   "specs.title": "Specs 그래프",
   "specs.loading": "spec 그래프를 읽는 중…",
   "specs.empty": "이 워크스페이스에는 아직 spec 그래프가 없습니다.",
