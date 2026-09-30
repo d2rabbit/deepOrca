@@ -7,7 +7,8 @@ parent: moonviz-engine-replacement
 
 > 对应设计：[design.md](./design.md)；实现级唯一权威：[docs/engine-integration-plan.md](../../../docs/engine-integration-plan.md) **v5.2**（§0 事实基线（0.1.7 + deepDesign 协议移植清单 + #12 双门探针）、§1 删除/不动清单、§2 接缝与 worker、§3 vendor 锚点、§4 动作面、§5 预览、§6 决策 12 项、§7 电池与路线）。
 > 门槛速查：P0/P1 即可开工 · **P2 需 P0 全绿** · P3 的 DDP 另需密码 UX 拍板（决策 7）。
-> **进度（2026-09-29 收官批）**：P0–P3 主体全部落地——vendor 管线 + 接缝 + P0 电池（命令级 20 项全绿，报告 [p0-report.md](./p0-report.md)）+ 替换删除（`git grep -i openui -- packages/` 仅剩存量兼容与注释）+ DDP codec 与黄金向量全绿。全仓 `npm test`：core 1192 pass / desktop 806 pass / 0 fail。遗留：打包形态实测（移交预生产清单）、DDP1 密码 UX（决策 7）、真机 GUI 走查（移交预生产）。
+> **进度（2026-09-29 收官批）**：P0–P3 主体全部落地——vendor 管线 + 接缝 + P0 电池（命令级 20 项全绿，报告 [p0-report.md](./p0-report.md)）+ 替换删除（`git grep -i openui -- packages/` 仅剩存量兼容与注释）+ DDP codec 与黄金向量全绿。全仓 `npm test`：core 1195 pass / desktop 808 pass / 0 fail。遗留：打包形态实测（移交预生产清单）、DDP1 密码 UX（决策 7）、真机 GUI 走查（移交预生产）。
+> **审查修复（2026-09-29 四轮多角度）**：①review-swarm 四角色（意图回归/安全隐私/性能可靠/契约覆盖）→ ②对抗性 bug 猎杀 ×2 + 复用/死码/覆盖 → ③机械死码扫描 + skill/工作流/action 链路审计 → ④收敛复核代理确认 CONVERGED。累计修复 ~30 项：update_moonviz base 展开、host 层 reset 重试收窄（session 方法交还 withSession）、看门狗 rebuild 挂 catch、缓存 cap 硬不变量（溢出 UNCACHED + 真实 close）、verify 阶梯 validate/ladder 分离、Gate culprit 位置感知、design 插件 manifest 与 taste/a2ui-annotation/deep-design/arch-writer 技能文本续接 moonviz、8 个零消费者导出删除、orphan CSS/孤儿文件清理。`git grep` 活跃面 0 处 render_openui/update_openui 残留。
 
 ## P0 验收电池（命令级，9 项——基准文档 §7；验收对象 = 本方接缝实现面，引擎侧回归由 vendor 契约探针拦）
 
