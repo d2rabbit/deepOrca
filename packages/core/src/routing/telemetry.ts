@@ -17,7 +17,20 @@
 // unpatched — emits "fallback" with the model/channel/dimension in `detail`.
 // "option-map" = the data-driven thinking shape (P3.1) failed to compile or
 // evaluate — emits "fallback" so a silently degraded map leaves a trace.
-export type RoutingStage = "embedding" | "G0" | "G1" | "G2" | "G3" | "SAD" | "server" | "probe" | "option-map";
+// "compaction" = an idle-time background compaction round failed (provider or
+// persistence error; aborts stay silent) — the fire-and-forget path has no
+// caller to surface the error, so the telemetry sink is its only trace.
+export type RoutingStage =
+  | "embedding"
+  | "G0"
+  | "G1"
+  | "G2"
+  | "G3"
+  | "SAD"
+  | "server"
+  | "probe"
+  | "option-map"
+  | "compaction";
 export type RoutingOutcome = "hit" | "fallback" | "skip";
 
 export interface RoutingEvent {

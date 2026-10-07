@@ -1,0 +1,109 @@
+# OS metadata
+.DS_Store
+Thumbs.db
+
+# Dependency directory
+node_modules/
+# Ignore built ts files
+dist/
+out/
+
+
+# Editors
+.idea/
+.vscode/
+*.tgz
+*.log
+*.vsix
+.deepcode/settings.json
+.deeporca/settings.json
+.qoder/
+.superpowers/
+.zcode/
+
+# TypeScript build info files
+*.tsbuildinfo
+
+# Environment variables
+.env
+.env.local
+
+# Generated files
+packages/*/src/generated/
+# Legacy location of the auto-generated Tailwind script (now under
+# packages/desktop/src/generated/). Kept so checkouts that still carry the old
+# file don't re-add it after the move.
+packages/desktop/src/renderer/dd/tailwind-script.ts
+
+# Vendored third-party builds (checked out/downloaded + compiled at build time
+# via scripts/vendor-*.js): CodeGraph, OpenWiki, uv, Serena, SkillSpector, CRG,
+# Granite embedding model, …
+packages/desktop/vendor/*
+# clay-ui-runtime：clay.wasm + 补丁头 + 指纹（KB 级 Zlib 产物）随仓库入库，
+# 使无 clang/WSL 工具链的机器也能构建（vendor-clay.js 仅在升级 pin 时需要重建）。
+!packages/desktop/vendor/clay/
+
+# Upstream source clones for research/inspection (e.g. the CRG repo checked
+# out for the 2026-09-01 deep dive) — never part of the product tree.
+vendor-src/
+
+# Pinned skill-up release binaries (scripts/get-skill-up.mjs) — CI-only tool,
+# never vendored into the desktop build.
+.cache/skill-up/
+
+# Local verification scratch dirs
+.tmp-verify/
+.tmp-orca/
+.tmp-gitmcp-e2e/
+
+# Browser-automation session snapshots (run artifacts, not sources)
+.playwright-mcp/
+
+# Site verification screenshots (run artifacts, not sources)
+.site-*.png
+
+# Local security-tool scratch (not sources)
+.mimosa/
+
+# Generated workspace knowledge artifacts — the wiki pages and arch-map
+# surfaces ARE committed (R3-8: they are reviewable products of the index
+# build), now at their centralized location .deeporca/deepwiki/ (2026-09-01).
+# The binary CodeGraph index, CRG graphs, review reports and run junk stay
+# untracked; `.codegraph` is the SDK-facing symlink into .deeporca/codegraph.
+.deeporca/codegraph/
+.deeporca/crg/
+.deeporca/reviews/
+.deeporca/prototypes/
+.codegraph
+
+
+# ===== ↑ 以上同步自 .gitignore（「从 .gitignore 同步」只重写以上部分）=====
+.git/
+.hg/
+.svn/
+bower_components/
+jspm_packages/
+__pycache__/
+site-packages/
+venv/
+coverage/
+htmlcov/
+lcov-report/
+cmakefiles/
+cmake-build-*/
+bazel-*/
+pods/
+deriveddata/
+storybook-static/
+playwright-report/
+test-results/
+allure-results/
+allure-report/
+cdk.out/
+*.egg-info/
+*.dist-info/
+eggs/
+pip-wheel-metadata/
+wheels/
+# ----- ↑ 以上为 ZCode 默认排除规则（自定义规则请写在本行下方，不会被同步/恢复改动）-----
+# 自定义规则写在下方（本行提示可删除）

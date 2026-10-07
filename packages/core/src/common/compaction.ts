@@ -116,3 +116,42 @@ export function validateCompactionPairing(
   }
   return true;
 }
+
+/**
+ * CAS prefix validation for the post-summary apply (background-compaction
+ * concurrency barrier): the plan snapshot must still be the ID-identical
+ * prefix of the live filtered view up to the range's exclusive end. Appends
+ * during the summarize round-trip only extend the tail and stay valid (they
+ * survive the apply's save); anything that rewrote the head — an undo/restore
+ * truncation, a task-branch switch, or a competing compaction tombstoning the
+ * range (tombstones drop out of the filtered view) — invalidates the plan and
+ * the round must be discarded as `applied: false`.
+ */
+export function compactionRangeIntact<T extends { id: string }>(
+  live: readonly T[],
+  plan: readonly T[],
+  endIndex: number
+): boolean {
+  if (endIndex <= 0 || live.length < endIndex || plan.length < endIndex) {
+    return false;
+  }
+  for (let i = 0; i < endIndex; i += 1) {
+    if (live[i].id !== plan[i].id) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * Post-response meter stamp (background-compaction meter coherence): the
+ * freshly measured payload, unless a background compaction applied while the
+ * request was in flight — that apply already reset the meter, and
+ * resurrecting the stale pre-compaction count would send the next iteration's
+ * loop-top straight into a doomed inline compaction (zero keeps the "reset,
+ * re-measure next request" contract). Pure so the manager and tests share
+ * one definition.
+ */
+export function meterStampValue(promptTokens: number, meterEpoch: number, currentEpoch: number): number {
+  return meterEpoch === currentEpoch ? promptTokens : 0;
+}

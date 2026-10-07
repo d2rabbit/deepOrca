@@ -60,6 +60,10 @@ export class SessionManager extends SessionManagerDepth {
     }
     this.killLiveProcesses();
     this.sessionControllers.clear();
+    // Abort idle-time background compactions before the caches go away — the
+    // CAS apply makes a late landing harmless, but a disposed manager should
+    // not fire further summary requests.
+    this.abortBackgroundCompactions();
     this.processTimeoutControls.clear();
     this.sessionAuditLogs.clear();
     this.bashSandboxBySession.clear();

@@ -1,6 +1,6 @@
 # MoonViz P0 验收电池报告
 
-- 日期：2026-09-30T03:46:14.765Z
+- 日期：2026-09-30T05:29:57.634Z
 - 引擎锚点：`engine-v0.1.7`（sha512 611c21e2681ed87b…）
 - 运行时：`24.18.0 (v8 15.0.1240245-electron.0)`（ELECTRON_RUN_AS_NODE）
 - 结果：**全绿**（24/24 项通过）
@@ -18,7 +18,7 @@
 | T0.3a | 同 canonical 命中复用 | ✓ | hits=2 |
 | T0.3b | 变更后缓存键前移（新 canonical 命中） | ✓ |  |
 | T0.3c | Gate 拒绝（四段串）+ 脏缓存弃置后原文档可用 | ✓ | live=2 |
-| T0.4a | 超时 terminate（watchdog 真中断） | ✓ | 1218ms, rebuilds=2 |
+| T0.4a | 超时 terminate（watchdog 真中断） | ✓ | 1228ms, rebuilds=2 |
 | T0.4b | terminate 后主进程零副作用、重建可用 | ✓ |  |
 | T0.5a | GateBlock 四段串形状 | ✓ | mbt_gate_block:t_login:contained_in_parent:oob |
 | T0.5b | lint/critique/flows/spec 信封结构 | ✓ | flows=2 |
@@ -27,7 +27,7 @@
 | T0.7 | 棘轮重建触发 + 重建后缓存恢复（canonical 重放零语义损失） | ✓ | rebuilds=2, mutatingOps=0, reopenHandle=0 |
 | T0.3d-1 | 迟来 close 不动引擎会话计数 | ✓ | before=2 after=2 |
 | T0.3d-2 | 迟来 close 后复用/共存句柄仍可用 | ✓ |  |
-| T0.4c | 空闲 worker 死亡后下一次调用即时重建 | ✓ | 12ms |
+| T0.4c | 空闲 worker 死亡后下一次调用即时重建 | ✓ | 13ms |
 | T0.8a | session_open("") = -1 契约 | ✓ | -1 |
 | T0.8b | SEED → template → delete 种子板 → save → 重载一致 | ✓ |  |
 | T0.9 | previewHtml 自包含（零外链资源） | ✓ | external=0, 12666B |

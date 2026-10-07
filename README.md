@@ -352,3 +352,118 @@ DeepOrca 站在这些开源项目的肩膀上。完整清单（含随安装包�
 - 🐛 提交 Bug 报告和功能建议
 - 📢 分享给朋友和同事
 - 🤝 贡献代码和文档
+
+<!-- deepgit:begin progress -->
+## 项目进度
+
+> 本区域由 **deepGit** 自动维护（浅更新）· 更新于 2026-10-01 00:05
+> 追踪 7 个分支 · 16 处未提交改动
+
+### 工程脉搏
+
+- 提交构成：`feat` ×4 · `fix` ×18 · `docs` ×3 · `test` ×1 · `chore` ×4
+- 注意：7 个未跟踪文件；5 个工作区；`feat/modern-ui-redesign` 可直接 fast-forward 到 `master`
+
+### `feat/modern-ui-redesign`（当前）
+
+- **状态**：活跃 · 最近提交 10 小时前（`c280db8b` fix(desktop): MoonvizPreview 画板计数按 pageId …）
+- **摘要**：最近 30 个提交：修复×18、构建/依赖×4、新增×4
+- **近期进展**
+  - 修复：“MoonvizPreview 画板计数按 pageId 折叠对齐 core 语义…
+  - 修复：“第六轮双技能猎杀修复——reset 纪律、句柄墓碑、解压上界…
+  - 构建/依赖：“i18n 死键清理（4 键 × 6 locale）+ 孤儿 CSS 收敛”
+  - 文档：“moonviz tasks 回写四轮审查修复记录”
+  - 修复：“moonviz 第三/四轮收敛——死码清零、技能链路续接、诊断…
+- **下一步**
+  - 推进该分支的收尾与验证，考虑合并回默认分支
+- 本次记录 30 个提交 · 领先默认分支 7 个提交
+
+### `master`（默认分支）
+
+- **状态**：停滞 · 最近提交 2 个月前（`6f43a9f9` build(release): add cross-platform desktop pack…）
+- **摘要**：最近 30 个提交：文档×12、新增×9、修复×4
+- **近期进展**
+  - 构建/依赖：“add cross-platform desktop packaging and releas…
+  - 文档：“point GitHub links to new d2rabbit/deepOrca reposito…
+  - CI：“auto-enable GitHub Pages via configure-pages enablemen…
+  - 构建/依赖：“clean stale workspace entries from lockfile and…
+  - 文档：“sync landing page with latest features and switch RE…
+- **下一步**
+  - 分支已多日无提交，确认是否合并或关闭
+- 本次记录 30 个提交
+
+### `fix/design-hub-switch`
+
+- **状态**：停滞 · 最近提交 18 天前（`0bacab1d` fix(desktop): 内置插件组 agents 归类为「Agent …）
+- **摘要**：最近 30 个提交：修复×17、新增×6、文档×2
+- **近期进展**
+  - 修复：“内置插件组 agents 归类为「Agent 技能组」”
+  - 修复：“设计目录点击工作区/主题切换 + 主题分组仅激活项展开”
+  - 修复：“危险按钮静止态收尾（metro/fusion/clay/geocities）”
+  - 修复：“主题对比度系统修复 + 死 CSS 清理 + 工具色改用主题 to…
+  - 修复：“真机 chrome 文本对比度达标”
+- **下一步**
+  - 分支已多日无提交，确认是否合并或关闭
+  - 推进该分支的收尾与验证，考虑合并回默认分支
+- 本次记录 30 个提交
+
+### `feat/float-agent-md-render`
+
+- **状态**：停滞 · 最近提交 20 天前（`04699fb4` feat(desktop): 悬浮智能体回复渲染接入 Streamdow…）
+- **摘要**：最近 30 个提交：新增×11、修复×11、文档×6
+- **近期进展**
+  - 新增：“悬浮智能体回复渲染接入 Streamdown——ExplainCard（编辑…
+  - 新增：“prd-theme-layer WP3——prototype.spec 继承/交叉参考全…
+  - 新增：“prd-theme-layer WP2——主题五通道端到端（shared/preloa…
+  - 新增：“prd-theme-layer WP1——主题层存储：index.json themes +…
+  - 文档：“prd-theme-layer 立项——PRD 主题层三件套（两处入口/PRD…
+- **下一步**
+  - 分支已多日无提交，确认是否合并或关闭
+  - 推进该分支的收尾与验证，考虑合并回默认分支
+- 本次记录 30 个提交
+
+### `gh-pages`
+
+- **状态**：停滞 · 最近提交 21 天前（`46e5ac4e` feat(site): 新增纯文档二级页面）
+- **摘要**：最近 26 个提交：新增×18、修复×6、更新×2
+- **近期进展**
+  - 新增：“新增纯文档二级页面”
+  - 新增：“增强潜航互动与协作链反馈”
+  - 新增：“以全屏潜航场景重构官网交互”
+  - 修复：“为 Pages 静态资源加版本号避免旧 CSS 缓存”
+  - 新增：“重构为深海创作旅程并以原生互动展示协作链”
+- **下一步**
+  - 分支已多日无提交，确认是否合并或关闭
+- 本次记录 26 个提交
+
+### `next/coord-chain`
+
+- **状态**：停滞 · 最近提交 23 天前（`49fce168` docs(coord-chain): 设计稿修正——七模块视图全部改…）
+- **摘要**：最近 30 个提交：文档×18、修复×5、新增×4
+- **近期进展**
+  - 文档：“设计稿修正——七模块视图全部改为真实 DOM 核心块提取（<…
+  - 文档：“设计稿完成——七模块真实 DOM 视图全部装配并注入链操作…
+  - 文档：“设计稿完成——七模块真实 DOM 视图全部装配并注入链操作…
+  - 文档：“四项修正——①任务树每节点链 id 独立成行（本机链/⑂来源…
+  - 文档：“最终设计稿——基底=运行中应用真实 DOM（CDP 提取：ui-wi…
+- **下一步**
+  - 分支已多日无提交，确认是否合并或关闭
+- 本次记录 30 个提交 · 领先默认分支 1 个提交
+
+<details>
+<summary>其他分支（1）</summary>
+
+### `docs/ui-ux-redesign-proposal`
+
+- **状态**：停滞 · 最近提交 26 天前（`74ac464d` docs(deck): 分支搁置标记 — 主干策略转向 Swift/.…）
+- **摘要**：最近 30 个提交：新增×16、文档×4、修复×4
+- **近期进展**
+  - 文档：“分支搁置标记 — 主干策略转向 Swift/.NET 原生实现，Dec…
+  - 文档：“分支专属说明 README.deck.md — 定位/基座关系/隔离红线…
+  - 新增：“Orca Deck E22 — 阅读体验对齐（wiki/AGENTS Streamdown…
+  - 新增：“Orca Deck E21 — 破坏性操作一致化（丢弃/放弃两步确认…
+  - 修复：“Orca Deck E20 真机对拍 — archmap resolve 形状守卫 + …
+- 本次记录 30 个提交
+
+</details>
+<!-- deepgit:end progress -->

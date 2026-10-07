@@ -1054,16 +1054,30 @@ test("SessionManager compacts pre-flight when the payload nears the threshold", 
       total_tokens: 7,
     }),
   ];
-  // Explicit threshold: the initial filler counts ~110K heuristic tokens —
-  // too big for a single message to summarize away on turn 1 (nothing else
-  // in range), but on turn 2 it sits in the compactable middle, so the
-  // pre-flight budget crosses 100K × 0.9 and compaction fires BEFORE the
-  // request — not after a CONTEXT_WINDOW_EXCEEDED error.
+  // Explicit threshold: the initial filler counts ~110K heuristic tokens.
+  // Turn 1's in-flight pre-flight cannot compact it (no assistant reply is
+  // persisted yet, so the range cannot close) — but once the turn quiesces,
+  // the idle-time background compaction summarizes it at the turn boundary,
+  // BEFORE turn 2's request, which then starts from the compacted context
+  // instead of stalling on a foreground summary or recovering via
+  // CONTEXT_WINDOW_EXCEEDED.
   const manager = createMockedClientSessionManager(workspace, responses, { compactTokenThreshold: 100_000 });
 
   const sessionId = await manager.createSession({ text: `context filler ${"x".repeat(440_000)}` });
-  const firstMeter = manager.getSession(sessionId)?.activeTokens ?? 0;
-  assert.ok(firstMeter > 90_000, "oversized turn still metered (nothing compactable on turn 1)");
+  // The boundary compaction is started synchronously in activateSession's
+  // finally (turn 1 ends "completed" with the ~110K meter over the 100K×0.9
+  // trigger) and consumes the queued "summary" response. Join it before
+  // asserting — reading the meter blindly would race its apply.
+  const internalCompaction = manager as unknown as {
+    backgroundCompactions: Map<string, { promise: Promise<{ applied: boolean }> }>;
+  };
+  const background = internalCompaction.backgroundCompactions.get(sessionId);
+  assert.ok(background, "idle-time compaction started at the turn boundary");
+  assert.equal((await background.promise).applied, true, "boundary compaction applied");
+  assert.ok(
+    (manager.getSession(sessionId)?.activeTokens ?? 0) < 100_000,
+    "meter already reads the compacted payload before the next request"
+  );
 
   await manager.replySession(sessionId, { text: "continue" });
 

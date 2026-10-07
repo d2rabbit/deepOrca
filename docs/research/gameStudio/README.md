@@ -14,6 +14,21 @@
 产出：六项目三形态全景 + 六条产业趋同 + 21 条 ∥ 记账候选。3D 侧姊妹篇见
 [../2026-09-24-3d-domain-special-report.md](../2026-09-24-3d-domain-special-report.md)。
 
+## 第三轮（2026-09-29 起）：评测侧
+
+**[gamephanes/2026-09-29-gamephanes-prestudy.md](./gamephanes/2026-09-29-gamephanes-prestudy.md)** ——
+**GamePhanes**（GamePhanesStudio/GamePhanes，MIT，475★，三名并存：仓库 GamePhanes /
+EN README GameForgeBench / zh README Game Terminal-Bench）。本档案**第一个评测侧对象、
+第四种形态（评测基础设施）**：Harbor 兼容的游戏 coding agent 基准，评**修复工程能力**
+而非玩家 bot，评分路径零 LLM（确定性原生探针 + binary reward + post-hoc 诊断分），
+Godot/Minecraft Paper/C++/HTML5 四引擎实例化同一任务契约（宣称 81 候选、实发 17、
+完整校准 3 道、Kimi K3 分数 3 条：1.0/1.0/0.0）。档案级新机制三条：
+**oracle/no-op 双向校准**（starter 必败+oracle 必成+NOP=0）、**自审计 rubric**
+（`evidence_basis` + `unsupported_claims` + `contract_fingerprint`——验证器明文
+自报"没证明什么"）、**binary 主分与诊断分分离**。三条均 prompt/流程层零成本
+可移植，对本仓非游戏线（review/design.audit/skill-eval/specs 验收）同样成立；
+全部 ∥ 观察记账，不启动 spec。
+
 ## 调研项目总览（第一轮）
 
 | 项目                               | 星级/许可         | 定位                                                                        | 与本仓的关系                                                  | 文档数 |
@@ -57,6 +72,8 @@
 gameStudio/
 ├── README.md                          ← 本文件（总览索引）
 ├── 2026-09-24-game-dev-round2-special-report.md   第二轮专题：OpenGame（定量消融）+ threejs-game-skills（账本纪律）+ CCGS（治理）+ VibeGame 增量核对
+├── gamephanes/                        GamePhanes（GamePhanesStudio/GamePhanes）
+│   └── 2026-09-29-gamephanes-prestudy.md         评测基础设施（GameForgeBench / Game Terminal-Bench）
 ├── vibegame/                          VibeGame（tettethu/VibeGame，南京大学 PR Lab）
 │   ├── 2026-09-03-vibegame-prestudy.md          机制层全景（游戏层）
 │   └── 2026-09-15-vibegame-game-dev-deepdive.md 游戏开发层深潜

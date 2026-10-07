@@ -10,6 +10,8 @@ import {
 } from "./common/resume-synthesis";
 import { countConversationTokens, countRequestPayloadTokens } from "./common/token-counter";
 import {
+  compactionRangeIntact,
+  meterStampValue,
   PRE_COMPACT_RATIO,
   STAGE_A_SKIP_HEADROOM,
   TOOL_RESULT_TRUNCATION_THRESHOLD_CHARS,
@@ -87,10 +89,28 @@ import { withTimeoutNull } from "./common/timeout";
 import type {
   BashTimeoutAdjustment,
   SessionEntry,
+  SessionStatus,
   MessageMeta,
   SessionMessage,
   UserPromptContent,
 } from "./session-types";
+
+/** Join-rule budget (ms): how long a new user turn waits for an in-flight
+ * idle-time background compaction before aborting it. Never longer than the
+ * foreground compaction stall it exists to avoid. Tests tighten this via
+ * `backgroundCompactionJoinTimeoutMs` to keep the suite fast. */
+const BACKGROUND_COMPACTION_JOIN_TIMEOUT_MS = 10_000;
+
+/** Statuses the turn-boundary (quiescent) trigger may fire in — the during-turn
+ * variant bypasses this gate by design (its caller guarantees an active
+ * tool-execution window). Typed against the SessionStatus union so a typo'd
+ * literal fails typecheck instead of silently disabling the trigger. */
+const BACKGROUND_COMPACTION_QUIESCENT_STATUSES: ReadonlySet<SessionStatus> = new Set<SessionStatus>([
+  "waiting_for_user",
+  "completed",
+  "ask_permission",
+  "paused",
+]);
 
 export abstract class SessionManagerLifecycle extends SessionManagerPersistence {
   /**
@@ -107,6 +127,45 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
   // （其余会话的自动压缩照常工作）。
   private readonly rapidRefillBySession = new Map<string, RapidRefillState>();
   private readonly rapidRefillTrippedSessions = new Set<string>();
+
+  // ── 后台压缩并发管理（idle-time background compaction）─────────────────
+  // 两个后台触发窗口：turn 边界（静止期）与工具执行期间。摘要往返不再阻塞
+  // 前台循环，也不发 "compacting" 提示——用户唯一的可感知痕迹是 apply 后
+  // 上下文表回落。正确性两层保证：(1) compactSession 的 apply 是 CAS（见
+  // 其并发契约注释）；(2) join 规则——新一轮激活先在预算内等 in-flight
+  // 后台压缩，超时则 abort；前台 loop-top / pre-flight（join-first 化）/
+  // 溢出恢复三触发点保留为兜底。
+  private readonly backgroundCompactions = new Map<
+    string,
+    { promise: Promise<{ applied: boolean }>; controller: AbortController }
+  >();
+
+  /** Join-rule budget override point — tests tighten it to stay fast. */
+  protected backgroundCompactionJoinTimeoutMs = BACKGROUND_COMPACTION_JOIN_TIMEOUT_MS;
+
+  /**
+   * Per-session counter of APPLIED compactions (any exit that resets the
+   * context meter). The activation loop stamps the meter with the payload size
+   * it measured pre-send; a compaction applying during the request/tool window
+   * invalidates that measurement — the post-response stamp must reset to 0
+   * (re-measure next iteration) instead of resurrecting the stale count.
+   */
+  private readonly backgroundCompactionEpochs = new Map<string, number>();
+
+  private getBackgroundCompactionEpoch(sessionId: string): number {
+    return this.backgroundCompactionEpochs.get(sessionId) ?? 0;
+  }
+
+  /**
+   * Single settle point for every applied-compaction exit (Stage-A-only trim
+   * and summary write alike): bumping here — synchronously with the meter
+   * reset, NOT in the fire-and-forget .then a microtask later — is what makes
+   * the post-response meterStampValue guard exact. A missed exit silently
+   * re-arms the stale-count race the guard exists to close.
+   */
+  private noteAppliedCompaction(sessionId: string): void {
+    this.backgroundCompactionEpochs.set(sessionId, this.getBackgroundCompactionEpoch(sessionId) + 1);
+  }
 
   private getRapidRefillState(sessionId: string): RapidRefillState {
     return this.rapidRefillBySession.get(sessionId) ?? RAPID_REFILL_INITIAL;
@@ -521,6 +580,10 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
     controller?: AbortController,
     permissionPrompt?: UserPromptContent
   ): Promise<void> {
+    // Background-compaction join rule: wait out (or, past the budget, abort)
+    // an idle-time compaction so this run and the background writer never
+    // hold different views of the transcript.
+    await this.joinBackgroundCompaction(sessionId);
     const startedAt = Date.now();
     const { client, model, baseURL, temperature, thinkingEnabled, reasoningEffort, debugLogEnabled, notify, env } =
       this.createOpenAIClient();
@@ -620,26 +683,22 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
           }
         }
 
-        // User override (settings.compactTokenThreshold) wins over the
-        // per-model family registry default. P1.1 语义修正（S2-F4）：该值
-        // 的文档口径是**触发阈值**（settings.ts "trigger threshold" /
-        // model-capabilities.ts "Active-context size at which the engine
-        // compacts"）而非原始窗口——覆盖时保留旧精确语义（loop-top >
-        // 覆盖值，预检 ≥ 覆盖值×0.9），不做输出预留二次折减；仅无覆盖时
-        // 走阶梯（阶梯以声明窗口为分母，含 20K 输出预留与 13K 缓冲）。
-        const userCompactOverride = this.getResolvedSettings().compactTokenThreshold;
-        const compactPromptTokenThreshold = userCompactOverride ?? getCompactPromptTokenThreshold(model);
-        const compactionLadder = computeCompactionLadder(
-          userCompactOverride ? userCompactOverride + COMPACTION_OUTPUT_RESERVE_TOKENS : compactPromptTokenThreshold
-        );
         // P1.2 rapid-refill breaker: per-session state (S2-F3 — manager 级
         // 共享会让无关会话互相污染计数，且一次熔断永久锁死整个进程).
         if (this.rapidRefillTrippedSessions.has(sessionId)) {
           throw new Error(RAPID_REFILL_TRIP_MESSAGE);
         }
-        // 触发点：有覆盖 → 旧精确语义；无覆盖 → 阶梯 hard 档（兜底）。
-        const loopTopTrigger = userCompactOverride ?? compactionLadder.hard;
-        if (session.activeTokens > loopTopTrigger) {
+        // 触发点（P1.1 语义与阶梯折叠统一在 resolveCompactionTriggers）：
+        // 有覆盖 → 旧精确语义；无覆盖 → 阶梯 hard 档（兜底）。
+        const { loopTopTrigger, preflightTrigger } = this.resolveCompactionTriggers(model);
+        let loopTopMeter = session.activeTokens;
+        if (loopTopMeter > loopTopTrigger) {
+          // Join-first：上一个工具执行窗口里启动的 idle-time 压缩可能已经
+          // apply——其表复位让重读值落回触发线下，内联阻塞整段跳过。
+          await this.joinBackgroundCompaction(sessionId);
+          loopTopMeter = this.getSession(sessionId)?.activeTokens ?? 0;
+        }
+        if (loopTopMeter > loopTopTrigger) {
           const message = this.buildAssistantMessage(sessionId, formatSessionPrompt("compacting"), null);
           message.meta = { asThinking: true };
           this.onAssistantMessage(message, false);
@@ -687,9 +746,17 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
         // first oversized request no longer has to hit the wall and recover
         // via CONTEXT_WINDOW_EXCEEDED. P1.1：有覆盖 → 旧精确语义
         // （≥ 覆盖值×0.9）；无覆盖 → 阶梯 auto 档。
-        const preflightTrigger =
-          userCompactOverride !== undefined ? userCompactOverride * PRE_COMPACT_RATIO : compactionLadder.auto;
         let promptTokens = countRequestPayloadTokens(model, { messages, tools });
+        if (promptTokens >= preflightTrigger) {
+          // Join-first：工具执行窗口启动的 idle-time 压缩可能已完成——先在
+          // 预算内等它并重测 payload，只有仍超标才退回内联摘要（阻塞整轮）。
+          // 重测仅在确有 in-flight record 时进行：payload 计数是 O(payload)
+          // 的真功夫，没人在途时重测必然得到同一个数。
+          if (await this.joinBackgroundCompaction(sessionId)) {
+            messages = this.messageConverter.buildMessages(this.listSessionMessages(sessionId), thinkingEnabled, model);
+            promptTokens = countRequestPayloadTokens(model, { messages, tools });
+          }
+        }
         if (promptTokens >= preflightTrigger) {
           const notice = this.buildAssistantMessage(sessionId, formatSessionPrompt("compacting"), null);
           notice.meta = { asThinking: true };
@@ -705,6 +772,10 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
         // Pre-send context-meter refresh: the UI badge and the loop-top
         // compaction check read activeTokens before this request completes.
         this.updateSessionEntry(sessionId, (entry) => ({ ...entry, activeTokens: promptTokens }));
+        // Meter epoch: if a background compaction applies while this request
+        // is in flight (tool-execution window), the post-response stamps below
+        // must reset the meter instead of resurrecting this stale count.
+        const meterEpoch = this.getBackgroundCompactionEpoch(sessionId);
         const response = await this.createChatCompletionStream(
           client,
           {
@@ -784,7 +855,7 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
               toolCalls,
               usage: accumulateUsage(entry.usage, response.localUsage ?? responseUsage),
               usagePerModel: accumulateUsagePerModel(entry.usagePerModel, model, response.localUsage ?? responseUsage),
-              activeTokens: promptTokens,
+              activeTokens: meterStampValue(promptTokens, meterEpoch, this.getBackgroundCompactionEpoch(sessionId)),
               status: "ask_permission",
               failReason: null,
               askPermissions: permissionPlan.askPermissions,
@@ -792,6 +863,13 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
             }));
             return;
           }
+          // During-turn idle window：工具执行可能耗时数分钟——此刻启动
+          // idle-time 压缩（静默、CAS 安全），让下一轮迭代的 join-first
+          // 检查通常直接命中已 apply 的结果，而不是把本轮阻塞在内联摘要上。
+          // 安全性由 compactSession 的 CAS apply 保证：工具结果在摘要往返
+          // 期间追加只延长尾部并被保留；选区永远不含最后一条消息，pending
+          // 工具调用的配对不会被切。
+          this.startBackgroundCompactionIfEligible(sessionId, promptTokens);
           const toolAppendResult = await this.appendToolMessages(sessionId, toolCalls, {
             messagePermissions: permissionPlan?.permissions,
           });
@@ -810,7 +888,10 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
           toolCalls,
           usage: accumulateUsage(entry.usage, response.localUsage ?? responseUsage),
           usagePerModel: accumulateUsagePerModel(entry.usagePerModel, model, response.localUsage ?? responseUsage),
-          activeTokens: promptTokens,
+          // Meter epoch guard: a background compaction that applied during the
+          // request/tool window already reset the meter — keep it at 0 (the
+          // next iteration re-measures) instead of stamping the stale count.
+          activeTokens: meterStampValue(promptTokens, meterEpoch, this.getBackgroundCompactionEpoch(sessionId)),
           status: refusal ? "failed" : waitingForUser ? "waiting_for_user" : toolCalls ? "processing" : "completed",
           failReason: refusal ? refusal : entry.failReason,
           askPermissions: undefined,
@@ -873,6 +954,11 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
       this.maybeSyncWikiIndex(sessionId);
       this.maybeRunDiagnosticsCheck(sessionId);
       this.maybeCaptureMemory(sessionId);
+      // Idle-time background compaction: fired only when the turn quiesced
+      // (waiting_for_user / completed / ask_permission / paused) and the last
+      // measured context already sits at the pre-flight trigger — never
+      // awaited, never announced; the next activation joins it.
+      this.maybeStartBackgroundCompaction(sessionId);
     }
   }
 
@@ -1032,11 +1118,151 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
   }
 
   /**
-   * Compact the session's middle history. Returns `{ applied: false }` when a
-   * guard rejected the range (unpairable tool cluster, nothing eligible, no
-   * background LLM) — deterministic, so the auto-recovery caller fails once
-   * with an actionable error instead of retrying (wedge short-circuit).
-   * `{ applied: true }` after a Stage-A-only trim or a written summary.
+   * Single source of the foreground trigger arithmetic, consumed by the
+   * activation loop (both tiers) and the background trigger gate — kept as one
+   * resolver so the background triggers can never drift from the foreground
+   * thresholds they mirror. P1.1 语义修正（S2-F4）：用户覆盖的文档口径是
+   * **触发阈值**而非原始窗口——覆盖时保留旧精确语义（loop-top > 覆盖值，
+   * 预检 ≥ 覆盖值×0.9），不做输出预留二次折减；仅无覆盖时走阶梯（阶梯以
+   * 声明窗口为分母，含 20K 输出预留与 13K 缓冲）。
+   */
+  private resolveCompactionTriggers(model: string): { loopTopTrigger: number; preflightTrigger: number } {
+    const userCompactOverride = this.getResolvedSettings().compactTokenThreshold;
+    const compactPromptTokenThreshold = userCompactOverride ?? getCompactPromptTokenThreshold(model);
+    const compactionLadder = computeCompactionLadder(
+      userCompactOverride ? userCompactOverride + COMPACTION_OUTPUT_RESERVE_TOKENS : compactPromptTokenThreshold
+    );
+    return {
+      loopTopTrigger: userCompactOverride ?? compactionLadder.hard,
+      preflightTrigger:
+        userCompactOverride !== undefined ? userCompactOverride * PRE_COMPACT_RATIO : compactionLadder.auto,
+    };
+  }
+
+  /**
+   * Turn-boundary (quiescent) background trigger: fire-and-forget
+   * `compactSession` at a quiescent turn boundary when the measured context
+   * already sits at or above the pre-flight trigger — the next turn's
+   * join-first checks then find an already-compacted context instead of
+   * stalling on a foreground summary.
+   */
+  protected maybeStartBackgroundCompaction(sessionId: string): void {
+    const session = this.getSession(sessionId);
+    if (!session || !BACKGROUND_COMPACTION_QUIESCENT_STATUSES.has(session.status)) return;
+    this.startBackgroundCompactionIfEligible(sessionId, session.activeTokens ?? 0);
+  }
+
+  /**
+   * Shared gate + fire core for both background trigger sites: the quiescent
+   * wrapper above and the activation loop's during-turn call (tool-execution
+   * window, no status gate — the caller guarantees one, and the meter is the
+   * freshly counted request payload rather than the entry field). Silent by
+   * design (no "compacting" notice); rapid-refill-tripped and silent-subagent
+   * sessions are excluded.
+   */
+  protected startBackgroundCompactionIfEligible(sessionId: string, meter: number): void {
+    if (this.backgroundCompactions.has(sessionId)) return;
+    if (this.rapidRefillTrippedSessions.has(sessionId)) return;
+    const session = this.getSession(sessionId);
+    if (!session || session.isSilentSubagent) return;
+    // Same trigger arithmetic as the pre-flight check in the activation loop —
+    // backgrounding changes WHEN the summary round-trip runs (idle windows),
+    // not WHEN compaction is deemed necessary.
+    const { preflightTrigger: trigger } = this.resolveCompactionTriggers(this.getResolvedSettings().model);
+    if (meter < trigger) return;
+    const controller = new AbortController();
+    const promise = this.compactSession(sessionId, controller.signal).catch((error: unknown) => {
+      // Fire-and-forget has no caller to surface failures — aborts settle
+      // quietly (they are the join rule working), but a provider or
+      // persistence error would otherwise be invisible for the whole session.
+      if (!this.isAbortLikeError(error)) {
+        logRoutingEvent({
+          stage: "compaction",
+          outcome: "fallback",
+          sessionId,
+          detail: `idle-time compaction failed: ${describeLlmError(error)}`,
+        });
+      }
+      return { applied: false };
+    });
+    const record = { promise, controller };
+    this.backgroundCompactions.set(sessionId, record);
+    void promise.then((outcome) => {
+      if (this.backgroundCompactions.get(sessionId) === record) {
+        this.backgroundCompactions.delete(sessionId);
+      }
+      this.recordCompactionOutcome(sessionId, outcome.applied);
+    });
+  }
+
+  /**
+   * Join rule for a new activation: wait out this session's in-flight idle-time
+   * compaction within the budget; past it, abort the summary — the CAS apply
+   * keeps a late landing harmless, and the foreground triggers re-evaluate the
+   * un-compacted context exactly as they would have without backgrounding.
+   * Returns whether a record was found, so cheap callers (the pre-flight
+   * re-measure) can skip a guaranteed-identical recount when nothing was in
+   * flight.
+   */
+  protected async joinBackgroundCompaction(sessionId: string): Promise<boolean> {
+    const record = this.backgroundCompactions.get(sessionId);
+    if (!record) return false;
+    const settled = await withTimeoutNull(record.promise, this.backgroundCompactionJoinTimeoutMs);
+    if (settled === null) {
+      record.controller.abort();
+    }
+    return true;
+  }
+
+  /** Abort every in-flight idle-time compaction (dispose path). */
+  protected abortBackgroundCompactions(): void {
+    for (const record of this.backgroundCompactions.values()) {
+      if (!record.controller.signal.aborted) {
+        record.controller.abort();
+      }
+    }
+    this.backgroundCompactions.clear();
+  }
+
+  /**
+   * Session-deletion hook: stop a deleted session's in-flight background
+   * round (the CAS apply would discard it anyway, but the summary round-trip
+   * would still spend ledger-accounted tokens for a dead session) and drop
+   * the per-session compaction/breaker bookkeeping that otherwise leaks one
+   * entry per session for the manager's lifetime.
+   */
+  protected cleanupSessionResources(
+    sessionId: string,
+    options: { removeMessages: boolean; processIds?: number[] }
+  ): void {
+    super.cleanupSessionResources(sessionId, options);
+    const record = this.backgroundCompactions.get(sessionId);
+    if (record && !record.controller.signal.aborted) {
+      record.controller.abort();
+    }
+    this.backgroundCompactions.delete(sessionId);
+    this.backgroundCompactionEpochs.delete(sessionId);
+    this.rapidRefillBySession.delete(sessionId);
+    this.rapidRefillTrippedSessions.delete(sessionId);
+  }
+
+  /**
+   * Compact the session's middle history. `{ applied: false }` has two
+   * classes: DETERMINISTIC guard rejections (unpairable tool cluster, nothing
+   * eligible, no background LLM) — the auto-recovery caller fails once with an
+   * actionable error instead of retrying (wedge short-circuit; note its error
+   * message assumes this class); and NON-DETERMINISTIC concurrency discards
+   * (the CAS checks below lost a race with an undo/restore or a competing
+   * compaction) — a retry could succeed, so callers must not treat them as
+   * wedges. `{ applied: true }` after a Stage-A-only trim or a written
+   * summary.
+   *
+   * 并发契约（后台压缩并发管理）：plan 选区与 Stage-A 到其落盘全程同步
+   * （Node 单线程下天然无竞态）；Stage-B 摘要往返是唯一的异步间隙，期间
+   * 不触碰共享状态；apply 阶段重新读取 live 转录、按 ID 前缀复验计划仍
+   * 成立并复验 pairing，然后一次性同步变更+落盘（CAS 语义）——间隙期间
+   * 发生的 append 只延长尾部并得以保留，而 undo/restore、分支切换或竞争
+   * 压缩改写了头部则整体放弃本轮（`applied: false`）。
    */
   async compactSession(sessionId: string, signal?: AbortSignal): Promise<{ applied: boolean }> {
     this.throwIfAborted(signal);
@@ -1125,7 +1351,12 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
       if (countConversationTokens(sessionModel ?? model, sessionMessages) < threshold * STAGE_A_SKIP_HEADROOM) {
         // Stage A sufficed — skip the LLM summary. Reset the meter; the next
         // request re-measures (same contract as the post-summary path below).
+        // The epoch bump is load-bearing: a BACKGROUND round exiting here
+        // still rewrote the transcript, and the activation loop's stale
+        // pre-send meter stamp must not resurrect the pre-trim count (the
+        // exact doomed-inline-compaction race the epoch guard exists for).
         this.updateSessionEntry(sessionId, (entry) => ({ ...entry, activeTokens: 0, updateTime: now }));
+        this.noteAppliedCompaction(sessionId);
         return { applied: true };
       }
     }
@@ -1155,6 +1386,9 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
     const llmResponse = typeof rawLlmResponse === "string" ? rawLlmResponse : "";
     const compactedSummary = llmResponse.replace(/<analysis>[\s\S]*?<\/analysis>/gi, "").trim();
 
+    // Usage is accounted the moment the summary round-trip lands — the tokens
+    // were spent regardless of whether the CAS apply below wins its check.
+    const summaryLandedAt = new Date().toISOString();
     const responseUsage = response.usage ?? null;
     this.updateSessionEntry(sessionId, (entry) => ({
       ...entry,
@@ -1163,11 +1397,33 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
       // The compaction request's prompt size says nothing about the session's
       // real context pressure — reset and let the next model request re-measure.
       activeTokens: 0,
-      updateTime: now,
+      updateTime: summaryLandedAt,
     }));
+    // noteAppliedCompaction bumps the epoch synchronously with the meter reset
+    // (NOT in the fire-and-forget .then, which runs a microtask later): the
+    // activation loop's post-response stamps must see it immediately, or a
+    // background round landing during the tool window gets its reset clobbered
+    // by the stale pre-send measurement. Foreground inline applies bump it too
+    // — harmless, they always precede the same iteration's meterEpoch capture.
+    this.noteAppliedCompaction(sessionId);
+
+    // ── apply (CAS) ── The summarize await above is the only async gap; from
+    // here to the save there are no awaits. Re-read the live transcript and
+    // discard the round unless the plan snapshot is still its ID-identical
+    // prefix: messages appended during the summary only extend the tail and
+    // survive the save, but an undo/restore, branch switch, or competing
+    // compaction rewrote the head — splicing a stale summary into that would
+    // corrupt history, so the round is dropped instead.
+    const live = this.listSessionMessages(sessionId).filter((message) => !message.compacted);
+    if (!compactionRangeIntact(live, sessionMessages, endIndex)) {
+      return { applied: false };
+    }
+    if (!validateCompactionPairing(live, startIndex, endIndex)) {
+      return { applied: false };
+    }
 
     for (let i = startIndex; i < endIndex; i += 1) {
-      sessionMessages[i] = { ...sessionMessages[i], compacted: true, updateTime: now };
+      live[i] = { ...live[i], compacted: true, updateTime: summaryLandedAt };
     }
 
     const summaryMessage: SessionMessage = {
@@ -1179,14 +1435,14 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
       messageParams: null,
       compacted: false,
       visible: false,
-      createTime: now,
-      updateTime: now,
+      createTime: summaryLandedAt,
+      updateTime: summaryLandedAt,
       meta: {
         isSummary: true,
       },
     };
-    sessionMessages.splice(endIndex, 0, summaryMessage);
-    this.saveSessionMessages(sessionId, sessionMessages);
+    live.splice(endIndex, 0, summaryMessage);
+    this.saveSessionMessages(sessionId, live);
     return { applied: true };
   }
 
